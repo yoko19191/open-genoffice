@@ -1,4 +1,5 @@
 node_modules
+.scratch/pi-agent-platform-migration/prototypes/mineru-docx/live-results/
 out/
 dist/
 release/

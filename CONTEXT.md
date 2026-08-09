@@ -18,7 +18,8 @@ _Avoid_: AI 后端、Agent 服务
 
 **Runtime Sidecar**:
 名为 `open-genoffice-pi-agent-runtime` 的独立运行单元，承载 Runtime Host；
-其安装与生命周期形态仍需通过 ADR 确认。
+以目标平台 Node.js `22.19.0` executable 和 unpacked ESM bundle 随 Electron
+`extraResources` 交付，并由 Electron 负责启停、恢复与回收。
 _Avoid_: utility process、第二运行时
 
 **Resource Home**:
@@ -37,6 +38,16 @@ _Avoid_: Skill 内容、静态 Prompt、文档缓存
 **Office Tool**:
 由 GenOffice 编辑器提供、注册到 Pi Agent Session 的受控领域能力。
 _Avoid_: Pi 内置工具、Skill、编辑器命令
+
+**Image Provider**:
+由 Runtime Host 管理认证、请求、用量和资产落盘，把提示词转换为图片资产的可替换能力；
+图片模型不等同于 Agent Session 的对话模型。
+_Avoid_: 图片工具、聊天模型、Genspark 图片接口
+
+**Codex OAuth Image Provider**:
+复用 Pi `openai-codex` CredentialStore，通过 ChatGPT Codex Responses 的
+`image_generation` 服务端工具生成图片的 Image Provider。
+_Avoid_: 公开 OpenAI Images API、Sub2API 隐式回退、`gpt-image-2` 对话模型
 
 **Mutation Tool**:
 会改变 Office 文档或项目状态，并必须进入权限、顺序执行和撤销边界的 Office Tool。

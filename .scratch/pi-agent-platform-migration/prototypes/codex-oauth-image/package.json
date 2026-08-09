@@ -1,0 +1,13 @@
+{
+  "name": "open-genoffice-codex-oauth-image-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "probe": "node probe.mjs",
+    "probe:responses": "node probe-responses.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.84.0",
+    "@earendil-works/pi-coding-agent": "0.84.0"
+  }
+}

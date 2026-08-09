@@ -1,0 +1,20 @@
+{
+  "name": "open-genoffice-mineru-docx-prototype",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "live:fidelity": "node scripts/run-live-fidelity.mjs",
+    "lint": "eslint src test scripts/*.mjs",
+    "test": "node --test test/*.test.mjs",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-exclude=test/** --test-coverage-lines=95 --test-coverage-branches=95 --test-coverage-functions=95 --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.2"
+  },
+  "devDependencies": {
+    "eslint": "10.8.0"
+  }
+}

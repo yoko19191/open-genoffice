@@ -6,5 +6,6 @@ CredentialStore 独立持有，不读取或复用 `~/.pi`、`~/.codex` 中其他
 OAuth 登录、刷新、退出和撤销必须有完整的 UI 与错误状态；它不能退化成要求用户手工
 粘贴 OpenAI API key。
 
-这项决定只覆盖 Codex 模型 Provider。OAuth 凭据能否通过受支持接口生成图片必须先由
-兼容性 spike 证明，不能把未公开的 ChatGPT 内部接口当成已承诺契约。
+同一 CredentialStore 也服务于独立的 `CodexOAuthImageProvider`。图片 Provider 不把
+OAuth token 发送到公开 Images API，而是按 ADR 0013 中已经实测的 Codex Responses
+`image_generation` 契约运行；对话模型选择与图片模型选择保持分离。

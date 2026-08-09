@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Synthetic non-sensitive MinerU PDF-to-DOCX fidelity corpus",
+  "fontSource": "MapleMono-NF-CN-Medium.ttf",
+  "documents": [
+    {
+      "file": "01-born-digital-bilingual.pdf",
+      "class": "born-digital-bilingual",
+      "markers": ["OGEN-S05-PROSE-001", "本地优先", "R-2048"],
+      "expected": {
+        "textLayer": true,
+        "tables": 0,
+        "imagesAtLeast": 0
+      },
+      "bytes": 43442,
+      "pages": 1
+    },
+    {
+      "file": "02-two-column-formula.pdf",
+      "class": "two-column-formula",
+      "markers": ["LEFT-COLUMN-01", "RIGHT-COLUMN-01", "FORMULA-BLOCK-01"],
+      "expected": {
+        "textLayer": true,
+        "tables": 0,
+        "formulasAtLeast": 1,
+        "imagesAtLeast": 0
+      },
+      "bytes": 22828,
+      "pages": 1
+    },
+    {
+      "file": "03-merged-table-image.pdf",
+      "class": "merged-table-image",
+      "markers": ["MERGED-HEADER-01", "A-01", "IMAGE-ASSET-01"],
+      "expected": {
+        "textLayer": true,
+        "tables": 1,
+        "imagesAtLeast": 1
+      },
+      "bytes": 32784,
+      "pages": 1
+    },
+    {
+      "file": "04-image-heavy.pdf",
+      "class": "image-heavy",
+      "markers": ["IMAGE-GRID-01", "ASSET-01", "ASSET-06"],
+      "expected": {
+        "textLayer": true,
+        "tables": 0,
+        "imagesAtLeast": 0
+      },
+      "note": "Vector drawings may remain drawing objects or be rasterized; all six panels must remain visible.",
+      "bytes": 16147,
+      "pages": 1
+    },
+    {
+      "file": "05-scanned-bilingual.pdf",
+      "class": "scanned-bilingual",
+      "markers": ["SCAN-BILINGUAL-01", "OCR-7391", "END-SCAN-01"],
+      "expected": {
+        "textLayer": false,
+        "tables": 0,
+        "imagesAtLeast": 1
+      },
+      "bytes": 84592,
+      "pages": 1
+    }
+  ]
+}
