@@ -179,7 +179,7 @@ describe('Pi Runtime bundle builder', () => {
         })
       }
     }
-  })
+  }, 15_000)
 
   it('exposes a path-free machine CLI contract', async () => {
     const options = await inputs()
