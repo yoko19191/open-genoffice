@@ -1117,10 +1117,41 @@ body.vib .home {
   font: inherit;
 }
 
+.provider-credential-field select {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-6);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.provider-credential-field-first {
+  margin-top: 8px;
+}
+
 .provider-credential-field input:focus {
   border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px rgb(35 36 37 / 10%);
+}
+
+.provider-credential-field select:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(35 36 37 / 10%);
+}
+
+.provider-oauth {
+  margin-top: 18px;
+}
+
+.provider-device-code {
+  padding: 10px 12px;
+  border-radius: var(--radius-6);
+  background: var(--surface-subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .provider-credential-modes {

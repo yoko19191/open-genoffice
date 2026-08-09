@@ -53,6 +53,7 @@ import {
   AgentSessionBroker,
   installAgentSessionIpc,
   SecureStorageBroker,
+  safeExternalUrl,
 } from '@genoffice/electron-utils'
 import { readAppSettings, writeAppSetting } from './app-settings'
 import {
@@ -148,6 +149,7 @@ import { applyUpdateChannel, initAutoUpdater } from './updater'
 import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
 import { PI_RUNTIME_CHANNELS } from '../shared/pi-runtime-api'
 import { installProviderCredentialIpc } from './provider-credential-ipc'
+import { installModelManagementIpc } from './model-management-ipc'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -2348,6 +2350,16 @@ const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroke
 ipcMain.handle(PI_RUNTIME_CHANNELS.health, () => piRuntimeService.health())
 installProviderCredentialIpc(ipcMain, piRuntimeService, () =>
   shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null,
+)
+installModelManagementIpc(
+  ipcMain,
+  piRuntimeService,
+  () => (shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null),
+  async (url) => {
+    const safeUrl = safeExternalUrl(url, { allowedProtocols: ['https:'] })
+    if (!safeUrl) throw new Error('oauth_url_invalid')
+    await shell.openExternal(safeUrl)
+  },
 )
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here

@@ -22,6 +22,12 @@ import {
   asProviderCredentialInput,
   asProviderCredentialStatus,
   asProviderId,
+  asModelCatalog,
+  asModelSelectInput,
+  asModelOAuthStartInput,
+  asModelOAuthOperationInput,
+  asModelOAuthResponseInput,
+  asOAuthOperation,
   type PiRuntimeApi,
 } from '../shared/pi-runtime-api'
 
@@ -285,6 +291,48 @@ const piRuntimeApi: PiRuntimeApi = {
   async logoutProvider(providerId) {
     return asProviderCredentialStatus(
       await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.logoutProvider, asProviderId(providerId)),
+    )
+  },
+  async modelCatalog() {
+    return asModelCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.modelCatalog))
+  },
+  async selectModel(input) {
+    return asModelCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.selectModel, asModelSelectInput(input)),
+    )
+  },
+  async startModelOAuth(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.startModelOAuth, asModelOAuthStartInput(input)),
+    )
+  },
+  async modelOAuthStatus(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.modelOAuthStatus,
+        asModelOAuthOperationInput(input),
+      ),
+    )
+  },
+  async respondModelOAuth(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.respondModelOAuth,
+        asModelOAuthResponseInput(input),
+      ),
+    )
+  },
+  async cancelModelOAuth(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.cancelModelOAuth,
+        asModelOAuthOperationInput(input),
+      ),
+    )
+  },
+  async logoutModel(providerId) {
+    return asModelCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.logoutModel, asProviderId(providerId)),
     )
   },
 }

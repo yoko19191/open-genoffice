@@ -428,44 +428,83 @@ const CHANNEL_OPTIONS = [
 ] as const
 
 const PRIMARY_MODEL_PROVIDER_ID = 'openai'
+type ModelCatalog = Awaited<ReturnType<PiRuntimeApi['modelCatalog']>>
+type OAuthOperation = Awaited<ReturnType<PiRuntimeApi['modelOAuthStatus']>>
 
 function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const { lang } = useI18n()
   const zh = lang === 'zh' || lang === 'zh-TW'
-  const [status, setStatus] = useState<
-    Awaited<ReturnType<PiRuntimeApi['providerCredentialStatus']>> | undefined
-  >()
+  const [catalog, setCatalog] = useState<ModelCatalog>()
+  const [providerId, setProviderId] = useState(PRIMARY_MODEL_PROVIDER_ID)
   const [apiKey, setApiKey] = useState('')
   const [persistence, setPersistence] = useState<'persistent' | 'memory_only'>('persistent')
+  const [oauth, setOAuth] = useState<OAuthOperation>()
+  const [oauthResponse, setOAuthResponse] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const refreshStatus = useCallback(async () => {
+  const refreshCatalog = useCallback(async () => {
     try {
-      const next = await window.aiOfficeAgent.providerCredentialStatus(PRIMARY_MODEL_PROVIDER_ID)
-      setStatus(next)
-      if (next.status === 'secure_storage_unavailable') setPersistence('memory_only')
-    } catch {
-      setError('credential_status_failed')
+      const next = await window.aiOfficeAgent.modelCatalog()
+      setCatalog(next)
+      const selected = next.selections.conversation?.providerId
+      if (selected && next.providers.some((provider) => provider.providerId === selected)) {
+        setProviderId(selected)
+      } else if (!next.providers.some((provider) => provider.providerId === providerId)) {
+        setProviderId(next.providers[0]?.providerId ?? PRIMARY_MODEL_PROVIDER_ID)
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_catalog_failed')
     }
-  }, [])
+  }, [providerId])
 
   useEffect(() => {
-    void refreshStatus()
-  }, [refreshStatus])
+    void refreshCatalog()
+  }, [refreshCatalog])
 
-  const save = async () => {
+  useEffect(() => {
+    if (
+      !oauth ||
+      oauth.state === 'ready' ||
+      oauth.state === 'failed' ||
+      oauth.state === 'cancelled'
+    )
+      return
+    let active = true
+    const poll = async () => {
+      try {
+        const next = await window.aiOfficeAgent.modelOAuthStatus({
+          operationId: oauth.operationId,
+        })
+        if (!active) return
+        setOAuth(next)
+        if (next.state === 'ready') await refreshCatalog()
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : 'model_oauth_failed')
+      }
+    }
+    const timer = window.setInterval(() => void poll(), 750)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [oauth, refreshCatalog])
+
+  const provider = catalog?.providers.find((item) => item.providerId === providerId)
+  const selected = catalog?.selections.conversation
+
+  const saveApiKey = async () => {
     if (!apiKey || busy) return
     setBusy(true)
     setError(null)
     try {
-      const next = await window.aiOfficeAgent.saveProviderApiKey({
-        providerId: PRIMARY_MODEL_PROVIDER_ID,
+      await window.aiOfficeAgent.saveProviderApiKey({
+        providerId,
         persistence,
         apiKey,
       })
-      setStatus(next)
       setApiKey('')
+      await refreshCatalog()
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'credential_persist_failed'
       const code = message.includes('secure_storage_unavailable')
@@ -478,13 +517,81 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const selectModel = async (value: string) => {
+    const [nextProviderId, modelId] = value.split('\0')
+    if (!nextProviderId || !modelId || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await window.aiOfficeAgent.selectModel({
+        role: 'conversation',
+        providerId: nextProviderId,
+        modelId,
+      })
+      setCatalog(next)
+      setProviderId(nextProviderId)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_select_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startOAuth = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setOAuth(
+        await window.aiOfficeAgent.startModelOAuth({
+          operationId: crypto.randomUUID(),
+          providerId,
+        }),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_oauth_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const respondOAuth = async () => {
+    if (!oauth || !oauthResponse || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await window.aiOfficeAgent.respondModelOAuth({
+        operationId: oauth.operationId,
+        value: oauthResponse,
+      })
+      setOAuthResponse('')
+      setOAuth(next)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_oauth_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cancelOAuth = async () => {
+    if (!oauth || busy) return
+    setBusy(true)
+    try {
+      setOAuth(await window.aiOfficeAgent.cancelModelOAuth({ operationId: oauth.operationId }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const logout = async () => {
     if (busy) return
     setBusy(true)
     setError(null)
     try {
-      setStatus(await window.aiOfficeAgent.logoutProvider(PRIMARY_MODEL_PROVIDER_ID))
+      setCatalog(await window.aiOfficeAgent.logoutModel(providerId))
       setApiKey('')
+      setOAuth(undefined)
+      setOAuthResponse('')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'credential_delete_failed')
     } finally {
@@ -492,18 +599,21 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const statusText =
-    status?.status === 'available'
-      ? zh
-        ? `已配置 · ${status.persistence === 'memory_only' ? '仅本次运行' : '系统安全存储'}`
-        : `Configured · ${status.persistence === 'memory_only' ? 'this run only' : 'secure storage'}`
-      : status?.status === 'secure_storage_unavailable'
-        ? zh
-          ? '系统安全存储不可用，可显式改用仅本次运行'
-          : 'Secure storage is unavailable. You can explicitly use this run only.'
-        : zh
-          ? '尚未配置'
-          : 'Not configured'
+  const statusText = provider
+    ? zh
+      ? {
+          ready: '已就绪',
+          needs_credentials: '需要在本机登录或配置密钥',
+          checking: '正在检查',
+          refreshing: '正在刷新登录',
+          incompatible: '协议或能力不兼容',
+          unavailable: '服务暂不可用',
+          disabled: '已停用',
+        }[provider.state]
+      : provider.state.replaceAll('_', ' ')
+    : zh
+      ? '正在读取模型目录…'
+      : 'Loading model catalog…'
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -515,46 +625,131 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
         onClick={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
-          void save()
+          if (provider?.authMethods.includes('api_key')) void saveApiKey()
         }}
       >
         <h3>{zh ? '模型服务商' : 'Model provider'}</h3>
-        <p className="provider-credential-provider">OpenAI API key</p>
+        <label className="provider-credential-field provider-credential-field-first">
+          <span>{zh ? '服务商' : 'Provider'}</span>
+          <select value={providerId} onChange={(event) => setProviderId(event.target.value)}>
+            {catalog?.providers.map((item) => (
+              <option key={item.providerId} value={item.providerId}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <p className="provider-credential-status" role="status">
           {statusText}
         </p>
         <label className="provider-credential-field">
-          <span>{zh ? 'API 密钥' : 'API key'}</span>
-          <input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="sk-…"
-          />
+          <span>{zh ? '对话模型' : 'Conversation model'}</span>
+          <select
+            value={selected ? `${selected.providerId}\0${selected.modelId}` : ''}
+            disabled={busy}
+            onChange={(event) => void selectModel(event.target.value)}
+          >
+            <option value="" disabled>
+              {zh ? '请选择模型' : 'Choose a model'}
+            </option>
+            {catalog?.providers.flatMap((item) =>
+              item.models.map((model) => (
+                <option
+                  key={`${item.providerId}/${model.modelId}`}
+                  value={`${item.providerId}\0${model.modelId}`}
+                >
+                  {item.name} · {model.name}
+                </option>
+              )),
+            )}
+          </select>
         </label>
-        <fieldset className="provider-credential-modes">
-          <legend>{zh ? '保存方式' : 'Storage'}</legend>
-          <label>
-            <input
-              type="radio"
-              name="provider-persistence"
-              checked={persistence === 'persistent'}
-              onChange={() => setPersistence('persistent')}
-            />
-            <span>{zh ? '系统安全存储' : 'Secure system storage'}</span>
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="provider-persistence"
-              checked={persistence === 'memory_only'}
-              onChange={() => setPersistence('memory_only')}
-            />
-            <span>{zh ? '仅本次运行，退出即失效' : 'This run only; cleared on exit'}</span>
-          </label>
-        </fieldset>
+        {provider?.authMethods.includes('api_key') && (
+          <>
+            <label className="provider-credential-field">
+              <span>{zh ? 'API 密钥（只写）' : 'API key (write-only)'}</span>
+              <input
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="sk-…"
+              />
+            </label>
+            <fieldset className="provider-credential-modes">
+              <legend>{zh ? '保存方式' : 'Storage'}</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="provider-persistence"
+                  checked={persistence === 'persistent'}
+                  onChange={() => setPersistence('persistent')}
+                />
+                <span>{zh ? '系统安全存储' : 'Secure system storage'}</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="provider-persistence"
+                  checked={persistence === 'memory_only'}
+                  onChange={() => setPersistence('memory_only')}
+                />
+                <span>{zh ? '仅本次运行，退出即失效' : 'This run only; cleared on exit'}</span>
+              </label>
+            </fieldset>
+          </>
+        )}
+        {provider?.authMethods.includes('oauth') && (
+          <div className="provider-oauth">
+            {!oauth || oauth.state === 'failed' || oauth.state === 'cancelled' ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={startOAuth}
+              >
+                {zh ? '使用 Codex 登录' : 'Sign in with Codex'}
+              </button>
+            ) : (
+              <p className="provider-credential-status">
+                {oauth.state === 'ready'
+                  ? zh
+                    ? '登录完成'
+                    : 'Signed in'
+                  : zh
+                    ? '请在浏览器中完成登录'
+                    : 'Complete sign-in in your browser'}
+              </p>
+            )}
+            {oauth?.interaction?.type === 'device_code' && (
+              <p className="provider-device-code">
+                {zh ? '设备码：' : 'Device code: '}
+                <strong>{oauth.interaction.userCode}</strong>
+              </p>
+            )}
+            {oauth?.interaction?.type === 'prompt' && (
+              <label className="provider-credential-field">
+                <span>{zh ? '一次性响应' : 'One-time response'}</span>
+                <input
+                  type={oauth.interaction.promptType === 'secret' ? 'password' : 'text'}
+                  autoComplete="off"
+                  value={oauthResponse}
+                  placeholder={oauth.interaction.placeholder}
+                  onChange={(event) => setOAuthResponse(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !oauthResponse}
+                  onClick={respondOAuth}
+                >
+                  {zh ? '提交' : 'Submit'}
+                </button>
+              </label>
+            )}
+          </div>
+        )}
         {error && (
           <p className="provider-credential-error">
             {error === 'secure_storage_unavailable'
@@ -567,18 +762,33 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
           </p>
         )}
         <div className="modal-buttons provider-credential-actions">
-          {status?.status === 'available' && (
+          {provider?.state === 'ready' && (
             <button type="button" className="btn btn-danger" disabled={busy} onClick={logout}>
               {zh ? '退出服务商' : 'Sign out provider'}
             </button>
           )}
+          {oauth &&
+            oauth.state !== 'ready' &&
+            oauth.state !== 'failed' &&
+            oauth.state !== 'cancelled' && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={cancelOAuth}
+              >
+                {zh ? '取消登录' : 'Cancel sign-in'}
+              </button>
+            )}
           <span className="provider-credential-action-spacer" />
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             {zh ? '关闭' : 'Close'}
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy || !apiKey}>
-            {busy ? (zh ? '保存中…' : 'Saving…') : zh ? '保存' : 'Save'}
-          </button>
+          {provider?.authMethods.includes('api_key') && (
+            <button type="submit" className="btn btn-primary" disabled={busy || !apiKey}>
+              {busy ? (zh ? '保存中…' : 'Saving…') : zh ? '保存' : 'Save'}
+            </button>
+          )}
         </div>
       </form>
     </div>
