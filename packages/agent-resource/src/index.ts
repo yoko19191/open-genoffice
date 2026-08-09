@@ -33,3 +33,11 @@ export {
   type DocumentFormat,
   type DocumentPathTransition,
 } from './document-binding'
+export {
+  DocumentSessionIndexError,
+  DocumentSessionIndexSchema,
+  DocumentSessionIndexStore,
+  type DocumentSessionIndex,
+  type DocumentSessionIndexErrorCode,
+  type DocumentSessionIndexStoreOptions,
+} from './document-session-index'

@@ -206,6 +206,47 @@ describe('Electron main Agent Session broker', () => {
     await fixture.broker.close()
   })
 
+  it('restores one persisted current Session and rejects a non-current renderer request', async () => {
+    const fixture = harness()
+    let currentSessionId: string | undefined
+    const currentSessions = {
+      resolveCurrent: vi.fn(async (_documentId: string, create: () => Promise<string>) => {
+        currentSessionId ??= await create()
+        return currentSessionId
+      }),
+      assertCurrent: vi.fn(async (_documentId: string, requestedSessionId: string) => {
+        if (requestedSessionId !== currentSessionId) throw new Error('document_session_not_current')
+      }),
+    }
+    const options = {
+      authorize: async () => true,
+      randomUUID: () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      currentSessions,
+    }
+    const broker = new AgentSessionBroker(fixture.transport, options)
+
+    await expect(broker.connect(1, { documentId }, () => {})).resolves.toMatchObject({ sessionId })
+    await broker.close()
+    const restarted = new AgentSessionBroker(fixture.transport, options)
+    await expect(restarted.connect(2, { documentId }, () => {})).resolves.toMatchObject({
+      sessionId,
+    })
+    await expect(restarted.connect(3, { documentId, sessionId }, () => {})).resolves.toMatchObject({
+      sessionId,
+    })
+    expect(fixture.transport.createSession).toHaveBeenCalledOnce()
+    expect(fixture.transport.openSession).toHaveBeenCalledTimes(2)
+    await expect(
+      restarted.connect(
+        4,
+        { documentId, sessionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
+        () => {},
+      ),
+    ).rejects.toThrowError('document_session_not_current')
+    expect(fixture.transport.openSession).toHaveBeenCalledTimes(2)
+    await restarted.close()
+  })
+
   it('allows commands only for the connected renderer and exact document binding', async () => {
     const fixture = harness()
     const command = {

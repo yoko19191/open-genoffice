@@ -43,6 +43,10 @@ export type AgentSessionBrokerOptions<ClientId> = {
   authorize(clientId: ClientId, documentId: string): boolean | Promise<boolean>
   randomUUID: () => string
   replayWindowSize?: number
+  currentSessions?: {
+    resolveCurrent(documentId: string, create: () => Promise<string>): Promise<string>
+    assertCurrent(documentId: string, sessionId: string): Promise<unknown>
+  }
 }
 
 type SessionStream = {
@@ -90,16 +94,7 @@ export class AgentSessionBroker<ClientId = number> {
 
     await this.ensureListening()
     this.disconnect(clientId)
-    const opened = request.sessionId
-      ? await this.transport.openSession({
-          operationId: this.options.randomUUID(),
-          sessionId: request.sessionId,
-          documentId: request.documentId,
-        })
-      : await this.transport.createSession({
-          operationId: this.options.randomUUID(),
-          documentId: request.documentId,
-        })
+    const opened = await this.openCurrentSession(request)
     this.assertBinding(opened, opened.sessionId, request.documentId)
 
     const subscription = await this.transport.subscribeSession({
@@ -201,6 +196,45 @@ export class AgentSessionBroker<ClientId = number> {
       this.unsubscribe = unsubscribe
     })
     await this.listenPromise
+  }
+
+  private async openCurrentSession(
+    request: AgentSessionConnectRequest,
+  ): Promise<SessionConnectionReceipt> {
+    if (request.sessionId) {
+      await this.options.currentSessions?.assertCurrent(request.documentId, request.sessionId)
+      return this.transport.openSession({
+        operationId: this.options.randomUUID(),
+        sessionId: request.sessionId,
+        documentId: request.documentId,
+      })
+    }
+    if (!this.options.currentSessions) {
+      return this.transport.createSession({
+        operationId: this.options.randomUUID(),
+        documentId: request.documentId,
+      })
+    }
+    let created: SessionConnectionReceipt | undefined
+    const sessionId = await this.options.currentSessions.resolveCurrent(
+      request.documentId,
+      async () => {
+        created = await this.transport.createSession({
+          operationId: this.options.randomUUID(),
+          documentId: request.documentId,
+        })
+        this.assertBinding(created, created.sessionId, request.documentId)
+        return created.sessionId
+      },
+    )
+    return (
+      created ??
+      (await this.transport.openSession({
+        operationId: this.options.randomUUID(),
+        sessionId,
+        documentId: request.documentId,
+      }))
+    )
   }
 
   private onEvent(event: EventEnvelope): void {

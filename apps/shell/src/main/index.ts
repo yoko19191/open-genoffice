@@ -35,7 +35,11 @@ import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@genoffice/i18n'
 import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
-import { DocumentBindingStore, type DocumentFormat } from '@genoffice/agent-resource'
+import {
+  DocumentBindingStore,
+  DocumentSessionIndexStore,
+  type DocumentFormat,
+} from '@genoffice/agent-resource'
 import {
   appMenuLabels,
   contextMenuLabels,
@@ -1231,6 +1235,10 @@ const documentBindingStore = new DocumentBindingStore({
   rootDirectory: AGENT_RESOURCE_HOME,
   platform: process.platform,
 })
+const documentSessionIndexStore = new DocumentSessionIndexStore({
+  rootDirectory: AGENT_RESOURCE_HOME,
+  platform: process.platform,
+})
 
 function agentDocumentType(kind: Exclude<TabKind, 'home'>): {
   format: DocumentFormat
@@ -1272,6 +1280,12 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
   authorize: (webContentsId, documentId) =>
     tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
   randomUUID,
+  currentSessions: {
+    resolveCurrent: async (documentId, create) =>
+      (await documentSessionIndexStore.resolveCurrent(documentId, create)).currentSessionId,
+    assertCurrent: (documentId, sessionId) =>
+      documentSessionIndexStore.assertCurrent(documentId, sessionId),
+  },
 })
 
 /**
