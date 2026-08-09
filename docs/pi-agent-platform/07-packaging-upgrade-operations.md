@@ -325,12 +325,12 @@ Session open 与 Office 文件 smoke。回滚不恢复 Genspark、旧 AgentLoop�
 
 | ID     | Title                                                           | Type | Blocked by                | 覆盖验收                 |
 | ------ | --------------------------------------------------------------- | ---- | ------------------------- | ------------------------ |
-| PK-I01 | 构建并校验当前平台 Runtime bundle，随 unsigned Electron 包首次启动 | AFK  | #1、QA-I01               | AR-009/010、PK-001       |
-| PK-I02 | 在 macOS arm64 签名、公证并回收 Runtime/MCP/Subagent 进程树       | HITL | PK-I01、#20、#22         | AR-003/009/010、PK-002   |
-| PK-I03 | 在 Windows x64 以 Named Pipe 与 Job Object 完成安装升级退出       | HITL | PK-I01、#20、#22         | AR-003/009/010、PK-001/2 |
-| PK-I04 | 在 Linux x64 glibc AppImage 完成安装升级退出和 feed 产物          | AFK  | PK-I01、#20、#22         | AR-003/009/010、PK-001/2 |
-| PK-I05 | 幂等清理旧 Agent 数据并验证升级、降级、卸载保留边界              | AFK  | #11、PK-I01              | AR-008、GX-002、PK-002   |
-| PK-I06 | 汇总验收、SBOM 与 Genspark-Free 审计后推广同一 RC artifact        | HITL | OT-I08、QA-I03/04、PK-I02～05 | GX-001～004、QA-001 |
+| [PK-I01 / #39](https://github.com/yoko19191/open-genoffice/issues/39) | 构建并校验当前平台 Runtime bundle，随 unsigned Electron 包首次启动 | AFK  | #1、#27                  | AR-009/010、PK-001       |
+| [PK-I02 / #40](https://github.com/yoko19191/open-genoffice/issues/40) | 在 macOS arm64 签名、公证并回收 Runtime/MCP/Subagent 进程树       | HITL | #39、#20、#22            | AR-003/009/010、PK-002   |
+| [PK-I03 / #41](https://github.com/yoko19191/open-genoffice/issues/41) | 在 Windows x64 以 Named Pipe 与 Job Object 完成安装升级退出       | HITL | #39、#20、#22            | AR-003/009/010、PK-001/2 |
+| [PK-I04 / #42](https://github.com/yoko19191/open-genoffice/issues/42) | 在 Linux x64 glibc AppImage 完成安装升级退出和 feed 产物          | AFK  | #39、#20、#22            | AR-003/009/010、PK-001/2 |
+| [PK-I05 / #43](https://github.com/yoko19191/open-genoffice/issues/43) | 幂等清理旧 Agent 数据并验证升级、降级、卸载保留边界              | AFK  | #11、#39                 | AR-008、GX-002、PK-002   |
+| [PK-I06 / #44](https://github.com/yoko19191/open-genoffice/issues/44) | 汇总验收、SBOM 与 Genspark-Free 审计后推广同一 RC artifact        | HITL | #36～#38、#40～#43       | GX-001～004、QA-001      |
 
 HITL 表示需要发行证书、受保护环境或用户确认；实现与无签名 smoke 仍应尽量由 AFK Agent 完成。
 

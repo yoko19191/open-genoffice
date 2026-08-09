@@ -233,14 +233,14 @@ manifest 由测试工具生成，不接受人工编辑为 `passed`。RC 汇总�
 
 ## 9. 跨切片实施票
 
-以下只有真正被多个纵向切片共享的测试设施可以独立成票，拆票已批准、待发布：
+以下只有真正被多个纵向切片共享的测试设施可以独立成票，拆票已批准并发布：
 
 | ID     | Title                                                        | Type | Blocked by | 覆盖验收                     |
 | ------ | ------------------------------------------------------------ | ---- | ---------- | ---------------------------- |
-| QA-I01 | 用 fake Provider 与协议向量建立可重复的 Agent contract/coverage gate | AFK  | #1、#2     | AR-001/002/006、QA-001       |
-| QA-I02 | 生成 Catalog/Receipt evidence manifest 并汇总验收 ID         | AFK  | QA-I01、#5 | OT-001～005、OTC-001/002/010 |
-| QA-I03 | 在安装包网络沙箱中审计 Genspark 依赖、字符串与请求           | AFK  | OT-I08     | GX-001～004                  |
-| QA-I04 | 用隔离账号收集 Codex OAuth、MinerU 与同步 Provider 发行证据  | HITL | #12、#13、#24、#25 | MD-004/005、OCR、SY      |
+| [QA-I01 / #27](https://github.com/yoko19191/open-genoffice/issues/27) | 用 fake Provider 与协议向量建立可重复的 Agent contract/coverage gate | AFK  | #1、#2             | AR-001/002/006、QA-001       |
+| [QA-I02 / #28](https://github.com/yoko19191/open-genoffice/issues/28) | 生成 Catalog/Receipt evidence manifest 并汇总验收 ID         | AFK  | #27、#5            | OT-001～005、OTC-001/002/010 |
+| [QA-I03 / #37](https://github.com/yoko19191/open-genoffice/issues/37) | 在安装包网络沙箱中审计 Genspark 依赖、字符串与请求           | AFK  | #36                | GX-001～004                  |
+| [QA-I04 / #38](https://github.com/yoko19191/open-genoffice/issues/38) | 用隔离账号收集 Codex OAuth、MinerU 与同步 Provider 发行证据  | HITL | #12、#13、#24、#25 | MD-004/005、OCR、SY          |
 
 App、MCP、Subagent、同步和 Slides 的测试仍归各自行为 Issue，不重复创建测试专票。
 
