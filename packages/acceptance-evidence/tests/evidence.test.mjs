@@ -21,7 +21,7 @@ async function createInputs(report = { success: true, numFailedTests: 0, numFail
   return { repoRoot, reportPath, fixturePath, outputPath }
 }
 
-describe('acceptance evidence collector', () => {
+describe('acceptance evidence workspace', () => {
   it('derives passed results and fixture hashes from verified files', async () => {
     const input = await createInputs()
     const evidence = await collectAcceptanceEvidence({

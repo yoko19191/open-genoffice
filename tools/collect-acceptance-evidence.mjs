@@ -1,8 +1,8 @@
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runAcceptanceEvidenceCli } from '../apps/pi-agent-runtime/src/acceptance-evidence.mjs'
+import { runAcceptanceEvidenceCli } from '../packages/acceptance-evidence/src/index.mjs'
 
-export * from '../apps/pi-agent-runtime/src/acceptance-evidence.mjs'
+export * from '../packages/acceptance-evidence/src/index.mjs'
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   runAcceptanceEvidenceCli(process.argv.slice(2))

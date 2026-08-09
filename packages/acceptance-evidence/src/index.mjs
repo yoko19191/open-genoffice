@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { arch as hostArch, platform as hostPlatform } from 'node:os'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 
-const REDACTION_PATTERNS = [
+const SENSITIVE_PATTERNS = [
   /\/Users\/[^/]+\//,
   /[A-Za-z]:\\+Users\\+[^\\]+\\+/i,
   /\bBearer\s+\S+/i,
@@ -23,7 +23,7 @@ function inside(repoRoot, inputPath) {
 }
 
 function assertRedacted(content) {
-  if (REDACTION_PATTERNS.some((pattern) => pattern.test(content))) {
+  if (SENSITIVE_PATTERNS.some((pattern) => pattern.test(content))) {
     throw new Error('redaction_failed')
   }
 }

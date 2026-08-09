@@ -1,0 +1,15 @@
+{
+  "name": "@genoffice/acceptance-evidence",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "node --check src/index.mjs && node --check tests/evidence.test.mjs",
+    "test": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
+    "vitest": "^4.1.0"
+  }
+}
