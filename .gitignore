@@ -2,6 +2,7 @@ node_modules
 .scratch/pi-agent-platform-migration/prototypes/mineru-docx/live-results/
 out/
 dist/
+coverage/
 release/
 *.log
 .DS_Store

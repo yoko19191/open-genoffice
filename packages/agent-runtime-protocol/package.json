@@ -1,23 +1,22 @@
 {
-  "name": "@genoffice/project-store",
+  "name": "@genoffice/agent-runtime-protocol",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "description": "Local project-based document storage and chat history persistence (no Electron dependency)",
+  "description": "Secret-free schemas and validators for the Open GenOffice Pi Runtime boundary",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1106.0",
-    "webdav": "5.10.0"
+    "@sinclair/typebox": "0.34.52"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   }
