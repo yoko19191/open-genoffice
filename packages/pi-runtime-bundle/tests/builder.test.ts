@@ -72,8 +72,12 @@ describe('Pi Runtime bundle builder', () => {
       'self-test/native-capability-smoke.mjs',
       'self-test/native-smoke-extension.mjs',
     ])
-    expect((await lstat(verified.executablePath)).isSymbolicLink()).toBe(false)
-    expect((await lstat(verified.executablePath)).ino).not.toBe((await lstat(process.execPath)).ino)
+    const copiedNode = await lstat(verified.executablePath)
+    expect(copiedNode.isSymbolicLink()).toBe(false)
+    expect(copiedNode.nlink).toBe(1)
+    if (process.platform !== 'win32') {
+      expect(copiedNode.ino).not.toBe((await lstat(process.execPath)).ino)
+    }
     const entry = await readFile(verified.entryPath, 'utf8')
     expect(entry).toContain('runtime_crash')
     expect(entry).toContain('const require = __genofficeCreateRequire(import.meta.url)')
