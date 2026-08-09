@@ -107,3 +107,18 @@ export {
   type ResourceState,
   type ScanResourceCatalogOptions,
 } from './resource-catalog'
+export {
+  PackageLockError,
+  PackageLockSchema,
+  PackageLockService,
+  type PackageCatalogProjection,
+  type PackageInstallInput,
+  type PackageLock,
+  type PackageLockEntry,
+  type PackageLockErrorCode,
+  type PackageLockServiceOptions,
+  type PackageProjectionStatus,
+  type PackageSource,
+  type PackageToolDescriptor,
+  type ResolvedPackage,
+} from './package-lock'
