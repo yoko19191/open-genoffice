@@ -40,8 +40,8 @@ const execFileAsync = promisify(execFile)
 export class PiRuntimeBundleBuildError extends Error {
   readonly code: string
 
-  constructor(code: string) {
-    super(code)
+  constructor(code: string, cause?: unknown) {
+    super(code, cause === undefined ? undefined : { cause })
     this.name = 'PiRuntimeBundleBuildError'
     this.code = code
   }
@@ -252,7 +252,7 @@ export async function buildPiRuntimeBundle(
     })
   } catch (error) {
     await rm(stagingDirectory, { recursive: true, force: true })
-    throw new PiRuntimeBundleBuildError('runtime_bundle_build_failed')
+    throw new PiRuntimeBundleBuildError('runtime_bundle_build_failed', error)
   }
 }
 

@@ -94,13 +94,19 @@ describe('copied Pi Runtime end to end', () => {
         verified.capabilitySmokeEntryPath,
       ])
       expect(stderr).toBe('')
-      expect(JSON.parse(stdout)).toMatchObject({
+      const capabilityResult = JSON.parse(stdout)
+      expect(capabilityResult).toMatchObject({
         status: 'passed',
         piEsm: true,
         extension: 'native_smoke_extension',
         nativeAddon: 'win32-console-mode.node',
         mcp: { tool: 'native_smoke_echo', result: 'mcp:windows-native' },
       })
+      const capabilityOutput = process.env.GENOFFICE_WINDOWS_CAPABILITY_OUTPUT
+      if (capabilityOutput) {
+        await mkdir(dirname(capabilityOutput), { recursive: true })
+        await writeFile(capabilityOutput, `${JSON.stringify(capabilityResult, null, 2)}\n`)
+      }
       await rm(root, { recursive: true, force: true })
     },
     15_000,
@@ -342,6 +348,35 @@ describe('copied Pi Runtime end to end', () => {
     await expect(service.initialize()).resolves.toMatchObject({ state: 'ready' })
     await service.shutdown()
     expect(service.health()).toMatchObject({ state: 'stopped' })
+
+    const nativeRuntimeOutput = process.env.GENOFFICE_WINDOWS_RUNTIME_OUTPUT
+    if (process.platform === 'win32' && nativeRuntimeOutput) {
+      await mkdir(dirname(nativeRuntimeOutput), { recursive: true })
+      await writeFile(
+        nativeRuntimeOutput,
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            platform: verified.manifest.platform,
+            arch: verified.manifest.arch,
+            manifestSha256: verified.manifestSha256,
+            treeSha256: verified.manifest.treeSha256,
+            nodeVersion: verified.manifest.nodeVersion,
+            piVersion: verified.manifest.piVersion,
+            protocolVersion: verified.manifest.protocolVersion,
+            namedPipe: {
+              hello: true,
+              status: true,
+              session: true,
+              shutdown: true,
+            },
+            exit: { runtimeGone: true },
+          },
+          null,
+          2,
+        )}\n`,
+      )
+    }
 
     await rm(root, { recursive: true, force: true })
   }, 15_000)

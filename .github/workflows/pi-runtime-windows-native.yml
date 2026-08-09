@@ -30,6 +30,8 @@ jobs:
     env:
       GENOFFICE_WINDOWS_JOB_LAUNCHER: ${{ github.workspace }}\apps\pi-agent-runtime\native\windows-job-launcher\target\release\open-genoffice-job-launcher.exe
       GENOFFICE_WINDOWS_CENSUS_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\process-census.json
+      GENOFFICE_WINDOWS_RUNTIME_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\native-runtime.json
+      GENOFFICE_WINDOWS_CAPABILITY_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\capabilities.json
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,6 +79,8 @@ jobs:
           --acceptance AR-009,AR-010,PK-001,PK-002,RT-001,RT-002,RT-012
           --fixture fakeProvider=apps/pi-agent-runtime/fixtures/fake-provider-events.json
           --fixture processCensus=evidence/g1/issue-7/process-census.json
+          --fixture nativeRuntime=evidence/g1/issue-7/native-runtime.json
+          --fixture capabilities=evidence/g1/issue-7/capabilities.json
           --suite protocol=packages/agent-runtime-protocol/reports/tests.json
           --suite bundle=packages/pi-runtime-bundle/reports/tests.json
           --suite runtime=apps/pi-agent-runtime/reports/tests.json
