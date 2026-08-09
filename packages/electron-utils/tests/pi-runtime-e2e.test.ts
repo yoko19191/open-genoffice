@@ -39,7 +39,7 @@ async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle
       '--node-executable',
       process.execPath,
       '--node-license',
-      resolve(dirname(process.execPath), '../LICENSE'),
+      resolve(dirname(process.execPath), process.platform === 'win32' ? 'LICENSE' : '../LICENSE'),
       '--entry',
       resolve(repoRoot, 'apps/pi-agent-runtime/src/main.ts'),
       '--capability-smoke-entry',

@@ -27,7 +27,10 @@ async function inputs() {
   return {
     outputDirectory: join(root, 'bundle'),
     nodeExecutable: process.execPath,
-    nodeLicense: resolve(dirname(process.execPath), '../LICENSE'),
+    nodeLicense: resolve(
+      dirname(process.execPath),
+      process.execPath.toLowerCase().endsWith('.exe') ? 'LICENSE' : '../LICENSE',
+    ),
     entryPoint: resolve(import.meta.dirname, '../../../apps/pi-agent-runtime/src/main.ts'),
     capabilitySmokeEntryPoint: resolve(
       import.meta.dirname,
