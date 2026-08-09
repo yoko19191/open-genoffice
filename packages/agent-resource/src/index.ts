@@ -75,3 +75,18 @@ export {
   type ResourceActivationDescriptor,
   type ResourceActivationState,
 } from './project-security'
+export {
+  LEGACY_CLEANUP_MANIFEST_VERSION,
+  LEGACY_CLEANUP_MIGRATION_ID,
+  LEGACY_RENDERER_STORAGE_KEYS,
+  LegacyCleanupError,
+  MigrationJournalSchema,
+  runLegacyAgentCleanup,
+  type LegacyCleanupCategory,
+  type LegacyCleanupErrorCode,
+  type LegacyCleanupItemStatus,
+  type LegacyCleanupReport,
+  type LegacyCleanupResult,
+  type MigrationJournal,
+  type RunLegacyAgentCleanupOptions,
+} from './legacy-cleanup'
