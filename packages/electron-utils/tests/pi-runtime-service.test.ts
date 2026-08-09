@@ -100,6 +100,7 @@ function manager(overrides: Record<string, unknown> = {}) {
         },
       },
     })),
+    configureModelProvider: vi.fn(async () => ({ providers: [], selections: {} })),
     startModelOAuth: vi.fn(async (input) => ({
       operationId: input.operationId,
       providerId: input.providerId,
@@ -306,6 +307,19 @@ describe('installed Pi Runtime service', () => {
       providerId: 'openai',
       modelId: 'gpt-5.4',
     })
+    const localProvider = {
+      providerId: 'local-openai',
+      name: 'Local OpenAI',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [
+        {
+          modelId: 'qwen-test',
+          name: 'Qwen Test',
+          capabilities: ['text-input', 'tool-use'] as ('text-input' | 'tool-use')[],
+        },
+      ],
+    }
+    await fixture.instance.configureModelProvider(localProvider)
     await fixture.instance.startModelOAuth({ operationId, providerId: 'openai-codex' })
     await fixture.instance.modelOAuthStatus({ operationId })
     await fixture.instance.respondModelOAuth({ operationId, value: 'write-only-response' })
@@ -316,6 +330,7 @@ describe('installed Pi Runtime service', () => {
       providerId: 'openai',
       modelId: 'gpt-5.4',
     })
+    expect(fixture.runtimeManager.configureModelProvider).toHaveBeenCalledWith(localProvider)
     expect(fixture.runtimeManager.respondModelOAuth).toHaveBeenCalledWith({
       operationId,
       value: 'write-only-response',

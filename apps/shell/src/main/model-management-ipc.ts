@@ -5,6 +5,7 @@ import {
   asModelOAuthOperationInput,
   asModelOAuthResponseInput,
   asModelOAuthStartInput,
+  asModelProviderConfigurationInput,
   asModelSelectInput,
   asProviderId,
 } from '../shared/pi-runtime-api'
@@ -17,6 +18,7 @@ type ModelManagementService = Pick<
   PiRuntimeService,
   | 'modelCatalog'
   | 'selectModel'
+  | 'configureModelProvider'
   | 'startModelOAuth'
   | 'modelOAuthStatus'
   | 'respondModelOAuth'
@@ -52,6 +54,10 @@ export function installModelManagementIpc(
   ipcMain.handle(PI_RUNTIME_CHANNELS.selectModel, async (event, value) => {
     assertTrusted(event)
     return service.selectModel(asModelSelectInput(value))
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.configureModelProvider, async (event, value) => {
+    assertTrusted(event)
+    return service.configureModelProvider(asModelProviderConfigurationInput(value))
   })
   ipcMain.handle(PI_RUNTIME_CHANNELS.startModelOAuth, async (event, value) => {
     assertTrusted(event)

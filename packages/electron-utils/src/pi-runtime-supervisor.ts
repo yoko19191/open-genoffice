@@ -24,6 +24,7 @@ import type {
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
   ModelSelectRequest,
+  ModelProviderConfigureRequest,
   ModelOAuthStartRequest,
   ModelOAuthOperationRequest,
   ModelOAuthRespondRequest,
@@ -47,6 +48,7 @@ export type SupervisedPiRuntimeManager = {
   deleteCredential(input: ProviderCredentialProviderRequest): Promise<ProviderCredentialStatus>
   modelCatalog(): Promise<ModelCatalogProjection>
   selectModel(input: ModelSelectRequest): Promise<ModelCatalogProjection>
+  configureModelProvider(input: ModelProviderConfigureRequest): Promise<ModelCatalogProjection>
   startModelOAuth(input: ModelOAuthStartRequest): Promise<OAuthOperationProjection>
   modelOAuthStatus(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection>
   respondModelOAuth(input: ModelOAuthRespondRequest): Promise<OAuthOperationProjection>
@@ -221,6 +223,12 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async selectModel(input: ModelSelectRequest): Promise<ModelCatalogProjection> {
     return (await this.readyManager()).selectModel(input)
+  }
+
+  async configureModelProvider(
+    input: ModelProviderConfigureRequest,
+  ): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).configureModelProvider(input)
   }
 
   async startModelOAuth(input: ModelOAuthStartRequest): Promise<OAuthOperationProjection> {

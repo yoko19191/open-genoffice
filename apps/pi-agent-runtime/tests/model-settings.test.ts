@@ -27,6 +27,18 @@ async function writeSettings(rootDirectory: string, value: unknown): Promise<voi
   await writeFile(path, `${JSON.stringify(value)}\n`, { mode: 0o600 })
 }
 
+async function writeModels(rootDirectory: string, providers: unknown[]): Promise<void> {
+  const path = join(rootDirectory, 'agent', 'models.json')
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, `${JSON.stringify({ schemaVersion: 1, providers })}\n`, { mode: 0o600 })
+}
+
+async function writeRawModels(rootDirectory: string, value: string): Promise<void> {
+  const path = join(rootDirectory, 'agent', 'models.json')
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, value, { mode: 0o600 })
+}
+
 describe('model settings', () => {
   it('loads no external Agent home and returns an empty controlled catalog by default', async () => {
     await expect(loadModelCatalogSettings(await root())).resolves.toEqual({
@@ -40,61 +52,71 @@ describe('model settings', () => {
     await writeSettings(rootDirectory, {
       schemaVersion: 1,
       selectedModel: { providerId: 'local-openai', modelId: 'qwen-test' },
-      models: {
-        'local-openai/qwen-test': {
-          providerId: 'local-openai',
-          modelId: 'qwen-test',
-          endpoint: 'http://127.0.0.1:11434/v1',
-          capabilities: ['text-input', 'tool-use'],
-        },
-        'local-openai/qwen-vision': {
-          providerId: 'local-openai',
-          modelId: 'qwen-vision',
-          endpoint: 'http://127.0.0.1:11434/v1',
-          capabilities: ['text-input', 'image-input'],
-        },
-        'openai/gpt': {
-          providerId: 'openai',
-          modelId: 'gpt',
-          capabilities: ['text-input'],
-        },
-        'another-local/model': {
-          providerId: 'another-local',
-          modelId: 'model',
-          endpoint: 'http://localhost:11436/v1',
-          capabilities: ['text-input'],
-        },
-      },
     })
+    await writeModels(rootDirectory, [
+      {
+        providerId: 'local-openai',
+        name: 'Local OpenAI',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        models: [
+          {
+            modelId: 'qwen-test',
+            name: 'Qwen Test',
+            capabilities: ['text-input', 'tool-use'],
+            contextWindow: 32_768,
+            maxTokens: 4_096,
+          },
+          {
+            modelId: 'qwen-vision',
+            name: 'Qwen Vision',
+            capabilities: ['text-input', 'image-input'],
+          },
+        ],
+      },
+      {
+        providerId: 'another-local',
+        name: 'Another Local',
+        baseUrl: 'http://localhost:11436/v1',
+        models: [
+          {
+            modelId: 'model',
+            name: 'Another Model',
+            capabilities: ['text-input'],
+          },
+        ],
+      },
+    ])
 
     await expect(loadModelCatalogSettings(rootDirectory)).resolves.toEqual({
       customProviders: [
         {
           providerId: 'another-local',
-          name: 'another-local',
+          name: 'Another Local',
           baseUrl: 'http://localhost:11436/v1',
           models: [
             {
               modelId: 'model',
-              name: 'model',
+              name: 'Another Model',
               capabilities: ['text-input'],
             },
           ],
         },
         {
           providerId: 'local-openai',
-          name: 'local-openai',
+          name: 'Local OpenAI',
           baseUrl: 'http://127.0.0.1:11434/v1',
           models: [
             {
               modelId: 'qwen-test',
-              name: 'qwen-test',
+              name: 'Qwen Test',
               capabilities: ['text-input', 'tool-use'],
+              contextWindow: 32_768,
+              maxTokens: 4_096,
             },
             {
               modelId: 'qwen-vision',
-              name: 'qwen-vision',
-              capabilities: ['image-input', 'text-input'],
+              name: 'Qwen Vision',
+              capabilities: ['text-input', 'image-input'],
             },
           ],
         },
@@ -127,23 +149,20 @@ describe('model settings', () => {
 
   it('atomically saves sanitized OpenAI-compatible provider models without credentials', async () => {
     const rootDirectory = await root()
-    await writeSettings(rootDirectory, {
-      schemaVersion: 1,
-      models: {
-        'local-openai/old': {
-          providerId: 'local-openai',
-          modelId: 'old',
-          endpoint: 'http://localhost:11434/v1',
-          capabilities: ['text-input'],
-        },
-        'preserved/model': {
-          providerId: 'preserved',
-          modelId: 'model',
-          endpoint: 'http://localhost:11435/v1',
-          capabilities: ['text-input'],
-        },
+    await writeModels(rootDirectory, [
+      {
+        providerId: 'local-openai',
+        name: 'Old Local',
+        baseUrl: 'http://localhost:11434/v1',
+        models: [{ modelId: 'old', name: 'Old', capabilities: ['text-input'] }],
       },
-    })
+      {
+        providerId: 'preserved',
+        name: 'Preserved',
+        baseUrl: 'http://localhost:11435/v1',
+        models: [{ modelId: 'model', name: 'Model', capabilities: ['text-input'] }],
+      },
+    ])
     await saveOpenAICompatibleProvider(rootDirectory, {
       providerId: 'local-openai',
       name: 'ignored display name',
@@ -156,57 +175,77 @@ describe('model settings', () => {
         },
       ],
     })
-    const text = await readFile(join(rootDirectory, 'agent', 'settings.json'), 'utf8')
+    const text = await readFile(join(rootDirectory, 'agent', 'models.json'), 'utf8')
     expect(JSON.parse(text)).toMatchObject({
-      models: {
-        'local-openai/qwen-test': {
+      schemaVersion: 1,
+      providers: [
+        {
           providerId: 'local-openai',
-          modelId: 'qwen-test',
-          endpoint: 'http://localhost:11434/v1',
-          capabilities: ['text-input', 'tool-use'],
+          name: 'ignored display name',
+          baseUrl: 'http://localhost:11434/v1',
+          models: [
+            {
+              modelId: 'qwen-test',
+              name: 'ignored model name',
+              capabilities: ['text-input', 'tool-use'],
+            },
+          ],
         },
-        'preserved/model': {
+        {
           providerId: 'preserved',
-          modelId: 'model',
+          name: 'Preserved',
         },
-      },
+      ],
     })
-    expect(JSON.parse(text).models).not.toHaveProperty('local-openai/old')
+    expect(text).not.toContain('"modelId":"old"')
     expect(text).not.toContain('apiKey')
   })
 
   it('fails closed on incomplete custom models or conflicting provider endpoints', async () => {
     const incomplete = await root()
-    await writeSettings(incomplete, {
-      schemaVersion: 1,
-      models: {
-        local: { providerId: 'local-openai', modelId: 'qwen-test' },
-      },
-    })
+    await writeModels(incomplete, [{ providerId: 'local-openai', name: 'Local', models: [] }])
     await expect(loadModelCatalogSettings(incomplete)).rejects.toEqual(
       new ModelSettingsError('model_provider_invalid'),
     )
 
     const conflicting = await root()
-    await writeSettings(conflicting, {
-      schemaVersion: 1,
-      models: {
-        one: {
-          providerId: 'local-openai',
-          modelId: 'one',
-          endpoint: 'http://localhost:11434/v1',
-          capabilities: ['text-input'],
-        },
-        two: {
-          providerId: 'local-openai',
-          modelId: 'two',
-          endpoint: 'http://localhost:11435/v1',
-          capabilities: ['text-input'],
-        },
+    await writeModels(conflicting, [
+      {
+        providerId: 'local-openai',
+        name: 'First',
+        baseUrl: 'http://localhost:11434/v1',
+        models: [{ modelId: 'one', name: 'One', capabilities: ['text-input'] }],
       },
-    })
+      {
+        providerId: 'local-openai',
+        name: 'Second',
+        baseUrl: 'http://localhost:11435/v1',
+        models: [{ modelId: 'two', name: 'Two', capabilities: ['text-input'] }],
+      },
+    ])
     await expect(loadModelCatalogSettings(conflicting)).rejects.toEqual(
       new ModelSettingsError('model_provider_invalid'),
     )
+
+    const invalidJson = await root()
+    await writeRawModels(invalidJson, '{')
+    await expect(loadModelCatalogSettings(invalidJson)).rejects.toEqual(
+      new ModelSettingsError('model_provider_invalid'),
+    )
+
+    for (const invalidFile of [
+      null,
+      [],
+      { schemaVersion: 1, providers: [], secret: true },
+      { schemaVersion: 2, providers: [] },
+      { schemaVersion: 1, providers: {} },
+      { schemaVersion: 1, providers: Array.from({ length: 257 }, () => ({})) },
+    ]) {
+      const invalidWrapper = await root()
+      await writeRawModels(invalidWrapper, JSON.stringify(invalidFile))
+      await expect(loadModelCatalogSettings(invalidWrapper)).rejects.toEqual(
+        new ModelSettingsError('model_provider_invalid'),
+      )
+    }
   })
 })

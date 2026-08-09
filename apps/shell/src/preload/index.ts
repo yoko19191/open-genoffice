@@ -23,6 +23,7 @@ import {
   asProviderCredentialStatus,
   asProviderId,
   asModelCatalog,
+  asModelProviderConfigurationInput,
   asModelSelectInput,
   asModelOAuthStartInput,
   asModelOAuthOperationInput,
@@ -299,6 +300,14 @@ const piRuntimeApi: PiRuntimeApi = {
   async selectModel(input) {
     return asModelCatalog(
       await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.selectModel, asModelSelectInput(input)),
+    )
+  },
+  async configureModelProvider(input) {
+    return asModelCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.configureModelProvider,
+        asModelProviderConfigurationInput(input),
+      ),
     )
   },
   async startModelOAuth(input) {

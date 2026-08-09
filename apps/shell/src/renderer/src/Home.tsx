@@ -430,6 +430,15 @@ const CHANNEL_OPTIONS = [
 const PRIMARY_MODEL_PROVIDER_ID = 'openai'
 type ModelCatalog = Awaited<ReturnType<PiRuntimeApi['modelCatalog']>>
 type OAuthOperation = Awaited<ReturnType<PiRuntimeApi['modelOAuthStatus']>>
+type ModelCapability = ModelCatalog['providers'][number]['models'][number]['capabilities'][number]
+const configurableCapabilities: readonly ModelCapability[] = [
+  'text-input',
+  'image-input',
+  'audio-input',
+  'video-input',
+  'tool-use',
+  'reasoning',
+]
 
 function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const { lang } = useI18n()
@@ -440,6 +449,15 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const [persistence, setPersistence] = useState<'persistent' | 'memory_only'>('persistent')
   const [oauth, setOAuth] = useState<OAuthOperation>()
   const [oauthResponse, setOAuthResponse] = useState('')
+  const [localProviderId, setLocalProviderId] = useState('local-openai')
+  const [localProviderName, setLocalProviderName] = useState('Local OpenAI')
+  const [localBaseUrl, setLocalBaseUrl] = useState('')
+  const [localModelId, setLocalModelId] = useState('')
+  const [localModelName, setLocalModelName] = useState('')
+  const [localCapabilities, setLocalCapabilities] = useState<ModelCapability[]>([
+    'text-input',
+    'tool-use',
+  ])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -555,6 +573,49 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const configureLocalProvider = async () => {
+    if (
+      busy ||
+      !localProviderId ||
+      !localProviderName ||
+      !localBaseUrl ||
+      !localModelId ||
+      !localModelName ||
+      localCapabilities.length === 0
+    )
+      return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await window.aiOfficeAgent.configureModelProvider({
+        providerId: localProviderId,
+        name: localProviderName,
+        baseUrl: localBaseUrl,
+        models: [
+          {
+            modelId: localModelId,
+            name: localModelName,
+            capabilities: localCapabilities,
+          },
+        ],
+      })
+      setCatalog(next)
+      setProviderId(localProviderId)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_provider_invalid')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleLocalCapability = (capability: ModelCapability) => {
+    setLocalCapabilities((current) =>
+      current.includes(capability)
+        ? current.filter((value) => value !== capability)
+        : [...current, capability],
+    )
+  }
+
   const respondOAuth = async () => {
     if (!oauth || !oauthResponse || busy) return
     setBusy(true)
@@ -664,6 +725,79 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
             )}
           </select>
         </label>
+        <details className="provider-local-config">
+          <summary>
+            {zh ? '添加本地 OpenAI-compatible 服务' : 'Add local OpenAI-compatible service'}
+          </summary>
+          <label className="provider-credential-field">
+            <span>{zh ? '服务商 ID' : 'Provider ID'}</span>
+            <input
+              value={localProviderId}
+              spellCheck={false}
+              onChange={(event) => setLocalProviderId(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '显示名称' : 'Display name'}</span>
+            <input
+              value={localProviderName}
+              onChange={(event) => setLocalProviderName(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? 'API 地址' : 'API endpoint'}</span>
+            <input
+              value={localBaseUrl}
+              spellCheck={false}
+              placeholder="http://127.0.0.1:11434/v1"
+              onChange={(event) => setLocalBaseUrl(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '模型 ID' : 'Model ID'}</span>
+            <input
+              value={localModelId}
+              spellCheck={false}
+              onChange={(event) => setLocalModelId(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '模型名称' : 'Model name'}</span>
+            <input
+              value={localModelName}
+              onChange={(event) => setLocalModelName(event.target.value)}
+            />
+          </label>
+          <fieldset className="provider-local-capabilities">
+            <legend>{zh ? '模型能力（显式声明）' : 'Model capabilities (explicit)'}</legend>
+            {configurableCapabilities.map((capability) => (
+              <label key={capability}>
+                <input
+                  type="checkbox"
+                  checked={localCapabilities.includes(capability)}
+                  onChange={() => toggleLocalCapability(capability)}
+                />
+                <span>{capability}</span>
+              </label>
+            ))}
+          </fieldset>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={
+              busy ||
+              !localProviderId ||
+              !localProviderName ||
+              !localBaseUrl ||
+              !localModelId ||
+              !localModelName ||
+              localCapabilities.length === 0
+            }
+            onClick={configureLocalProvider}
+          >
+            {zh ? '保存本地服务' : 'Save local service'}
+          </button>
+        </details>
         {provider?.authMethods.includes('api_key') && (
           <>
             <label className="provider-credential-field">
@@ -756,9 +890,13 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
               ? zh
                 ? '当前系统没有可用的安全密钥库。请选择“仅本次运行”后重试。'
                 : 'No secure credential backend is available. Choose “This run only” and retry.'
-              : zh
-                ? '凭据操作失败，请重试。'
-                : 'Credential operation failed. Please retry.'}
+              : error.includes('model_provider')
+                ? zh
+                  ? '本地服务配置无效。请检查 ID、地址与模型能力。'
+                  : 'The local provider configuration is invalid. Check its IDs, endpoint, and capabilities.'
+                : zh
+                  ? '凭据操作失败，请重试。'
+                  : 'Credential operation failed. Please retry.'}
           </p>
         )}
         <div className="modal-buttons provider-credential-actions">

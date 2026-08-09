@@ -122,6 +122,7 @@ class FakeRuntimeSocket extends Duplex {
               'credential.delete',
               'model.catalog',
               'model.select',
+              'model.provider.configure',
               'model.oauth.start',
               'model.oauth.status',
               'model.oauth.respond',
@@ -617,6 +618,20 @@ describe('PiRuntimeManager', () => {
       selections: { conversation: { providerId: 'openai', modelId: 'gpt-5.4' } },
     })
     await expect(
+      manager.configureModelProvider({
+        providerId: 'local-openai',
+        name: 'Local OpenAI',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        models: [
+          {
+            modelId: 'qwen-test',
+            name: 'Qwen Test',
+            capabilities: ['text-input', 'tool-use'],
+          },
+        ],
+      }),
+    ).resolves.toEqual({ providers: [], selections: {} })
+    await expect(
       manager.startModelOAuth({ operationId, providerId: 'openai-codex' }),
     ).resolves.toMatchObject({ operationId, state: 'running' })
     await expect(manager.modelOAuthStatus({ operationId })).resolves.toMatchObject({ operationId })
@@ -642,6 +657,20 @@ describe('PiRuntimeManager', () => {
       new PiRuntimeManagerError('model_catalog_invalid'),
     )
     await expect(
+      invalid.configureModelProvider({
+        providerId: 'local-openai',
+        name: 'Local OpenAI',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        models: [
+          {
+            modelId: 'qwen-test',
+            name: 'Qwen Test',
+            capabilities: ['text-input'],
+          },
+        ],
+      }),
+    ).rejects.toEqual(new PiRuntimeManagerError('model_catalog_invalid'))
+    await expect(
       invalid.startModelOAuth({
         operationId: '55555555-5555-4555-8555-555555555555',
         providerId: 'openai-codex',
@@ -663,6 +692,20 @@ describe('PiRuntimeManager', () => {
     )
     await expect(
       failed.selectModel({ role: 'conversation', providerId: 'openai', modelId: 'missing' }),
+    ).rejects.toEqual(new PiRuntimeManagerError('model_not_found'))
+    await expect(
+      failed.configureModelProvider({
+        providerId: 'local-openai',
+        name: 'Local OpenAI',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        models: [
+          {
+            modelId: 'qwen-test',
+            name: 'Qwen Test',
+            capabilities: ['text-input'],
+          },
+        ],
+      }),
     ).rejects.toEqual(new PiRuntimeManagerError('model_not_found'))
     await expect(
       failed.startModelOAuth({

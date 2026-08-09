@@ -142,6 +142,7 @@ function harness(
           },
         },
       })),
+      configureModelProvider: vi.fn(async () => ({ providers: [], selections: {} })),
       startModelOAuth: vi.fn(async (input) => ({
         operationId: input.operationId,
         providerId: input.providerId,
@@ -339,6 +340,20 @@ describe('PiRuntimeSupervisor', () => {
         modelId: 'gpt-5.4',
       }),
     ).resolves.toMatchObject({ selections: { conversation: { modelId: 'gpt-5.4' } } })
+    await expect(
+      fixture.supervisor.configureModelProvider({
+        providerId: 'local-openai',
+        name: 'Local OpenAI',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        models: [
+          {
+            modelId: 'qwen-test',
+            name: 'Qwen Test',
+            capabilities: ['text-input', 'tool-use'],
+          },
+        ],
+      }),
+    ).resolves.toEqual({ providers: [], selections: {} })
     await expect(
       fixture.supervisor.startModelOAuth({
         operationId: oauthOperationId,

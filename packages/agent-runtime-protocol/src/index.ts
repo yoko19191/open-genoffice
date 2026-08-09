@@ -5,6 +5,7 @@ import {
   CredentialPersistenceSchema,
   CredentialProviderIdSchema,
   ModelSelectionRoleSchema,
+  OpenAICompatibleProviderConfigurationSchema,
   MAX_FRAME_BYTES,
   NODE_VERSION,
   PI_VERSION,
@@ -23,6 +24,8 @@ export {
   RUNTIME_VERSION,
   SCHEMA_VERSION,
   ModelCatalogProjectionSchema,
+  ModelCapabilitySchema,
+  OpenAICompatibleProviderConfigurationSchema,
   ModelSelectionRoleSchema,
   OAuthInteractionProjectionSchema,
   OAuthOperationProjectionSchema,
@@ -30,12 +33,14 @@ export {
   RuntimeHealthProjectionSchema,
   parseCredentialProviderId,
   parseModelCatalogProjection,
+  parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
   parseProviderCredentialStatus,
   parseRuntimeHealthProjection,
   type ProviderCredentialStatus,
   type ModelCapability,
   type ModelCatalogProjection,
+  type OpenAICompatibleProviderConfiguration,
   type ModelDescriptor,
   type ModelProviderProjection,
   type ModelProviderState,
@@ -419,6 +424,11 @@ const ModelSelectRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const ModelProviderConfigureRequestSchema = sessionRequestEnvelope(
+  'model.provider.configure',
+  OpenAICompatibleProviderConfigurationSchema,
+)
+
 const ModelOAuthStartRequestSchema = sessionRequestEnvelope(
   'model.oauth.start',
   Type.Object(
@@ -456,6 +466,7 @@ const ModelLogoutRequestSchema = sessionRequestEnvelope(
 export const ModelManagementRequestSchema = Type.Union([
   ModelCatalogRequestSchema,
   ModelSelectRequestSchema,
+  ModelProviderConfigureRequestSchema,
   ModelOAuthStartRequestSchema,
   ModelOAuthStatusRequestSchema,
   ModelOAuthRespondRequestSchema,
@@ -680,6 +691,7 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionSubscribeRequestSchema,
   ModelCatalogRequestSchema,
   ModelSelectRequestSchema,
+  ModelProviderConfigureRequestSchema,
   ModelOAuthStartRequestSchema,
   ModelOAuthStatusRequestSchema,
   ModelOAuthRespondRequestSchema,

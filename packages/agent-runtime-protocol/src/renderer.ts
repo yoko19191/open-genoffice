@@ -41,6 +41,32 @@ export const ModelCapabilitySchema = Type.Union([
   Type.Literal('reasoning'),
 ])
 
+export const OpenAICompatibleProviderConfigurationSchema = Type.Object(
+  {
+    providerId: CredentialProviderIdSchema,
+    name: Type.String({ minLength: 1, maxLength: 256 }),
+    baseUrl: Type.String({ minLength: 1, maxLength: 4096 }),
+    models: Type.Array(
+      Type.Object(
+        {
+          modelId: Type.String({ minLength: 1, maxLength: 256 }),
+          name: Type.String({ minLength: 1, maxLength: 256 }),
+          capabilities: Type.Array(ModelCapabilitySchema, {
+            minItems: 1,
+            maxItems: 6,
+            uniqueItems: true,
+          }),
+          contextWindow: Type.Optional(Type.Integer({ minimum: 1, maximum: 2_147_483_647 })),
+          maxTokens: Type.Optional(Type.Integer({ minimum: 1, maximum: 2_147_483_647 })),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, maxItems: 256 },
+    ),
+  },
+  { additionalProperties: false },
+)
+
 export const ModelProviderStateSchema = Type.Union([
   Type.Literal('disabled'),
   Type.Literal('needs_credentials'),
@@ -207,6 +233,9 @@ export const RuntimeHealthProjectionSchema = Type.Object(
 export type ProviderCredentialStatus = Static<typeof ProviderCredentialStatusSchema>
 export type RuntimeHealthProjection = Static<typeof RuntimeHealthProjectionSchema>
 export type ModelCapability = Static<typeof ModelCapabilitySchema>
+export type OpenAICompatibleProviderConfiguration = Static<
+  typeof OpenAICompatibleProviderConfigurationSchema
+>
 export type ModelProviderState = Static<typeof ModelProviderStateSchema>
 export type ModelDescriptor = Static<typeof ModelDescriptorSchema>
 export type ModelProviderProjection = Static<typeof ModelProviderProjectionSchema>
@@ -234,6 +263,13 @@ export function parseRuntimeHealthProjection(value: unknown): RuntimeHealthProje
 export function parseModelCatalogProjection(value: unknown): ModelCatalogProjection {
   if (Value.Check(ModelCatalogProjectionSchema, value)) return value
   throw new Error('model_catalog_invalid')
+}
+
+export function parseOpenAICompatibleProviderConfiguration(
+  value: unknown,
+): OpenAICompatibleProviderConfiguration {
+  if (Value.Check(OpenAICompatibleProviderConfigurationSchema, value)) return value
+  throw new Error('model_provider_configuration_invalid')
 }
 
 export function parseOAuthOperationProjection(value: unknown): OAuthOperationProjection {

@@ -4,6 +4,7 @@ import {
   SCHEMA_VERSION,
   parseCredentialProviderId,
   parseModelCatalogProjection,
+  parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
   parseProviderCredentialStatus as parseProtocolProviderCredentialStatus,
   parseRuntimeHealthProjection,
@@ -12,6 +13,7 @@ import {
   type ModelCatalogProjection,
   type ModelSelectionRole,
   type OAuthOperationProjection,
+  type OpenAICompatibleProviderConfiguration,
 } from '@genoffice/agent-runtime-protocol/renderer'
 
 export const PI_RUNTIME_CHANNELS = {
@@ -21,6 +23,7 @@ export const PI_RUNTIME_CHANNELS = {
   logoutProvider: 'pi-runtime:provider-credential-logout',
   modelCatalog: 'pi-runtime:model-catalog',
   selectModel: 'pi-runtime:model-select',
+  configureModelProvider: 'pi-runtime:model-provider-configure',
   startModelOAuth: 'pi-runtime:model-oauth-start',
   modelOAuthStatus: 'pi-runtime:model-oauth-status',
   respondModelOAuth: 'pi-runtime:model-oauth-respond',
@@ -42,6 +45,7 @@ export type ModelSelectInput = {
 export type ModelOAuthStartInput = { operationId: string; providerId: string }
 export type ModelOAuthOperationInput = { operationId: string }
 export type ModelOAuthResponseInput = ModelOAuthOperationInput & { value: string }
+export type ModelProviderConfigurationInput = OpenAICompatibleProviderConfiguration
 
 const operationIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -117,6 +121,12 @@ export function asModelSelectInput(value: unknown): Readonly<ModelSelectInput> {
   })
 }
 
+export function asModelProviderConfigurationInput(
+  value: unknown,
+): Readonly<ModelProviderConfigurationInput> {
+  return Object.freeze(parseOpenAICompatibleProviderConfiguration(value))
+}
+
 export function asModelOAuthStartInput(value: unknown): Readonly<ModelOAuthStartInput> {
   if (
     !isExactRecord(value, ['operationId', 'providerId']) ||
@@ -177,6 +187,9 @@ export interface PiRuntimeApi {
   logoutProvider(providerId: string): Promise<Readonly<ProviderCredentialStatus>>
   modelCatalog(): Promise<Readonly<ModelCatalogProjection>>
   selectModel(input: ModelSelectInput): Promise<Readonly<ModelCatalogProjection>>
+  configureModelProvider(
+    input: ModelProviderConfigurationInput,
+  ): Promise<Readonly<ModelCatalogProjection>>
   startModelOAuth(input: ModelOAuthStartInput): Promise<Readonly<OAuthOperationProjection>>
   modelOAuthStatus(input: ModelOAuthOperationInput): Promise<Readonly<OAuthOperationProjection>>
   respondModelOAuth(input: ModelOAuthResponseInput): Promise<Readonly<OAuthOperationProjection>>

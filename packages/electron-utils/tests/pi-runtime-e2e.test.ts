@@ -82,14 +82,26 @@ async function configureLocalModel(resourceHome: string, baseUrl: string): Promi
     `${JSON.stringify({
       schemaVersion: 1,
       selectedModel: { providerId: localProviderId, modelId: localModelId },
-      models: {
-        [`${localProviderId}/${localModelId}`]: {
+    })}\n`,
+  )
+  await writeFile(
+    join(agentDirectory, 'models.json'),
+    `${JSON.stringify({
+      schemaVersion: 1,
+      providers: [
+        {
           providerId: localProviderId,
-          modelId: localModelId,
-          endpoint: baseUrl,
-          capabilities: ['text-input', 'tool-use'],
+          name: 'Local OpenAI Fixture',
+          baseUrl,
+          models: [
+            {
+              modelId: localModelId,
+              name: 'Fixture Model',
+              capabilities: ['text-input', 'tool-use'],
+            },
+          ],
         },
-      },
+      ],
     })}\n`,
   )
 }

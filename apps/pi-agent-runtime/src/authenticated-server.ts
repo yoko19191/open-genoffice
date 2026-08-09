@@ -15,7 +15,11 @@ import {
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
-import { loadModelCatalogSettings, saveModelSelection } from './model-settings'
+import {
+  loadModelCatalogSettings,
+  saveModelSelection,
+  saveOpenAICompatibleProvider,
+} from './model-settings'
 import { OpenGenOfficeCredentialStoreError } from './open-genoffice-credential-store'
 import { createDeterministicPiSession } from './pi-session-factory'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
@@ -35,7 +39,14 @@ export type AuthenticatedRuntimeServerOptions = {
   sessionRegistry?: SessionRegistry
   modelCatalog?: Pick<
     ModelCatalogService,
-    'catalog' | 'select' | 'startOAuth' | 'oauthStatus' | 'respondOAuth' | 'cancelOAuth' | 'logout'
+    | 'catalog'
+    | 'select'
+    | 'configureProvider'
+    | 'startOAuth'
+    | 'oauthStatus'
+    | 'respondOAuth'
+    | 'cancelOAuth'
+    | 'logout'
   >
 }
 
@@ -112,13 +123,17 @@ export async function createAuthenticatedRuntimeServer(
   if (!initialModel) throw new Error('model_catalog_empty')
   let settingsWrite = Promise.resolve()
 
+  function enqueueSettingsWrite(writeSettings: () => Promise<void>): Promise<void> {
+    const write = settingsWrite.then(writeSettings)
+    settingsWrite = write.catch(() => undefined)
+    return write
+  }
+
   function persistModelSelection(selection: {
     providerId: string
     modelId: string
   }): Promise<void> {
-    const write = settingsWrite.then(() => saveModelSelection(options.resourceHome, selection))
-    settingsWrite = write.catch(() => undefined)
-    return write
+    return enqueueSettingsWrite(() => saveModelSelection(options.resourceHome, selection))
   }
 
   const sessionRegistry =
@@ -195,6 +210,7 @@ export async function createAuthenticatedRuntimeServer(
                 'credential.delete',
                 'model.catalog',
                 'model.select',
+                'model.provider.configure',
                 'model.oauth.start',
                 'model.oauth.status',
                 'model.oauth.respond',
@@ -283,6 +299,14 @@ export async function createAuthenticatedRuntimeServer(
         if (command.params.role === 'conversation') {
           await persistModelSelection(command.params)
         }
+        socket.write(response(request, await modelCatalog.catalog()))
+        return
+      }
+      if (command.method === 'model.provider.configure') {
+        modelCatalog.configureProvider(command.params)
+        await enqueueSettingsWrite(() =>
+          saveOpenAICompatibleProvider(options.resourceHome, command.params),
+        )
         socket.write(response(request, await modelCatalog.catalog()))
         return
       }

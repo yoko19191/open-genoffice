@@ -7,6 +7,7 @@ import {
   asProviderCredentialStatus,
   asModelCatalog,
   asModelSelectInput,
+  asModelProviderConfigurationInput,
   asModelOAuthStartInput,
   asModelOAuthOperationInput,
   asModelOAuthResponseInput,
@@ -70,6 +71,7 @@ describe('typed Pi Runtime preload health contract', () => {
       logoutProvider: 'pi-runtime:provider-credential-logout',
       modelCatalog: 'pi-runtime:model-catalog',
       selectModel: 'pi-runtime:model-select',
+      configureModelProvider: 'pi-runtime:model-provider-configure',
       startModelOAuth: 'pi-runtime:model-oauth-start',
       modelOAuthStatus: 'pi-runtime:model-oauth-status',
       respondModelOAuth: 'pi-runtime:model-oauth-respond',
@@ -109,6 +111,31 @@ describe('typed Pi Runtime preload health contract', () => {
     expect(() => asModelOAuthOperationInput({ operationId: 'invalid' })).toThrowError(
       'model_oauth_operation_input_invalid',
     )
+  })
+
+  it('accepts only explicit secret-free OpenAI-compatible Provider configuration', () => {
+    const configuration = {
+      providerId: 'local-openai',
+      name: 'Local OpenAI',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [
+        {
+          modelId: 'qwen-test',
+          name: 'Qwen Test',
+          capabilities: ['text-input', 'tool-use'],
+        },
+      ],
+    }
+    expect(asModelProviderConfigurationInput(configuration)).toEqual(configuration)
+    expect(() =>
+      asModelProviderConfigurationInput({ ...configuration, apiKey: 'secret-canary' }),
+    ).toThrowError('model_provider_configuration_invalid')
+    expect(() =>
+      asModelProviderConfigurationInput({
+        ...configuration,
+        models: [{ ...configuration.models[0], capabilities: [] }],
+      }),
+    ).toThrowError('model_provider_configuration_invalid')
   })
 
   it('revalidates renderer-safe catalog and OAuth projections', () => {

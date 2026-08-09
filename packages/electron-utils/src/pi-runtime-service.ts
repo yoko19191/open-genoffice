@@ -30,6 +30,7 @@ import type {
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
   ModelSelectRequest,
+  ModelProviderConfigureRequest,
   ModelOAuthStartRequest,
   ModelOAuthOperationRequest,
   ModelOAuthRespondRequest,
@@ -63,6 +64,7 @@ type OwnedPiRuntimeManager = Pick<
   | 'deleteCredential'
   | 'modelCatalog'
   | 'selectModel'
+  | 'configureModelProvider'
   | 'startModelOAuth'
   | 'modelOAuthStatus'
   | 'respondModelOAuth'
@@ -170,6 +172,12 @@ export class PiRuntimeService {
 
   async selectModel(input: ModelSelectRequest): Promise<ModelCatalogProjection> {
     return (await this.readyManager()).selectModel(input)
+  }
+
+  async configureModelProvider(
+    input: ModelProviderConfigureRequest,
+  ): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).configureModelProvider(input)
   }
 
   async startModelOAuth(input: ModelOAuthStartRequest): Promise<OAuthOperationProjection> {

@@ -22,6 +22,7 @@ import {
   type CredentialManagementRequest,
   type EventEnvelope,
   type ModelCatalogProjection,
+  type ModelManagementRequest,
   type ModelSelectionRole,
   type OAuthOperationProjection,
   type ProtocolEnvelope,
@@ -123,6 +124,10 @@ export type ModelOAuthStartRequest = { operationId: string; providerId: string }
 export type ModelOAuthOperationRequest = { operationId: string }
 export type ModelOAuthRespondRequest = ModelOAuthOperationRequest & { value: string }
 export type ModelProviderRequest = { providerId: string }
+export type ModelProviderConfigureRequest = Extract<
+  ModelManagementRequest,
+  { method: 'model.provider.configure' }
+>['params']
 
 type ClientRuntimeMethod =
   | 'runtime.hello'
@@ -141,6 +146,7 @@ type ClientRuntimeMethod =
   | 'credential.delete'
   | 'model.catalog'
   | 'model.select'
+  | 'model.provider.configure'
   | 'model.oauth.start'
   | 'model.oauth.status'
   | 'model.oauth.respond'
@@ -365,6 +371,7 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('credential.delete') ||
         !hello.capabilities.includes('model.catalog') ||
         !hello.capabilities.includes('model.select') ||
+        !hello.capabilities.includes('model.provider.configure') ||
         !hello.capabilities.includes('model.oauth.start') ||
         !hello.capabilities.includes('model.oauth.status') ||
         !hello.capabilities.includes('model.oauth.respond') ||
@@ -542,6 +549,18 @@ export class PiRuntimeManager {
     this.assertReady()
     try {
       return parseModelCatalogProjection(await this.request('model.select', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('model_catalog_invalid')
+    }
+  }
+
+  async configureModelProvider(
+    input: ModelProviderConfigureRequest,
+  ): Promise<ModelCatalogProjection> {
+    this.assertReady()
+    try {
+      return parseModelCatalogProjection(await this.request('model.provider.configure', input))
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('model_catalog_invalid')

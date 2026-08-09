@@ -32,6 +32,7 @@ import {
   parseEventEnvelope,
   parseModelCatalogProjection,
   parseModelManagementRequest,
+  parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
   parseOfficeToolInvocation,
   parseOfficeToolReceipt,
@@ -188,7 +189,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(27)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(28)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -791,6 +792,20 @@ describe('model management Runtime contract', () => {
       providerId: 'openai',
       modelId: 'gpt-5.4',
     }),
+    envelope('model.provider.configure', {
+      providerId: 'local-openai',
+      name: 'Local OpenAI',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [
+        {
+          modelId: 'qwen-test',
+          name: 'Qwen Test',
+          capabilities: ['text-input', 'tool-use'],
+          contextWindow: 32_768,
+          maxTokens: 4_096,
+        },
+      ],
+    }),
     envelope('model.oauth.start', { operationId, providerId: 'openai-codex' }),
     envelope('model.oauth.status', { operationId }),
     envelope('model.oauth.respond', { operationId, value: 'write-only-response' }),
@@ -798,8 +813,19 @@ describe('model management Runtime contract', () => {
     envelope('model.logout', { providerId: 'openai-codex' }),
   ]
 
-  it('accepts seven exact model methods without a secret-reading operation', () => {
-    expect(ModelManagementRequestSchema.anyOf).toHaveLength(7)
+  it('validates the renderer-safe Provider configuration independently', () => {
+    const configuration = requests[2]!.params
+    expect(parseOpenAICompatibleProviderConfiguration(configuration)).toEqual(configuration)
+    expect(() =>
+      parseOpenAICompatibleProviderConfiguration({
+        ...(configuration as object),
+        apiKey: 'secret-model-canary',
+      }),
+    ).toThrowError('model_provider_configuration_invalid')
+  })
+
+  it('accepts eight exact model methods without a secret-reading operation', () => {
+    expect(ModelManagementRequestSchema.anyOf).toHaveLength(8)
     for (const request of requests) {
       expect(parseModelManagementRequest(request)).toEqual(request)
       expect(parseProtocolFrame(JSON.stringify(request))).toEqual(request)
@@ -813,9 +839,31 @@ describe('model management Runtime contract', () => {
       'unknown role',
       { ...requests[1], params: { ...(requests[1]!.params as object), role: 'fallback' } },
     ],
-    ['invalid provider', { ...requests[2], params: { operationId, providerId: '../escape' } }],
-    ['missing response', { ...requests[4], params: { operationId } }],
-    ['oversized response', { ...requests[4], params: { operationId, value: 'x'.repeat(16_385) } }],
+    [
+      'provider secret',
+      {
+        ...requests[2],
+        params: { ...(requests[2]!.params as object), apiKey: 'secret-model-canary' },
+      },
+    ],
+    [
+      'empty provider capability',
+      {
+        ...requests[2],
+        params: {
+          ...(requests[2]!.params as { models: object[] }),
+          models: [
+            {
+              ...(requests[2]!.params as { models: object[] }).models[0],
+              capabilities: [],
+            },
+          ],
+        },
+      },
+    ],
+    ['invalid provider', { ...requests[3], params: { operationId, providerId: '../escape' } }],
+    ['missing response', { ...requests[5], params: { operationId } }],
+    ['oversized response', { ...requests[5], params: { operationId, value: 'x'.repeat(16_385) } }],
     ['secret read method', envelope('model.credential.get', { providerId: 'openai' })],
   ])('rejects %s', (_label, request) => {
     expect(() => parseModelManagementRequest(request)).toThrowError(

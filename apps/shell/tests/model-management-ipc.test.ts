@@ -23,6 +23,7 @@ function harness() {
   const service = {
     modelCatalog: vi.fn(async () => ({ providers: [], selections: {} })),
     selectModel: vi.fn(async () => ({ providers: [], selections: {} })),
+    configureModelProvider: vi.fn(async () => ({ providers: [], selections: {} })),
     startModelOAuth: vi.fn(async () => operation),
     modelOAuthStatus: vi.fn(async () => operation),
     respondModelOAuth: vi.fn(async () => ({
@@ -57,6 +58,23 @@ describe('model management IPC', () => {
       selection,
     )
     expect(fixture.service.selectModel).toHaveBeenCalledWith(selection)
+    const configuration = {
+      providerId: 'local-openai',
+      name: 'Local OpenAI',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [
+        {
+          modelId: 'qwen-test',
+          name: 'Qwen Test',
+          capabilities: ['text-input', 'tool-use'],
+        },
+      ],
+    }
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.configureModelProvider)!(
+      { sender: fixture.trustedSender },
+      configuration,
+    )
+    expect(fixture.service.configureModelProvider).toHaveBeenCalledWith(configuration)
   })
 
   it('opens each validated OAuth URL once and keeps the response write-only', async () => {
@@ -97,6 +115,7 @@ describe('model management IPC', () => {
     for (const channel of [
       PI_RUNTIME_CHANNELS.modelCatalog,
       PI_RUNTIME_CHANNELS.selectModel,
+      PI_RUNTIME_CHANNELS.configureModelProvider,
       PI_RUNTIME_CHANNELS.startModelOAuth,
       PI_RUNTIME_CHANNELS.modelOAuthStatus,
       PI_RUNTIME_CHANNELS.respondModelOAuth,

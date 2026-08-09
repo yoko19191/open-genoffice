@@ -275,9 +275,22 @@ describe('authenticated Runtime socket', () => {
       providerId: 'openai-codex',
       state: 'running',
     } as const
+    const localProvider = {
+      providerId: 'local-openai',
+      name: 'Local OpenAI',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [
+        {
+          modelId: 'qwen-test',
+          name: 'Qwen Test',
+          capabilities: ['text-input', 'tool-use'],
+        },
+      ],
+    } as const
     const modelCatalog = {
       catalog: vi.fn(async () => catalog),
       select: vi.fn(),
+      configureProvider: vi.fn(),
       startOAuth: vi.fn(() => oauth),
       oauthStatus: vi.fn(() => oauth),
       respondOAuth: vi.fn(),
@@ -303,6 +316,7 @@ describe('authenticated Runtime socket', () => {
         { role: 'conversation', providerId: 'openai-codex', modelId: 'gpt-5.4' },
         catalog,
       ],
+      ['model.provider.configure', localProvider, catalog],
       ['model.oauth.start', { operationId: oauth.operationId, providerId: 'openai-codex' }, oauth],
       ['model.oauth.status', { operationId: oauth.operationId }, oauth],
       [
@@ -321,10 +335,28 @@ describe('authenticated Runtime socket', () => {
       expect(JSON.stringify(received)).not.toContain('write-only-oauth-response')
     }
     expect(modelCatalog.select).toHaveBeenCalledWith('conversation', 'openai-codex', 'gpt-5.4')
+    expect(modelCatalog.configureProvider).toHaveBeenCalledWith(localProvider)
     expect(
       JSON.parse(await readFile(join(modelResourceHome, 'agent', 'settings.json'), 'utf8')),
     ).toMatchObject({
       selectedModel: { providerId: 'openai-codex', modelId: 'gpt-5.4' },
+    })
+    expect(
+      JSON.parse(await readFile(join(modelResourceHome, 'agent', 'models.json'), 'utf8')),
+    ).toMatchObject({
+      schemaVersion: 1,
+      providers: [
+        {
+          providerId: 'local-openai',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          models: [
+            {
+              modelId: 'qwen-test',
+              capabilities: ['text-input', 'tool-use'],
+            },
+          ],
+        },
+      ],
     })
     expect(modelCatalog.respondOAuth).toHaveBeenCalledWith(
       oauth.operationId,
@@ -484,6 +516,7 @@ describe('authenticated Runtime socket', () => {
           'credential.delete',
           'model.catalog',
           'model.select',
+          'model.provider.configure',
           'model.oauth.start',
           'model.oauth.status',
           'model.oauth.respond',
