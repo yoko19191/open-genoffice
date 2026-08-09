@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { chmod, mkdtemp, stat } from 'node:fs/promises'
 import { createConnection, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -16,6 +17,9 @@ import { createAuthenticatedRuntimeServer, createSessionRegistry } from '../src'
 const token = 'a'.repeat(64)
 
 async function endpoint(): Promise<string> {
+  if (process.platform === 'win32') {
+    return `\\\\.\\pipe\\genoffice-runtime-${randomUUID()}`
+  }
   const socketRoot = process.platform === 'darwin' ? '/private/tmp' : tmpdir()
   const directory = await mkdtemp(join(socketRoot, 'genoffice-runtime-'))
   await chmod(directory, 0o700)
@@ -45,11 +49,18 @@ function request(method: string, params: unknown, id = method) {
   })
 }
 
-function hello(value = token): string {
+function hello(
+  value = token,
+  versions: {
+    protocolVersion?: string
+    runtimeVersion?: string
+    schemaVersion?: string
+  } = {},
+): string {
   return request('runtime.hello', {
-    protocolVersion: PROTOCOL_VERSION,
-    runtimeVersion: RUNTIME_VERSION,
-    schemaVersion: SCHEMA_VERSION,
+    protocolVersion: versions.protocolVersion ?? PROTOCOL_VERSION,
+    runtimeVersion: versions.runtimeVersion ?? RUNTIME_VERSION,
+    schemaVersion: versions.schemaVersion ?? SCHEMA_VERSION,
     token: value,
   })
 }
@@ -104,7 +115,7 @@ describe('authenticated Runtime socket', () => {
       actualParentPid: 4242,
       instanceId: 'instance-1',
     })
-    expect((await stat(socketPath)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect((await stat(socketPath)).mode & 0o777).toBe(0o600)
 
     const attacker = await connect(socketPath)
     attacker.end(`${hello('b'.repeat(64))}\n`)
@@ -156,6 +167,35 @@ describe('authenticated Runtime socket', () => {
       }),
     ).rejects.toThrow('invalid_parent_pid')
     await expect(stat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('rejects every mismatched hello version without consuming the token', async () => {
+    const socketPath = await endpoint()
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-version',
+    })
+
+    for (const versions of [
+      { protocolVersion: '999' },
+      { runtimeVersion: '999.0.0' },
+      { schemaVersion: '999' },
+    ]) {
+      const incompatible = await connect(socketPath)
+      incompatible.end(`${hello(token, versions)}\n`)
+      expect(await nextLine(incompatible)).toBeNull()
+    }
+
+    const compatible = await connect(socketPath)
+    const response = nextLine(compatible)
+    compatible.write(`${hello()}\n`)
+    expect(await response).toMatchObject({
+      kind: 'response',
+      result: { instanceId: 'instance-version' },
+    })
+    await runtime.shutdown()
+    await runtime.closed
   })
 
   it('rejects every second connection after consuming the token', async () => {
