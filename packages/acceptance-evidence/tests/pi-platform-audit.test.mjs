@@ -18,6 +18,7 @@ describe('Pi platform production boundary audit', () => {
     const repoRoot = await mkdtemp(join(tmpdir(), 'genoffice-platform-audit-'))
     await mkdir(join(repoRoot, 'apps/pi-agent-runtime/src'), { recursive: true })
     await mkdir(join(repoRoot, 'packages/agent-runtime-protocol/src'), { recursive: true })
+    await mkdir(join(repoRoot, 'packages/pi-runtime-bundle/src'), { recursive: true })
     await writeFile(join(repoRoot, 'package.json'), JSON.stringify({ engines: { node: '>=22' } }))
     await writeFile(
       join(repoRoot, 'package-lock.json'),
@@ -38,6 +39,7 @@ describe('Pi platform production boundary audit', () => {
       "fetch('https://www.genspark.ai'); class AgentLoop {}",
     )
     await writeFile(join(repoRoot, 'packages/agent-runtime-protocol/src/index.ts'), 'export {}')
+    await writeFile(join(repoRoot, 'packages/pi-runtime-bundle/src/index.ts'), 'export {}')
 
     const report = await auditPiPlatformBoundary(repoRoot)
     expect(report.status).toBe('failed')
@@ -57,6 +59,7 @@ describe('Pi platform production boundary audit', () => {
     const repoRoot = await mkdtemp(join(tmpdir(), 'genoffice-platform-empty-audit-'))
     await mkdir(join(repoRoot, 'apps/pi-agent-runtime/src'), { recursive: true })
     await mkdir(join(repoRoot, 'packages/agent-runtime-protocol/src'), { recursive: true })
+    await mkdir(join(repoRoot, 'packages/pi-runtime-bundle/src'), { recursive: true })
     await writeFile(
       join(repoRoot, 'package.json'),
       JSON.stringify({ engines: { node: '22.19.0' } }),
@@ -65,6 +68,7 @@ describe('Pi platform production boundary audit', () => {
     await writeFile(join(repoRoot, 'apps/pi-agent-runtime/package.json'), '{}')
     await writeFile(join(repoRoot, 'apps/pi-agent-runtime/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/agent-runtime-protocol/src/index.ts'), 'export {}')
+    await writeFile(join(repoRoot, 'packages/pi-runtime-bundle/src/index.ts'), 'export {}')
 
     const report = await auditPiPlatformBoundary(repoRoot)
     expect(report.status).toBe('failed')

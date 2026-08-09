@@ -150,6 +150,7 @@ export async function auditPiPlatformBoundary(repoRootInput) {
   const sourceRoots = [
     join(repoRoot, 'apps/pi-agent-runtime/src'),
     join(repoRoot, 'packages/agent-runtime-protocol/src'),
+    join(repoRoot, 'packages/pi-runtime-bundle/src'),
   ]
   const sourceFiles = []
   for (const root of sourceRoots) {
