@@ -7,6 +7,7 @@ import {
   RUNTIME_VERSION,
   SCHEMA_VERSION,
   createNdjsonFrameDecoder,
+  parseSessionAbortReceipt,
   parseSessionConnectionReceipt,
   parseSessionPromptReceipt,
   parseSessionSnapshot,
@@ -15,6 +16,7 @@ import {
   type EventEnvelope,
   type ProtocolEnvelope,
   type SessionConnectionReceipt,
+  type SessionAbortReceipt,
   type SessionPromptReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
@@ -83,6 +85,7 @@ export type PiRuntimeManagerOptions = {
 export type SessionCreateRequest = { operationId: string; documentId: string }
 export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
 export type SessionPromptRequest = SessionOpenRequest & { text: string }
+export type SessionAbortRequest = SessionOpenRequest & { runId: string }
 export type SessionBoundRequest = { sessionId: string; documentId: string }
 export type SessionSubscribeRequest = SessionBoundRequest & { afterCursor?: string }
 
@@ -93,6 +96,7 @@ type ClientRuntimeMethod =
   | 'session.create'
   | 'session.open'
   | 'session.prompt'
+  | 'session.abort'
   | 'session.snapshot'
   | 'session.subscribe'
 
@@ -249,6 +253,7 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('session.create') ||
         !hello.capabilities.includes('session.open') ||
         !hello.capabilities.includes('session.prompt') ||
+        !hello.capabilities.includes('session.abort') ||
         !hello.capabilities.includes('session.snapshot') ||
         !hello.capabilities.includes('session.subscribe')
       ) {
@@ -356,6 +361,16 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('session_prompt_receipt_invalid')
+    }
+  }
+
+  async abortSession(input: SessionAbortRequest): Promise<SessionAbortReceipt> {
+    this.assertReady()
+    try {
+      return parseSessionAbortReceipt(await this.request('session.abort', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('session_abort_receipt_invalid')
     }
   }
 

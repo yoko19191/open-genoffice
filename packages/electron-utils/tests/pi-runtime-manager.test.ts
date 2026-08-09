@@ -98,6 +98,7 @@ class FakeRuntimeSocket extends Duplex {
               'session.create',
               'session.open',
               'session.prompt',
+              'session.abort',
               'session.snapshot',
               'session.subscribe',
             ],
@@ -113,11 +114,13 @@ class FakeRuntimeSocket extends Duplex {
               }
             : request.method === 'session.prompt'
               ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
-              : request.method === 'session.snapshot'
-                ? snapshot
-                : request.method === 'session.subscribe'
-                  ? { resetRequired: false, snapshot, events: [] }
-                  : { shuttingDown: true }
+              : request.method === 'session.abort'
+                ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
+                : request.method === 'session.snapshot'
+                  ? snapshot
+                  : request.method === 'session.subscribe'
+                    ? { resetRequired: false, snapshot, events: [] }
+                    : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
@@ -309,6 +312,14 @@ describe('PiRuntimeManager', () => {
       }),
     ).resolves.toEqual({ runId: 'run-1', acceptedCursor: 'cursor-1' })
     await expect(
+      manager.abortSession({
+        operationId,
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        runId: 'run-1',
+      }),
+    ).resolves.toEqual({ runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' })
+    await expect(
       manager.snapshotSession({
         sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
@@ -328,6 +339,7 @@ describe('PiRuntimeManager', () => {
     ['createSession', 'session_connection_receipt_invalid'],
     ['openSession', 'session_connection_receipt_invalid'],
     ['promptSession', 'session_prompt_receipt_invalid'],
+    ['abortSession', 'session_abort_receipt_invalid'],
     ['snapshotSession', 'session_snapshot_invalid'],
     ['subscribeSession', 'session_subscription_receipt_invalid'],
   ] as const)('maps an invalid %s result to a stable redacted error', async (method, code) => {
@@ -352,7 +364,13 @@ describe('PiRuntimeManager', () => {
                 ...bound,
                 text: 'hello',
               }
-            : bound
+            : method === 'abortSession'
+              ? {
+                  operationId: 'abababab-abab-4bab-8bab-abababababab',
+                  ...bound,
+                  runId: 'run-1',
+                }
+              : bound
     await expect(manager[method](input as never)).rejects.toEqual(new PiRuntimeManagerError(code))
     await manager.shutdown()
   })
@@ -373,6 +391,7 @@ describe('PiRuntimeManager', () => {
       manager.createSession({ operationId, documentId: bound.documentId }),
       manager.openSession({ operationId, ...bound }),
       manager.promptSession({ operationId, ...bound, text: 'hello' }),
+      manager.abortSession({ operationId, ...bound, runId: 'run-1' }),
       manager.snapshotSession(bound),
       manager.subscribeSession(bound),
     ]

@@ -4,6 +4,7 @@ import type {
   AgentSessionConnectRequest,
   EventEnvelope,
   SessionConnectionReceipt,
+  SessionAbortReceipt,
   SessionPromptReceipt,
   SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -29,6 +30,12 @@ export type AgentSessionTransport = {
     documentId: string
     text: string
   }): Promise<SessionPromptReceipt>
+  abortSession(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+    runId: string
+  }): Promise<SessionAbortReceipt>
   onSessionEvent(listener: (event: EventEnvelope) => void): (() => void) | Promise<() => void>
 }
 
@@ -145,7 +152,10 @@ export class AgentSessionBroker<ClientId = number> {
     }
   }
 
-  async command(clientId: ClientId, command: AgentSessionCommand): Promise<SessionPromptReceipt> {
+  async command(
+    clientId: ClientId,
+    command: AgentSessionCommand,
+  ): Promise<SessionPromptReceipt | SessionAbortReceipt> {
     if (!(await this.options.authorize(clientId, command.documentId))) {
       throw new Error('document_access_denied')
     }
@@ -157,12 +167,19 @@ export class AgentSessionBroker<ClientId = number> {
     ) {
       throw new Error('agent_session_not_connected')
     }
-    return this.transport.promptSession({
-      operationId: command.operationId,
-      sessionId: command.sessionId,
-      documentId: command.documentId,
-      text: command.text,
-    })
+    return command.type === 'prompt'
+      ? this.transport.promptSession({
+          operationId: command.operationId,
+          sessionId: command.sessionId,
+          documentId: command.documentId,
+          text: command.text,
+        })
+      : this.transport.abortSession({
+          operationId: command.operationId,
+          sessionId: command.sessionId,
+          documentId: command.documentId,
+          runId: command.runId,
+        })
   }
 
   disconnect(clientId: ClientId): void {

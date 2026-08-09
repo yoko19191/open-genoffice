@@ -130,7 +130,7 @@ describe('Agent Session preload bridge', () => {
   it('exposes four typed methods without a raw invoke surface', async () => {
     const listeners = new Map<string, (event: unknown, value: unknown) => void>()
     const ipcRenderer = {
-      invoke: vi.fn(async (channel: string) =>
+      invoke: vi.fn(async (channel: string): Promise<unknown> =>
         channel === AGENT_SESSION_CHANNELS.connect
           ? receipt
           : { runId: 'run-1', acceptedCursor: 'cursor-2' },
@@ -147,10 +147,18 @@ describe('Agent Session preload bridge', () => {
     await expect(
       api.command({ type: 'prompt', operationId, sessionId, documentId, text: 'go' }),
     ).resolves.toMatchObject({ runId: 'run-1' })
+    ipcRenderer.invoke.mockResolvedValueOnce({
+      runId: 'run-1',
+      state: 'cancelling',
+      acceptedCursor: 'cursor-3',
+    })
+    await expect(
+      api.command({ type: 'abort', operationId, sessionId, documentId, runId: 'run-1' }),
+    ).resolves.toMatchObject({ state: 'cancelling' })
     await expect(api.connect({ documentId: 'other' })).rejects.toThrowError(
       'agent_session_connect_request_invalid',
     )
-    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(2)
+    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(3)
 
     const next = vi.fn()
     const remove = api.onEvent(next)

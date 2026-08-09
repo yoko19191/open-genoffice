@@ -23,7 +23,6 @@ const GenericRuntimeMethodSchema = Type.Union([
   Type.Literal('session.close'),
   Type.Literal('session.steer'),
   Type.Literal('session.followUp'),
-  Type.Literal('session.abort'),
   Type.Literal('session.compact'),
   Type.Literal('session.fork'),
   Type.Literal('session.navigate'),
@@ -132,6 +131,7 @@ export const SessionSnapshotSchema = Type.Object(
           state: Type.Union([
             Type.Literal('queued'),
             Type.Literal('running'),
+            Type.Literal('cancelling'),
             Type.Literal('completed'),
             Type.Literal('failed'),
             Type.Literal('aborted'),
@@ -226,6 +226,19 @@ const SessionPromptRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const SessionAbortRequestSchema = sessionRequestEnvelope(
+  'session.abort',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      runId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
 const SessionSnapshotRequestSchema = sessionRequestEnvelope(
   'session.snapshot',
   Type.Object(
@@ -296,6 +309,7 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionCreateRequestSchema,
   SessionOpenRequestSchema,
   SessionPromptRequestSchema,
+  SessionAbortRequestSchema,
   SessionSnapshotRequestSchema,
   SessionSubscribeRequestSchema,
 ])
@@ -363,6 +377,15 @@ export const SessionPromptReceiptSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const SessionAbortReceiptSchema = Type.Object(
+  {
+    runId: EntityIdSchema,
+    state: Type.Union([Type.Literal('cancelling'), Type.Literal('already_terminal')]),
+    acceptedCursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
 export const SessionSubscriptionReceiptSchema = Type.Object(
   {
     resetRequired: Type.Boolean(),
@@ -381,16 +404,28 @@ export const AgentSessionConnectRequestSchema = Type.Object(
   { additionalProperties: false },
 )
 
-export const AgentSessionCommandSchema = Type.Object(
-  {
-    type: Type.Literal('prompt'),
-    operationId: OperationIdSchema,
-    sessionId: SessionIdSchema,
-    documentId: DocumentIdSchema,
-    text: Type.String({ minLength: 1, maxLength: 262_144 }),
-  },
-  { additionalProperties: false },
-)
+export const AgentSessionCommandSchema = Type.Union([
+  Type.Object(
+    {
+      type: Type.Literal('prompt'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      text: Type.String({ minLength: 1, maxLength: 262_144 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('abort'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      runId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+])
 
 export const AgentSessionConnectReceiptSchema = Type.Object(
   {
@@ -526,6 +561,7 @@ export type ResponseEnvelope = Static<typeof ResponseEnvelopeSchema>
 export type EventEnvelope = Static<typeof EventEnvelopeSchema>
 export type SessionConnectionReceipt = Static<typeof SessionConnectionReceiptSchema>
 export type SessionPromptReceipt = Static<typeof SessionPromptReceiptSchema>
+export type SessionAbortReceipt = Static<typeof SessionAbortReceiptSchema>
 export type SessionSubscriptionReceipt = Static<typeof SessionSubscriptionReceiptSchema>
 export type AgentSessionConnectRequest = Static<typeof AgentSessionConnectRequestSchema>
 export type AgentSessionCommand = Static<typeof AgentSessionCommandSchema>
@@ -561,6 +597,11 @@ export function parseSessionConnectionReceipt(value: unknown): SessionConnection
 export function parseSessionPromptReceipt(value: unknown): SessionPromptReceipt {
   if (Value.Check(SessionPromptReceiptSchema, value)) return value
   throw new Error('session_prompt_receipt_invalid')
+}
+
+export function parseSessionAbortReceipt(value: unknown): SessionAbortReceipt {
+  if (Value.Check(SessionAbortReceiptSchema, value)) return value
+  throw new Error('session_abort_receipt_invalid')
 }
 
 export function parseSessionSnapshot(value: unknown): SessionSnapshot {

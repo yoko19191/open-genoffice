@@ -35,6 +35,7 @@ export type PiSessionHandle = {
   sessionManager: SessionManager
   subscribe: (listener: (event: AgentSessionEvent) => void) => () => void
   prompt: (text: string) => Promise<PiPromptResult | undefined>
+  abort: () => Promise<void>
   dispose: () => void
 }
 
@@ -169,6 +170,7 @@ export async function createDeterministicPiSession(
       sessionManager.branch(activeLeafId)
       return { branchCreated: { branchId, parentEntryId, activeLeafId } }
     },
+    abort: () => session.abort(),
     dispose: () => session.dispose(),
   }
 }

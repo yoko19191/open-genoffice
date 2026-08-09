@@ -47,6 +47,11 @@ function manager(overrides: Record<string, unknown> = {}) {
       cursor: snapshot.cursor,
     })),
     promptSession: vi.fn(async () => ({ runId: 'run-1', acceptedCursor: 'cursor-1' })),
+    abortSession: vi.fn(async () => ({
+      runId: 'run-1',
+      state: 'cancelling' as const,
+      acceptedCursor: 'cursor-2',
+    })),
     snapshotSession: vi.fn(async () => snapshot),
     subscribeSession: vi.fn(async () => ({ resetRequired: false, snapshot, events: [] })),
     onSessionEvent: vi.fn(() => () => {}),
@@ -147,10 +152,16 @@ describe('installed Pi Runtime service', () => {
       ...bound,
       text: 'hello',
     })
+    await fixture.instance.abortSession({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      ...bound,
+      runId: 'run-1',
+    })
     await fixture.instance.snapshotSession(bound)
     await fixture.instance.subscribeSession({ ...bound, afterCursor: 'cursor-1' })
     expect(fixture.runtimeManager.openSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.promptSession).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.abortSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.snapshotSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.subscribeSession).toHaveBeenCalledOnce()
     const listener = vi.fn()

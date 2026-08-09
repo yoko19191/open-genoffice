@@ -15,6 +15,11 @@ import {
   type CreatePiSessionOptions,
   type PiSessionHandle,
 } from './pi-session-factory'
+import {
+  RunAbortTree,
+  type AbortDescendantRegistration,
+  type RunAbortSummary,
+} from './run-abort-tree'
 
 type Binding = {
   version: 1
@@ -26,6 +31,7 @@ type Binding = {
 type CreateInput = { operationId: string; documentId: string }
 type OpenInput = CreateInput & { sessionId: string }
 type PromptInput = OpenInput & { text: string }
+type AbortInput = OpenInput & { runId: string }
 type BoundInput = { sessionId: string; documentId: string }
 type SubscribeInput = BoundInput & { afterCursor?: string }
 
@@ -42,6 +48,11 @@ type OpenReceipt = {
   cursor: string
 }
 type PromptReceipt = { runId: string; acceptedCursor: string }
+type AbortReceipt = {
+  runId: string
+  state: 'cancelling' | 'already_terminal'
+  acceptedCursor: string
+}
 type OperationEntry = { hash: string; result: Promise<unknown> }
 
 type SessionRecord = {
@@ -54,6 +65,8 @@ type SessionRecord = {
     runId: string
     state: NonNullable<SessionSnapshot['activeRun']>['state']
     promise?: Promise<void>
+    abortTree: RunAbortTree
+    abortRegistration?: Promise<AbortReceipt>
   }
   activeMessageId?: string
   pendingTerminalState?: 'completed' | 'failed' | 'aborted'
@@ -64,6 +77,8 @@ export type SessionRegistryOptions = {
   instanceId: string
   cursorSecret: Buffer
   replayWindowSize?: number
+  cooperativeAbortMs?: number
+  forceAbortMs?: number
   randomUUID?: () => string
   now?: () => Date
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
@@ -138,6 +153,8 @@ export class SessionRegistry {
   private readonly now: () => Date
   private readonly createPiSession: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
   private readonly replayWindowSize: number
+  private readonly cooperativeAbortMs: number
+  private readonly forceAbortMs: number
   private readonly records = new Map<string, SessionRecord>()
   private readonly operations = new Map<string, OperationEntry>()
   private readonly listeners = new Set<(event: EventEnvelope) => void>()
@@ -154,6 +171,8 @@ export class SessionRegistry {
     this.now = options.now ?? (() => new Date())
     this.createPiSession = options.createPiSession ?? createDeterministicPiSession
     this.replayWindowSize = Math.max(1, options.replayWindowSize ?? 512)
+    this.cooperativeAbortMs = Math.max(1, options.cooperativeAbortMs ?? 2_000)
+    this.forceAbortMs = Math.max(this.cooperativeAbortMs, options.forceAbortMs ?? 5_000)
   }
 
   onEvent(listener: (event: EventEnvelope) => void): () => void {
@@ -211,12 +230,28 @@ export class SessionRegistry {
       const record = await this.loadRecord(binding)
       if (
         record.activeRun &&
-        (record.activeRun.state === 'queued' || record.activeRun.state === 'running')
+        (record.activeRun.state === 'queued' ||
+          record.activeRun.state === 'running' ||
+          record.activeRun.state === 'cancelling')
       ) {
         throw new RuntimeSessionError('invalid_state')
       }
       const runId = this.randomUUID()
-      record.activeRun = { runId, state: 'queued' }
+      const abortTree = new RunAbortTree({
+        cooperativeAbortMs: this.cooperativeAbortMs,
+        forceAbortMs: this.forceAbortMs,
+      })
+      const activeRun: NonNullable<SessionRecord['activeRun']> = {
+        runId,
+        state: 'queued',
+        abortTree,
+      }
+      record.activeRun = activeRun
+      const completeModel = abortTree.register({
+        id: 'pi-model',
+        kind: 'model',
+        abort: () => record.pi.abort(),
+      })
       await this.appendEvent(record, 'run.queued', {})
       const userMessageId = this.randomUUID()
       await this.appendEvent(
@@ -234,23 +269,69 @@ export class SessionRegistry {
       const running = record.pi
         .prompt(input.text)
         .then(async (result) => {
+          completeModel()
+          if (record.activeRun !== activeRun || activeRun.abortRegistration) return
           if (result?.branchCreated) {
             await this.appendEvent(record, 'branch.created', result.branchCreated, runId)
           }
           const terminalState = record.pendingTerminalState ?? 'completed'
           record.pendingTerminalState = undefined
-          record.activeRun = { runId, state: terminalState }
+          activeRun.state = terminalState
           await this.appendEvent(record, `run.${terminalState}`, {}, runId)
         })
         .catch(async () => {
+          completeModel()
+          if (record.activeRun !== activeRun || activeRun.abortRegistration) return
           record.pendingTerminalState = undefined
-          record.activeRun = { runId, state: 'failed' }
-          await this.appendEvent(record, 'run.failed', { reason: 'provider_error' })
+          activeRun.state = 'failed'
+          await this.appendEvent(record, 'run.failed', { reason: 'provider_error' }, runId)
         })
         .then(() => record.eventQueue)
-      record.activeRun.promise = running
+      activeRun.promise = running
       return { runId, acceptedCursor: accepted.cursor }
     })
+  }
+
+  async abort(input: AbortInput): Promise<AbortReceipt> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.abort', input, async () => {
+      const record = await this.loadRecord(binding)
+      const activeRun = record.activeRun
+      if (!activeRun || activeRun.runId !== input.runId) {
+        throw new RuntimeSessionError('invalid_state')
+      }
+      if (
+        activeRun.state === 'completed' ||
+        activeRun.state === 'failed' ||
+        activeRun.state === 'aborted' ||
+        activeRun.state === 'interrupted'
+      ) {
+        const snapshot = this.snapshotFor(record)
+        return {
+          runId: activeRun.runId,
+          state: 'already_terminal',
+          acceptedCursor: snapshot.cursor,
+        }
+      }
+      return this.beginAbort(record, activeRun)
+    })
+  }
+
+  registerRunDescendant(
+    sessionId: string,
+    runId: string,
+    descendant: AbortDescendantRegistration,
+  ): () => void {
+    const record = this.records.get(sessionId)
+    if (!record) throw new RuntimeSessionError('session_not_found')
+    if (
+      !record.activeRun ||
+      record.activeRun.runId !== runId ||
+      (record.activeRun.state !== 'queued' && record.activeRun.state !== 'running')
+    ) {
+      throw new RuntimeSessionError('invalid_state')
+    }
+    return record.activeRun.abortTree.register(descendant)
   }
 
   async snapshot(input: BoundInput): Promise<SessionSnapshot> {
@@ -307,7 +388,20 @@ export class SessionRegistry {
   }
 
   async shutdown(): Promise<void> {
-    await Promise.all([...this.records.values()].map((record) => record.activeRun?.promise))
+    await Promise.all(
+      [...this.records.values()].map((record) => {
+        const activeRun = record.activeRun
+        if (
+          activeRun &&
+          (activeRun.state === 'queued' ||
+            activeRun.state === 'running' ||
+            activeRun.state === 'cancelling')
+        ) {
+          return this.beginAbort(record, activeRun).then(() => activeRun.promise)
+        }
+        return activeRun?.promise
+      }),
+    )
     await Promise.all([...this.records.values()].map((record) => record.eventQueue))
     for (const record of this.records.values()) {
       record.unsubscribe()
@@ -418,10 +512,12 @@ export class SessionRegistry {
   }
 
   private projectPiEvent(record: SessionRecord, event: AgentSessionEvent) {
-    const runId = record.activeRun?.runId
-    if (!runId) return
+    const activeRun = record.activeRun
+    const runId = activeRun?.runId
+    if (!activeRun || !runId || activeRun.state === 'cancelling' || activeRun.state === 'aborted')
+      return
     if (event.type === 'agent_start') {
-      record.activeRun = { ...record.activeRun!, state: 'running' }
+      activeRun.state = 'running'
       void this.appendEvent(record, 'run.started', {}, runId)
       return
     }
@@ -516,9 +612,73 @@ export class SessionRegistry {
           : assistant?.stopReason === 'aborted'
             ? 'aborted'
             : 'completed'
-      record.activeRun = { ...record.activeRun!, state }
+      activeRun.state = state
       record.pendingTerminalState = state
     }
+  }
+
+  private beginAbort(
+    record: SessionRecord,
+    activeRun: NonNullable<SessionRecord['activeRun']>,
+  ): Promise<AbortReceipt> {
+    activeRun.abortRegistration ??= this.registerAbort(record, activeRun)
+    return activeRun.abortRegistration
+  }
+
+  private async registerAbort(
+    record: SessionRecord,
+    activeRun: NonNullable<SessionRecord['activeRun']>,
+  ): Promise<AbortReceipt> {
+    activeRun.state = 'cancelling'
+    record.pendingTerminalState = undefined
+    const acceptedEvent = this.appendEvent(record, 'run.cancelling', {}, activeRun.runId)
+    activeRun.promise = activeRun.abortTree
+      .abort()
+      .then((summary) => this.finishAbort(record, activeRun, summary))
+      .then(() => record.eventQueue)
+    const accepted = await acceptedEvent
+    const receipt: AbortReceipt = {
+      runId: activeRun.runId,
+      state: 'cancelling',
+      acceptedCursor: accepted.cursor,
+    }
+    return receipt
+  }
+
+  private async finishAbort(
+    record: SessionRecord,
+    activeRun: NonNullable<SessionRecord['activeRun']>,
+    summary: RunAbortSummary,
+  ): Promise<void> {
+    if (record.activeRun !== activeRun || activeRun.state !== 'cancelling') return
+    if (!summary.complete) {
+      activeRun.state = 'failed'
+      await this.appendEvent(
+        record,
+        'run.failed',
+        {
+          code: 'abort_incomplete',
+          mutationOutcome: summary.descendants.some(
+            (descendant) => descendant.mutationOutcome === 'unknown',
+          )
+            ? 'unknown'
+            : 'not_started',
+          documentNeedsReview: summary.descendants.some(
+            (descendant) => descendant.mutationOutcome === 'unknown',
+          ),
+          descendants: summary.descendants,
+        },
+        activeRun.runId,
+      )
+      return
+    }
+    activeRun.state = 'aborted'
+    await this.appendEvent(
+      record,
+      'run.aborted',
+      { descendants: summary.descendants },
+      activeRun.runId,
+    )
   }
 
   private appendEvent(

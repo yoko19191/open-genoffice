@@ -123,6 +123,7 @@ describe('authenticated Runtime socket', () => {
           'session.create',
           'session.open',
           'session.prompt',
+          'session.abort',
           'session.snapshot',
           'session.subscribe',
         ],

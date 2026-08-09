@@ -122,6 +122,7 @@ export async function createAuthenticatedRuntimeServer(
                 'session.create',
                 'session.open',
                 'session.prompt',
+                'session.abort',
                 'session.snapshot',
                 'session.subscribe',
               ],
@@ -193,6 +194,10 @@ export async function createAuthenticatedRuntimeServer(
             }),
           ),
         )
+        return
+      }
+      if (request.method === 'session.abort') {
+        socket.write(response(request, await sessionRegistry.abort(request.params)))
         return
       }
       if (request.method === 'session.snapshot') {

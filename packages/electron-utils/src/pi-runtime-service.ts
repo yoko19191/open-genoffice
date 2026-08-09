@@ -5,6 +5,7 @@ import {
   type RuntimeHealthProjection,
   type EventEnvelope,
   type SessionConnectionReceipt,
+  type SessionAbortReceipt,
   type SessionPromptReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
@@ -14,6 +15,7 @@ import { createPiRuntimeManager } from './pi-runtime-node'
 import type {
   PiRuntimeManager,
   SessionBoundRequest,
+  SessionAbortRequest,
   SessionCreateRequest,
   SessionOpenRequest,
   SessionPromptRequest,
@@ -35,6 +37,7 @@ type OwnedPiRuntimeManager = Pick<
   | 'createSession'
   | 'openSession'
   | 'promptSession'
+  | 'abortSession'
   | 'snapshotSession'
   | 'subscribeSession'
   | 'onSessionEvent'
@@ -95,6 +98,10 @@ export class PiRuntimeService {
 
   async promptSession(input: SessionPromptRequest): Promise<SessionPromptReceipt> {
     return (await this.readyManager()).promptSession(input)
+  }
+
+  async abortSession(input: SessionAbortRequest): Promise<SessionAbortReceipt> {
+    return (await this.readyManager()).abortSession(input)
   }
 
   async snapshotSession(input: SessionBoundRequest): Promise<SessionSnapshot> {

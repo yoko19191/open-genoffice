@@ -34,6 +34,7 @@ export {
   type PiRuntimeSocket,
   type PrivateRuntimeEndpoint,
   type SessionBoundRequest,
+  type SessionAbortRequest,
   type SessionCreateRequest,
   type SessionOpenRequest,
   type SessionPromptRequest,

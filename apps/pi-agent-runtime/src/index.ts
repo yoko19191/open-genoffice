@@ -27,3 +27,12 @@ export {
   type SessionRegistryOptions,
 } from './session-registry'
 export { runRuntimeEntrypoint, type RuntimeEntrypointDependencies } from './runtime-entrypoint'
+export {
+  RunAbortTree,
+  type AbortDescendantKind,
+  type AbortDescendantRegistration,
+  type AbortDescendantResult,
+  type MutationOutcome,
+  type RunAbortSummary,
+  type RunAbortTreeOptions,
+} from './run-abort-tree'

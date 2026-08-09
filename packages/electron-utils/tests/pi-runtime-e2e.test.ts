@@ -134,6 +134,75 @@ describe('copied Pi Runtime end to end', () => {
     expect(transcript).toContain('genoffice.document-binding')
     expect(transcript).not.toContain('run.started')
 
+    const abortDocumentId = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'
+    const abortCreated = await manager.createSession({
+      operationId: randomUUID(),
+      documentId: abortDocumentId,
+    })
+    const abortedEvents: Parameters<typeof applyAgentSessionEvent>[1][] = []
+    let resolveAborted!: () => void
+    const aborted = new Promise<void>((resolve) => {
+      resolveAborted = resolve
+    })
+    const unsubscribeAborted = manager.onSessionEvent((event) => {
+      if (event.sessionId !== abortCreated.sessionId) return
+      abortedEvents.push(event)
+      if (event.type === 'run.aborted') resolveAborted()
+    })
+    const abortPrompt = await manager.promptSession({
+      operationId: randomUUID(),
+      sessionId: abortCreated.sessionId,
+      documentId: abortDocumentId,
+      text: 'abort this deliberately long model response',
+    })
+    const abortOperationId = randomUUID()
+    const abortStartedAt = Date.now()
+    const abortReceipt = await manager.abortSession({
+      operationId: abortOperationId,
+      sessionId: abortCreated.sessionId,
+      documentId: abortDocumentId,
+      runId: abortPrompt.runId,
+    })
+    expect(Date.now() - abortStartedAt).toBeLessThan(2_000)
+    expect(abortReceipt).toMatchObject({ runId: abortPrompt.runId, state: 'cancelling' })
+    await expect(
+      manager.abortSession({
+        operationId: abortOperationId,
+        sessionId: abortCreated.sessionId,
+        documentId: abortDocumentId,
+        runId: abortPrompt.runId,
+      }),
+    ).resolves.toEqual(abortReceipt)
+    await aborted
+    expect(abortedEvents.filter((event) => event.type === 'run.aborted')).toHaveLength(1)
+    expect(
+      (
+        await manager.snapshotSession({
+          sessionId: abortCreated.sessionId,
+          documentId: abortDocumentId,
+        })
+      ).activeRun?.state,
+    ).toBe('aborted')
+
+    let resolveAfterAbort!: () => void
+    const afterAbort = new Promise<void>((resolve) => {
+      resolveAfterAbort = resolve
+    })
+    const unsubscribeAfterAbort = manager.onSessionEvent((event) => {
+      if (event.sessionId === abortCreated.sessionId && event.type === 'run.completed') {
+        resolveAfterAbort()
+      }
+    })
+    await manager.promptSession({
+      operationId: randomUUID(),
+      sessionId: abortCreated.sessionId,
+      documentId: abortDocumentId,
+      text: 'continue after abort',
+    })
+    await afterAbort
+    unsubscribeAfterAbort()
+    unsubscribeAborted()
+
     const reloadDocumentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
     const reloadEvents: Parameters<typeof applyAgentSessionEvent>[1][] = []
     const broker = new AgentSessionBroker(manager, {

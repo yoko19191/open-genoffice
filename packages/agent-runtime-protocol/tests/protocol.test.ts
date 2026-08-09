@@ -22,6 +22,7 @@ import {
   parseRuntimeBundleManifest,
   parseRuntimeHealthProjection,
   parseSessionConnectionReceipt,
+  parseSessionAbortReceipt,
   parseSessionPromptReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
@@ -168,7 +169,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(8)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(9)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -190,6 +191,15 @@ describe('protocol TypeBox source of truth', () => {
         operationId: '22222222-2222-4222-8222-222222222222',
         sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      },
+    ],
+    [
+      'session.abort',
+      {
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        runId: 'run-1',
       },
     ],
     [
@@ -440,7 +450,7 @@ describe('renderer-safe Session receipts', () => {
     cursor: 'cursor-2',
   }
 
-  it('parses exact connection, prompt, snapshot, and subscription receipts', () => {
+  it('parses exact connection, prompt, abort, snapshot, and subscription receipts', () => {
     expect(parseSessionSnapshot(snapshot)).toEqual(snapshot)
     expect(
       parseSessionConnectionReceipt({
@@ -454,6 +464,13 @@ describe('renderer-safe Session receipts', () => {
       runId: 'run-1',
       acceptedCursor: 'cursor-2',
     })
+    expect(
+      parseSessionAbortReceipt({
+        runId: 'run-1',
+        state: 'cancelling',
+        acceptedCursor: 'cursor-3',
+      }),
+    ).toEqual({ runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-3' })
     expect(
       parseSessionSubscriptionReceipt({ resetRequired: false, snapshot, events: [] }),
     ).toMatchObject({ resetRequired: false })
@@ -472,6 +489,15 @@ describe('renderer-safe Session receipts', () => {
         }),
     ],
     ['prompt', () => parseSessionPromptReceipt({ runId: '', acceptedCursor: 'cursor-2' })],
+    [
+      'abort',
+      () =>
+        parseSessionAbortReceipt({
+          runId: 'run-1',
+          state: 'stopped',
+          acceptedCursor: 'cursor-3',
+        }),
+    ],
     ['subscription', () => parseSessionSubscriptionReceipt({ resetRequired: false, snapshot })],
   ])('rejects an invalid %s receipt with a stable error', (_label, parse) => {
     expect(parse).toThrowError(/_invalid$/)
@@ -488,13 +514,22 @@ describe('narrow renderer Agent Session bridge', () => {
     cursor: 'cursor-4',
   }
 
-  it('accepts only typed connect, prompt command, and reconnect receipt vectors', () => {
+  it('accepts only typed connect, prompt/abort commands, and reconnect receipt vectors', () => {
     expect(
       parseAgentSessionConnectRequest({ documentId, sessionId, afterCursor: 'cursor-3' }),
     ).toMatchObject({ documentId, sessionId })
     expect(
       parseAgentSessionCommand({ type: 'prompt', operationId, sessionId, documentId, text: 'go' }),
     ).toMatchObject({ type: 'prompt', operationId })
+    expect(
+      parseAgentSessionCommand({
+        type: 'abort',
+        operationId,
+        sessionId,
+        documentId,
+        runId: 'run-1',
+      }),
+    ).toMatchObject({ type: 'abort', runId: 'run-1' })
     expect(
       parseAgentSessionConnectReceipt({
         connectionId: operationId,

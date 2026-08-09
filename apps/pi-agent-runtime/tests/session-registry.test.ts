@@ -2,12 +2,13 @@ import { createHmac } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { RuntimeSessionError, createSessionRegistry } from '../src'
 
 const roots: string[] = []
 const operationId = '11111111-1111-4111-8111-111111111111'
+const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
 
 async function harness() {
   const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-registry-'))
@@ -34,6 +35,7 @@ function fakePiSession(options: {
   sessionFile?: string
   messages?: Array<Record<string, unknown>>
   prompt?: (emit: (event: AgentSessionEvent) => void) => Promise<void>
+  abort?: () => Promise<void>
 }) {
   let listener: (event: AgentSessionEvent) => void = () => {}
   const dispose = () => {}
@@ -46,6 +48,7 @@ function fakePiSession(options: {
         return dispose
       },
       prompt: async () => options.prompt?.(listener),
+      abort: async () => options.abort?.(),
       dispose,
     },
     emit: (event: AgentSessionEvent) => listener(event),
@@ -53,6 +56,212 @@ function fakePiSession(options: {
 }
 
 describe('document-bound Pi Session registry', () => {
+  it('cancels one registered execution tree, drops late events, and accepts the next prompt', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-abort-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    let promptCount = 0
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async (emit) => {
+        promptCount += 1
+        emit({ type: 'agent_start' })
+        if (promptCount === 1) {
+          await blocked
+          emit({
+            type: 'message_update',
+            message: {} as never,
+            assistantMessageEvent: {
+              type: 'text_delta',
+              contentIndex: 0,
+              delta: 'late',
+              partial: {} as never,
+            },
+          })
+        }
+      },
+      abort: async () => releasePrompt(),
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-abort',
+      cursorSecret: Buffer.alloc(32, 10),
+      cooperativeAbortMs: 100,
+      forceAbortMs: 200,
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      text: 'long run',
+    })
+    let releaseDescendant!: () => void
+    const descendantBlocked = new Promise<void>((resolve) => {
+      releaseDescendant = resolve
+    })
+    const descendantAbort = vi.fn(async () => descendantBlocked)
+    registry.registerRunDescendant(created.sessionId, prompted.runId, {
+      id: 'mcp-call',
+      kind: 'mcp',
+      abort: descendantAbort,
+    })
+
+    const abortInput = {
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      runId: prompted.runId,
+    }
+    const receipt = await registry.abort(abortInput)
+    expect(receipt).toMatchObject({ runId: prompted.runId, state: 'cancelling' })
+    await expect(registry.abort(abortInput)).resolves.toEqual(receipt)
+    expect(
+      (await registry.readJournal(created.sessionId)).some((event) => event.type === 'run.aborted'),
+    ).toBe(false)
+    releaseDescendant()
+    await registry.waitForIdle(created.sessionId)
+
+    const journal = await registry.readJournal(created.sessionId)
+    expect(journal.filter((event) => event.type === 'run.cancelling')).toHaveLength(1)
+    expect(journal.filter((event) => event.type === 'run.aborted')).toHaveLength(1)
+    expect(journal.some((event) => event.type === 'message.delta')).toBe(false)
+    expect(journal.at(-1)?.type).toBe('run.aborted')
+    expect(descendantAbort).toHaveBeenCalledOnce()
+    await expect(
+      registry.abort({
+        ...abortInput,
+        operationId: '44444444-4444-4444-8444-444444444444',
+      }),
+    ).resolves.toMatchObject({ state: 'already_terminal' })
+
+    await registry.prompt({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      text: 'next run',
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.snapshot(created)).activeRun?.state).toBe('completed')
+    await registry.shutdown()
+  })
+
+  it('fails abort closed when a document mutation outcome is unknown', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-abort-incomplete-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-abort-incomplete',
+      cursorSecret: Buffer.alloc(32, 11),
+      randomUUID: (() => {
+        let id = 0
+        return () => `${String(++id).padStart(8, '0')}-0000-4000-8000-000000000000`
+      })(),
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'uncertain write',
+    })
+    registry.registerRunDescendant(created.sessionId, prompted.runId, {
+      id: 'office-write',
+      kind: 'office',
+      mutation: true,
+      abort: async () => ({ mutationOutcome: 'unknown' }),
+    })
+    await registry.abort({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      runId: prompted.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.failed',
+      payload: {
+        code: 'abort_incomplete',
+        mutationOutcome: 'unknown',
+        documentNeedsReview: true,
+      },
+    })
+    await registry.shutdown()
+  })
+
+  it('rejects an unknown run and aborts an active execution tree during Runtime shutdown', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-shutdown-abort-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const abortPi = vi.fn(async () => releasePrompt())
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async () => blocked,
+      abort: abortPi,
+    })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-shutdown-abort',
+      cursorSecret: Buffer.alloc(32, 12),
+      randomUUID: (() => {
+        let id = 0
+        return () => `${String(++id).padStart(8, '0')}-0000-4000-8000-000000000000`
+      })(),
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    await expect(
+      registry.abort({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+        runId: 'missing-run',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    const prompted = await registry.prompt({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'shutdown while active',
+    })
+    expect(() =>
+      registry.registerRunDescendant(created.sessionId, 'other-run', {
+        id: 'late',
+        kind: 'mcp',
+        abort: async () => {},
+      }),
+    ).toThrowError('invalid_state')
+
+    await registry.shutdown()
+    expect(abortPi).toHaveBeenCalledOnce()
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.aborted',
+      runId: prompted.runId,
+    })
+  })
+
   it('creates one real Pi AgentSession and projects its native stream in journal order', async () => {
     const { dataRoot, registry } = await harness()
     const published: string[] = []

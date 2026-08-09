@@ -61,6 +61,11 @@ function harness() {
     openSession: vi.fn(async () => connection(currentSnapshot.lastSequence)),
     subscribeSession: vi.fn(async () => subscription),
     promptSession: vi.fn(async () => ({ runId: 'run-1', acceptedCursor: 'cursor-2' })),
+    abortSession: vi.fn(async () => ({
+      runId: 'run-1',
+      state: 'cancelling' as const,
+      acceptedCursor: 'cursor-3',
+    })),
     onSessionEvent: vi.fn(async (next: (value: EventEnvelope) => void) => {
       listener = next
       return unsubscribe
@@ -220,6 +225,21 @@ describe('Electron main Agent Session broker', () => {
       sessionId,
       documentId,
       text: 'continue',
+    })
+    await expect(
+      fixture.broker.command(1, {
+        type: 'abort',
+        operationId: command.operationId,
+        sessionId,
+        documentId,
+        runId: 'run-1',
+      }),
+    ).resolves.toMatchObject({ state: 'cancelling' })
+    expect(fixture.transport.abortSession).toHaveBeenCalledWith({
+      operationId: command.operationId,
+      sessionId,
+      documentId,
+      runId: 'run-1',
     })
     fixture.authorize.mockResolvedValueOnce(false)
     await expect(fixture.broker.command(1, command)).rejects.toThrowError('document_access_denied')
