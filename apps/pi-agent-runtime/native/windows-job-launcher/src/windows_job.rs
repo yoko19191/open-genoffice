@@ -12,8 +12,8 @@ use windows::Win32::System::JobObjects::{
 };
 use windows::Win32::System::Threading::{
     CREATE_SUSPENDED, CreateProcessW, GetExitCodeProcess, OpenProcess, PROCESS_INFORMATION,
-    PROCESS_SYNCHRONIZE_RIGHTS, ResumeThread, STARTF_USESTDHANDLES, STARTUPINFOW, SYNCHRONIZE,
-    TerminateProcess, WaitForSingleObject,
+    PROCESS_SYNCHRONIZE, ResumeThread, STARTF_USESTDHANDLES, STARTUPINFOW, TerminateProcess,
+    WaitForSingleObject,
 };
 use windows::core::{PCWSTR, PWSTR};
 
@@ -52,9 +52,8 @@ fn wide(value: &str) -> Vec<u16> {
 }
 
 pub fn run(owner_pid: u32, executable: &str, args: &[String]) -> Result<u32, ()> {
-    let owner = OwnedHandle(unsafe {
-        OpenProcess(PROCESS_SYNCHRONIZE_RIGHTS(SYNCHRONIZE.0), false, owner_pid).map_err(|_| ())?
-    });
+    let owner =
+        OwnedHandle(unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, owner_pid).map_err(|_| ())? });
     let job = OwnedHandle(unsafe { CreateJobObjectW(None, None).map_err(|_| ())? });
     let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { zeroed() };
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
