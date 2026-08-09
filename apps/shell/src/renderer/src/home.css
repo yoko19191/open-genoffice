@@ -1156,6 +1156,45 @@ body.vib .home {
   border-radius: var(--radius-6);
 }
 
+.provider-resource-catalog {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-6);
+}
+
+.provider-resource-catalog summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.provider-resource-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.provider-resource-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.provider-resource-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: var(--radius-6);
+  background: var(--surface-subtle);
+  font-size: 12px;
+}
+
+.provider-resource-item code {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
 .provider-local-config summary {
   cursor: pointer;
   font-size: 13px;

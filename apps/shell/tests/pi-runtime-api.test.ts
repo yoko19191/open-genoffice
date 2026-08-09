@@ -12,6 +12,7 @@ import {
   asModelOAuthOperationInput,
   asModelOAuthResponseInput,
   asOAuthOperation,
+  asResourceCatalog,
 } from '../src/shared/pi-runtime-api'
 
 describe('typed Pi Runtime preload health contract', () => {
@@ -77,6 +78,10 @@ describe('typed Pi Runtime preload health contract', () => {
       respondModelOAuth: 'pi-runtime:model-oauth-respond',
       cancelModelOAuth: 'pi-runtime:model-oauth-cancel',
       logoutModel: 'pi-runtime:model-logout',
+      resourceCatalog: 'pi-runtime:resource-catalog',
+      selectResourceProject: 'pi-runtime:resource-project-select',
+      grantProjectTrust: 'pi-runtime:project-trust-grant',
+      revokeProjectTrust: 'pi-runtime:project-trust-revoke',
     })
     expect(JSON.stringify(PI_RUNTIME_CHANNELS)).not.toContain('credential-get')
   })
@@ -152,6 +157,35 @@ describe('typed Pi Runtime preload health contract', () => {
     )
     expect(() => asOAuthOperation({ ...operation, accessToken: 'leaked' })).toThrowError(
       'oauth_operation_projection_invalid',
+    )
+  })
+
+  it('revalidates Resource Catalog metadata without accepting paths or bodies', () => {
+    const catalog = {
+      catalogId: 'a'.repeat(64),
+      projectState: 'untrusted',
+      resources: [
+        {
+          resourceKey: 'skill:project/example',
+          resourceId: 'example',
+          namespace: 'project',
+          kind: 'skill',
+          source: 'project:skills/example',
+          state: 'restricted',
+          reason: 'project_untrusted',
+          action: 'trust_project',
+        },
+      ],
+    } as const
+    expect(asResourceCatalog(catalog)).toEqual(catalog)
+    expect(() =>
+      asResourceCatalog({
+        ...catalog,
+        resources: [{ ...catalog.resources[0], path: '/private/project' }],
+      }),
+    ).toThrowError('resource_catalog_invalid')
+    expect(() => asResourceCatalog({ ...catalog, body: 'secret' })).toThrowError(
+      'resource_catalog_invalid',
     )
   })
 })

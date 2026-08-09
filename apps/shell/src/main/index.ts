@@ -2367,6 +2367,17 @@ installModelManagementIpc(
     if (!safeUrl) throw new Error('oauth_url_invalid')
     await shell.openExternal(safeUrl)
   },
+  async () => {
+    const win = shellWindow ?? BrowserWindow.getFocusedWindow()
+    const result = await showOpenDialogWithMemory(dialog, win, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择 Agent 项目'
+          : 'Select Agent project',
+      properties: ['openDirectory'],
+    })
+    return result.canceled ? undefined : result.filePaths[0]
+  },
 )
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here

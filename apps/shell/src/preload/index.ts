@@ -29,6 +29,7 @@ import {
   asModelOAuthOperationInput,
   asModelOAuthResponseInput,
   asOAuthOperation,
+  asResourceCatalog,
   type PiRuntimeApi,
 } from '../shared/pi-runtime-api'
 
@@ -343,6 +344,18 @@ const piRuntimeApi: PiRuntimeApi = {
     return asModelCatalog(
       await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.logoutModel, asProviderId(providerId)),
     )
+  },
+  async resourceCatalog() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.resourceCatalog))
+  },
+  async selectResourceProject() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.selectResourceProject))
+  },
+  async grantProjectTrust() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.grantProjectTrust))
+  },
+  async revokeProjectTrust() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.revokeProjectTrust))
   },
 }
 

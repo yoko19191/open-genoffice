@@ -8,6 +8,7 @@ import {
   type CapabilitySnapshot,
   type ResourceCatalog,
 } from '@genoffice/agent-resource'
+import type { ResourceCatalogProjection } from '@genoffice/agent-runtime-protocol'
 
 export type RunModelMetadata = {
   providerId: string
@@ -64,6 +65,10 @@ export class RunResourceService {
         resource.path &&
         resource.contentSha256,
     ) as Array<(typeof catalog.resources)[number] & { path: string; contentSha256: string }>
+    const hasActiveSkill = activeResources.some((resource) => resource.kind === 'skill')
+    const toolIds = input.toolIds.filter(
+      (toolId) => toolId !== 'platform:resource:read' || hasActiveSkill,
+    )
     const snapshot = createCapabilitySnapshot({
       createdForRunId: input.runId,
       model: input.model,
@@ -71,7 +76,7 @@ export class RunResourceService {
         resourceKey: resource.resourceKey,
         contentSha256: resource.contentSha256,
       })),
-      toolIds: input.toolIds,
+      toolIds,
       permissionVersion: this.permissionVersion(),
     })
     return Object.freeze({
@@ -103,6 +108,53 @@ export class RunResourceService {
         authorized.get(resourceKey) === contentSha256,
       isToolEnabled: this.isToolEnabled,
     })
+  }
+
+  async catalog(projectRoot?: string): Promise<ResourceCatalogProjection> {
+    let projectState: ResourceCatalogProjection['projectState'] = 'none'
+    if (projectRoot) {
+      try {
+        const identity = await resolveProjectIdentity(projectRoot, this.options.deviceId)
+        projectState = (await this.trust.isTrusted(identity)) ? 'trusted' : 'untrusted'
+      } catch {
+        projectState = 'invalid'
+      }
+    }
+    const catalog = await this.scan(projectRoot)
+    return {
+      catalogId: catalog.catalogId,
+      projectState,
+      resources: catalog.resources.map((resource) => ({
+        resourceKey: resource.resourceKey,
+        resourceId: resource.resourceId,
+        namespace: resource.namespace,
+        kind: resource.kind,
+        source: resource.source,
+        state: resource.state,
+        ...(resource.reason ? { reason: resource.reason } : {}),
+        ...(resource.contentSha256 ? { contentSha256: resource.contentSha256 } : {}),
+        action:
+          resource.reason === 'project_untrusted'
+            ? 'trust_project'
+            : resource.reason === 'activation_required'
+              ? 'activate_resource'
+              : resource.reason === 'resource_collision'
+                ? 'rename_resource'
+                : resource.state === 'invalid'
+                  ? 'fix_resource'
+                  : 'none',
+      })),
+    }
+  }
+
+  async grantProjectTrust(projectRoot: string): Promise<ResourceCatalogProjection> {
+    await this.trust.grant(await resolveProjectIdentity(projectRoot, this.options.deviceId))
+    return this.catalog(projectRoot)
+  }
+
+  async revokeProjectTrust(projectRoot: string): Promise<ResourceCatalogProjection> {
+    await this.trust.revoke(await resolveProjectIdentity(projectRoot, this.options.deviceId))
+    return this.catalog(projectRoot)
   }
 
   private async scan(projectRoot?: string): Promise<ResourceCatalog> {

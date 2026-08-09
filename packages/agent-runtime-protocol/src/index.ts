@@ -27,12 +27,14 @@ export {
   ModelCapabilitySchema,
   OpenAICompatibleProviderConfigurationSchema,
   ModelSelectionRoleSchema,
+  ResourceCatalogProjectionSchema,
   OAuthInteractionProjectionSchema,
   OAuthOperationProjectionSchema,
   ProviderCredentialStatusSchema,
   RuntimeHealthProjectionSchema,
   parseCredentialProviderId,
   parseModelCatalogProjection,
+  parseResourceCatalogProjection,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
   parseProviderCredentialStatus,
@@ -40,6 +42,7 @@ export {
   type ProviderCredentialStatus,
   type ModelCapability,
   type ModelCatalogProjection,
+  type ResourceCatalogProjection,
   type OpenAICompatibleProviderConfiguration,
   type ModelDescriptor,
   type ModelProviderProjection,
@@ -413,6 +416,42 @@ const ModelCatalogRequestSchema = sessionRequestEnvelope(
   Type.Object({}, { additionalProperties: false }),
 )
 
+const ResourceCatalogRequestSchema = sessionRequestEnvelope(
+  'resource.catalog',
+  Type.Object(
+    { projectRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })) },
+    { additionalProperties: false },
+  ),
+)
+
+const ProjectTrustGrantRequestSchema = sessionRequestEnvelope(
+  'project.trust.grant',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      projectRoot: Type.String({ minLength: 1, maxLength: 4096 }),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const ProjectTrustRevokeRequestSchema = sessionRequestEnvelope(
+  'project.trust.revoke',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      projectRoot: Type.String({ minLength: 1, maxLength: 4096 }),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+export const ResourceManagementRequestSchema = Type.Union([
+  ResourceCatalogRequestSchema,
+  ProjectTrustGrantRequestSchema,
+  ProjectTrustRevokeRequestSchema,
+])
+
 const ModelSelectRequestSchema = sessionRequestEnvelope(
   'model.select',
   Type.Object(
@@ -692,6 +731,9 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionSnapshotRequestSchema,
   SessionSubscribeRequestSchema,
   ModelCatalogRequestSchema,
+  ResourceCatalogRequestSchema,
+  ProjectTrustGrantRequestSchema,
+  ProjectTrustRevokeRequestSchema,
   ModelSelectRequestSchema,
   ModelProviderConfigureRequestSchema,
   ModelOAuthStartRequestSchema,
@@ -1017,6 +1059,7 @@ export type CredentialBrokerDeleteReceipt = Static<typeof CredentialBrokerDelete
 export type CredentialBrokerRequest = Static<typeof CredentialBrokerRequestSchema>
 export type CredentialManagementRequest = Static<typeof CredentialManagementRequestSchema>
 export type ModelManagementRequest = Static<typeof ModelManagementRequestSchema>
+export type ResourceManagementRequest = Static<typeof ResourceManagementRequestSchema>
 
 export function parseBootstrapLine(line: string): BootstrapRecord {
   try {
@@ -1065,6 +1108,11 @@ export function parseCredentialManagementRequest(value: unknown): CredentialMana
 export function parseModelManagementRequest(value: unknown): ModelManagementRequest {
   if (Value.Check(ModelManagementRequestSchema, value)) return value
   throw new Error('model_management_request_invalid')
+}
+
+export function parseResourceManagementRequest(value: unknown): ResourceManagementRequest {
+  if (Value.Check(ResourceManagementRequestSchema, value)) return value
+  throw new Error('resource_management_request_invalid')
 }
 
 export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifest {

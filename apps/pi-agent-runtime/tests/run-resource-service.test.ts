@@ -105,6 +105,100 @@ describe('RunResourceService', () => {
     await expect(service.verify(first.snapshot, projectRoot)).resolves.toBeUndefined()
   })
 
+  it('projects only safe catalog metadata and grants or revokes the selected project', async () => {
+    const { resourceHome, projectRoot } = await fixture()
+    const service = new RunResourceService({ resourceHome, deviceId })
+
+    expect(await service.catalog()).toMatchObject({ projectState: 'none' })
+    const untrusted = await service.catalog(projectRoot)
+    expect(untrusted).toMatchObject({
+      projectState: 'untrusted',
+      resources: expect.arrayContaining([
+        expect.objectContaining({
+          resourceId: 'project-skill',
+          source: 'project:skills/project-skill',
+          action: 'trust_project',
+        }),
+        expect.objectContaining({
+          resourceId: 'global-skill',
+          contentSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          action: 'none',
+        }),
+        expect.objectContaining({
+          resourceId: 'inactive',
+          reason: 'activation_required',
+          action: 'activate_resource',
+        }),
+      ]),
+    })
+    expect(JSON.stringify(untrusted)).not.toContain(projectRoot)
+    expect(JSON.stringify(untrusted)).not.toContain('Project body')
+    expect(JSON.stringify(untrusted)).not.toContain('activatedCapabilities')
+
+    const trusted = await service.grantProjectTrust(projectRoot)
+    expect(trusted).toMatchObject({
+      projectState: 'trusted',
+      resources: expect.arrayContaining([
+        expect.objectContaining({
+          resourceId: 'project-skill',
+          state: 'eligible',
+          contentSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        }),
+      ]),
+    })
+    expect(await service.revokeProjectTrust(projectRoot)).toMatchObject({
+      projectState: 'untrusted',
+    })
+
+    await write(
+      join(projectRoot, '.open-genoffice', 'agent', 'skills', 'global-skill', 'SKILL.md'),
+      '---\nname: global-skill\ndescription: collision\n---\nCollision\n',
+    )
+    await write(join(resourceHome, 'agent', 'prompts', 'malformed.txt'), 'wrong extension\n')
+    expect(await service.catalog(projectRoot)).toMatchObject({
+      resources: expect.arrayContaining([
+        expect.objectContaining({
+          resourceId: 'global-skill',
+          reason: 'resource_collision',
+          action: 'rename_resource',
+        }),
+        expect.objectContaining({
+          resourceId: 'malformed',
+          state: 'invalid',
+          action: 'fix_resource',
+        }),
+      ]),
+    })
+
+    const invalidProject = await root('genoffice-invalid-project-projection-')
+    expect(await service.catalog(invalidProject)).toMatchObject({ projectState: 'invalid' })
+    await expect(service.grantProjectTrust(invalidProject)).rejects.toMatchObject({
+      code: 'project_manifest_invalid',
+    })
+  })
+
+  it('only snapshots the controlled read tool when at least one Skill is active', async () => {
+    const { resourceHome } = await fixture()
+    const service = new RunResourceService({ resourceHome, deviceId })
+    const withSkill = await service.prepare({
+      runId: 'run-with-skill',
+      model: { providerId: 'local', modelId: 'model', capabilities: ['text-input'] },
+      toolIds: ['platform:resource:read', 'office:pdf:read'],
+    })
+    expect(withSkill.snapshot.toolIds).toEqual(['office:pdf:read', 'platform:resource:read'])
+
+    await rm(join(resourceHome, 'agent', 'skills', 'global-skill'), {
+      recursive: true,
+      force: true,
+    })
+    const withoutSkill = await service.prepare({
+      runId: 'run-without-skill',
+      model: { providerId: 'local', modelId: 'model', capabilities: ['text-input'] },
+      toolIds: ['platform:resource:read', 'office:pdf:read'],
+    })
+    expect(withoutSkill.snapshot.toolIds).toEqual(['office:pdf:read'])
+  })
+
   it('rejects current execution after Trust, resource, tool, or permission revocation', async () => {
     const { resourceHome, projectRoot } = await fixture()
     const permissionVersion = vi.fn(() => 'permission-1')

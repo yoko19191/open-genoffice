@@ -5,6 +5,7 @@ import {
   type RuntimeHealthProjection,
   type ModelCatalogProjection,
   type OAuthOperationProjection,
+  type ResourceCatalogProjection,
   type EventEnvelope,
   type SessionConnectionReceipt,
   type SessionAbortReceipt,
@@ -35,6 +36,8 @@ import type {
   ModelOAuthOperationRequest,
   ModelOAuthRespondRequest,
   ModelProviderRequest,
+  ResourceCatalogRequest,
+  ProjectTrustRequest,
 } from './pi-runtime-manager'
 
 export type PiRuntimeServiceOptions = {
@@ -70,6 +73,9 @@ type OwnedPiRuntimeManager = Pick<
   | 'respondModelOAuth'
   | 'cancelModelOAuth'
   | 'logoutModel'
+  | 'resourceCatalog'
+  | 'grantProjectTrust'
+  | 'revokeProjectTrust'
 >
 
 export type PiRuntimeServiceDependencies = {
@@ -198,6 +204,18 @@ export class PiRuntimeService {
 
   async logoutModel(input: ModelProviderRequest): Promise<ModelCatalogProjection> {
     return (await this.readyManager()).logoutModel(input)
+  }
+
+  async resourceCatalog(input: ResourceCatalogRequest = {}): Promise<ResourceCatalogProjection> {
+    return (await this.readyManager()).resourceCatalog(input)
+  }
+
+  async grantProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
+    return (await this.readyManager()).grantProjectTrust(input)
+  }
+
+  async revokeProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
+    return (await this.readyManager()).revokeProjectTrust(input)
   }
 
   private async readyManager(): Promise<OwnedPiRuntimeManager> {

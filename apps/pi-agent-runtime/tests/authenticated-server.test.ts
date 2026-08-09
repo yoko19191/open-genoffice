@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, mkdtemp, readFile, stat } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { createConnection, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -382,6 +382,64 @@ describe('authenticated Runtime socket', () => {
     await runtime.closed
   })
 
+  it('serves a path-free resource catalog and applies Project Trust through authenticated methods', async () => {
+    const socketPath = await endpoint()
+    const runtimeHome = resourceHome('instance-resource-management')
+    const projectRoot = await mkdtemp(join(tmpdir(), 'genoffice-runtime-project-'))
+    await mkdir(join(runtimeHome, 'agent', 'skills', 'global-skill'), { recursive: true })
+    await writeFile(
+      join(runtimeHome, 'agent', 'skills', 'global-skill', 'SKILL.md'),
+      '---\nname: global-skill\ndescription: safe\n---\nGlobal secret body\n',
+    )
+    await mkdir(join(projectRoot, '.open-genoffice', 'agent', 'skills', 'project-skill'), {
+      recursive: true,
+    })
+    await writeFile(
+      join(projectRoot, '.open-genoffice', 'project.json'),
+      `${JSON.stringify({ schemaVersion: 1, projectId: randomUUID() })}\n`,
+    )
+    await writeFile(
+      join(projectRoot, '.open-genoffice', 'agent', 'skills', 'project-skill', 'SKILL.md'),
+      '---\nname: project-skill\ndescription: safe\n---\nProject secret body\n',
+    )
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-resource-management',
+      resourceHome: runtimeHome,
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+
+    const operations = [
+      ['resource.catalog', { projectRoot }, 'untrusted'],
+      ['project.trust.grant', { operationId: randomUUID(), projectRoot }, 'trusted'],
+      ['project.trust.revoke', { operationId: randomUUID(), projectRoot }, 'untrusted'],
+    ] as const
+    for (const [index, [method, params, projectState]] of operations.entries()) {
+      const id = `resource-${index}`
+      client.write(`${request(method, params, id)}\n`)
+      const received = await reader.next((frame) => frame.kind === 'response' && frame.id === id)
+      expect(received).toMatchObject({ result: { projectState } })
+      const serialized = JSON.stringify(received)
+      expect(serialized).not.toContain(projectRoot)
+      expect(serialized).not.toContain(runtimeHome)
+      expect(serialized).not.toContain('secret body')
+    }
+
+    client.write(
+      `${request('project.trust.grant', { operationId: randomUUID(), projectRoot: '/missing' }, 'resource-error')}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'resource-error'),
+    ).toMatchObject({ error: { code: 'invalid_request' } })
+
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
   it('manages a persistent credential through broker CAS and returns stable errors', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({
@@ -522,6 +580,9 @@ describe('authenticated Runtime socket', () => {
           'model.oauth.respond',
           'model.oauth.cancel',
           'model.logout',
+          'resource.catalog',
+          'project.trust.grant',
+          'project.trust.revoke',
         ],
       },
     })

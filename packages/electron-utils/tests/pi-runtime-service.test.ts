@@ -122,6 +122,21 @@ function manager(overrides: Record<string, unknown> = {}) {
       state: 'cancelled' as const,
     })),
     logoutModel: vi.fn(async () => ({ providers: [], selections: {} })),
+    resourceCatalog: vi.fn(async (input = {}) => ({
+      catalogId: 'a'.repeat(64),
+      projectState: input.projectRoot ? ('untrusted' as const) : ('none' as const),
+      resources: [],
+    })),
+    grantProjectTrust: vi.fn(async () => ({
+      catalogId: 'a'.repeat(64),
+      projectState: 'trusted' as const,
+      resources: [],
+    })),
+    revokeProjectTrust: vi.fn(async () => ({
+      catalogId: 'a'.repeat(64),
+      projectState: 'untrusted' as const,
+      resources: [],
+    })),
     ...overrides,
   }
 }
@@ -338,6 +353,27 @@ describe('installed Pi Runtime service', () => {
     expect(fixture.runtimeManager.logoutModel).toHaveBeenCalledWith({
       providerId: 'openai-codex',
     })
+  })
+
+  it('keeps resource paths in the main-process service while forwarding trust controls', async () => {
+    const fixture = service({})
+    const projectRoot = '/selected/project'
+    const trust = {
+      operationId: '55555555-5555-4555-8555-555555555555',
+      projectRoot,
+    }
+    await expect(fixture.instance.resourceCatalog({ projectRoot })).resolves.toMatchObject({
+      projectState: 'untrusted',
+    })
+    await expect(fixture.instance.grantProjectTrust(trust)).resolves.toMatchObject({
+      projectState: 'trusted',
+    })
+    await expect(fixture.instance.revokeProjectTrust(trust)).resolves.toMatchObject({
+      projectState: 'untrusted',
+    })
+    expect(fixture.runtimeManager.resourceCatalog).toHaveBeenCalledWith({ projectRoot })
+    expect(fixture.runtimeManager.grantProjectTrust).toHaveBeenCalledWith(trust)
+    expect(fixture.runtimeManager.revokeProjectTrust).toHaveBeenCalledWith(trust)
   })
 
   it('passes the main-process credential broker only to the owned Runtime manager', async () => {

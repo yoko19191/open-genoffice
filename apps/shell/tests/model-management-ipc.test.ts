@@ -4,7 +4,7 @@ import { PI_RUNTIME_CHANNELS } from '../src/shared/pi-runtime-api'
 
 const operationId = '55555555-5555-4555-8555-555555555555'
 
-function harness() {
+function harness(options: { selectedProjectRoot?: string; trustedSenderAvailable?: boolean } = {}) {
   const handlers = new Map<string, (event: { sender: object }, value: unknown) => unknown>()
   const ipcMain = {
     handle: vi.fn((channel, handler) => handlers.set(channel, handler)),
@@ -37,10 +37,36 @@ function harness() {
       state: 'cancelled' as const,
     })),
     logoutModel: vi.fn(async () => ({ providers: [], selections: {} })),
+    resourceCatalog: vi.fn(async (input?: { projectRoot?: string }) => ({
+      catalogId: 'a'.repeat(64),
+      projectState: input?.projectRoot ? ('untrusted' as const) : ('none' as const),
+      resources: [],
+    })),
+    grantProjectTrust: vi.fn(async () => ({
+      catalogId: 'a'.repeat(64),
+      projectState: 'trusted' as const,
+      resources: [],
+    })),
+    revokeProjectTrust: vi.fn(async () => ({
+      catalogId: 'a'.repeat(64),
+      projectState: 'untrusted' as const,
+      resources: [],
+    })),
   }
   const openAuthUrl = vi.fn(async () => undefined)
-  installModelManagementIpc(ipcMain, service, () => trustedSender, openAuthUrl)
-  return { handlers, ipcMain, service, trustedSender, openAuthUrl }
+  const selectProjectRoot = vi.fn(async () =>
+    Object.hasOwn(options, 'selectedProjectRoot')
+      ? options.selectedProjectRoot
+      : '/selected/project',
+  )
+  installModelManagementIpc(
+    ipcMain,
+    service,
+    () => (options.trustedSenderAvailable === false ? null : trustedSender),
+    openAuthUrl,
+    selectProjectRoot,
+  )
+  return { handlers, ipcMain, service, trustedSender, openAuthUrl, selectProjectRoot }
 }
 
 describe('model management IPC', () => {
@@ -121,11 +147,90 @@ describe('model management IPC', () => {
       PI_RUNTIME_CHANNELS.respondModelOAuth,
       PI_RUNTIME_CHANNELS.cancelModelOAuth,
       PI_RUNTIME_CHANNELS.logoutModel,
+      PI_RUNTIME_CHANNELS.resourceCatalog,
+      PI_RUNTIME_CHANNELS.selectResourceProject,
+      PI_RUNTIME_CHANNELS.grantProjectTrust,
+      PI_RUNTIME_CHANNELS.revokeProjectTrust,
     ]) {
       await expect(
         fixture.handlers.get(channel)!({ sender: {} }, { secret: 'untrusted' }),
       ).rejects.toThrowError('permission_denied')
     }
     expect(JSON.stringify(fixture.service.selectModel.mock.calls)).not.toContain('untrusted')
+  })
+
+  it('keeps the selected project path in main and exposes only safe resource projections', async () => {
+    const fixture = harness()
+    await expect(
+      fixture.handlers.get(PI_RUNTIME_CHANNELS.resourceCatalog)!(
+        {
+          sender: fixture.trustedSender,
+        },
+        undefined,
+      ),
+    ).resolves.toMatchObject({ projectState: 'none' })
+    const projection = await fixture.handlers.get(PI_RUNTIME_CHANNELS.selectResourceProject)!(
+      { sender: fixture.trustedSender },
+      undefined,
+    )
+    expect(fixture.selectProjectRoot).toHaveBeenCalledOnce()
+    expect(fixture.service.resourceCatalog).toHaveBeenLastCalledWith({
+      projectRoot: '/selected/project',
+    })
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.resourceCatalog)!(
+      { sender: fixture.trustedSender },
+      undefined,
+    )
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.grantProjectTrust)!(
+      {
+        sender: fixture.trustedSender,
+      },
+      undefined,
+    )
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.revokeProjectTrust)!(
+      {
+        sender: fixture.trustedSender,
+      },
+      undefined,
+    )
+    expect(fixture.service.grantProjectTrust).toHaveBeenCalledWith({
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      projectRoot: '/selected/project',
+    })
+    expect(fixture.service.revokeProjectTrust).toHaveBeenCalledWith({
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      projectRoot: '/selected/project',
+    })
+    expect(JSON.stringify(projection)).not.toContain('/selected/project')
+  })
+
+  it('keeps the previous selection on cancel and requires one before Trust changes', async () => {
+    const fixture = harness({ selectedProjectRoot: undefined })
+    await expect(
+      fixture.handlers.get(PI_RUNTIME_CHANNELS.selectResourceProject)!(
+        { sender: fixture.trustedSender },
+        undefined,
+      ),
+    ).resolves.toMatchObject({ projectState: 'none' })
+    await expect(
+      fixture.handlers.get(PI_RUNTIME_CHANNELS.grantProjectTrust)!(
+        { sender: fixture.trustedSender },
+        undefined,
+      ),
+    ).rejects.toThrowError('project_not_selected')
+    await expect(
+      fixture.handlers.get(PI_RUNTIME_CHANNELS.revokeProjectTrust)!(
+        { sender: fixture.trustedSender },
+        undefined,
+      ),
+    ).rejects.toThrowError('project_not_selected')
+
+    const unavailable = harness({ trustedSenderAvailable: false })
+    await expect(
+      unavailable.handlers.get(PI_RUNTIME_CHANNELS.modelCatalog)!(
+        { sender: unavailable.trustedSender },
+        undefined,
+      ),
+    ).rejects.toThrowError('permission_denied')
   })
 })

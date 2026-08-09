@@ -11,6 +11,7 @@ import {
   parseModelCatalogProjection,
   parseOAuthOperationProjection,
   parseProviderCredentialStatus,
+  parseResourceCatalogProjection,
   parseSessionAbortReceipt,
   parseSessionConnectionReceipt,
   parseSessionForkReceipt,
@@ -26,6 +27,7 @@ import {
   type ModelSelectionRole,
   type OAuthOperationProjection,
   type ProtocolEnvelope,
+  type ResourceCatalogProjection,
   type RequestEnvelope,
   type SessionConnectionReceipt,
   type SessionAbortReceipt,
@@ -128,6 +130,8 @@ export type ModelProviderConfigureRequest = Extract<
   ModelManagementRequest,
   { method: 'model.provider.configure' }
 >['params']
+export type ResourceCatalogRequest = { projectRoot?: string }
+export type ProjectTrustRequest = { operationId: string; projectRoot: string }
 
 type ClientRuntimeMethod =
   | 'runtime.hello'
@@ -152,6 +156,9 @@ type ClientRuntimeMethod =
   | 'model.oauth.respond'
   | 'model.oauth.cancel'
   | 'model.logout'
+  | 'resource.catalog'
+  | 'project.trust.grant'
+  | 'project.trust.revoke'
 
 export class PiRuntimeManagerError extends Error {
   readonly code: string
@@ -376,7 +383,10 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('model.oauth.status') ||
         !hello.capabilities.includes('model.oauth.respond') ||
         !hello.capabilities.includes('model.oauth.cancel') ||
-        !hello.capabilities.includes('model.logout')
+        !hello.capabilities.includes('model.logout') ||
+        !hello.capabilities.includes('resource.catalog') ||
+        !hello.capabilities.includes('project.trust.grant') ||
+        !hello.capabilities.includes('project.trust.revoke')
       ) {
         throw new PiRuntimeManagerError('runtime_hello_invalid')
       }
@@ -590,6 +600,31 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('model_catalog_invalid')
+    }
+  }
+
+  async resourceCatalog(input: ResourceCatalogRequest = {}): Promise<ResourceCatalogProjection> {
+    return this.resourceManagementRequest('resource.catalog', input)
+  }
+
+  async grantProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
+    return this.resourceManagementRequest('project.trust.grant', input)
+  }
+
+  async revokeProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
+    return this.resourceManagementRequest('project.trust.revoke', input)
+  }
+
+  private async resourceManagementRequest(
+    method: 'resource.catalog' | 'project.trust.grant' | 'project.trust.revoke',
+    input: ResourceCatalogRequest | ProjectTrustRequest,
+  ): Promise<ResourceCatalogProjection> {
+    this.assertReady()
+    try {
+      return parseResourceCatalogProjection(await this.request(method, input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('resource_catalog_invalid')
     }
   }
 

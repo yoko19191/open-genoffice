@@ -6,6 +6,7 @@ import {
   parseModelCatalogProjection,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
+  parseResourceCatalogProjection,
   parseProviderCredentialStatus as parseProtocolProviderCredentialStatus,
   parseRuntimeHealthProjection,
   type ProviderCredentialStatus,
@@ -14,6 +15,7 @@ import {
   type ModelSelectionRole,
   type OAuthOperationProjection,
   type OpenAICompatibleProviderConfiguration,
+  type ResourceCatalogProjection,
 } from '@genoffice/agent-runtime-protocol/renderer'
 
 export const PI_RUNTIME_CHANNELS = {
@@ -29,6 +31,10 @@ export const PI_RUNTIME_CHANNELS = {
   respondModelOAuth: 'pi-runtime:model-oauth-respond',
   cancelModelOAuth: 'pi-runtime:model-oauth-cancel',
   logoutModel: 'pi-runtime:model-logout',
+  resourceCatalog: 'pi-runtime:resource-catalog',
+  selectResourceProject: 'pi-runtime:resource-project-select',
+  grantProjectTrust: 'pi-runtime:project-trust-grant',
+  revokeProjectTrust: 'pi-runtime:project-trust-revoke',
 } as const
 
 export type ProviderCredentialInput = {
@@ -101,6 +107,10 @@ export function asModelCatalog(value: unknown): Readonly<ModelCatalogProjection>
 
 export function asOAuthOperation(value: unknown): Readonly<OAuthOperationProjection> {
   return Object.freeze(parseOAuthOperationProjection(value))
+}
+
+export function asResourceCatalog(value: unknown): Readonly<ResourceCatalogProjection> {
+  return Object.freeze(parseResourceCatalogProjection(value))
 }
 
 export function asModelSelectInput(value: unknown): Readonly<ModelSelectInput> {
@@ -195,4 +205,8 @@ export interface PiRuntimeApi {
   respondModelOAuth(input: ModelOAuthResponseInput): Promise<Readonly<OAuthOperationProjection>>
   cancelModelOAuth(input: ModelOAuthOperationInput): Promise<Readonly<OAuthOperationProjection>>
   logoutModel(providerId: string): Promise<Readonly<ModelCatalogProjection>>
+  resourceCatalog(): Promise<Readonly<ResourceCatalogProjection>>
+  selectResourceProject(): Promise<Readonly<ResourceCatalogProjection>>
+  grantProjectTrust(): Promise<Readonly<ResourceCatalogProjection>>
+  revokeProjectTrust(): Promise<Readonly<ResourceCatalogProjection>>
 }

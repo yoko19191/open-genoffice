@@ -9,6 +9,7 @@ import {
   createNdjsonFrameDecoder,
   parseCredentialManagementRequest,
   parseModelManagementRequest,
+  parseResourceManagementRequest,
   type BootstrapRecord,
   type ProtocolEnvelope,
   type RequestEnvelope,
@@ -230,6 +231,9 @@ export async function createAuthenticatedRuntimeServer(
                 'model.oauth.respond',
                 'model.oauth.cancel',
                 'model.logout',
+                'resource.catalog',
+                'project.trust.grant',
+                'project.trust.revoke',
               ],
             }),
           )
@@ -298,7 +302,32 @@ export async function createAuthenticatedRuntimeServer(
       void handleModelManagementRequest(socket, request)
       return
     }
+    if (request.method === 'resource.catalog' || request.method.startsWith('project.trust.')) {
+      void handleResourceManagementRequest(socket, request)
+      return
+    }
     void handleSessionRequest(socket, request)
+  }
+
+  async function handleResourceManagementRequest(socket: Socket, request: RequestEnvelope) {
+    try {
+      const command = parseResourceManagementRequest(request)
+      if (command.method === 'resource.catalog') {
+        socket.write(response(request, await runResources.catalog(command.params.projectRoot)))
+        return
+      }
+      if (command.method === 'project.trust.grant') {
+        socket.write(
+          response(request, await runResources.grantProjectTrust(command.params.projectRoot)),
+        )
+        return
+      }
+      socket.write(
+        response(request, await runResources.revokeProjectTrust(command.params.projectRoot)),
+      )
+    } catch {
+      socket.write(errorResponse(request, 'invalid_request'))
+    }
   }
 
   async function handleModelManagementRequest(socket: Socket, request: RequestEnvelope) {

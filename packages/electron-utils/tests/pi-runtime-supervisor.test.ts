@@ -164,6 +164,21 @@ function harness(
         state: 'cancelled' as const,
       })),
       logoutModel: vi.fn(async () => ({ providers: [], selections: {} })),
+      resourceCatalog: vi.fn(async (input = {}) => ({
+        catalogId: 'a'.repeat(64),
+        projectState: input.projectRoot ? ('untrusted' as const) : ('none' as const),
+        resources: [],
+      })),
+      grantProjectTrust: vi.fn(async () => ({
+        catalogId: 'a'.repeat(64),
+        projectState: 'trusted' as const,
+        resources: [],
+      })),
+      revokeProjectTrust: vi.fn(async () => ({
+        catalogId: 'a'.repeat(64),
+        projectState: 'untrusted' as const,
+        resources: [],
+      })),
       onSessionEvent: vi.fn((listener: (event: EventEnvelope) => void) => {
         eventListener = listener
         return () => {
@@ -375,6 +390,17 @@ describe('PiRuntimeSupervisor', () => {
     await expect(fixture.supervisor.logoutModel({ providerId: 'openai-codex' })).resolves.toEqual({
       providers: [],
       selections: {},
+    })
+    const projectRoot = '/selected/project'
+    await expect(fixture.supervisor.resourceCatalog({ projectRoot })).resolves.toMatchObject({
+      projectState: 'untrusted',
+    })
+    const trust = { operationId: oauthOperationId, projectRoot }
+    await expect(fixture.supervisor.grantProjectTrust(trust)).resolves.toMatchObject({
+      projectState: 'trusted',
+    })
+    await expect(fixture.supervisor.revokeProjectTrust(trust)).resolves.toMatchObject({
+      projectState: 'untrusted',
     })
     const emitted = {
       protocolVersion: '1',

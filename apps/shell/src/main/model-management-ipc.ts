@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { PiRuntimeService } from '@genoffice/electron-utils'
 import type { OAuthOperationProjection } from '@genoffice/agent-runtime-protocol/renderer'
 import {
@@ -24,6 +25,9 @@ type ModelManagementService = Pick<
   | 'respondModelOAuth'
   | 'cancelModelOAuth'
   | 'logoutModel'
+  | 'resourceCatalog'
+  | 'grantProjectTrust'
+  | 'revokeProjectTrust'
 >
 
 export function installModelManagementIpc(
@@ -31,8 +35,10 @@ export function installModelManagementIpc(
   service: ModelManagementService,
   trustedSender: () => object | null,
   openAuthUrl: (url: string) => Promise<void>,
+  selectProjectRoot: () => Promise<string | undefined>,
 ): void {
   const openedInteractions = new Set<string>()
+  let selectedProjectRoot: string | undefined
   const assertTrusted = (event: { sender: object }) => {
     const trusted = trustedSender()
     if (trusted === null || event.sender !== trusted) throw new Error('permission_denied')
@@ -78,5 +84,34 @@ export function installModelManagementIpc(
   ipcMain.handle(PI_RUNTIME_CHANNELS.logoutModel, async (event, value) => {
     assertTrusted(event)
     return service.logoutModel({ providerId: asProviderId(value) })
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.resourceCatalog, async (event) => {
+    assertTrusted(event)
+    return service.resourceCatalog(
+      selectedProjectRoot ? { projectRoot: selectedProjectRoot } : undefined,
+    )
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.selectResourceProject, async (event) => {
+    assertTrusted(event)
+    selectedProjectRoot = (await selectProjectRoot()) ?? selectedProjectRoot
+    return service.resourceCatalog(
+      selectedProjectRoot ? { projectRoot: selectedProjectRoot } : undefined,
+    )
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.grantProjectTrust, async (event) => {
+    assertTrusted(event)
+    if (!selectedProjectRoot) throw new Error('project_not_selected')
+    return service.grantProjectTrust({
+      operationId: randomUUID(),
+      projectRoot: selectedProjectRoot,
+    })
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.revokeProjectTrust, async (event) => {
+    assertTrusted(event)
+    if (!selectedProjectRoot) throw new Error('project_not_selected')
+    return service.revokeProjectTrust({
+      operationId: randomUUID(),
+      projectRoot: selectedProjectRoot,
+    })
   })
 }

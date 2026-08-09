@@ -429,6 +429,7 @@ const CHANNEL_OPTIONS = [
 
 const PRIMARY_MODEL_PROVIDER_ID = 'openai'
 type ModelCatalog = Awaited<ReturnType<PiRuntimeApi['modelCatalog']>>
+type ResourceCatalog = Awaited<ReturnType<PiRuntimeApi['resourceCatalog']>>
 type OAuthOperation = Awaited<ReturnType<PiRuntimeApi['modelOAuthStatus']>>
 type ModelCapability = ModelCatalog['providers'][number]['models'][number]['capabilities'][number]
 const configurableCapabilities: readonly ModelCapability[] = [
@@ -444,6 +445,7 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const { lang } = useI18n()
   const zh = lang === 'zh' || lang === 'zh-TW'
   const [catalog, setCatalog] = useState<ModelCatalog>()
+  const [resourceCatalog, setResourceCatalog] = useState<ResourceCatalog>()
   const [providerId, setProviderId] = useState(PRIMARY_MODEL_PROVIDER_ID)
   const [apiKey, setApiKey] = useState('')
   const [persistence, setPersistence] = useState<'persistent' | 'memory_only'>('persistent')
@@ -476,9 +478,18 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     }
   }, [providerId])
 
+  const refreshResourceCatalog = useCallback(async () => {
+    try {
+      setResourceCatalog(await window.aiOfficeAgent.resourceCatalog())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'resource_catalog_failed')
+    }
+  }, [])
+
   useEffect(() => {
     void refreshCatalog()
-  }, [refreshCatalog])
+    void refreshResourceCatalog()
+  }, [refreshCatalog, refreshResourceCatalog])
 
   useEffect(() => {
     if (
@@ -660,6 +671,36 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const selectResourceProject = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setResourceCatalog(await window.aiOfficeAgent.selectResourceProject())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'resource_catalog_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const updateProjectTrust = async (trusted: boolean) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setResourceCatalog(
+        trusted
+          ? await window.aiOfficeAgent.grantProjectTrust()
+          : await window.aiOfficeAgent.revokeProjectTrust(),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'project_trust_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const statusText = provider
     ? zh
       ? {
@@ -797,6 +838,70 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
           >
             {zh ? '保存本地服务' : 'Save local service'}
           </button>
+        </details>
+        <details className="provider-resource-catalog">
+          <summary>{zh ? 'Agent 资源目录与项目授权' : 'Agent resources and project trust'}</summary>
+          <p className="provider-credential-status">
+            {zh ? '项目状态：' : 'Project state: '}
+            {resourceCatalog?.projectState ?? (zh ? '正在读取…' : 'loading…')}
+          </p>
+          <div className="provider-resource-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={selectResourceProject}
+            >
+              {zh ? '选择项目目录' : 'Select project directory'}
+            </button>
+            {resourceCatalog?.projectState === 'untrusted' && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void updateProjectTrust(true)}
+              >
+                {zh ? '信任此项目' : 'Trust this project'}
+              </button>
+            )}
+            {resourceCatalog?.projectState === 'trusted' && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={() => void updateProjectTrust(false)}
+              >
+                {zh ? '撤销项目授权' : 'Revoke project trust'}
+              </button>
+            )}
+          </div>
+          <div className="provider-resource-list">
+            {resourceCatalog?.resources.length === 0 && (
+              <p className="provider-credential-status">
+                {zh ? '当前没有已发现的 Agent 资源。' : 'No Agent resources discovered.'}
+              </p>
+            )}
+            {resourceCatalog?.resources.map((resource) => (
+              <article key={resource.resourceKey} className="provider-resource-item">
+                <strong>{resource.resourceId}</strong>
+                <span>
+                  {resource.kind} · {resource.namespace} · {resource.state}
+                </span>
+                <code>{resource.source}</code>
+                <code>
+                  {resource.contentSha256
+                    ? `sha256:${resource.contentSha256}`
+                    : zh
+                      ? 'hash：授权后计算'
+                      : 'hash: available after trust'}
+                </code>
+                <span>
+                  {zh ? '修复动作：' : 'Repair action: '}
+                  {resource.action}
+                </span>
+              </article>
+            ))}
+          </div>
         </details>
         {provider?.authMethods.includes('api_key') && (
           <>

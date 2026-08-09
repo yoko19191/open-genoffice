@@ -7,6 +7,8 @@ import {
   MAX_FRAME_BYTES,
   ModelCatalogProjectionSchema,
   ModelManagementRequestSchema,
+  ResourceCatalogProjectionSchema,
+  ResourceManagementRequestSchema,
   NODE_VERSION,
   PI_VERSION,
   PROTOCOL_VERSION,
@@ -32,6 +34,8 @@ import {
   parseEventEnvelope,
   parseModelCatalogProjection,
   parseModelManagementRequest,
+  parseResourceCatalogProjection,
+  parseResourceManagementRequest,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
   parseOfficeToolInvocation,
@@ -190,7 +194,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(28)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(31)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -773,6 +777,82 @@ describe('renderer-safe model catalog projection', () => {
         interaction: { ...projection.interaction, message: 'private provider text' },
       }),
     ).toThrowError('oauth_operation_projection_invalid')
+  })
+})
+
+describe('renderer-safe resource catalog projection', () => {
+  const catalog = {
+    catalogId: 'a'.repeat(64),
+    projectState: 'untrusted',
+    resources: [
+      {
+        resourceKey: 'skill:global/example',
+        resourceId: 'example',
+        namespace: 'global',
+        kind: 'skill',
+        source: 'global:skills/example',
+        state: 'eligible',
+        contentSha256: 'b'.repeat(64),
+        action: 'none',
+      },
+      {
+        resourceKey: 'skill:project/project-example',
+        resourceId: 'project-example',
+        namespace: 'project',
+        kind: 'skill',
+        source: 'project:skills/project-example',
+        state: 'restricted',
+        reason: 'project_untrusted',
+        action: 'trust_project',
+      },
+    ],
+  } as const
+
+  it('accepts source, hash, state, and repair action without filesystem fields', () => {
+    expect(parseResourceCatalogProjection(catalog)).toEqual(catalog)
+    expect(ResourceCatalogProjectionSchema).toBeDefined()
+  })
+
+  it.each([
+    ['path', { ...catalog, resources: [{ ...catalog.resources[0], path: '/private/project' }] }],
+    ['body', { ...catalog, resources: [{ ...catalog.resources[0], body: 'secret body' }] }],
+    ['secret', { ...catalog, credential: 'secret-resource-canary' }],
+    [
+      'unknown action',
+      { ...catalog, resources: [{ ...catalog.resources[0], action: 'open_arbitrary_path' }] },
+    ],
+  ])('rejects %s before it crosses into a renderer', (_label, value) => {
+    expect(() => parseResourceCatalogProjection(value)).toThrowError('resource_catalog_invalid')
+  })
+
+  it('accepts only the three authenticated resource management operations', () => {
+    const base = {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: 'request',
+      id: 'resource-request',
+      correlationId: 'resource-correlation',
+    } as const
+    const requests = [
+      { ...base, method: 'resource.catalog', params: {} },
+      {
+        ...base,
+        method: 'project.trust.grant',
+        params: { operationId, projectRoot: '/selected/project' },
+      },
+      {
+        ...base,
+        method: 'project.trust.revoke',
+        params: { operationId, projectRoot: '/selected/project' },
+      },
+    ]
+    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(3)
+    for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
+    expect(() =>
+      parseResourceManagementRequest({
+        ...requests[0],
+        params: { projectRoot: '/selected/project', rendererPath: '/forbidden' },
+      }),
+    ).toThrowError('resource_management_request_invalid')
   })
 })
 

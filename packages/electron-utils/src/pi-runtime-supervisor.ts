@@ -10,6 +10,7 @@ import type {
   ProviderCredentialStatus,
   ModelCatalogProjection,
   OAuthOperationProjection,
+  ResourceCatalogProjection,
 } from '@genoffice/agent-runtime-protocol'
 import type {
   PiRuntimeHealth,
@@ -29,6 +30,8 @@ import type {
   ModelOAuthOperationRequest,
   ModelOAuthRespondRequest,
   ModelProviderRequest,
+  ResourceCatalogRequest,
+  ProjectTrustRequest,
 } from './pi-runtime-manager'
 
 export type SupervisedPiRuntimeManager = {
@@ -54,6 +57,9 @@ export type SupervisedPiRuntimeManager = {
   respondModelOAuth(input: ModelOAuthRespondRequest): Promise<OAuthOperationProjection>
   cancelModelOAuth(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection>
   logoutModel(input: ModelProviderRequest): Promise<ModelCatalogProjection>
+  resourceCatalog(input?: ResourceCatalogRequest): Promise<ResourceCatalogProjection>
+  grantProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection>
+  revokeProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection>
 }
 
 export type PiRuntimeSupervisorState =
@@ -249,6 +255,18 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async logoutModel(input: ModelProviderRequest): Promise<ModelCatalogProjection> {
     return (await this.readyManager()).logoutModel(input)
+  }
+
+  async resourceCatalog(input: ResourceCatalogRequest = {}): Promise<ResourceCatalogProjection> {
+    return (await this.readyManager()).resourceCatalog(input)
+  }
+
+  async grantProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
+    return (await this.readyManager()).grantProjectTrust(input)
+  }
+
+  async revokeProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
+    return (await this.readyManager()).revokeProjectTrust(input)
   }
 
   private async readyManager(): Promise<SupervisedPiRuntimeManager> {

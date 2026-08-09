@@ -139,6 +139,64 @@ export const ModelCatalogProjectionSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const ResourceCatalogProjectionSchema = Type.Object(
+  {
+    catalogId: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+    projectState: Type.Union([
+      Type.Literal('none'),
+      Type.Literal('invalid'),
+      Type.Literal('untrusted'),
+      Type.Literal('trusted'),
+    ]),
+    resources: Type.Array(
+      Type.Object(
+        {
+          resourceKey: Type.String({ minLength: 1, maxLength: 1024 }),
+          resourceId: Type.String({ minLength: 1, maxLength: 256 }),
+          namespace: Type.Union([
+            Type.Literal('builtin'),
+            Type.Literal('global'),
+            Type.Literal('project'),
+          ]),
+          kind: Type.Union([
+            Type.Literal('skill'),
+            Type.Literal('prompt'),
+            Type.Literal('extension'),
+          ]),
+          source: Type.String({ minLength: 1, maxLength: 1024 }),
+          state: Type.Union([
+            Type.Literal('invalid'),
+            Type.Literal('restricted'),
+            Type.Literal('eligible'),
+          ]),
+          reason: Type.Optional(
+            Type.Union([
+              Type.Literal('project_untrusted'),
+              Type.Literal('activation_required'),
+              Type.Literal('resource_collision'),
+              Type.Literal('reserved_resource_id'),
+              Type.Literal('resource_shape_invalid'),
+              Type.Literal('resource_symlink_forbidden'),
+              Type.Literal('resource_integrity_invalid'),
+            ]),
+          ),
+          contentSha256: Type.Optional(Type.String({ pattern: '^[0-9a-f]{64}$' })),
+          action: Type.Union([
+            Type.Literal('none'),
+            Type.Literal('trust_project'),
+            Type.Literal('activate_resource'),
+            Type.Literal('rename_resource'),
+            Type.Literal('fix_resource'),
+          ]),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 16_384 },
+    ),
+  },
+  { additionalProperties: false },
+)
+
 const OAuthOperationIdSchema = Type.String({
   pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
 })
@@ -240,6 +298,7 @@ export type ModelProviderState = Static<typeof ModelProviderStateSchema>
 export type ModelDescriptor = Static<typeof ModelDescriptorSchema>
 export type ModelProviderProjection = Static<typeof ModelProviderProjectionSchema>
 export type ModelCatalogProjection = Static<typeof ModelCatalogProjectionSchema>
+export type ResourceCatalogProjection = Static<typeof ResourceCatalogProjectionSchema>
 export type ModelSelectionRole = Static<typeof ModelSelectionRoleSchema>
 export type ModelProviderErrorCode = Static<typeof ModelProviderErrorCodeSchema>
 export type OAuthInteractionProjection = Static<typeof OAuthInteractionProjectionSchema>
@@ -263,6 +322,11 @@ export function parseRuntimeHealthProjection(value: unknown): RuntimeHealthProje
 export function parseModelCatalogProjection(value: unknown): ModelCatalogProjection {
   if (Value.Check(ModelCatalogProjectionSchema, value)) return value
   throw new Error('model_catalog_invalid')
+}
+
+export function parseResourceCatalogProjection(value: unknown): ResourceCatalogProjection {
+  if (Value.Check(ResourceCatalogProjectionSchema, value)) return value
+  throw new Error('resource_catalog_invalid')
 }
 
 export function parseOpenAICompatibleProviderConfiguration(

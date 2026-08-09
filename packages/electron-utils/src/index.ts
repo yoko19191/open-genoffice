@@ -48,6 +48,8 @@ export {
   type ModelOAuthOperationRequest,
   type ModelOAuthRespondRequest,
   type ModelProviderRequest,
+  type ResourceCatalogRequest,
+  type ProjectTrustRequest,
 } from './pi-runtime-manager'
 export {
   connectRuntimeEndpoint,
