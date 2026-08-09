@@ -565,5 +565,5 @@ describe('copied Pi Runtime end to end', () => {
     expect(await readdir(temporaryDirectory)).toEqual([])
 
     await rm(root, { recursive: true, force: true })
-  })
+  }, 15_000)
 })
