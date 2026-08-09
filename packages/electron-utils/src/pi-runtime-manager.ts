@@ -11,6 +11,8 @@ import {
   parseProviderCredentialStatus,
   parseSessionAbortReceipt,
   parseSessionConnectionReceipt,
+  parseSessionForkReceipt,
+  parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
@@ -21,6 +23,8 @@ import {
   type RequestEnvelope,
   type SessionConnectionReceipt,
   type SessionAbortReceipt,
+  type SessionForkReceipt,
+  type SessionNavigateReceipt,
   type SessionPromptReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
@@ -93,6 +97,8 @@ export type SessionCreateRequest = { operationId: string; documentId: string }
 export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
 export type SessionPromptRequest = SessionOpenRequest & { text: string }
 export type SessionAbortRequest = SessionOpenRequest & { runId: string }
+export type SessionForkRequest = SessionOpenRequest
+export type SessionNavigateRequest = SessionOpenRequest & { targetEntryId: string }
 export type SessionBoundRequest = { sessionId: string; documentId: string }
 export type SessionSubscribeRequest = SessionBoundRequest & { afterCursor?: string }
 export type ProviderCredentialPutRequest = Extract<
@@ -112,6 +118,8 @@ type ClientRuntimeMethod =
   | 'session.open'
   | 'session.prompt'
   | 'session.abort'
+  | 'session.fork'
+  | 'session.navigate'
   | 'session.snapshot'
   | 'session.subscribe'
   | 'credential.put'
@@ -327,6 +335,8 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('session.open') ||
         !hello.capabilities.includes('session.prompt') ||
         !hello.capabilities.includes('session.abort') ||
+        !hello.capabilities.includes('session.fork') ||
+        !hello.capabilities.includes('session.navigate') ||
         !hello.capabilities.includes('session.snapshot') ||
         !hello.capabilities.includes('session.subscribe') ||
         !hello.capabilities.includes('credential.put') ||
@@ -527,6 +537,26 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('session_abort_receipt_invalid')
+    }
+  }
+
+  async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {
+    this.assertReady()
+    try {
+      return parseSessionForkReceipt(await this.request('session.fork', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('session_fork_receipt_invalid')
+    }
+  }
+
+  async navigateSession(input: SessionNavigateRequest): Promise<SessionNavigateReceipt> {
+    this.assertReady()
+    try {
+      return parseSessionNavigateReceipt(await this.request('session.navigate', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('session_navigate_receipt_invalid')
     }
   }
 

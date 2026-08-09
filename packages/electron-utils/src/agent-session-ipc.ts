@@ -4,6 +4,8 @@ import {
   parseAgentSessionConnectRequest,
   parseEventEnvelope,
   parseSessionAbortReceipt,
+  parseSessionForkReceipt,
+  parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
   type AgentSessionCommand,
   type AgentSessionConnectReceipt,
@@ -11,6 +13,8 @@ import {
   type EventEnvelope,
   type SessionPromptReceipt,
   type SessionAbortReceipt,
+  type SessionForkReceipt,
+  type SessionNavigateReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import type { AgentSessionBroker } from './agent-session-broker'
 
@@ -51,7 +55,11 @@ export type AgentSessionIpcRenderer = {
 export interface AgentSessionPreloadApi {
   documentId(): Promise<string>
   connect(request: AgentSessionConnectRequest): Promise<AgentSessionConnectReceipt>
-  command(command: AgentSessionCommand): Promise<SessionPromptReceipt | SessionAbortReceipt>
+  command(
+    command: AgentSessionCommand,
+  ): Promise<
+    SessionPromptReceipt | SessionAbortReceipt | SessionForkReceipt | SessionNavigateReceipt
+  >
   disconnect(): void
   onEvent(handler: (event: EventEnvelope) => void): () => void
 }
@@ -124,9 +132,10 @@ export function createAgentSessionPreloadApi(
     async command(command: AgentSessionCommand) {
       const validated = parseAgentSessionCommand(command)
       const receipt = await ipcRenderer.invoke(AGENT_SESSION_CHANNELS.command, validated)
-      return validated.type === 'prompt'
-        ? parseSessionPromptReceipt(receipt)
-        : parseSessionAbortReceipt(receipt)
+      if (validated.type === 'prompt') return parseSessionPromptReceipt(receipt)
+      if (validated.type === 'abort') return parseSessionAbortReceipt(receipt)
+      if (validated.type === 'fork') return parseSessionForkReceipt(receipt)
+      return parseSessionNavigateReceipt(receipt)
     },
     disconnect() {
       ipcRenderer.send(AGENT_SESSION_CHANNELS.disconnect)

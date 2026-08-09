@@ -5,6 +5,8 @@ import type {
   EventEnvelope,
   SessionConnectionReceipt,
   SessionAbortReceipt,
+  SessionForkReceipt,
+  SessionNavigateReceipt,
   SessionPromptReceipt,
   SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -36,6 +38,17 @@ export type AgentSessionTransport = {
     documentId: string
     runId: string
   }): Promise<SessionAbortReceipt>
+  forkSession(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+  }): Promise<SessionForkReceipt>
+  navigateSession(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+    targetEntryId: string
+  }): Promise<SessionNavigateReceipt>
   onSessionEvent(listener: (event: EventEnvelope) => void): (() => void) | Promise<() => void>
 }
 
@@ -46,6 +59,11 @@ export type AgentSessionBrokerOptions<ClientId> = {
   currentSessions?: {
     resolveCurrent(documentId: string, create: () => Promise<string>): Promise<string>
     assertCurrent(documentId: string, sessionId: string): Promise<unknown>
+    advanceCurrent(
+      documentId: string,
+      expectedSessionId: string,
+      sessionId: string,
+    ): Promise<unknown>
   }
 }
 
@@ -150,7 +168,9 @@ export class AgentSessionBroker<ClientId = number> {
   async command(
     clientId: ClientId,
     command: AgentSessionCommand,
-  ): Promise<SessionPromptReceipt | SessionAbortReceipt> {
+  ): Promise<
+    SessionPromptReceipt | SessionAbortReceipt | SessionForkReceipt | SessionNavigateReceipt
+  > {
     if (!(await this.options.authorize(clientId, command.documentId))) {
       throw new Error('document_access_denied')
     }
@@ -162,19 +182,51 @@ export class AgentSessionBroker<ClientId = number> {
     ) {
       throw new Error('agent_session_not_connected')
     }
-    return command.type === 'prompt'
-      ? this.transport.promptSession({
-          operationId: command.operationId,
-          sessionId: command.sessionId,
-          documentId: command.documentId,
-          text: command.text,
-        })
-      : this.transport.abortSession({
-          operationId: command.operationId,
-          sessionId: command.sessionId,
-          documentId: command.documentId,
-          runId: command.runId,
-        })
+    await this.options.currentSessions?.assertCurrent(command.documentId, command.sessionId)
+    if (command.type === 'prompt') {
+      return this.transport.promptSession({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        text: command.text,
+      })
+    }
+    if (command.type === 'abort') {
+      return this.transport.abortSession({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        runId: command.runId,
+      })
+    }
+    if (command.type === 'navigate') {
+      const receipt = await this.transport.navigateSession({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        targetEntryId: command.targetEntryId,
+      })
+      this.assertBinding(receipt, command.sessionId, command.documentId)
+      connection.nextSequence = receipt.snapshot.lastSequence + 1
+      return receipt
+    }
+    const receipt = await this.transport.forkSession({
+      operationId: command.operationId,
+      sessionId: command.sessionId,
+      documentId: command.documentId,
+    })
+    this.assertBinding(receipt, receipt.sessionId, command.documentId)
+    if (receipt.parentSessionId !== command.sessionId || receipt.sessionId === command.sessionId) {
+      throw new Error('document_binding_mismatch')
+    }
+    await this.options.currentSessions?.advanceCurrent(
+      command.documentId,
+      command.sessionId,
+      receipt.sessionId,
+    )
+    connection.sessionId = receipt.sessionId
+    connection.nextSequence = receipt.snapshot.lastSequence + 1
+    return receipt
   }
 
   disconnect(clientId: ClientId): void {

@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
-import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, open, readFile, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
@@ -13,6 +13,8 @@ import type {
 import {
   SessionLeaseError,
   SessionLeaseStore,
+  atomicWriteJson,
+  type AtomicWriteOptions,
   type SessionLeaseHandle,
 } from '@genoffice/agent-resource'
 import {
@@ -32,12 +34,14 @@ type Binding = {
   sessionId: string
   documentId: string
   sessionFile: string
+  parentSessionId?: string
 }
 
 type CreateInput = { operationId: string; documentId: string }
 type OpenInput = CreateInput & { sessionId: string }
 type PromptInput = OpenInput & { text: string }
 type AbortInput = OpenInput & { runId: string }
+type NavigateInput = OpenInput & { targetEntryId: string }
 type BoundInput = { sessionId: string; documentId: string }
 type SubscribeInput = BoundInput & { afterCursor?: string }
 
@@ -59,6 +63,8 @@ type AbortReceipt = {
   state: 'cancelling' | 'already_terminal'
   acceptedCursor: string
 }
+type ForkReceipt = CreateReceipt & { parentSessionId: string }
+type NavigateReceipt = CreateReceipt & { activeLeafId: string }
 type OperationEntry = { hash: string; result: Promise<unknown> }
 
 type SessionRecord = {
@@ -96,6 +102,7 @@ export type SessionRegistryOptions = {
   now?: () => Date
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
   credentials?: CredentialStore
+  bindingAtomicWriteOptions?: (binding: Readonly<Binding>) => AtomicWriteOptions
 }
 
 export class RuntimeSessionError extends Error {
@@ -107,7 +114,8 @@ export class RuntimeSessionError extends Error {
       | 'session_lease_lost'
       | 'document_mismatch'
       | 'duplicate_operation_mismatch'
-      | 'invalid_state',
+      | 'invalid_state'
+      | 'branch_not_found',
   ) {
     super(code)
     this.name = 'RuntimeSessionError'
@@ -299,6 +307,101 @@ export class SessionRegistry {
     })
   }
 
+  async fork(input: OpenInput): Promise<ForkReceipt> {
+    const parentBinding = await this.readBoundBinding(input)
+    return this.idempotent('session.fork', input, async () => {
+      const parent = await this.loadRecord(parentBinding)
+      await this.renewLease(parent)
+      await this.assertIdle(parent)
+      const sessionId = this.randomUUID()
+      const lease = await this.acquireLease(sessionId)
+      let forked: Awaited<ReturnType<PiSessionHandle['fork']>>
+      try {
+        forked = await parent.pi.fork(sessionId, parentBinding.sessionId)
+      } catch (error) {
+        await lease.release()
+        throw error
+      }
+      let pi: PiSessionHandle
+      try {
+        pi = await this.createPiSession({
+          cwd: this.cwd,
+          agentDir: this.agentDir,
+          sessionDir: this.sessionDirectory(input.documentId),
+          sessionId,
+          sessionFile: forked.sessionFile,
+          documentId: input.documentId,
+        })
+      } catch (error) {
+        await lease.release()
+        throw error
+      }
+      const binding: Binding = {
+        version: 1,
+        sessionId,
+        documentId: input.documentId,
+        sessionFile: forked.sessionFile,
+        parentSessionId: parentBinding.sessionId,
+      }
+      let record: SessionRecord
+      try {
+        record = await this.attach(binding, pi, lease)
+      } catch (error) {
+        pi.dispose()
+        await lease.release()
+        throw error
+      }
+      try {
+        await this.appendEvent(record, 'branch.created', {
+          parentSessionId: parentBinding.sessionId,
+          activeLeafId: forked.activeLeafId,
+        })
+        await this.writeBinding(binding)
+        const snapshot = this.snapshotFor(record)
+        return {
+          sessionId,
+          parentSessionId: parentBinding.sessionId,
+          documentId: input.documentId,
+          snapshot,
+          cursor: snapshot.cursor,
+        }
+      } catch (error) {
+        await this.disposeRecord(record)
+        throw error
+      }
+    })
+  }
+
+  async navigate(input: NavigateInput): Promise<NavigateReceipt> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.navigate', input, async () => {
+      const record = await this.loadRecord(binding)
+      await this.renewLease(record)
+      await this.assertIdle(record)
+      let activeLeafId: string
+      try {
+        activeLeafId = (await record.pi.navigate(input.targetEntryId)).activeLeafId
+      } catch (error) {
+        if (error instanceof Error && error.message === 'branch_not_found') {
+          throw new RuntimeSessionError('branch_not_found')
+        }
+        throw error
+      }
+      await this.appendEvent(record, 'branch.navigated', {
+        targetEntryId: input.targetEntryId,
+        activeLeafId,
+      })
+      const snapshot = this.snapshotFor(record)
+      return {
+        sessionId: binding.sessionId,
+        documentId: binding.documentId,
+        activeLeafId,
+        snapshot,
+        cursor: snapshot.cursor,
+      }
+    })
+  }
+
   async prompt(input: PromptInput): Promise<PromptReceipt> {
     const binding = await this.readBoundBinding(input)
     return this.idempotent('session.prompt', input, async () => {
@@ -452,10 +555,27 @@ export class SessionRegistry {
   async readJournal(sessionId: string): Promise<EventEnvelope[]> {
     try {
       const content = await readFile(this.journalPath(sessionId), 'utf8')
-      return content
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as EventEnvelope)
+      const lines = content.split('\n')
+      if (lines.at(-1) === '') lines.pop()
+      const events: EventEnvelope[] = []
+      for (const [index, line] of lines.entries()) {
+        try {
+          events.push(JSON.parse(line) as EventEnvelope)
+        } catch (error) {
+          if (index !== lines.length - 1 || content.endsWith('\n')) throw error
+          const validPrefix = lines.slice(0, index).join('\n')
+          const handle = await open(this.journalPath(sessionId), 'r+')
+          try {
+            await handle.truncate(
+              Buffer.byteLength(validPrefix.length > 0 ? `${validPrefix}\n` : ''),
+            )
+            await handle.sync()
+          } finally {
+            await handle.close()
+          }
+        }
+      }
+      return events
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
       throw error
@@ -537,10 +657,11 @@ export class SessionRegistry {
   }
 
   private async writeBinding(binding: Binding) {
-    const path = this.bindingPath(binding.sessionId)
-    const temporary = `${path}.${process.pid}.tmp`
-    await writeFile(temporary, `${JSON.stringify(binding)}\n`, { encoding: 'utf8', mode: 0o600 })
-    await rename(temporary, path)
+    await atomicWriteJson(
+      this.bindingPath(binding.sessionId),
+      binding,
+      this.options.bindingAtomicWriteOptions?.(binding),
+    )
   }
 
   private async readBinding(sessionId: string): Promise<Binding> {
@@ -552,7 +673,10 @@ export class SessionRegistry {
         (value as Binding).version === 1 &&
         (value as Binding).sessionId === sessionId &&
         typeof (value as Binding).documentId === 'string' &&
-        typeof (value as Binding).sessionFile === 'string'
+        typeof (value as Binding).sessionFile === 'string' &&
+        ((value as Binding).parentSessionId === undefined ||
+          (typeof (value as Binding).parentSessionId === 'string' &&
+            (value as Binding).parentSessionId !== sessionId))
       ) {
         return value as Binding
       }
@@ -690,6 +814,18 @@ export class SessionRegistry {
       },
       recovery.runId,
     )
+  }
+
+  private async assertIdle(record: SessionRecord): Promise<void> {
+    if (
+      record.activeRun &&
+      (record.activeRun.state === 'queued' ||
+        record.activeRun.state === 'running' ||
+        record.activeRun.state === 'cancelling')
+    ) {
+      throw new RuntimeSessionError('invalid_state')
+    }
+    await record.activeRun?.promise
   }
 
   private projectPiEvent(record: SessionRecord, event: AgentSessionEvent) {
@@ -964,6 +1100,30 @@ export class SessionRegistry {
       sessionId: record.binding.sessionId,
       documentId: record.binding.documentId,
       messages,
+      branch: {
+        ...(record.binding.parentSessionId
+          ? { parentSessionId: record.binding.parentSessionId }
+          : {}),
+        ...(record.pi.sessionManager.getLeafId()
+          ? { activeLeafId: record.pi.sessionManager.getLeafId()! }
+          : {}),
+        nodes: record.pi.sessionManager
+          .getEntries()
+          .filter(
+            (
+              entry,
+            ): entry is typeof entry & { id: string; parentId: string | null; type: string } =>
+              typeof entry.id === 'string' &&
+              (typeof entry.parentId === 'string' || entry.parentId === null) &&
+              typeof entry.type === 'string',
+          )
+          .slice(-4096)
+          .map((entry) => ({
+            entryId: entry.id,
+            parentEntryId: entry.parentId,
+            kind: entry.type,
+          })),
+      },
       ...(record.activeRun
         ? { activeRun: { runId: record.activeRun.runId, state: record.activeRun.state } }
         : {}),

@@ -70,6 +70,34 @@ function harness(
         state: 'cancelling' as const,
         acceptedCursor: `cursor-${id}`,
       })),
+      forkSession: vi.fn(async (input) => ({
+        sessionId: `fork-session-${id}`,
+        parentSessionId: input.sessionId,
+        documentId: input.documentId,
+        snapshot: {
+          sessionId: `fork-session-${id}`,
+          documentId: input.documentId,
+          messages: [],
+          branch: { parentSessionId: input.sessionId, nodes: [] },
+          lastSequence: 0,
+          cursor: `cursor-${id}`,
+        },
+        cursor: `cursor-${id}`,
+      })),
+      navigateSession: vi.fn(async (input) => ({
+        sessionId: input.sessionId,
+        documentId: input.documentId,
+        activeLeafId: input.targetEntryId,
+        snapshot: {
+          sessionId: input.sessionId,
+          documentId: input.documentId,
+          messages: [],
+          branch: { activeLeafId: input.targetEntryId, nodes: [] },
+          lastSequence: 0,
+          cursor: `cursor-${id}`,
+        },
+        cursor: `cursor-${id}`,
+      })),
       snapshotSession: vi.fn(async (input) => ({
         ...input,
         messages: [],
@@ -237,6 +265,19 @@ describe('PiRuntimeSupervisor', () => {
         runId: 'run-1',
       }),
     ).resolves.toMatchObject({ state: 'cancelling' })
+    await expect(
+      fixture.supervisor.forkSession({
+        operationId: '44444444-4444-4444-8444-444444444444',
+        ...bound,
+      }),
+    ).resolves.toMatchObject({ parentSessionId: bound.sessionId })
+    await expect(
+      fixture.supervisor.navigateSession({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        ...bound,
+        targetEntryId: 'target-leaf',
+      }),
+    ).resolves.toMatchObject({ activeLeafId: 'target-leaf' })
     await expect(fixture.supervisor.snapshotSession(bound)).resolves.toMatchObject(bound)
     await expect(fixture.supervisor.subscribeSession(bound)).resolves.toMatchObject({
       resetRequired: false,

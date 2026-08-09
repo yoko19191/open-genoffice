@@ -35,6 +35,8 @@ import {
   parseRuntimeHealthProjection,
   parseSessionConnectionReceipt,
   parseSessionAbortReceipt,
+  parseSessionForkReceipt,
+  parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
@@ -181,7 +183,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(18)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(20)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -212,6 +214,23 @@ describe('protocol TypeBox source of truth', () => {
         sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
         runId: 'run-1',
+      },
+    ],
+    [
+      'session.fork',
+      {
+        operationId: '44444444-4444-4444-8444-444444444444',
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      },
+    ],
+    [
+      'session.navigate',
+      {
+        operationId: '55555555-5555-4555-8555-555555555555',
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        targetEntryId: 'entry-1',
       },
     ],
     [
@@ -345,6 +364,64 @@ describe('protocol TypeBox source of truth', () => {
         }),
       ),
     ).toMatchObject({ kind: 'event', sequence: 1 })
+  })
+
+  it('validates fork and navigate receipts with branch snapshots', () => {
+    const branch = {
+      activeLeafId: 'entry-2',
+      nodes: [
+        { entryId: 'entry-1', parentEntryId: null, kind: 'message' },
+        { entryId: 'entry-2', parentEntryId: 'entry-1', kind: 'custom' },
+      ],
+    }
+    const parentSessionId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    const branchSnapshot = {
+      sessionId,
+      documentId,
+      messages: [],
+      branch,
+      lastSequence: 2,
+      cursor: 'c2',
+    }
+    expect(
+      parseSessionForkReceipt({
+        sessionId,
+        parentSessionId,
+        documentId,
+        snapshot: {
+          ...branchSnapshot,
+          branch: { ...branch, parentSessionId },
+        },
+        cursor: 'c2',
+      }),
+    ).toMatchObject({ sessionId, snapshot: { branch } })
+    expect(
+      parseSessionNavigateReceipt({
+        sessionId,
+        documentId,
+        activeLeafId: 'entry-2',
+        snapshot: branchSnapshot,
+        cursor: 'c2',
+      }),
+    ).toMatchObject({ activeLeafId: 'entry-2' })
+    expect(() =>
+      parseSessionForkReceipt({
+        sessionId,
+        parentSessionId: documentId,
+        documentId,
+        snapshot: { ...branchSnapshot, branch: { ...branch, secret: true } },
+        cursor: 'c2',
+      }),
+    ).toThrowError('session_fork_receipt_invalid')
+    expect(() =>
+      parseSessionNavigateReceipt({
+        sessionId,
+        documentId,
+        activeLeafId: 'other-entry',
+        snapshot: branchSnapshot,
+        cursor: 'c2',
+      }),
+    ).toThrowError('session_navigate_receipt_invalid')
   })
 
   it.each([

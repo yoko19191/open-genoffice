@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   InMemoryCredentialStore,
@@ -37,6 +37,11 @@ export type PiSessionHandle = {
   subscribe: (listener: (event: AgentSessionEvent) => void) => () => void
   prompt: (text: string, signal: AbortSignal) => Promise<PiPromptResult | undefined>
   abort: () => Promise<void>
+  fork: (
+    newSessionId: string,
+    parentSessionId: string,
+  ) => Promise<{ sessionId: string; sessionFile: string; activeLeafId: string }>
+  navigate: (targetEntryId: string) => Promise<{ activeLeafId: string }>
   dispose: () => void
 }
 
@@ -62,6 +67,37 @@ const contractProbe = defineTool({
     }
   },
 })
+
+async function repairJsonlTail(path: string): Promise<void> {
+  const content = await readFile(path)
+  const lastNewline = content.lastIndexOf(0x0a)
+  const completeLength = lastNewline + 1
+  const complete = content.subarray(0, completeLength).toString('utf8')
+  try {
+    for (const line of complete.split('\n').filter(Boolean)) JSON.parse(line)
+  } catch {
+    throw new Error('session_jsonl_invalid')
+  }
+  if (completeLength === content.length) return
+  if (lastNewline < 0) throw new Error('session_jsonl_invalid')
+
+  const tail = content.subarray(completeLength).toString('utf8')
+  let tailIsComplete: boolean
+  try {
+    JSON.parse(tail)
+    tailIsComplete = true
+  } catch {
+    tailIsComplete = false
+  }
+  const handle = await open(path, 'r+')
+  try {
+    if (tailIsComplete) await handle.write('\n', content.length, 'utf8')
+    else await handle.truncate(completeLength)
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+}
 
 export async function createDeterministicPiSession(
   options: CreatePiSessionOptions,
@@ -106,6 +142,7 @@ export async function createDeterministicPiSession(
 
   let sessionManager: SessionManager
   if (options.sessionFile) {
+    await repairJsonlTail(options.sessionFile)
     sessionManager = SessionManager.open(options.sessionFile, options.sessionDir, options.cwd)
   } else {
     const canonicalSessionFile = join(options.sessionDir, `${options.sessionId}.jsonl`)
@@ -163,11 +200,10 @@ export async function createDeterministicPiSession(
       ])
       await session.compact('Summarize the deterministic contract run.')
 
-      const activeLeafId = sessionManager.getLeafId()
+      const activeLeafId = sessionManager.getLeafId()!
       const parentEntryId = sessionManager
         .getBranch()
-        .find((entry) => entry.type === 'message' && entry.message.role === 'user')?.id
-      if (!activeLeafId || !parentEntryId) return undefined
+        .find((entry) => entry.type === 'message' && entry.message.role === 'user')!.id
 
       sessionManager.branch(parentEntryId)
       const branchId = sessionManager.appendCustomEntry('genoffice.contract-branch', {
@@ -177,6 +213,48 @@ export async function createDeterministicPiSession(
       return { branchCreated: { branchId, parentEntryId, activeLeafId } }
     },
     abort: () => session.abort(),
+    fork: async (newSessionId, parentSessionId) => {
+      const sourceFile = sessionManager.getSessionFile()
+      const sourceLeafId = sessionManager.getLeafId()
+      if (!sourceFile || !sourceLeafId) throw new Error('session_fork_unavailable')
+      const forkFile = join(options.sessionDir, `${newSessionId}.jsonl`)
+      const timestamp = new Date().toISOString()
+      const forkEntryId = `genoffice-fork-${newSessionId}`
+      const lines = [
+        {
+          type: 'session',
+          version: CURRENT_SESSION_VERSION,
+          id: newSessionId,
+          timestamp,
+          cwd: options.cwd,
+          parentSession: sourceFile,
+        },
+        ...sessionManager.getEntries(),
+        {
+          type: 'custom',
+          id: forkEntryId,
+          parentId: sourceLeafId,
+          timestamp,
+          customType: 'genoffice.session-fork',
+          data: { documentId: options.documentId, parentSessionId },
+        },
+      ]
+      await writeFile(forkFile, `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`, {
+        encoding: 'utf8',
+        mode: 0o600,
+        flag: 'wx',
+      })
+      return { sessionId: newSessionId, sessionFile: forkFile, activeLeafId: forkEntryId }
+    },
+    navigate: async (targetEntryId) => {
+      if (!sessionManager.getEntry(targetEntryId)) throw new Error('branch_not_found')
+      const result = await session.navigateTree(targetEntryId, { summarize: false })
+      if (result.cancelled || result.aborted) throw new Error('branch_navigation_cancelled')
+      const activeLeafId = sessionManager.appendCustomEntry('genoffice.branch-navigation', {
+        targetEntryId,
+      })
+      return { activeLeafId }
+    },
     dispose: () => session.dispose(),
   }
 }

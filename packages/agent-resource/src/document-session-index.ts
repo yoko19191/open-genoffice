@@ -121,6 +121,26 @@ export class DocumentSessionIndexStore {
     })
   }
 
+  async advanceCurrent(
+    documentId: string,
+    expectedSessionId: string,
+    sessionId: string,
+  ): Promise<DocumentSessionIndex> {
+    this.assertUuid(expectedSessionId)
+    this.assertUuid(sessionId)
+    const path = await this.indexPath(documentId)
+    return this.withLock(documentId, async () => {
+      const existing = await this.read(path, documentId)
+      if (!existing) throw new DocumentSessionIndexError('document_session_not_found')
+      if (existing.currentSessionId !== expectedSessionId) {
+        throw new DocumentSessionIndexError('document_session_not_current')
+      }
+      const index = this.record(documentId, sessionId, existing.generation + 1)
+      await this.write(path, index)
+      return immutable(index)
+    })
+  }
+
   private async indexPath(documentId: string): Promise<string> {
     this.assertUuid(documentId)
     try {

@@ -113,6 +113,8 @@ class FakeRuntimeSocket extends Duplex {
               'session.open',
               'session.prompt',
               'session.abort',
+              'session.fork',
+              'session.navigate',
               'session.snapshot',
               'session.subscribe',
               'credential.put',
@@ -152,11 +154,34 @@ class FakeRuntimeSocket extends Duplex {
                     ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
                     : request.method === 'session.abort'
                       ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
-                      : request.method === 'session.snapshot'
-                        ? snapshot
-                        : request.method === 'session.subscribe'
-                          ? { resetRequired: false, snapshot, events: [] }
-                          : { shuttingDown: true }
+                      : request.method === 'session.fork'
+                        ? {
+                            sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                            parentSessionId: snapshot.sessionId,
+                            documentId: snapshot.documentId,
+                            snapshot: {
+                              ...snapshot,
+                              sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                              branch: { parentSessionId: snapshot.sessionId, nodes: [] },
+                            },
+                            cursor: snapshot.cursor,
+                          }
+                        : request.method === 'session.navigate'
+                          ? {
+                              sessionId: snapshot.sessionId,
+                              documentId: snapshot.documentId,
+                              activeLeafId: 'navigation-leaf',
+                              snapshot: {
+                                ...snapshot,
+                                branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                              },
+                              cursor: snapshot.cursor,
+                            }
+                          : request.method === 'session.snapshot'
+                            ? snapshot
+                            : request.method === 'session.subscribe'
+                              ? { resetRequired: false, snapshot, events: [] }
+                              : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
@@ -459,6 +484,24 @@ describe('PiRuntimeManager', () => {
       }),
     ).resolves.toEqual({ runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' })
     await expect(
+      manager.forkSession({
+        operationId,
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      }),
+    ).resolves.toMatchObject({
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      parentSessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    })
+    await expect(
+      manager.navigateSession({
+        operationId,
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        targetEntryId: 'target-leaf',
+      }),
+    ).resolves.toMatchObject({ activeLeafId: 'navigation-leaf' })
+    await expect(
       manager.snapshotSession({
         sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
@@ -593,6 +636,8 @@ describe('PiRuntimeManager', () => {
     ['openSession', 'session_connection_receipt_invalid'],
     ['promptSession', 'session_prompt_receipt_invalid'],
     ['abortSession', 'session_abort_receipt_invalid'],
+    ['forkSession', 'session_fork_receipt_invalid'],
+    ['navigateSession', 'session_navigate_receipt_invalid'],
     ['snapshotSession', 'session_snapshot_invalid'],
     ['subscribeSession', 'session_subscription_receipt_invalid'],
   ] as const)('maps an invalid %s result to a stable redacted error', async (method, code) => {
@@ -623,7 +668,15 @@ describe('PiRuntimeManager', () => {
                   ...bound,
                   runId: 'run-1',
                 }
-              : bound
+              : method === 'navigateSession'
+                ? {
+                    operationId: 'abababab-abab-4bab-8bab-abababababab',
+                    ...bound,
+                    targetEntryId: 'target-leaf',
+                  }
+                : method === 'forkSession'
+                  ? { operationId: 'abababab-abab-4bab-8bab-abababababab', ...bound }
+                  : bound
     await expect(manager[method](input as never)).rejects.toEqual(new PiRuntimeManagerError(code))
     await manager.shutdown()
   })
@@ -645,6 +698,8 @@ describe('PiRuntimeManager', () => {
       manager.openSession({ operationId, ...bound }),
       manager.promptSession({ operationId, ...bound, text: 'hello' }),
       manager.abortSession({ operationId, ...bound, runId: 'run-1' }),
+      manager.forkSession({ operationId, ...bound }),
+      manager.navigateSession({ operationId, ...bound, targetEntryId: 'target-leaf' }),
       manager.snapshotSession(bound),
       manager.subscribeSession(bound),
     ]

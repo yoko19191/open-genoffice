@@ -6,6 +6,8 @@ import {
   type EventEnvelope,
   type SessionConnectionReceipt,
   type SessionAbortReceipt,
+  type SessionForkReceipt,
+  type SessionNavigateReceipt,
   type SessionPromptReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
@@ -17,6 +19,8 @@ import type {
   PiRuntimeManagerOptions,
   SessionBoundRequest,
   SessionAbortRequest,
+  SessionForkRequest,
+  SessionNavigateRequest,
   SessionCreateRequest,
   SessionOpenRequest,
   SessionPromptRequest,
@@ -42,6 +46,8 @@ type OwnedPiRuntimeManager = Pick<
   | 'openSession'
   | 'promptSession'
   | 'abortSession'
+  | 'forkSession'
+  | 'navigateSession'
   | 'snapshotSession'
   | 'subscribeSession'
   | 'onSessionEvent'
@@ -110,6 +116,14 @@ export class PiRuntimeService {
 
   async abortSession(input: SessionAbortRequest): Promise<SessionAbortReceipt> {
     return (await this.readyManager()).abortSession(input)
+  }
+
+  async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {
+    return (await this.readyManager()).forkSession(input)
+  }
+
+  async navigateSession(input: SessionNavigateRequest): Promise<SessionNavigateReceipt> {
+    return (await this.readyManager()).navigateSession(input)
   }
 
   async snapshotSession(input: SessionBoundRequest): Promise<SessionSnapshot> {

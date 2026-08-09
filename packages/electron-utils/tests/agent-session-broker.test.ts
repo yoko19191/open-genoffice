@@ -8,6 +8,7 @@ import type {
 import { AgentSessionBroker } from '../src'
 
 const sessionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const forkSessionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
 
 function snapshot(sequence: number): SessionSnapshot {
@@ -66,6 +67,35 @@ function harness() {
       state: 'cancelling' as const,
       acceptedCursor: 'cursor-3',
     })),
+    forkSession: vi.fn(async () => {
+      const forkSnapshot = {
+        ...currentSnapshot,
+        sessionId: forkSessionId,
+        branch: { parentSessionId: sessionId, activeLeafId: 'fork-leaf', nodes: [] },
+      }
+      return {
+        sessionId: forkSessionId,
+        parentSessionId: sessionId,
+        documentId,
+        snapshot: forkSnapshot,
+        cursor: forkSnapshot.cursor,
+      }
+    }),
+    navigateSession: vi.fn(async (input: { sessionId: string; documentId: string }) => {
+      const navigatedSnapshot = {
+        ...currentSnapshot,
+        sessionId: input.sessionId,
+        documentId: input.documentId,
+        branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+      }
+      return {
+        sessionId: input.sessionId,
+        documentId: input.documentId,
+        activeLeafId: 'navigation-leaf',
+        snapshot: navigatedSnapshot,
+        cursor: navigatedSnapshot.cursor,
+      }
+    }),
     onSessionEvent: vi.fn(async (next: (value: EventEnvelope) => void) => {
       listener = next
       return unsubscribe
@@ -217,6 +247,14 @@ describe('Electron main Agent Session broker', () => {
       assertCurrent: vi.fn(async (_documentId: string, requestedSessionId: string) => {
         if (requestedSessionId !== currentSessionId) throw new Error('document_session_not_current')
       }),
+      advanceCurrent: vi.fn(
+        async (_documentId: string, expectedSessionId: string, nextSessionId: string) => {
+          if (expectedSessionId !== currentSessionId) {
+            throw new Error('document_session_not_current')
+          }
+          currentSessionId = nextSessionId
+        },
+      ),
     }
     const options = {
       authorize: async () => true,
@@ -285,6 +323,68 @@ describe('Electron main Agent Session broker', () => {
     fixture.authorize.mockResolvedValueOnce(false)
     await expect(fixture.broker.command(1, command)).rejects.toThrowError('document_access_denied')
     await fixture.broker.close()
+  })
+
+  it('atomically advances the current Session after fork and keeps navigate in that tree', async () => {
+    const fixture = harness()
+    let current = sessionId
+    const currentSessions = {
+      resolveCurrent: vi.fn(async () => current),
+      assertCurrent: vi.fn(async (_documentId: string, requestedSessionId: string) => {
+        if (requestedSessionId !== current) throw new Error('document_session_not_current')
+      }),
+      advanceCurrent: vi.fn(
+        async (_documentId: string, expectedSessionId: string, nextSessionId: string) => {
+          if (expectedSessionId !== current) throw new Error('document_session_not_current')
+          current = nextSessionId
+        },
+      ),
+    }
+    const broker = new AgentSessionBroker(fixture.transport, {
+      authorize: async () => true,
+      randomUUID: () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      currentSessions,
+    })
+    await broker.connect(1, { documentId, sessionId }, () => {})
+
+    const forked = await broker.command(1, {
+      type: 'fork',
+      operationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      sessionId,
+      documentId,
+    })
+    expect(forked).toMatchObject({ sessionId: forkSessionId, parentSessionId: sessionId })
+    expect(currentSessions.advanceCurrent).toHaveBeenCalledWith(
+      documentId,
+      sessionId,
+      forkSessionId,
+    )
+
+    await expect(
+      broker.command(1, {
+        type: 'navigate',
+        operationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        sessionId: forkSessionId,
+        documentId,
+        targetEntryId: 'target-leaf',
+      }),
+    ).resolves.toMatchObject({ sessionId: forkSessionId, activeLeafId: 'navigation-leaf' })
+    expect(fixture.transport.navigateSession).toHaveBeenCalledWith({
+      operationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      sessionId: forkSessionId,
+      documentId,
+      targetEntryId: 'target-leaf',
+    })
+    await expect(
+      broker.command(1, {
+        type: 'prompt',
+        operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        sessionId,
+        documentId,
+        text: 'stale parent',
+      }),
+    ).rejects.toThrowError('agent_session_not_connected')
+    await broker.close()
   })
 
   it('fails closed on Runtime binding mismatches and ignores forged live bindings', async () => {

@@ -82,6 +82,22 @@ describe('Document current Session index', () => {
       new DocumentSessionIndexError('document_session_conflict'),
     )
 
+    await expect(
+      Promise.allSettled([
+        store.advanceCurrent(documentId, secondSessionId, firstSessionId),
+        store.advanceCurrent(documentId, secondSessionId, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+      ]),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        status: 'fulfilled',
+        value: expect.objectContaining({ currentSessionId: firstSessionId, generation: 3 }),
+      }),
+      expect.objectContaining({
+        status: 'rejected',
+        reason: new DocumentSessionIndexError('document_session_not_current'),
+      }),
+    ])
+
     const newRoot = await fixture('direct-current')
     await expect(
       new DocumentSessionIndexStore({ rootDirectory: newRoot, platform: 'win32' }).setCurrent(

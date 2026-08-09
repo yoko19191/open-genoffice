@@ -370,6 +370,8 @@ describe('authenticated Runtime socket', () => {
           'session.open',
           'session.prompt',
           'session.abort',
+          'session.fork',
+          'session.navigate',
           'session.snapshot',
           'session.subscribe',
           'credential.put',
@@ -578,6 +580,63 @@ describe('authenticated Runtime socket', () => {
     expect(promptReceipt).toMatchObject({ kind: 'response', result: { runId: expect.any(String) } })
 
     client.write(
+      `${request(
+        'session.fork',
+        {
+          operationId: '33333333-3333-4333-8333-333333333333',
+          sessionId,
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        },
+        'session-fork',
+      )}\n`,
+    )
+    const forkEvent = await reader.next(
+      (frame) =>
+        frame.kind === 'event' && frame.type === 'branch.created' && frame.sessionId !== sessionId,
+    )
+    const forkResponse = await reader.next(
+      (frame) => frame.kind === 'response' && frame.id === 'session-fork',
+    )
+    expect(forkEvent).toMatchObject({
+      kind: 'event',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      payload: { parentSessionId: sessionId },
+    })
+    const forkResult = (
+      forkResponse as ResponseEnvelope & {
+        result: {
+          sessionId: string
+          snapshot: { branch: { nodes: Array<{ entryId: string }> } }
+        }
+      }
+    ).result
+    expect(forkResult.sessionId).not.toBe(sessionId)
+
+    client.write(
+      `${request(
+        'session.navigate',
+        {
+          operationId: '44444444-4444-4444-8444-444444444444',
+          sessionId: forkResult.sessionId,
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+          targetEntryId: forkResult.snapshot.branch.nodes[0]!.entryId,
+        },
+        'session-navigate',
+      )}\n`,
+    )
+    await expect(
+      reader.next((frame) => frame.kind === 'event' && frame.type === 'branch.navigated'),
+    ).resolves.toMatchObject({ sessionId: forkResult.sessionId })
+    await expect(
+      reader.next((frame) => frame.kind === 'response' && frame.id === 'session-navigate'),
+    ).resolves.toMatchObject({
+      result: {
+        sessionId: forkResult.sessionId,
+        activeLeafId: expect.any(String),
+      },
+    })
+
+    client.write(
       `${request('session.snapshot', { sessionId, documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' }, 'snapshot')}\n`,
     )
     const snapshot = await reader.next(
@@ -607,7 +666,7 @@ describe('authenticated Runtime socket', () => {
       `${request(
         'session.open',
         {
-          operationId: '33333333-3333-4333-8333-333333333333',
+          operationId: '66666666-6666-4666-8666-666666666666',
           sessionId,
           documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
         },

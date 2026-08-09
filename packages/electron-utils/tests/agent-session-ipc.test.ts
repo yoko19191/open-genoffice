@@ -180,10 +180,45 @@ describe('Agent Session preload bridge', () => {
     await expect(
       api.command({ type: 'abort', operationId, sessionId, documentId, runId: 'run-1' }),
     ).resolves.toMatchObject({ state: 'cancelling' })
+    const forkSessionId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    ipcRenderer.invoke.mockResolvedValueOnce({
+      sessionId: forkSessionId,
+      parentSessionId: sessionId,
+      documentId,
+      snapshot: {
+        ...snapshot,
+        sessionId: forkSessionId,
+        branch: { parentSessionId: sessionId, nodes: [] },
+      },
+      cursor: snapshot.cursor,
+    })
+    await expect(
+      api.command({ type: 'fork', operationId, sessionId, documentId }),
+    ).resolves.toMatchObject({ sessionId: forkSessionId, parentSessionId: sessionId })
+    ipcRenderer.invoke.mockResolvedValueOnce({
+      sessionId: forkSessionId,
+      documentId,
+      activeLeafId: 'navigation-leaf',
+      snapshot: {
+        ...snapshot,
+        sessionId: forkSessionId,
+        branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+      },
+      cursor: snapshot.cursor,
+    })
+    await expect(
+      api.command({
+        type: 'navigate',
+        operationId,
+        sessionId: forkSessionId,
+        documentId,
+        targetEntryId: 'target-leaf',
+      }),
+    ).resolves.toMatchObject({ activeLeafId: 'navigation-leaf' })
     await expect(api.connect({ documentId: 'other' })).rejects.toThrowError(
       'agent_session_connect_request_invalid',
     )
-    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(4)
+    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(6)
 
     const next = vi.fn()
     const remove = api.onEvent(next)

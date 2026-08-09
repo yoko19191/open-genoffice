@@ -259,6 +259,35 @@ describe('copied Pi Runtime end to end', () => {
     expect(transcript).toContain('genoffice.document-binding')
     expect(transcript).not.toContain('run.started')
 
+    const parentSnapshot = await manager.snapshotSession({
+      sessionId: created.sessionId,
+      documentId,
+    })
+    const forked = await manager.forkSession({
+      operationId: randomUUID(),
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(forked).toMatchObject({
+      parentSessionId: created.sessionId,
+      documentId,
+      snapshot: { branch: { parentSessionId: created.sessionId } },
+    })
+    expect(forked.snapshot.branch?.nodes).toHaveLength(parentSnapshot.branch!.nodes.length + 1)
+    const navigated = await manager.navigateSession({
+      operationId: randomUUID(),
+      sessionId: forked.sessionId,
+      documentId,
+      targetEntryId: forked.snapshot.branch!.nodes[0]!.entryId,
+    })
+    expect(navigated.snapshot.branch?.activeLeafId).toBe(navigated.activeLeafId)
+    expect(
+      await readFile(
+        join(resourceHome, 'agent', 'sessions', documentId, `${forked.sessionId}.jsonl`),
+        'utf8',
+      ),
+    ).toContain('genoffice.branch-navigation')
+
     const abortDocumentId = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'
     const abortCreated = await manager.createSession({
       operationId: randomUUID(),

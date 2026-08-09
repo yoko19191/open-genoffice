@@ -35,21 +35,40 @@ afterEach(async () => {
 function fakePiSession(options: {
   sessionFile?: string
   messages?: Array<Record<string, unknown>>
+  entries?: Array<{ id: string; parentId: string | null; type: string }>
+  getLeafId?: () => string | undefined
   prompt?: (emit: (event: AgentSessionEvent) => void) => Promise<void>
   abort?: () => Promise<void>
+  fork?: (
+    newSessionId: string,
+    parentSessionId: string,
+  ) => Promise<{ sessionId: string; sessionFile: string; activeLeafId: string }>
+  navigate?: (targetEntryId: string) => Promise<{ activeLeafId: string }>
 }) {
   let listener: (event: AgentSessionEvent) => void = () => {}
   const dispose = () => {}
   return {
     handle: {
       session: { sessionFile: options.sessionFile },
-      sessionManager: { getBranch: () => options.messages ?? [] },
+      sessionManager: {
+        getBranch: () => options.messages ?? [],
+        getLeafId: () => options.getLeafId?.(),
+        getEntries: () => options.entries ?? [],
+      },
       subscribe: (next: (event: AgentSessionEvent) => void) => {
         listener = next
         return dispose
       },
       prompt: async () => options.prompt?.(listener),
       abort: async () => options.abort?.(),
+      fork: async (newSessionId: string, parentSessionId: string) => {
+        if (!options.fork) throw new Error('session_fork_unavailable')
+        return options.fork(newSessionId, parentSessionId)
+      },
+      navigate: async (targetEntryId: string) => {
+        if (!options.navigate) throw new Error('branch_not_found')
+        return options.navigate(targetEntryId)
+      },
       dispose,
     },
     emit: (event: AgentSessionEvent) => listener(event),
@@ -402,6 +421,87 @@ describe('document-bound Pi Session registry', () => {
     await registry.shutdown()
   })
 
+  it('forks one document into an independent Pi Session and navigates only its branch DAG', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({ operationId, documentId })
+    await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'create a branch before forking',
+    })
+    await registry.waitForIdle(created.sessionId)
+    const parentBeforeFork = await registry.snapshot(created)
+
+    const forked = await registry.fork({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(forked).toMatchObject({
+      parentSessionId: created.sessionId,
+      documentId,
+      snapshot: { branch: { parentSessionId: created.sessionId } },
+    })
+    expect(forked.sessionId).not.toBe(created.sessionId)
+    expect(forked.snapshot.branch?.nodes).toHaveLength(parentBeforeFork.branch!.nodes.length + 1)
+    const forkBinding = (await registry.listBindings()).find(
+      (binding) => binding.sessionId === forked.sessionId,
+    )
+    expect(forkBinding).toMatchObject({ parentSessionId: created.sessionId, documentId })
+    expect(await readFile(forkBinding!.sessionFile, 'utf8')).toContain('genoffice.session-fork')
+
+    const targetEntryId = forked.snapshot.branch!.nodes[0]!.entryId
+    const navigated = await registry.navigate({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: forked.sessionId,
+      documentId,
+      targetEntryId,
+    })
+    expect(navigated).toMatchObject({
+      sessionId: forked.sessionId,
+      documentId,
+      snapshot: { branch: { parentSessionId: created.sessionId } },
+    })
+    expect(navigated.activeLeafId).toBe(navigated.snapshot.branch?.activeLeafId)
+    expect(navigated.snapshot.branch?.nodes.at(-1)).toMatchObject({
+      entryId: navigated.activeLeafId,
+      parentEntryId: targetEntryId,
+      kind: 'custom',
+    })
+    await expect(
+      registry.navigate({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        sessionId: forked.sessionId,
+        documentId,
+        targetEntryId: 'missing-entry',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('branch_not_found'))
+
+    const secondRuntime = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-2',
+      cursorSecret: Buffer.alloc(32, 8),
+      now: () => new Date('2026-08-09T12:00:00.000Z'),
+    })
+    await expect(
+      secondRuntime.open({
+        operationId: '66666666-6666-4666-8666-666666666666',
+        sessionId: forked.sessionId,
+        documentId,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await secondRuntime.shutdown()
+
+    const parentSnapshot = await registry.snapshot(created)
+    expect(parentSnapshot.branch?.activeLeafId).toBe(parentBeforeFork.branch?.activeLeafId)
+    expect(parentSnapshot.branch?.parentSessionId).toBeUndefined()
+    expect(await readFile(forkBinding!.sessionFile, 'utf8')).toContain(
+      'genoffice.branch-navigation',
+    )
+    await registry.shutdown()
+  })
+
   it('returns the first receipt for an identical operation and rejects payload drift', async () => {
     const { registry } = await harness()
     const first = await registry.create({
@@ -486,6 +586,56 @@ describe('document-bound Pi Session registry', () => {
       afterCursor: result.cursor,
     })
     expect(subscription).toMatchObject({ resetRequired: false, events: [] })
+    await reopened.shutdown()
+  })
+
+  it('repairs only crash-torn JSONL tails before reopening and appending', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({ operationId, documentId })
+    const binding = (await registry.listBindings())[0]!
+    const journalPath = join(dataRoot, 'state', 'session-journals', `${created.sessionId}.jsonl`)
+    await registry.shutdown()
+    await appendFile(journalPath, '{"tornJournal":')
+    await appendFile(binding.sessionFile, '{"tornTranscript":')
+
+    const reopened = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-tail-repair',
+      cursorSecret: Buffer.alloc(32, 18),
+      randomUUID: () => '77777777-7777-4777-8777-777777777777',
+    })
+    await expect(
+      reopened.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+      }),
+    ).resolves.toMatchObject({ sessionId: created.sessionId, documentId })
+    const journal = await readFile(journalPath, 'utf8')
+    const transcript = await readFile(binding.sessionFile, 'utf8')
+    expect(journal).not.toContain('tornJournal')
+    expect(transcript).not.toContain('tornTranscript')
+    expect(
+      journal
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line)),
+    ).toHaveLength(2)
+    expect(
+      transcript
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+        .at(0),
+    ).toMatchObject({
+      type: 'session',
+      id: created.sessionId,
+    })
+    const emptyTailSessionId = '88888888-8888-4888-8888-888888888888'
+    const emptyTailPath = join(dataRoot, 'state', 'session-journals', `${emptyTailSessionId}.jsonl`)
+    await writeFile(emptyTailPath, '{"tornOnly":')
+    await expect(reopened.readJournal(emptyTailSessionId)).resolves.toEqual([])
+    await expect(readFile(emptyTailPath, 'utf8')).resolves.toBe('')
     await reopened.shutdown()
   })
 
@@ -1016,6 +1166,23 @@ describe('document-bound Pi Session registry', () => {
         documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       }),
     ).rejects.toEqual(new RuntimeSessionError('session_not_found'))
+    await writeFile(
+      join(bindingsRoot, `${malformedId}.json`),
+      JSON.stringify({
+        version: 1,
+        sessionId: malformedId,
+        documentId,
+        sessionFile: join(dataRoot, 'forged.jsonl'),
+        parentSessionId: malformedId,
+      }),
+    )
+    await expect(
+      registry.open({
+        operationId: '11111111-1111-4111-8111-111111111112',
+        sessionId: malformedId,
+        documentId,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_not_found'))
     await rm(join(bindingsRoot, `${malformedId}.json`))
     await expect(
       registry.open({
@@ -1050,9 +1217,6 @@ describe('document-bound Pi Session registry', () => {
       const bindingPath = join(dataRoot, 'state', 'session-bindings', `${createdSessionId}.json`)
       const journalPath = join(dataRoot, 'state', 'session-journals', `${createdSessionId}.jsonl`)
       if (failurePoint === 'attach') mkdirSync(journalPath, { recursive: true })
-      if (failurePoint === 'binding') {
-        mkdirSync(`${bindingPath}.${process.pid}.tmp`, { recursive: true })
-      }
       const fake = fakePiSession({ sessionFile: join(dataRoot, 'fake-session.jsonl') })
       const dispose = vi.fn()
       fake.handle.dispose = dispose
@@ -1067,6 +1231,14 @@ describe('document-bound Pi Session registry', () => {
         instanceId: `instance-create-${failurePoint}`,
         cursorSecret: Buffer.alloc(32, 36),
         randomUUID: () => createdSessionId,
+        ...(failurePoint === 'binding'
+          ? {
+              bindingAtomicWriteOptions: () => ({
+                failAt: 'before_rename' as const,
+                platform: 'linux' as const,
+              }),
+            }
+          : {}),
         createPiSession: async () => {
           if (failurePoint === 'factory') throw new Error('synthetic Pi factory failure')
           return fake.handle as never
@@ -1084,6 +1256,44 @@ describe('document-bound Pi Session registry', () => {
       await registry.shutdown()
     },
   )
+
+  it('recovers a fully renamed binding after an injected post-commit crash', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-binding-committed-'))
+    roots.push(dataRoot)
+    const sessionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    const sessionFile = join(dataRoot, 'fake-session.jsonl')
+    const firstFake = fakePiSession({ sessionFile })
+    const crashed = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-binding-crash',
+      cursorSecret: Buffer.alloc(32, 19),
+      randomUUID: () => sessionId,
+      bindingAtomicWriteOptions: () => ({ failAt: 'after_rename', platform: 'linux' }),
+      createPiSession: async () => firstFake.handle as never,
+    })
+    await expect(crashed.create({ operationId, documentId })).rejects.toThrowError(
+      'injected_atomic_write_failure',
+    )
+    await expect(crashed.listBindings()).resolves.toEqual([
+      expect.objectContaining({ sessionId, documentId, sessionFile }),
+    ])
+    await crashed.shutdown()
+
+    const recovered = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-binding-recovered',
+      cursorSecret: Buffer.alloc(32, 20),
+      createPiSession: async () => fakePiSession({ sessionFile }).handle as never,
+    })
+    await expect(
+      recovered.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId,
+        documentId,
+      }),
+    ).resolves.toMatchObject({ sessionId, documentId })
+    await recovered.shutdown()
+  })
 
   it('rejects cursors signed for another instance, session, signature, or sequence', async () => {
     const { dataRoot, registry } = await harness()

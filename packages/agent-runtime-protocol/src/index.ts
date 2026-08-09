@@ -49,8 +49,6 @@ const GenericRuntimeMethodSchema = Type.Union([
   Type.Literal('session.steer'),
   Type.Literal('session.followUp'),
   Type.Literal('session.compact'),
-  Type.Literal('session.fork'),
-  Type.Literal('session.navigate'),
 ])
 
 const ElectronMethodSchema = Type.Union([
@@ -300,6 +298,26 @@ export const SessionSnapshotSchema = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    branch: Type.Optional(
+      Type.Object(
+        {
+          parentSessionId: Type.Optional(SessionIdSchema),
+          activeLeafId: Type.Optional(EntityIdSchema),
+          nodes: Type.Array(
+            Type.Object(
+              {
+                entryId: EntityIdSchema,
+                parentEntryId: Type.Union([EntityIdSchema, Type.Null()]),
+                kind: Type.String({ minLength: 1, maxLength: 64 }),
+              },
+              { additionalProperties: false },
+            ),
+            { maxItems: 4096 },
+          ),
+        },
+        { additionalProperties: false },
+      ),
+    ),
     lastSequence: Type.Integer({ minimum: 0 }),
     cursor: Type.String({ minLength: 1 }),
   },
@@ -465,6 +483,31 @@ const SessionAbortRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const SessionForkRequestSchema = sessionRequestEnvelope(
+  'session.fork',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionNavigateRequestSchema = sessionRequestEnvelope(
+  'session.navigate',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      targetEntryId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
 const SessionSnapshotRequestSchema = sessionRequestEnvelope(
   'session.snapshot',
   Type.Object(
@@ -545,6 +588,8 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionOpenRequestSchema,
   SessionPromptRequestSchema,
   SessionAbortRequestSchema,
+  SessionForkRequestSchema,
+  SessionNavigateRequestSchema,
   SessionSnapshotRequestSchema,
   SessionSubscribeRequestSchema,
 ])
@@ -621,6 +666,28 @@ export const SessionAbortReceiptSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const SessionForkReceiptSchema = Type.Object(
+  {
+    sessionId: SessionIdSchema,
+    parentSessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    snapshot: SessionSnapshotSchema,
+    cursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
+export const SessionNavigateReceiptSchema = Type.Object(
+  {
+    sessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    activeLeafId: EntityIdSchema,
+    snapshot: SessionSnapshotSchema,
+    cursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
 export const OfficeToolReceiptSchema = Type.Object(
   {
     operationId: OperationIdSchema,
@@ -688,6 +755,25 @@ export const AgentSessionCommandSchema = Type.Union([
       sessionId: SessionIdSchema,
       documentId: DocumentIdSchema,
       runId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('fork'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('navigate'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      targetEntryId: EntityIdSchema,
     },
     { additionalProperties: false },
   ),
@@ -806,6 +892,8 @@ export type EventEnvelope = Static<typeof EventEnvelopeSchema>
 export type SessionConnectionReceipt = Static<typeof SessionConnectionReceiptSchema>
 export type SessionPromptReceipt = Static<typeof SessionPromptReceiptSchema>
 export type SessionAbortReceipt = Static<typeof SessionAbortReceiptSchema>
+export type SessionForkReceipt = Static<typeof SessionForkReceiptSchema>
+export type SessionNavigateReceipt = Static<typeof SessionNavigateReceiptSchema>
 export type SessionSubscriptionReceipt = Static<typeof SessionSubscriptionReceiptSchema>
 export type AgentSessionConnectRequest = Static<typeof AgentSessionConnectRequestSchema>
 export type AgentSessionCommand = Static<typeof AgentSessionCommandSchema>
@@ -884,6 +972,31 @@ export function parseSessionPromptReceipt(value: unknown): SessionPromptReceipt 
 export function parseSessionAbortReceipt(value: unknown): SessionAbortReceipt {
   if (Value.Check(SessionAbortReceiptSchema, value)) return value
   throw new Error('session_abort_receipt_invalid')
+}
+
+export function parseSessionForkReceipt(value: unknown): SessionForkReceipt {
+  if (
+    Value.Check(SessionForkReceiptSchema, value) &&
+    value.sessionId !== value.parentSessionId &&
+    value.snapshot.sessionId === value.sessionId &&
+    value.snapshot.documentId === value.documentId &&
+    value.snapshot.branch?.parentSessionId === value.parentSessionId
+  ) {
+    return value
+  }
+  throw new Error('session_fork_receipt_invalid')
+}
+
+export function parseSessionNavigateReceipt(value: unknown): SessionNavigateReceipt {
+  if (
+    Value.Check(SessionNavigateReceiptSchema, value) &&
+    value.snapshot.sessionId === value.sessionId &&
+    value.snapshot.documentId === value.documentId &&
+    value.snapshot.branch?.activeLeafId === value.activeLeafId
+  ) {
+    return value
+  }
+  throw new Error('session_navigate_receipt_invalid')
 }
 
 export function parseOfficeToolInvocation(value: unknown): OfficeToolInvocation {

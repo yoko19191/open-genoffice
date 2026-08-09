@@ -35,6 +35,8 @@ export {
   type PrivateRuntimeEndpoint,
   type SessionBoundRequest,
   type SessionAbortRequest,
+  type SessionForkRequest,
+  type SessionNavigateRequest,
   type SessionCreateRequest,
   type SessionOpenRequest,
   type SessionPromptRequest,

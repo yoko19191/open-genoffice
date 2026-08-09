@@ -52,6 +52,24 @@ function manager(overrides: Record<string, unknown> = {}) {
       state: 'cancelling' as const,
       acceptedCursor: 'cursor-2',
     })),
+    forkSession: vi.fn(async () => ({
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      parentSessionId: snapshot.sessionId,
+      documentId: snapshot.documentId,
+      snapshot: {
+        ...snapshot,
+        sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        branch: { parentSessionId: snapshot.sessionId, nodes: [] },
+      },
+      cursor: snapshot.cursor,
+    })),
+    navigateSession: vi.fn(async () => ({
+      sessionId: snapshot.sessionId,
+      documentId: snapshot.documentId,
+      activeLeafId: 'navigation-leaf',
+      snapshot: { ...snapshot, branch: { activeLeafId: 'navigation-leaf', nodes: [] } },
+      cursor: snapshot.cursor,
+    })),
     snapshotSession: vi.fn(async () => snapshot),
     subscribeSession: vi.fn(async () => ({ resetRequired: false, snapshot, events: [] })),
     onSessionEvent: vi.fn(() => () => {}),
@@ -175,11 +193,22 @@ describe('installed Pi Runtime service', () => {
       ...bound,
       runId: 'run-1',
     })
+    await fixture.instance.forkSession({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      ...bound,
+    })
+    await fixture.instance.navigateSession({
+      operationId: '66666666-6666-4666-8666-666666666666',
+      ...bound,
+      targetEntryId: 'target-leaf',
+    })
     await fixture.instance.snapshotSession(bound)
     await fixture.instance.subscribeSession({ ...bound, afterCursor: 'cursor-1' })
     expect(fixture.runtimeManager.openSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.promptSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.abortSession).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.forkSession).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.navigateSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.snapshotSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.subscribeSession).toHaveBeenCalledOnce()
     const listener = vi.fn()

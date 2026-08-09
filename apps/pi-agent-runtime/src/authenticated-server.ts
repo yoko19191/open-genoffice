@@ -140,6 +140,8 @@ export async function createAuthenticatedRuntimeServer(
                 'session.open',
                 'session.prompt',
                 'session.abort',
+                'session.fork',
+                'session.navigate',
                 'session.snapshot',
                 'session.subscribe',
                 'credential.put',
@@ -276,6 +278,14 @@ export async function createAuthenticatedRuntimeServer(
       }
       if (request.method === 'session.abort') {
         socket.write(response(request, await sessionRegistry.abort(request.params)))
+        return
+      }
+      if (request.method === 'session.fork') {
+        socket.write(response(request, await sessionRegistry.fork(request.params)))
+        return
+      }
+      if (request.method === 'session.navigate') {
+        socket.write(response(request, await sessionRegistry.navigate(request.params)))
         return
       }
       if (request.method === 'session.snapshot') {

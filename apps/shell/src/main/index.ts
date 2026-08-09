@@ -1285,6 +1285,8 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
       (await documentSessionIndexStore.resolveCurrent(documentId, create)).currentSessionId,
     assertCurrent: (documentId, sessionId) =>
       documentSessionIndexStore.assertCurrent(documentId, sessionId),
+    advanceCurrent: (documentId, expectedSessionId, sessionId) =>
+      documentSessionIndexStore.advanceCurrent(documentId, expectedSessionId, sessionId),
   },
 })
 
