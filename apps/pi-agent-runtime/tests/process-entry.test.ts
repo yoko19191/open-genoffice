@@ -12,6 +12,9 @@ import {
 import { RUNTIME_EXIT_CODES, RuntimeBootstrapError, runRuntimeProcess } from '../src'
 
 async function endpoint(): Promise<string> {
+  if (process.platform === 'win32') {
+    return `\\\\.\\pipe\\genoffice-runtime-process-${randomUUID()}`
+  }
   const socketRoot = process.platform === 'darwin' ? '/private/tmp' : tmpdir()
   const directory = await mkdtemp(join(socketRoot, 'genoffice-runtime-process-'))
   await chmod(directory, 0o700)
@@ -43,7 +46,9 @@ describe('Runtime process entry', () => {
     })
     stdin.end(`${JSON.stringify(bootstrap(socketPath))}\n`)
     await expect(running).resolves.toBe(RUNTIME_EXIT_CODES.ok)
-    await expect(stat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    if (process.platform !== 'win32') {
+      await expect(stat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
   })
 
   it('writes only the stable diagnostic code for known and unknown failures', async () => {
@@ -79,3 +84,4 @@ describe('Runtime process entry', () => {
     }
   })
 })
+import { randomUUID } from 'node:crypto'

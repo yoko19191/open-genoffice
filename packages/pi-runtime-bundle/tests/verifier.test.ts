@@ -4,6 +4,7 @@ import { chmod, link, mkdir, mkdtemp, readFile, symlink, unlink, writeFile } fro
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import {
   NODE_VERSION,
@@ -382,7 +383,7 @@ describe('installed Pi Runtime bundle verifier', () => {
 
   it('runs through the repository verifier entrypoint', async () => {
     const { root, manifest } = await fixtureBundle()
-    const repoRoot = new URL('../../../', import.meta.url).pathname
+    const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       [

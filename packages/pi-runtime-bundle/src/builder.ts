@@ -127,13 +127,13 @@ export async function buildPiRuntimeBundle(
     await copyFile(
       options.nodeExecutable,
       join(stagingDirectory, executablePath),
-      constants.COPYFILE_FICLONE,
+      process.platform === 'win32' ? 0 : constants.COPYFILE_FICLONE,
     )
     if (options.platform === 'win32') {
       await copyFile(
         options.windowsJobLauncher!,
         join(stagingDirectory, WINDOWS_JOB_LAUNCHER_RELATIVE_PATH),
-        constants.COPYFILE_FICLONE,
+        0,
       )
     }
     if (process.platform !== 'win32') {

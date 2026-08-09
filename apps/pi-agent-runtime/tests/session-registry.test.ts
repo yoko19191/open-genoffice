@@ -334,7 +334,9 @@ describe('document-bound Pi Session registry', () => {
     expect(transcript).toContain('genoffice.document-binding')
     expect(transcript).toContain('"type":"compaction"')
     expect(transcript).toContain('genoffice.contract-branch')
-    expect(binding.sessionFile).toContain(`/agent/sessions/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1/`)
+    expect(binding.sessionFile).toContain(
+      join('agent', 'sessions', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),
+    )
     expect(binding.sessionFile).toMatch(new RegExp(`${created.sessionId}\\.jsonl$`))
     expect(transcript).not.toContain('run.queued')
     await registry.shutdown()

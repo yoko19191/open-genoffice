@@ -21,6 +21,9 @@ import {
 const token = 'c'.repeat(64)
 
 async function endpoint(): Promise<string> {
+  if (process.platform === 'win32') {
+    return `\\\\.\\pipe\\genoffice-runtime-stdin-${randomUUID()}`
+  }
   const socketRoot = process.platform === 'darwin' ? '/private/tmp' : tmpdir()
   const directory = await mkdtemp(join(socketRoot, 'genoffice-runtime-stdin-'))
   await chmod(directory, 0o700)
@@ -99,7 +102,9 @@ describe('Runtime inherited stdin bootstrap', () => {
 
     stdin.end()
     await runtime.closed
-    await expect(stat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    if (process.platform !== 'win32') {
+      await expect(stat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
   })
 
   it('rejects an invalid record with a stable secret-free bootstrap error', async () => {
@@ -230,3 +235,4 @@ describe('Runtime inherited stdin bootstrap', () => {
     }
   })
 })
+import { randomUUID } from 'node:crypto'

@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { chmod, mkdtemp, stat } from 'node:fs/promises'
 import { Duplex, PassThrough, Writable } from 'node:stream'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   PROTOCOL_VERSION,
@@ -561,7 +561,7 @@ describe('private Runtime endpoints', () => {
       () => Buffer.alloc(12, 0xcd),
       root,
     )
-    expect(endpoint.endpoint.endsWith('/runtime.sock')).toBe(true)
+    expect(endpoint.endpoint.endsWith(`${sep}runtime.sock`)).toBe(true)
     expect((await stat(join(endpoint.endpoint, '..'))).mode & 0o777).toBe(0o700)
     await endpoint.cleanup()
     await expect(stat(join(endpoint.endpoint, '..'))).rejects.toMatchObject({ code: 'ENOENT' })

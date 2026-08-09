@@ -1,4 +1,5 @@
 import { access, mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 import { parseProtocolFrame } from '@genoffice/agent-runtime-protocol'
@@ -43,7 +44,9 @@ describe('isolated debug stdio mode', () => {
           createProvider: (actualWorkspace) => {
             expect(actualWorkspace.credentialStore.kind).toBe('fake-credential-store')
             expect(environment.HOME).toBe(workspace.home)
-            expect(environment.GENOFFICE_RESOURCE_HOME).toBe(`${workspace.home}/.open-genoffice`)
+            expect(environment.GENOFFICE_RESOURCE_HOME).toBe(
+              join(workspace.home, '.open-genoffice'),
+            )
             expect(environment.GENOFFICE_PROJECT_STORE).toBe(workspace.projectStore)
             return { run: providerRun }
           },
