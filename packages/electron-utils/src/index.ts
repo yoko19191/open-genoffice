@@ -83,3 +83,15 @@ export {
   type OfficeToolInvocation,
   type OfficeToolReceipt,
 } from './office-tool-broker'
+export {
+  SecureStorageBroker,
+  SecureStorageBrokerError,
+  type CredentialKind,
+  type CredentialMetadata,
+  type CredentialStatus,
+  type CredentialWrite,
+  type SafeStorageAdapter,
+  type SecureStorageBackend,
+  type SecureStorageBrokerOptions,
+  type SecureStorageFailurePoint,
+} from './secure-storage-broker'

@@ -38,6 +38,20 @@ export {
 } from './run-abort-tree'
 export { ToolResultReorderBuffer } from './tool-result-reorder-buffer'
 export {
+  OpenGenOfficeCredentialStore,
+  OpenGenOfficeCredentialStoreError,
+  type CredentialBrokerClient,
+  type CredentialBrokerMetadata,
+  type CredentialBrokerStatus,
+  type CredentialBrokerWrite,
+  type OpenGenOfficeCredentialStoreOptions,
+} from './open-genoffice-credential-store'
+export {
+  RuntimeCredentialBrokerClient,
+  RuntimeCredentialBrokerClientError,
+  type RuntimeCredentialBrokerClientOptions,
+} from './runtime-credential-broker-client'
+export {
   planSessionRecovery,
   type RecoveredMutationOutcome,
   type RecoveredTool,

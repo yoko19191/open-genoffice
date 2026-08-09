@@ -8,6 +8,7 @@ import {
   PROTOCOL_VERSION,
   RUNTIME_VERSION,
   SCHEMA_VERSION,
+  parseCredentialBrokerRequest,
   type BootstrapRecord,
   type ProtocolEnvelope,
   type ResponseEnvelope,
@@ -46,6 +47,17 @@ function request(method: string, params: unknown, id = method) {
     method,
     correlationId: `correlation-${id}`,
     params,
+  })
+}
+
+function resultResponse(requestFrame: ProtocolEnvelope, result: unknown): string {
+  if (requestFrame.kind !== 'request') throw new Error('expected_request')
+  return JSON.stringify({
+    protocolVersion: PROTOCOL_VERSION,
+    kind: 'response',
+    id: requestFrame.id,
+    correlationId: requestFrame.correlationId,
+    result,
   })
 }
 
@@ -108,6 +120,74 @@ function frameReader(socket: Socket) {
 }
 
 describe('authenticated Runtime socket', () => {
+  it('carries Runtime-initiated credential storage over the authenticated socket only', async () => {
+    const socketPath = await endpoint()
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-credential',
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+
+    const credential = { type: 'api_key' as const, key: 'authenticated-socket-secret-canary' }
+    const saving = runtime.credentials.modify('openai', async () => credential)
+    const getRequest = await reader.next(
+      (frame) => frame.kind === 'request' && frame.method === 'credential.get',
+    )
+    client.write(`${resultResponse(getRequest, null)}\n`)
+    const putRequest = await reader.next(
+      (frame) => frame.kind === 'request' && frame.method === 'credential.put',
+    )
+    const trustedPut = parseCredentialBrokerRequest(putRequest)
+    expect(trustedPut).toMatchObject({
+      params: {
+        slot: 'model/openai/default',
+        providerId: 'openai',
+        kind: 'api_key',
+        expectedGeneration: 0,
+      },
+    })
+    const storedPayload =
+      trustedPut.method === 'credential.put' ? trustedPut.params.secretPayload : ''
+    client.write(
+      `${resultResponse(putRequest, {
+        credentialId: '11111111-1111-4111-8111-111111111111',
+        slot: 'model/openai/default',
+        providerId: 'openai',
+        kind: 'api_key',
+        generation: 1,
+        status: 'available',
+      })}\n`,
+    )
+    await expect(saving).resolves.toEqual(credential)
+    expect(storedPayload).toBe(JSON.stringify(credential))
+
+    const reading = runtime.credentials.read('openai')
+    const readRequest = await reader.next(
+      (frame) => frame.kind === 'request' && frame.method === 'credential.get',
+    )
+    client.write(
+      `${resultResponse(readRequest, {
+        metadata: {
+          credentialId: '11111111-1111-4111-8111-111111111111',
+          slot: 'model/openai/default',
+          providerId: 'openai',
+          kind: 'api_key',
+          generation: 1,
+          status: 'available',
+        },
+        secretPayload: storedPayload,
+      })}\n`,
+    )
+    await expect(reading).resolves.toEqual(credential)
+
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
   it('does not consume the token after a rejected hello, then serves status and shutdown', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({

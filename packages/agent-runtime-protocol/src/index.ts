@@ -16,6 +16,14 @@ const OperationIdSchema = Type.String({
 const EntityIdSchema = Type.String({ minLength: 1, maxLength: 256 })
 const SessionIdSchema = OperationIdSchema
 const DocumentIdSchema = OperationIdSchema
+const CredentialIdSchema = OperationIdSchema
+const CredentialProviderIdSchema = Type.String({
+  pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+})
+const CredentialSlotSchema = Type.String({
+  pattern: '^model/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/default$',
+})
+const CredentialKindSchema = Type.Union([Type.Literal('api_key'), Type.Literal('oauth')])
 
 const GenericRuntimeMethodSchema = Type.Union([
   Type.Literal('runtime.status'),
@@ -95,7 +103,55 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('artifact_invalid'),
   Type.Literal('runtime_unavailable'),
   Type.Literal('internal_error'),
+  Type.Literal('secure_storage_unavailable'),
+  Type.Literal('credential_generation_conflict'),
+  Type.Literal('credential_index_invalid'),
+  Type.Literal('credential_persist_failed'),
+  Type.Literal('credential_decrypt_failed'),
 ])
+
+export const CredentialBrokerMetadataSchema = Type.Object(
+  {
+    credentialId: CredentialIdSchema,
+    slot: CredentialSlotSchema,
+    providerId: CredentialProviderIdSchema,
+    kind: CredentialKindSchema,
+    generation: Type.Integer({ minimum: 1 }),
+    status: Type.Literal('available'),
+  },
+  { additionalProperties: false },
+)
+
+export const CredentialBrokerStatusSchema = Type.Union([
+  CredentialBrokerMetadataSchema,
+  Type.Object(
+    {
+      slot: CredentialSlotSchema,
+      status: Type.Union([Type.Literal('missing'), Type.Literal('secure_storage_unavailable')]),
+    },
+    { additionalProperties: false },
+  ),
+])
+
+export const CredentialBrokerGetResultSchema = Type.Union([
+  Type.Object(
+    {
+      metadata: CredentialBrokerMetadataSchema,
+      secretPayload: Type.String({ minLength: 1, maxLength: 262_144 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Null(),
+])
+
+export const CredentialBrokerDeleteReceiptSchema = Type.Object(
+  {
+    slot: CredentialSlotSchema,
+    generation: Type.Integer({ minimum: 1 }),
+    status: Type.Literal('deleted'),
+  },
+  { additionalProperties: false },
+)
 
 export const ArtifactRefSchema = Type.Object(
   {
@@ -255,6 +311,68 @@ const OfficeToolInvokeRequestSchema = sessionRequestEnvelope(
   OfficeToolInvocationSchema,
 )
 
+const CredentialWriteParamsSchema = Type.Object(
+  {
+    slot: CredentialSlotSchema,
+    providerId: CredentialProviderIdSchema,
+    kind: CredentialKindSchema,
+    expectedGeneration: Type.Integer({ minimum: 0 }),
+    secretPayload: Type.String({ minLength: 1, maxLength: 262_144 }),
+  },
+  { additionalProperties: false },
+)
+
+const CredentialPutRequestSchema = sessionRequestEnvelope(
+  'credential.put',
+  Type.Object(
+    {
+      ...CredentialWriteParamsSchema.properties,
+      expectedGeneration: Type.Literal(0),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const CredentialRotateRequestSchema = sessionRequestEnvelope(
+  'credential.rotate',
+  Type.Object(
+    {
+      ...CredentialWriteParamsSchema.properties,
+      expectedGeneration: Type.Integer({ minimum: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const CredentialGetRequestSchema = sessionRequestEnvelope(
+  'credential.get',
+  Type.Object({ slot: CredentialSlotSchema }, { additionalProperties: false }),
+)
+
+const CredentialStatusRequestSchema = sessionRequestEnvelope(
+  'credential.status',
+  Type.Object({ slot: CredentialSlotSchema }, { additionalProperties: false }),
+)
+
+const CredentialDeleteRequestSchema = sessionRequestEnvelope(
+  'credential.delete',
+  Type.Object(
+    {
+      slot: CredentialSlotSchema,
+      expectedGeneration: Type.Integer({ minimum: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+export const CredentialBrokerRequestSchema = Type.Union([
+  CredentialPutRequestSchema,
+  CredentialGetRequestSchema,
+  CredentialStatusRequestSchema,
+  CredentialRotateRequestSchema,
+  CredentialDeleteRequestSchema,
+])
+
 const SessionOpenRequestSchema = sessionRequestEnvelope(
   'session.open',
   Type.Object(
@@ -362,6 +480,11 @@ export const RequestEnvelopeSchema = Type.Union([
   HelloRequestEnvelopeSchema,
   ArtifactRegisterRequestSchema,
   OfficeToolInvokeRequestSchema,
+  CredentialPutRequestSchema,
+  CredentialGetRequestSchema,
+  CredentialStatusRequestSchema,
+  CredentialRotateRequestSchema,
+  CredentialDeleteRequestSchema,
   SessionCreateRequestSchema,
   SessionOpenRequestSchema,
   SessionPromptRequestSchema,
@@ -657,6 +780,14 @@ export type AgentSessionCommand = Static<typeof AgentSessionCommandSchema>
 export type AgentSessionConnectReceipt = Static<typeof AgentSessionConnectReceiptSchema>
 export type ProtocolEnvelope = Static<typeof ProtocolEnvelopeSchema>
 export type OfficeToolCatalog = Static<typeof OfficeToolCatalogSchema>
+export type CredentialBrokerMetadata = Static<typeof CredentialBrokerMetadataSchema>
+export type CredentialBrokerStatus = Static<typeof CredentialBrokerStatusSchema>
+export type CredentialBrokerGetResult = Exclude<
+  Static<typeof CredentialBrokerGetResultSchema>,
+  null
+>
+export type CredentialBrokerDeleteReceipt = Static<typeof CredentialBrokerDeleteReceiptSchema>
+export type CredentialBrokerRequest = Static<typeof CredentialBrokerRequestSchema>
 
 export function parseBootstrapLine(line: string): BootstrapRecord {
   try {
@@ -666,6 +797,35 @@ export function parseBootstrapLine(line: string): BootstrapRecord {
     // All bootstrap parse failures intentionally share a secret-free error.
   }
   throw new Error('invalid_bootstrap')
+}
+
+export function parseCredentialBrokerRequest(value: unknown): CredentialBrokerRequest {
+  if (Value.Check(CredentialBrokerRequestSchema, value)) return value
+  throw new Error('credential_broker_request_invalid')
+}
+
+export function parseCredentialBrokerMetadata(value: unknown): CredentialBrokerMetadata {
+  if (Value.Check(CredentialBrokerMetadataSchema, value)) return value
+  throw new Error('credential_broker_metadata_invalid')
+}
+
+export function parseCredentialBrokerStatus(value: unknown): CredentialBrokerStatus {
+  if (Value.Check(CredentialBrokerStatusSchema, value)) return value
+  throw new Error('credential_broker_status_invalid')
+}
+
+export function parseCredentialBrokerGetResult(
+  value: unknown,
+): CredentialBrokerGetResult | undefined {
+  if (!Value.Check(CredentialBrokerGetResultSchema, value)) {
+    throw new Error('credential_broker_get_result_invalid')
+  }
+  return value ?? undefined
+}
+
+export function parseCredentialBrokerDeleteReceipt(value: unknown): CredentialBrokerDeleteReceipt {
+  if (Value.Check(CredentialBrokerDeleteReceiptSchema, value)) return value
+  throw new Error('credential_broker_delete_receipt_invalid')
 }
 
 export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifest {

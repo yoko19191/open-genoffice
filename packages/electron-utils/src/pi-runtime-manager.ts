@@ -7,6 +7,7 @@ import {
   RUNTIME_VERSION,
   SCHEMA_VERSION,
   createNdjsonFrameDecoder,
+  parseCredentialBrokerRequest,
   parseSessionAbortReceipt,
   parseSessionConnectionReceipt,
   parseSessionPromptReceipt,
@@ -15,6 +16,7 @@ import {
   type BootstrapRecord,
   type EventEnvelope,
   type ProtocolEnvelope,
+  type RequestEnvelope,
   type SessionConnectionReceipt,
   type SessionAbortReceipt,
   type SessionPromptReceipt,
@@ -22,6 +24,7 @@ import {
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import type { VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
+import type { SecureStorageBroker } from './secure-storage-broker'
 
 export type PiRuntimeManagerState = 'stopped' | 'starting' | 'ready' | 'stopping' | 'crashed'
 
@@ -81,6 +84,7 @@ export type PiRuntimeManagerOptions = {
   resourceHome?: string
   diagnostic?: (code: string) => void
   onCrash?: () => void
+  credentialBroker?: Pick<SecureStorageBroker, 'put' | 'rotate' | 'get' | 'status' | 'delete'>
 }
 
 export type SessionCreateRequest = { operationId: string; documentId: string }
@@ -115,6 +119,39 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null
     ? (value as Record<string, unknown>)
     : undefined
+}
+
+const CREDENTIAL_BROKER_ERROR_CODES = new Set([
+  'secure_storage_unavailable',
+  'credential_generation_conflict',
+  'credential_index_invalid',
+  'credential_persist_failed',
+  'credential_decrypt_failed',
+])
+
+function hostResponse(request: RequestEnvelope, result: unknown): string {
+  return `${JSON.stringify({
+    protocolVersion: PROTOCOL_VERSION,
+    kind: 'response',
+    id: request.id,
+    correlationId: request.correlationId,
+    result,
+  })}\n`
+}
+
+function hostErrorResponse(request: RequestEnvelope, code: string): string {
+  return `${JSON.stringify({
+    protocolVersion: PROTOCOL_VERSION,
+    kind: 'response',
+    id: request.id,
+    correlationId: request.correlationId,
+    error: {
+      code,
+      message: code,
+      retryable: false,
+      correlationId: request.correlationId,
+    },
+  })}\n`
 }
 
 export async function createPrivateRuntimeEndpoint(
@@ -316,6 +353,10 @@ export class PiRuntimeManager {
         return
       }
       for (const frame of frames) {
+        if (frame.kind === 'request') {
+          void this.handleCredentialRequest(socket, frame)
+          continue
+        }
         if (frame.kind === 'event') {
           for (const listener of this.eventListeners) listener(frame)
           continue
@@ -330,6 +371,52 @@ export class PiRuntimeManager {
     })
     socket.once('close', () => this.rejectPending('runtime_connection_closed'))
     socket.once('error', () => this.rejectPending('runtime_connection_error'))
+  }
+
+  private async handleCredentialRequest(socket: PiRuntimeSocket, frame: RequestEnvelope) {
+    let request
+    try {
+      request = parseCredentialBrokerRequest(frame)
+    } catch {
+      socket.write(hostErrorResponse(frame, 'method_not_found'))
+      return
+    }
+    const broker = this.options.credentialBroker
+    if (!broker) {
+      socket.write(hostErrorResponse(request, 'secure_storage_unavailable'))
+      return
+    }
+    try {
+      if (request.method === 'credential.put') {
+        socket.write(hostResponse(request, await broker.put(request.params)))
+        return
+      }
+      if (request.method === 'credential.rotate') {
+        socket.write(hostResponse(request, await broker.rotate(request.params)))
+        return
+      }
+      if (request.method === 'credential.get') {
+        socket.write(hostResponse(request, (await broker.get(request.params.slot)) ?? null))
+        return
+      }
+      if (request.method === 'credential.status') {
+        socket.write(hostResponse(request, await broker.status(request.params.slot)))
+        return
+      }
+      socket.write(
+        hostResponse(
+          request,
+          await broker.delete(request.params.slot, request.params.expectedGeneration),
+        ),
+      )
+    } catch (error) {
+      const candidate = error as { code?: unknown }
+      const code =
+        typeof candidate.code === 'string' && CREDENTIAL_BROKER_ERROR_CODES.has(candidate.code)
+          ? candidate.code
+          : 'internal_error'
+      socket.write(hostErrorResponse(request, code))
+    }
   }
 
   private request(method: ClientRuntimeMethod, params: unknown) {

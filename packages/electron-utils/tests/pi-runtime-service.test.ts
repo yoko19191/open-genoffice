@@ -5,7 +5,7 @@ import {
   SCHEMA_VERSION,
 } from '@genoffice/agent-runtime-protocol'
 import type { VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
-import { PiRuntimeService } from '../src'
+import { PiRuntimeService, type PiRuntimeManagerOptions } from '../src'
 
 const verified = {
   kind: 'verified-pi-runtime-bundle',
@@ -63,6 +63,7 @@ function service(options: {
   verify?: () => Promise<VerifiedPiRuntimeBundle>
   runtimeManager?: ReturnType<typeof manager>
   resourceHome?: string
+  credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
 }) {
   const runtimeManager = options.runtimeManager ?? manager()
   const createManager = vi.fn(() => runtimeManager)
@@ -76,6 +77,7 @@ function service(options: {
         arch: 'arm64',
         parentPid: 123,
         ...(options.resourceHome ? { resourceHome: options.resourceHome } : {}),
+        ...(options.credentialBroker ? { credentialBroker: options.credentialBroker } : {}),
       },
       {
         verifyBundle: options.verify ?? (async () => verified),
@@ -189,6 +191,24 @@ describe('installed Pi Runtime service', () => {
       platform: 'darwin',
       parentPid: 123,
       resourceHome: '/private/resource-home',
+    })
+  })
+
+  it('passes the main-process credential broker only to the owned Runtime manager', async () => {
+    const credentialBroker = {
+      put: vi.fn(),
+      rotate: vi.fn(),
+      get: vi.fn(),
+      status: vi.fn(),
+      delete: vi.fn(),
+    } as unknown as NonNullable<PiRuntimeManagerOptions['credentialBroker']>
+    const fixture = service({ credentialBroker })
+    await fixture.instance.initialize()
+    expect(fixture.createManager).toHaveBeenCalledWith({
+      bundle: verified,
+      platform: 'darwin',
+      parentPid: 123,
+      credentialBroker,
     })
   })
 

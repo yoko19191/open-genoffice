@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ArtifactRefSchema,
+  CredentialBrokerRequestSchema,
   EventEnvelopeSchema,
   MAX_FRAME_BYTES,
   NODE_VERSION,
@@ -14,6 +15,11 @@ import {
   SCHEMA_VERSION,
   createNdjsonFrameDecoder,
   parseBootstrapLine,
+  parseCredentialBrokerGetResult,
+  parseCredentialBrokerDeleteReceipt,
+  parseCredentialBrokerMetadata,
+  parseCredentialBrokerRequest,
+  parseCredentialBrokerStatus,
   parseAgentSessionCommand,
   parseAgentSessionConnectReceipt,
   parseAgentSessionConnectRequest,
@@ -171,7 +177,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(10)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(15)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -365,6 +371,119 @@ describe('protocol TypeBox source of truth', () => {
     expect(() => parseProtocolFrame('x'.repeat(MAX_FRAME_BYTES + 1))).toThrowError(
       'frame_too_large',
     )
+  })
+})
+
+describe('Runtime to Electron credential broker contract', () => {
+  const metadata = {
+    credentialId: '11111111-1111-4111-8111-111111111111',
+    slot: 'model/openai/default',
+    providerId: 'openai',
+    kind: 'api_key',
+    generation: 1,
+    status: 'available',
+  } as const
+
+  const requests = [
+    {
+      method: 'credential.put',
+      params: {
+        slot: metadata.slot,
+        providerId: metadata.providerId,
+        kind: metadata.kind,
+        expectedGeneration: 0,
+        secretPayload: '{"type":"api_key","key":"trusted-socket-canary"}',
+      },
+    },
+    { method: 'credential.get', params: { slot: metadata.slot } },
+    { method: 'credential.status', params: { slot: metadata.slot } },
+    {
+      method: 'credential.rotate',
+      params: {
+        slot: metadata.slot,
+        providerId: metadata.providerId,
+        kind: 'oauth',
+        expectedGeneration: 1,
+        secretPayload: '{"type":"oauth","access":"a","refresh":"r","expires":1}',
+      },
+    },
+    {
+      method: 'credential.delete',
+      params: { slot: metadata.slot, expectedGeneration: 1 },
+    },
+  ] as const
+
+  it('accepts only the five exact trusted credential methods and parses secret-bearing results', () => {
+    expect(CredentialBrokerRequestSchema.anyOf).toHaveLength(5)
+    for (const [index, request] of requests.entries()) {
+      const frame = {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: `credential-${index}`,
+        correlationId: `credential-correlation-${index}`,
+        ...request,
+      }
+      expect(parseCredentialBrokerRequest(frame)).toEqual(frame)
+      expect(parseProtocolFrame(JSON.stringify(frame))).toEqual(frame)
+    }
+    expect(parseCredentialBrokerMetadata(metadata)).toEqual(metadata)
+    expect(
+      parseCredentialBrokerGetResult({
+        metadata,
+        secretPayload: '{"type":"api_key","key":"trusted-socket-canary"}',
+      }),
+    ).toMatchObject({ metadata })
+    expect(parseCredentialBrokerGetResult(null)).toBeUndefined()
+    expect(parseCredentialBrokerStatus(metadata)).toEqual(metadata)
+    expect(parseCredentialBrokerStatus({ slot: metadata.slot, status: 'missing' })).toEqual({
+      slot: metadata.slot,
+      status: 'missing',
+    })
+    expect(
+      parseCredentialBrokerDeleteReceipt({
+        slot: metadata.slot,
+        generation: 1,
+        status: 'deleted',
+      }),
+    ).toEqual({ slot: metadata.slot, generation: 1, status: 'deleted' })
+  })
+
+  it.each([
+    ['unknown method', { ...requests[1], method: 'credential.list' }],
+    ['unknown param', { ...requests[1], params: { ...requests[1].params, secret: true } }],
+    [
+      'provider-slot mismatch',
+      { ...requests[0], params: { ...requests[0].params, providerId: '../escape' } },
+    ],
+    [
+      'missing generation',
+      { ...requests[3], params: { ...requests[3].params, expectedGeneration: undefined } },
+    ],
+  ])('rejects %s with a stable credential request error', (_label, request) => {
+    expect(() =>
+      parseCredentialBrokerRequest({
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'credential-invalid',
+        correlationId: 'credential-invalid-correlation',
+        ...request,
+      }),
+    ).toThrowError('credential_broker_request_invalid')
+  })
+
+  it('rejects secret-bearing result shape drift without echoing its contents', () => {
+    expect(() =>
+      parseCredentialBrokerGetResult({ metadata, secretPayload: 'canary', extra: true }),
+    ).toThrowError('credential_broker_get_result_invalid')
+    expect(() =>
+      parseCredentialBrokerMetadata({ ...metadata, secretPayload: 'canary' }),
+    ).toThrowError('credential_broker_metadata_invalid')
+    expect(() =>
+      parseCredentialBrokerStatus({ slot: metadata.slot, status: 'plaintext' }),
+    ).toThrowError('credential_broker_status_invalid')
+    expect(() =>
+      parseCredentialBrokerDeleteReceipt({ slot: metadata.slot, status: 'deleted' }),
+    ).toThrowError('credential_broker_delete_receipt_invalid')
   })
 })
 

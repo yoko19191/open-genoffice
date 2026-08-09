@@ -39,6 +39,7 @@ function verifiedBundle(): VerifiedPiRuntimeBundle {
 }
 
 class FakeRuntimeSocket extends Duplex {
+  readonly hostResponses: unknown[] = []
   constructor(
     private readonly bootstrap: () => BootstrapRecord,
     private readonly child: FakeRuntimeChild,
@@ -51,6 +52,11 @@ class FakeRuntimeSocket extends Duplex {
 
   _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
     const request = JSON.parse(chunk.toString('utf8').trim())
+    if (request.kind === 'response') {
+      this.hostResponses.push(request)
+      callback()
+      return
+    }
     const instanceId = 'runtime-instance-1'
     const runtimePid = this.options.helloPid ?? 8128
     if (this.options.prelude && request.method === 'runtime.hello') {
@@ -73,6 +79,11 @@ class FakeRuntimeSocket extends Duplex {
           result: {},
         })}\n`,
       )
+    }
+    if (this.options.credentialPrelude && request.method === 'runtime.hello') {
+      for (const credentialRequest of this.options.credentialPrelude) {
+        this.push(`${JSON.stringify(credentialRequest)}\n`)
+      }
     }
     if (request.method === 'runtime.status' && this.options.statusMode === 'hang') {
       callback()
@@ -197,6 +208,7 @@ type ManagerHarnessOptions = {
   childError?: boolean
   sessionResult?: unknown
   sessionMode?: 'error-response'
+  credentialPrelude?: readonly unknown[]
 }
 
 class FakeRuntimeChild extends EventEmitter implements PiRuntimeChild {
@@ -221,6 +233,7 @@ function managerHarness(options: ManagerHarnessOptions = {}) {
   const cleanup = vi.fn(async () => {})
   const spawn = vi.fn(() => child)
   let parsedBootstrap: BootstrapRecord | undefined
+  let socket: FakeRuntimeSocket | undefined
   const dependencies: PiRuntimeManagerDependencies = {
     spawn,
     createEndpoint: vi.fn(async () => {
@@ -236,15 +249,90 @@ function managerHarness(options: ManagerHarnessOptions = {}) {
         queueMicrotask(() => child.emit('error', new Error('private spawn detail')))
         return new Promise<FakeRuntimeSocket>(() => {})
       }
-      return new FakeRuntimeSocket(() => parsedBootstrap!, child, options)
+      socket = new FakeRuntimeSocket(() => parsedBootstrap!, child, options)
+      return socket
     }),
     randomBytes: vi.fn(() => Buffer.alloc(32, 0xab)),
     randomUUID: vi.fn(() => 'abababab-abab-4bab-8bab-abababababab'),
   }
-  return { child, cleanup, dependencies, spawn, bootstrap: () => parsedBootstrap! }
+  return {
+    child,
+    cleanup,
+    dependencies,
+    spawn,
+    bootstrap: () => parsedBootstrap!,
+    socket: () => socket!,
+  }
 }
 
 describe('PiRuntimeManager', () => {
+  it('dispatches only Runtime-initiated credential methods to the main-process broker', async () => {
+    const secretPayload = '{"type":"api_key","key":"manager-secret-canary"}'
+    const credentialPrelude = [
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'credential-status-1',
+        method: 'credential.status',
+        correlationId: 'credential-status-correlation-1',
+        params: { slot: 'model/openai/default' },
+      },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'credential-put-1',
+        method: 'credential.put',
+        correlationId: 'credential-put-correlation-1',
+        params: {
+          slot: 'model/openai/default',
+          providerId: 'openai',
+          kind: 'api_key',
+          expectedGeneration: 0,
+          secretPayload,
+        },
+      },
+    ]
+    const harness = managerHarness({ credentialPrelude })
+    const metadata = {
+      credentialId: '11111111-1111-4111-8111-111111111111',
+      slot: 'model/openai/default',
+      providerId: 'openai',
+      kind: 'api_key' as const,
+      generation: 1,
+      status: 'available' as const,
+    }
+    const credentialBroker = {
+      status: vi.fn(async () => ({ slot: metadata.slot, status: 'missing' as const })),
+      put: vi.fn(async () => metadata),
+      get: vi.fn(),
+      rotate: vi.fn(),
+      delete: vi.fn(),
+    }
+    const manager = new PiRuntimeManager(
+      {
+        bundle: verifiedBundle(),
+        platform: 'darwin',
+        parentPid: 7070,
+        credentialBroker,
+      },
+      harness.dependencies,
+    )
+
+    await manager.start()
+    await vi.waitFor(() => expect(harness.socket().hostResponses).toHaveLength(2))
+    expect(credentialBroker.status).toHaveBeenCalledWith('model/openai/default')
+    expect(credentialBroker.put).toHaveBeenCalledWith(credentialPrelude[1]!.params)
+    expect(JSON.stringify(harness.socket().hostResponses)).not.toContain(secretPayload)
+    expect(harness.socket().hostResponses).toEqual([
+      expect.objectContaining({
+        id: 'credential-status-1',
+        result: { slot: 'model/openai/default', status: 'missing' },
+      }),
+      expect.objectContaining({ id: 'credential-put-1', result: metadata }),
+    ])
+    await manager.shutdown()
+  })
+
   it('starts only the verified executable, authenticates, serves health, and shuts down', async () => {
     const harness = managerHarness()
     const manager = new PiRuntimeManager(

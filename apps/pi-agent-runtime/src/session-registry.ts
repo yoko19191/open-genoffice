@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import type { AssistantMessage, Message } from '@earendil-works/pi-ai'
+import type { AssistantMessage, CredentialStore, Message } from '@earendil-works/pi-ai'
 import type { AgentSessionEvent, SessionMessageEntry } from '@earendil-works/pi-coding-agent'
 import type {
   EventEnvelope,
@@ -83,6 +83,7 @@ export type SessionRegistryOptions = {
   randomUUID?: () => string
   now?: () => Date
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
+  credentials?: CredentialStore
 }
 
 export class RuntimeSessionError extends Error {
@@ -170,7 +171,12 @@ export class SessionRegistry {
     this.cwd = join(this.dataRoot, 'projects', 'runtime')
     this.randomUUID = options.randomUUID ?? randomUUID
     this.now = options.now ?? (() => new Date())
-    this.createPiSession = options.createPiSession ?? createDeterministicPiSession
+    this.createPiSession =
+      options.createPiSession ??
+      (options.credentials
+        ? (piOptions) =>
+            createDeterministicPiSession({ ...piOptions, credentials: options.credentials })
+        : createDeterministicPiSession)
     this.replayWindowSize = Math.max(1, options.replayWindowSize ?? 512)
     this.cooperativeAbortMs = Math.max(1, options.cooperativeAbortMs ?? 2_000)
     this.forceAbortMs = Math.max(this.cooperativeAbortMs, options.forceAbortMs ?? 5_000)
@@ -237,6 +243,7 @@ export class SessionRegistry {
       ) {
         throw new RuntimeSessionError('invalid_state')
       }
+      await record.activeRun?.promise
       const runId = this.randomUUID()
       const abortTree = new RunAbortTree({
         cooperativeAbortMs: this.cooperativeAbortMs,

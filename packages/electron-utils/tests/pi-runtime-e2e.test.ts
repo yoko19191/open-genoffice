@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it, vi } from 'vitest'
-import { parseProtocolFrame } from '@genoffice/agent-runtime-protocol'
+import { RUNTIME_VERSION, parseProtocolFrame } from '@genoffice/agent-runtime-protocol'
 import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
 import {
   applyAgentSessionEvent,
@@ -14,12 +14,30 @@ import {
 } from '@genoffice/ui/agent-session-projection'
 import {
   AgentSessionBroker,
+  SecureStorageBroker,
   createInstalledPiRuntimeService,
   createPiRuntimeManager,
   createPiRuntimeSupervisor,
 } from '../src'
 
 const execFileAsync = promisify(execFile)
+
+function createFakeCredentialBroker(rootDirectory: string) {
+  return SecureStorageBroker.create({
+    rootDirectory,
+    runtimeVersion: RUNTIME_VERSION,
+    platform: process.platform,
+    safeStorage: {
+      isAsyncEncryptionAvailable: async () => true,
+      getSelectedStorageBackend: () => 'gnome_libsecret',
+      encryptStringAsync: async (value) => Buffer.from(`cipher:${value}`),
+      decryptStringAsync: async (value) => ({
+        result: value.toString().slice('cipher:'.length),
+        shouldReEncrypt: false,
+      }),
+    },
+  })
+}
 
 async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle> {
   const notices = join(root, 'THIRD-PARTY-NOTICES.txt')
@@ -116,6 +134,7 @@ describe('copied Pi Runtime end to end', () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-runtime-e2e-'))
     const verified = await buildCopiedRuntime(root)
     const resourceHome = join(root, 'resource-home')
+    const credentialBroker = await createFakeCredentialBroker(resourceHome)
     const diagnostics: string[] = []
     const manager = createPiRuntimeManager({
       bundle: verified,
@@ -124,6 +143,7 @@ describe('copied Pi Runtime end to end', () => {
       resourceHome,
       startupTimeoutMs: 5_000,
       diagnostic: (code) => diagnostics.push(code),
+      credentialBroker,
     })
 
     const health = await manager.start()
@@ -344,6 +364,8 @@ describe('copied Pi Runtime end to end', () => {
       arch: process.arch as 'arm64' | 'x64',
       parentPid: process.pid,
       startupTimeoutMs: 5_000,
+      resourceHome,
+      credentialBroker,
     })
     await expect(service.initialize()).resolves.toMatchObject({ state: 'ready' })
     await service.shutdown()
@@ -388,12 +410,14 @@ describe('copied Pi Runtime end to end', () => {
     )
     const verified = await buildCopiedRuntime(root)
     const resourceHome = join(root, 'resource-home')
+    const credentialBroker = await createFakeCredentialBroker(resourceHome)
     const supervisor = createPiRuntimeSupervisor({
       bundle: verified,
       platform: process.platform,
       parentPid: process.pid,
       resourceHome,
       startupTimeoutMs: 5_000,
+      credentialBroker,
     })
     const coldStartedAt = Date.now()
     const firstHealth = await supervisor.start()

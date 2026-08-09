@@ -1,13 +1,17 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
+import type { CredentialStore } from '@earendil-works/pi-ai'
 import {
   RUNTIME_VERSION,
   createNdjsonFrameDecoder,
   type BootstrapRecord,
   type ProtocolEnvelope,
   type RequestEnvelope,
+  type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
+import { OpenGenOfficeCredentialStore } from './open-genoffice-credential-store'
+import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import {
   RuntimeSessionError,
   createSessionRegistry,
@@ -25,6 +29,7 @@ export type AuthenticatedRuntimeServerOptions = {
 export type AuthenticatedRuntimeServer = {
   closed: Promise<void>
   shutdown: () => Promise<void>
+  credentials: CredentialStore
 }
 
 function response(request: RequestEnvelope, result: unknown): string {
@@ -63,13 +68,6 @@ export async function createAuthenticatedRuntimeServer(
 ): Promise<AuthenticatedRuntimeServer> {
   if (options.bootstrap.parentPid !== options.actualParentPid) throw new Error('invalid_parent_pid')
 
-  const sessionRegistry =
-    options.sessionRegistry ??
-    createSessionRegistry({
-      instanceId: options.instanceId,
-      cursorSecret: randomBytes(32),
-    })
-
   let authenticatedSocket: Socket | undefined
   let tokenConsumed = false
   let closeStarted = false
@@ -77,6 +75,24 @@ export async function createAuthenticatedRuntimeServer(
   const closed = new Promise<void>((resolve) => {
     resolveClosed = resolve
   })
+  const credentialClient = new RuntimeCredentialBrokerClient({
+    send: (request) => {
+      if (!authenticatedSocket) throw new Error('runtime_connection_closed')
+      authenticatedSocket.write(`${JSON.stringify(request)}\n`)
+    },
+  })
+  const credentials = new OpenGenOfficeCredentialStore({
+    mode: 'persistent',
+    broker: credentialClient,
+  })
+
+  const sessionRegistry =
+    options.sessionRegistry ??
+    createSessionRegistry({
+      instanceId: options.instanceId,
+      cursorSecret: randomBytes(32),
+      credentials,
+    })
 
   const server = createServer((socket) => {
     if (tokenConsumed || authenticatedSocket) {
@@ -97,11 +113,11 @@ export async function createAuthenticatedRuntimeServer(
       }
 
       for (const frame of frames) {
-        if (frame.kind !== 'request') {
-          socket.destroy()
-          return
-        }
         if (!authenticated) {
+          if (frame.kind !== 'request') {
+            socket.destroy()
+            return
+          }
           if (
             frame.method !== 'runtime.hello' ||
             !tokenMatches(options.bootstrap.token, frame.params.token)
@@ -130,18 +146,30 @@ export async function createAuthenticatedRuntimeServer(
           )
           continue
         }
+        if (frame.kind === 'response') {
+          if (!credentialClient.handleResponse(frame as ResponseEnvelope)) socket.destroy()
+          continue
+        }
+        if (frame.kind !== 'request') {
+          socket.destroy()
+          return
+        }
         handleAuthenticatedRequest(socket, frame)
       }
     })
 
     socket.once('close', () => {
-      if (authenticatedSocket === socket) authenticatedSocket = undefined
+      if (authenticatedSocket === socket) {
+        authenticatedSocket = undefined
+        credentialClient.close('runtime_connection_closed')
+      }
     })
   })
 
   function beginShutdown(): Promise<void> {
     if (closeStarted) return closed
     closeStarted = true
+    credentialClient.close('runtime_connection_closed')
     void sessionRegistry.shutdown().finally(() => {
       authenticatedSocket?.end()
       server.close(() => resolveClosed())
@@ -234,5 +262,5 @@ export async function createAuthenticatedRuntimeServer(
     await chmod(options.bootstrap.endpoint, 0o600)
   }
 
-  return { closed, shutdown: beginShutdown }
+  return { closed, shutdown: beginShutdown, credentials }
 }

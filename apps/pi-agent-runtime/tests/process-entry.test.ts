@@ -2,6 +2,7 @@ import { chmod, mkdtemp, readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 import {
   PROTOCOL_VERSION,
@@ -62,6 +63,7 @@ describe('Runtime process entry', () => {
     const runtime = {
       closed: Promise.resolve(),
       shutdown: async () => {},
+      credentials: new InMemoryCredentialStore(),
     }
     await expect(
       runRuntimeProcess({

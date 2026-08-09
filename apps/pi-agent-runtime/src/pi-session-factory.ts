@@ -9,6 +9,7 @@ import {
   fauxText,
   fauxThinking,
   fauxToolCall,
+  type CredentialStore,
 } from '@earendil-works/pi-ai'
 import {
   DefaultResourceLoader,
@@ -46,6 +47,7 @@ export type CreatePiSessionOptions = {
   sessionId: string
   sessionFile?: string
   documentId: string
+  credentials?: CredentialStore
 }
 
 const contractProbe = defineTool({
@@ -71,7 +73,7 @@ export async function createDeterministicPiSession(
   ])
 
   const modelRuntime = await ModelRuntime.create({
-    credentials: new InMemoryCredentialStore(),
+    credentials: options.credentials ?? new InMemoryCredentialStore(),
     modelsPath: null,
     modelsStore: new InMemoryModelsStore(),
     allowModelNetwork: false,

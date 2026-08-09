@@ -17,6 +17,7 @@ import {
   dialog,
   ipcMain,
   nativeImage,
+  safeStorage,
   session,
   shell,
   webContents,
@@ -33,6 +34,7 @@ import menuPdfIcon2x from './assets/menu-pdf@2x.png?asset'
 import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@genoffice/i18n'
+import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
 import {
   appMenuLabels,
   contextMenuLabels,
@@ -45,6 +47,7 @@ import {
   createInstalledPiRuntimeService,
   AgentSessionBroker,
   installAgentSessionIpc,
+  SecureStorageBroker,
 } from '@genoffice/electron-utils'
 import { readAppSettings, writeAppSetting } from './app-settings'
 import {
@@ -191,12 +194,36 @@ const SIDECAR_BIN = app.isPackaged
 const PI_RUNTIME_ROOT = app.isPackaged
   ? join(process.resourcesPath, 'pi-runtime')
   : (process.env.GENOFFICE_PI_RUNTIME_BUNDLE ?? join(process.resourcesPath, 'pi-runtime'))
+const AGENT_RESOURCE_HOME = join(app.getPath('home'), '.open-genoffice')
+let secureStorageBrokerPromise: Promise<SecureStorageBroker> | undefined
+function secureStorageBroker(): Promise<SecureStorageBroker> {
+  secureStorageBrokerPromise ??= app.whenReady().then(() =>
+    SecureStorageBroker.create({
+      rootDirectory: AGENT_RESOURCE_HOME,
+      runtimeVersion: RUNTIME_VERSION,
+      platform: process.platform,
+      safeStorage,
+    }),
+  )
+  return secureStorageBrokerPromise
+}
+const credentialBroker = {
+  put: async (input: Parameters<SecureStorageBroker['put']>[0]) =>
+    (await secureStorageBroker()).put(input),
+  rotate: async (input: Parameters<SecureStorageBroker['rotate']>[0]) =>
+    (await secureStorageBroker()).rotate(input),
+  get: async (slot: string) => (await secureStorageBroker()).get(slot),
+  status: async (slot: string) => (await secureStorageBroker()).status(slot),
+  delete: async (slot: string, expectedGeneration: number) =>
+    (await secureStorageBroker()).delete(slot, expectedGeneration),
+}
 const piRuntimeService = createInstalledPiRuntimeService({
   bundleRoot: PI_RUNTIME_ROOT,
   platform: process.platform,
   arch: process.arch as 'arm64' | 'x64',
   parentPid: process.pid,
-  resourceHome: join(app.getPath('home'), '.open-genoffice'),
+  resourceHome: AGENT_RESOURCE_HOME,
+  credentialBroker,
 })
 
 configureDocsRuntime({

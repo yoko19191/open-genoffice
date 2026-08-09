@@ -15,8 +15,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@genoffice/agent-resource": "*",
     "@genoffice/agent-runtime-protocol": "*",
-    "@genoffice/pi-runtime-bundle": "*"
+    "@genoffice/pi-runtime-bundle": "*",
+    "@sinclair/typebox": "0.34.52"
   },
   "devDependencies": {
     "@genoffice/ui": "*",

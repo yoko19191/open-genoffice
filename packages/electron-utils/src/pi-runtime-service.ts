@@ -14,6 +14,7 @@ import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/
 import { createPiRuntimeSupervisor } from './pi-runtime-node'
 import type {
   PiRuntimeManager,
+  PiRuntimeManagerOptions,
   SessionBoundRequest,
   SessionAbortRequest,
   SessionCreateRequest,
@@ -28,6 +29,7 @@ export type PiRuntimeServiceOptions = {
   arch: 'arm64' | 'x64'
   parentPid: number
   resourceHome?: string
+  credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
 }
 
 type OwnedPiRuntimeManager = Pick<
@@ -53,6 +55,7 @@ export type PiRuntimeServiceDependencies = {
     platform: NodeJS.Platform
     parentPid: number
     resourceHome?: string
+    credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
   }) => OwnedPiRuntimeManager
 }
 
@@ -141,6 +144,7 @@ export class PiRuntimeService {
       platform: this.options.platform,
       parentPid: this.options.parentPid,
       ...(this.options.resourceHome ? { resourceHome: this.options.resourceHome } : {}),
+      ...(this.options.credentialBroker ? { credentialBroker: this.options.credentialBroker } : {}),
     })
     try {
       await this.manager.start()
