@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, stat } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -36,6 +36,7 @@ function bootstrap(socketPath: string): BootstrapRecord {
 describe('Runtime process entry', () => {
   it('maps orderly parent EOF to exit 0 and removes the endpoint', async () => {
     const socketPath = await endpoint()
+    const resourceHome = join(tmpdir(), `genoffice-resource-process-${randomUUID()}`)
     const stdin = new PassThrough()
     const stderr = new PassThrough()
     const running = runRuntimeProcess({
@@ -43,12 +44,45 @@ describe('Runtime process entry', () => {
       stderr,
       actualParentPid: 6160,
       instanceId: 'process-instance-1',
+      resourceHome,
     })
     stdin.end(`${JSON.stringify(bootstrap(socketPath))}\n`)
     await expect(running).resolves.toBe(RUNTIME_EXIT_CODES.ok)
     if (process.platform !== 'win32') {
       await expect(stat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' })
     }
+    expect(JSON.parse(await readFile(join(resourceHome, 'schema.json'), 'utf8'))).toMatchObject({
+      schemaVersion: 1,
+      createdByRuntimeVersion: RUNTIME_VERSION,
+    })
+  })
+
+  it('initializes the explicit Resource Home before starting the private server', async () => {
+    const calls: string[] = []
+    const runtime = {
+      closed: Promise.resolve(),
+      shutdown: async () => {},
+    }
+    await expect(
+      runRuntimeProcess({
+        stdin: new PassThrough(),
+        stderr: new PassThrough(),
+        actualParentPid: 6160,
+        instanceId: 'process-instance-resource-home',
+        platform: 'linux',
+        resourceHome: '/isolated/.open-genoffice',
+        initializeResourceHome: async (options) => {
+          calls.push(
+            `resource:${options.rootDirectory}:${options.runtimeVersion}:${options.platform}`,
+          )
+        },
+        startRuntime: async () => {
+          calls.push('runtime')
+          return runtime
+        },
+      }),
+    ).resolves.toBe(RUNTIME_EXIT_CODES.ok)
+    expect(calls).toEqual(['resource:/isolated/.open-genoffice:1.0.0:linux', 'runtime'])
   })
 
   it('writes only the stable diagnostic code for known and unknown failures', async () => {
@@ -66,6 +100,7 @@ describe('Runtime process entry', () => {
         stderr,
         actualParentPid: 6160,
         instanceId: 'process-instance-error',
+        initializeResourceHome: async () => {},
         startRuntime: async () => {
           throw failure
         },

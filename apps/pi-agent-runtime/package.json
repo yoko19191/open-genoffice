@@ -19,6 +19,7 @@
     "@earendil-works/pi-coding-agent": "0.84.0",
     "@earendil-works/pi-tui": "0.84.0",
     "@genoffice/agent-runtime-protocol": "*",
+    "@genoffice/agent-resource": "*",
     "@modelcontextprotocol/client": "2.0.0",
     "fflate": "0.8.2"
   },

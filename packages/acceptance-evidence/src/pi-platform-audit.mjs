@@ -20,6 +20,7 @@ const RUNTIME_DEPENDENCIES = {
   '@earendil-works/pi-ai': '0.84.0',
   '@earendil-works/pi-coding-agent': '0.84.0',
   '@earendil-works/pi-tui': '0.84.0',
+  '@genoffice/agent-resource': '*',
   '@genoffice/agent-runtime-protocol': '*',
   '@modelcontextprotocol/client': '2.0.0',
   fflate: '0.8.2',
@@ -149,6 +150,7 @@ export async function auditPiPlatformBoundary(repoRootInput) {
 
   const sourceRoots = [
     join(repoRoot, 'apps/pi-agent-runtime/src'),
+    join(repoRoot, 'packages/agent-resource/src'),
     join(repoRoot, 'packages/agent-runtime-protocol/src'),
     join(repoRoot, 'packages/pi-runtime-bundle/src'),
   ]

@@ -1,4 +1,11 @@
 import type { Readable, Writable } from 'node:stream'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import {
+  initializeAgentResourceHome,
+  type InitializeAgentResourceHomeOptions,
+} from '@genoffice/agent-resource'
+import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
 import type { AuthenticatedRuntimeServer } from './authenticated-server'
 import {
   RUNTIME_EXIT_CODES,
@@ -14,11 +21,21 @@ export type RunRuntimeProcessOptions = {
   actualParentPid: number
   instanceId: string
   platform?: NodeJS.Platform
+  resourceHome?: string
+  initializeResourceHome?: (options: InitializeAgentResourceHomeOptions) => Promise<unknown>
   startRuntime?: (options: StartRuntimeFromStdinOptions) => Promise<AuthenticatedRuntimeServer>
 }
 
 export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Promise<number> {
   try {
+    await (options.initializeResourceHome ?? initializeAgentResourceHome)({
+      rootDirectory:
+        options.resourceHome ??
+        process.env.GENOFFICE_RESOURCE_HOME ??
+        join(homedir(), '.open-genoffice'),
+      runtimeVersion: RUNTIME_VERSION,
+      platform: options.platform,
+    })
     const runtime = await (options.startRuntime ?? startRuntimeFromStdin)({
       stdin: options.stdin,
       actualParentPid: options.actualParentPid,

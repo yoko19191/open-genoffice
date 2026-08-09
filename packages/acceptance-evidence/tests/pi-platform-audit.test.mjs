@@ -17,6 +17,7 @@ describe('Pi platform production boundary audit', () => {
   it('reports dependency, lockfile, Node, and source boundary violations together', async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), 'genoffice-platform-audit-'))
     await mkdir(join(repoRoot, 'apps/pi-agent-runtime/src'), { recursive: true })
+    await mkdir(join(repoRoot, 'packages/agent-resource/src'), { recursive: true })
     await mkdir(join(repoRoot, 'packages/agent-runtime-protocol/src'), { recursive: true })
     await mkdir(join(repoRoot, 'packages/pi-runtime-bundle/src'), { recursive: true })
     await writeFile(join(repoRoot, 'package.json'), JSON.stringify({ engines: { node: '>=22' } }))
@@ -38,6 +39,7 @@ describe('Pi platform production boundary audit', () => {
       join(repoRoot, 'apps/pi-agent-runtime/src/index.ts'),
       "fetch('https://www.genspark.ai'); class AgentLoop {}",
     )
+    await writeFile(join(repoRoot, 'packages/agent-resource/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/agent-runtime-protocol/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/pi-runtime-bundle/src/index.ts'), 'export {}')
 
@@ -58,6 +60,7 @@ describe('Pi platform production boundary audit', () => {
   it('fails closed when dependency maps are absent', async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), 'genoffice-platform-empty-audit-'))
     await mkdir(join(repoRoot, 'apps/pi-agent-runtime/src'), { recursive: true })
+    await mkdir(join(repoRoot, 'packages/agent-resource/src'), { recursive: true })
     await mkdir(join(repoRoot, 'packages/agent-runtime-protocol/src'), { recursive: true })
     await mkdir(join(repoRoot, 'packages/pi-runtime-bundle/src'), { recursive: true })
     await writeFile(
@@ -67,6 +70,7 @@ describe('Pi platform production boundary audit', () => {
     await writeFile(join(repoRoot, 'package-lock.json'), '{}')
     await writeFile(join(repoRoot, 'apps/pi-agent-runtime/package.json'), '{}')
     await writeFile(join(repoRoot, 'apps/pi-agent-runtime/src/index.ts'), 'export {}')
+    await writeFile(join(repoRoot, 'packages/agent-resource/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/agent-runtime-protocol/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/pi-runtime-bundle/src/index.ts'), 'export {}')
 
