@@ -54,6 +54,9 @@ jobs:
       - name: Audit Pi platform dependency and production-source boundary
         run: npm run audit:pi-platform
 
+      - name: Prevent Genspark legacy growth
+        run: npm run audit:genspark-free
+
       - name: Check dependency licenses
         run: npm run licenses
 
