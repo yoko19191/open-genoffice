@@ -131,6 +131,38 @@ function harness(
         persistence: 'persistent' as const,
         status: 'missing' as const,
       })),
+      modelCatalog: vi.fn(async () => ({ providers: [], selections: {} })),
+      selectModel: vi.fn(async (input) => ({
+        providers: [],
+        selections: {
+          [input.role]: {
+            providerId: input.providerId,
+            modelId: input.modelId,
+            capabilities: ['text-input' as const],
+          },
+        },
+      })),
+      startModelOAuth: vi.fn(async (input) => ({
+        operationId: input.operationId,
+        providerId: input.providerId,
+        state: 'running' as const,
+      })),
+      modelOAuthStatus: vi.fn(async (input) => ({
+        operationId: input.operationId,
+        providerId: 'openai-codex',
+        state: 'running' as const,
+      })),
+      respondModelOAuth: vi.fn(async (input) => ({
+        operationId: input.operationId,
+        providerId: 'openai-codex',
+        state: 'running' as const,
+      })),
+      cancelModelOAuth: vi.fn(async (input) => ({
+        operationId: input.operationId,
+        providerId: 'openai-codex',
+        state: 'cancelled' as const,
+      })),
+      logoutModel: vi.fn(async () => ({ providers: [], selections: {} })),
       onSessionEvent: vi.fn((listener: (event: EventEnvelope) => void) => {
         eventListener = listener
         return () => {
@@ -295,6 +327,40 @@ describe('PiRuntimeSupervisor', () => {
     await expect(
       fixture.supervisor.deleteCredential({ providerId: 'openai' }),
     ).resolves.toMatchObject({ status: 'missing' })
+    const oauthOperationId = '66666666-6666-4666-8666-666666666666'
+    await expect(fixture.supervisor.modelCatalog()).resolves.toEqual({
+      providers: [],
+      selections: {},
+    })
+    await expect(
+      fixture.supervisor.selectModel({
+        role: 'conversation',
+        providerId: 'openai',
+        modelId: 'gpt-5.4',
+      }),
+    ).resolves.toMatchObject({ selections: { conversation: { modelId: 'gpt-5.4' } } })
+    await expect(
+      fixture.supervisor.startModelOAuth({
+        operationId: oauthOperationId,
+        providerId: 'openai-codex',
+      }),
+    ).resolves.toMatchObject({ state: 'running' })
+    await expect(
+      fixture.supervisor.modelOAuthStatus({ operationId: oauthOperationId }),
+    ).resolves.toMatchObject({ operationId: oauthOperationId })
+    await expect(
+      fixture.supervisor.respondModelOAuth({
+        operationId: oauthOperationId,
+        value: 'write-only-response',
+      }),
+    ).resolves.toMatchObject({ operationId: oauthOperationId })
+    await expect(
+      fixture.supervisor.cancelModelOAuth({ operationId: oauthOperationId }),
+    ).resolves.toMatchObject({ state: 'cancelled' })
+    await expect(fixture.supervisor.logoutModel({ providerId: 'openai-codex' })).resolves.toEqual({
+      providers: [],
+      selections: {},
+    })
     const emitted = {
       protocolVersion: '1',
       kind: 'event',

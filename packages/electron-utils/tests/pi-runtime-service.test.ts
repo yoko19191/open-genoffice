@@ -89,6 +89,38 @@ function manager(overrides: Record<string, unknown> = {}) {
       persistence: 'persistent' as const,
       status: 'missing' as const,
     })),
+    modelCatalog: vi.fn(async () => ({ providers: [], selections: {} })),
+    selectModel: vi.fn(async (input) => ({
+      providers: [],
+      selections: {
+        [input.role]: {
+          providerId: input.providerId,
+          modelId: input.modelId,
+          capabilities: ['text-input' as const],
+        },
+      },
+    })),
+    startModelOAuth: vi.fn(async (input) => ({
+      operationId: input.operationId,
+      providerId: input.providerId,
+      state: 'running' as const,
+    })),
+    modelOAuthStatus: vi.fn(async (input) => ({
+      operationId: input.operationId,
+      providerId: 'openai-codex',
+      state: 'running' as const,
+    })),
+    respondModelOAuth: vi.fn(async (input) => ({
+      operationId: input.operationId,
+      providerId: 'openai-codex',
+      state: 'running' as const,
+    })),
+    cancelModelOAuth: vi.fn(async (input) => ({
+      operationId: input.operationId,
+      providerId: 'openai-codex',
+      state: 'cancelled' as const,
+    })),
+    logoutModel: vi.fn(async () => ({ providers: [], selections: {} })),
     ...overrides,
   }
 }
@@ -259,6 +291,37 @@ describe('installed Pi Runtime service', () => {
       providerId: 'openai',
       persistence: 'persistent',
       secretPayload,
+    })
+  })
+
+  it('forwards typed model catalog, selection, OAuth control, and logout commands', async () => {
+    const fixture = service({})
+    const operationId = '55555555-5555-4555-8555-555555555555'
+    await expect(fixture.instance.modelCatalog()).resolves.toEqual({
+      providers: [],
+      selections: {},
+    })
+    await fixture.instance.selectModel({
+      role: 'conversation',
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+    })
+    await fixture.instance.startModelOAuth({ operationId, providerId: 'openai-codex' })
+    await fixture.instance.modelOAuthStatus({ operationId })
+    await fixture.instance.respondModelOAuth({ operationId, value: 'write-only-response' })
+    await fixture.instance.cancelModelOAuth({ operationId })
+    await fixture.instance.logoutModel({ providerId: 'openai-codex' })
+    expect(fixture.runtimeManager.selectModel).toHaveBeenCalledWith({
+      role: 'conversation',
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+    })
+    expect(fixture.runtimeManager.respondModelOAuth).toHaveBeenCalledWith({
+      operationId,
+      value: 'write-only-response',
+    })
+    expect(fixture.runtimeManager.logoutModel).toHaveBeenCalledWith({
+      providerId: 'openai-codex',
     })
   })
 

@@ -120,78 +120,107 @@ class FakeRuntimeSocket extends Duplex {
               'credential.put',
               'credential.status',
               'credential.delete',
+              'model.catalog',
+              'model.select',
+              'model.oauth.start',
+              'model.oauth.status',
+              'model.oauth.respond',
+              'model.oauth.cancel',
+              'model.logout',
             ],
           }
         : request.method === 'runtime.status'
           ? { pid: runtimePid, instanceId, runtimeVersion: RUNTIME_VERSION }
-          : request.method === 'credential.put'
+          : request.method.startsWith('model.oauth.')
             ? {
-                providerId: request.params.providerId,
-                persistence: request.params.persistence,
-                status: 'available',
-                kind: 'api_key',
+                operationId: request.params.operationId,
+                providerId: 'openai-codex',
+                state: 'running',
               }
-            : request.method === 'credential.status'
+            : request.method.startsWith('model.')
               ? {
-                  providerId: request.params.providerId,
-                  persistence: 'persistent',
-                  status: 'missing',
+                  providers: [],
+                  selections:
+                    request.method === 'model.select'
+                      ? {
+                          [request.params.role]: {
+                            providerId: request.params.providerId,
+                            modelId: request.params.modelId,
+                            capabilities: ['text-input'],
+                          },
+                        }
+                      : {},
                 }
-              : request.method === 'credential.delete'
+              : request.method === 'credential.put'
                 ? {
                     providerId: request.params.providerId,
-                    persistence: 'persistent',
-                    status: 'missing',
+                    persistence: request.params.persistence,
+                    status: 'available',
+                    kind: 'api_key',
                   }
-                : request.method === 'session.create' || request.method === 'session.open'
+                : request.method === 'credential.status'
                   ? {
-                      sessionId: snapshot.sessionId,
-                      documentId: snapshot.documentId,
-                      snapshot,
-                      cursor: snapshot.cursor,
+                      providerId: request.params.providerId,
+                      persistence: 'persistent',
+                      status: 'missing',
                     }
-                  : request.method === 'session.prompt'
-                    ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
-                    : request.method === 'session.abort'
-                      ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
-                      : request.method === 'session.fork'
-                        ? {
-                            sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                            parentSessionId: snapshot.sessionId,
-                            documentId: snapshot.documentId,
-                            snapshot: {
-                              ...snapshot,
-                              sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                              branch: { parentSessionId: snapshot.sessionId, nodes: [] },
-                            },
-                            cursor: snapshot.cursor,
-                          }
-                        : request.method === 'session.navigate'
-                          ? {
-                              sessionId: snapshot.sessionId,
-                              documentId: snapshot.documentId,
-                              activeLeafId: 'navigation-leaf',
-                              snapshot: {
-                                ...snapshot,
-                                branch: { activeLeafId: 'navigation-leaf', nodes: [] },
-                              },
-                              cursor: snapshot.cursor,
-                            }
-                          : request.method === 'session.snapshot'
-                            ? snapshot
-                            : request.method === 'session.subscribe'
-                              ? { resetRequired: false, snapshot, events: [] }
-                              : { shuttingDown: true }
+                  : request.method === 'credential.delete'
+                    ? {
+                        providerId: request.params.providerId,
+                        persistence: 'persistent',
+                        status: 'missing',
+                      }
+                    : request.method === 'session.create' || request.method === 'session.open'
+                      ? {
+                          sessionId: snapshot.sessionId,
+                          documentId: snapshot.documentId,
+                          snapshot,
+                          cursor: snapshot.cursor,
+                        }
+                      : request.method === 'session.prompt'
+                        ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
+                        : request.method === 'session.abort'
+                          ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
+                          : request.method === 'session.fork'
+                            ? {
+                                sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                parentSessionId: snapshot.sessionId,
+                                documentId: snapshot.documentId,
+                                snapshot: {
+                                  ...snapshot,
+                                  sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                  branch: { parentSessionId: snapshot.sessionId, nodes: [] },
+                                },
+                                cursor: snapshot.cursor,
+                              }
+                            : request.method === 'session.navigate'
+                              ? {
+                                  sessionId: snapshot.sessionId,
+                                  documentId: snapshot.documentId,
+                                  activeLeafId: 'navigation-leaf',
+                                  snapshot: {
+                                    ...snapshot,
+                                    branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                  },
+                                  cursor: snapshot.cursor,
+                                }
+                              : request.method === 'session.snapshot'
+                                ? snapshot
+                                : request.method === 'session.subscribe'
+                                  ? { resetRequired: false, snapshot, events: [] }
+                                  : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
         : request.method === 'runtime.status' && 'statusResult' in this.options
           ? this.options.statusResult
-          : request.method.startsWith('credential.') && 'credentialResult' in this.options
-            ? this.options.credentialResult
-            : request.method.startsWith('session.') && 'sessionResult' in this.options
-              ? this.options.sessionResult
-              : defaultResult
+          : request.method.startsWith('model.') && 'modelResult' in this.options
+            ? this.options.modelResult
+            : request.method.startsWith('credential.') && 'credentialResult' in this.options
+              ? this.options.credentialResult
+              : request.method.startsWith('session.') && 'sessionResult' in this.options
+                ? this.options.sessionResult
+                : defaultResult
     if (request.method === 'runtime.status' && this.options.statusMode === 'error-response') {
       this.push(
         `${JSON.stringify({
@@ -221,6 +250,24 @@ class FakeRuntimeSocket extends Duplex {
             code: 'unavailable',
             message: 'unavailable',
             retryable: true,
+            correlationId: request.correlationId,
+          },
+        })}\n`,
+      )
+      callback()
+      return
+    }
+    if (request.method.startsWith('model.') && this.options.modelMode === 'error-response') {
+      this.push(
+        `${JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'response',
+          id: request.id,
+          correlationId: request.correlationId,
+          error: {
+            code: 'model_not_found',
+            message: 'model_not_found',
+            retryable: false,
             correlationId: request.correlationId,
           },
         })}\n`,
@@ -281,6 +328,8 @@ type ManagerHarnessOptions = {
   credentialResult?: unknown
   credentialMode?: 'error-response'
   credentialPrelude?: readonly unknown[]
+  modelResult?: unknown
+  modelMode?: 'error-response'
 }
 
 class FakeRuntimeChild extends EventEmitter implements PiRuntimeChild {
@@ -551,6 +600,77 @@ describe('PiRuntimeManager', () => {
       'manager-management-canary',
     )
     await manager.shutdown()
+  })
+
+  it('uses typed model catalog, selection, OAuth, and logout methods', async () => {
+    const harness = managerHarness()
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+    await manager.start()
+    const operationId = '55555555-5555-4555-8555-555555555555'
+    await expect(manager.modelCatalog()).resolves.toEqual({ providers: [], selections: {} })
+    await expect(
+      manager.selectModel({ role: 'conversation', providerId: 'openai', modelId: 'gpt-5.4' }),
+    ).resolves.toMatchObject({
+      selections: { conversation: { providerId: 'openai', modelId: 'gpt-5.4' } },
+    })
+    await expect(
+      manager.startModelOAuth({ operationId, providerId: 'openai-codex' }),
+    ).resolves.toMatchObject({ operationId, state: 'running' })
+    await expect(manager.modelOAuthStatus({ operationId })).resolves.toMatchObject({ operationId })
+    await expect(
+      manager.respondModelOAuth({ operationId, value: 'write-only-response' }),
+    ).resolves.toMatchObject({ operationId })
+    await expect(manager.cancelModelOAuth({ operationId })).resolves.toMatchObject({ operationId })
+    await expect(manager.logoutModel({ providerId: 'openai-codex' })).resolves.toEqual({
+      providers: [],
+      selections: {},
+    })
+    await manager.shutdown()
+  })
+
+  it('validates model projections and preserves stable Runtime errors', async () => {
+    const invalidHarness = managerHarness({ modelResult: { apiKey: 'secret-canary' } })
+    const invalid = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      invalidHarness.dependencies,
+    )
+    await invalid.start()
+    await expect(invalid.modelCatalog()).rejects.toEqual(
+      new PiRuntimeManagerError('model_catalog_invalid'),
+    )
+    await expect(
+      invalid.startModelOAuth({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        providerId: 'openai-codex',
+      }),
+    ).rejects.toEqual(new PiRuntimeManagerError('oauth_operation_projection_invalid'))
+    await expect(invalid.logoutModel({ providerId: 'openai-codex' })).rejects.toEqual(
+      new PiRuntimeManagerError('model_catalog_invalid'),
+    )
+    await invalid.shutdown()
+
+    const errorHarness = managerHarness({ modelMode: 'error-response' })
+    const failed = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      errorHarness.dependencies,
+    )
+    await failed.start()
+    await expect(failed.modelCatalog()).rejects.toEqual(
+      new PiRuntimeManagerError('model_not_found'),
+    )
+    await expect(
+      failed.selectModel({ role: 'conversation', providerId: 'openai', modelId: 'missing' }),
+    ).rejects.toEqual(new PiRuntimeManagerError('model_not_found'))
+    await expect(
+      failed.startModelOAuth({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        providerId: 'openai-codex',
+      }),
+    ).rejects.toEqual(new PiRuntimeManagerError('model_not_found'))
+    await failed.shutdown()
   })
 
   it.each(['putCredential', 'credentialStatus', 'deleteCredential'] as const)(

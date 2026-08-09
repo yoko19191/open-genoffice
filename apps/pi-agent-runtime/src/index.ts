@@ -38,6 +38,18 @@ export {
 } from './run-abort-tree'
 export { ToolResultReorderBuffer } from './tool-result-reorder-buffer'
 export {
+  ModelCatalogError,
+  ModelCatalogService,
+  normalizeModelProviderError,
+  shouldRetryAfterAuthRefresh,
+  type ModelCatalogServiceOptions,
+  type ModelProviderErrorCode,
+  type ModelSelectionRole,
+  type OAuthOperationProjection,
+  type OpenAICompatibleModelConfig,
+  type OpenAICompatibleProviderConfig,
+} from './model-catalog-service'
+export {
   OpenGenOfficeCredentialStore,
   OpenGenOfficeCredentialStoreError,
   type CredentialBrokerClient,

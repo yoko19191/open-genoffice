@@ -2,15 +2,19 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
 import type { CredentialStore } from '@earendil-works/pi-ai'
+import { InMemoryModelsStore } from '@earendil-works/pi-ai'
+import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import {
   RUNTIME_VERSION,
   createNdjsonFrameDecoder,
   parseCredentialManagementRequest,
+  parseModelManagementRequest,
   type BootstrapRecord,
   type ProtocolEnvelope,
   type RequestEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
+import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
 import { OpenGenOfficeCredentialStoreError } from './open-genoffice-credential-store'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import { RuntimeCredentialStore } from './runtime-credential-store'
@@ -26,6 +30,10 @@ export type AuthenticatedRuntimeServerOptions = {
   instanceId: string
   platform?: NodeJS.Platform
   sessionRegistry?: SessionRegistry
+  modelCatalog?: Pick<
+    ModelCatalogService,
+    'catalog' | 'select' | 'startOAuth' | 'oauthStatus' | 'respondOAuth' | 'cancelOAuth' | 'logout'
+  >
 }
 
 export type AuthenticatedRuntimeServer = {
@@ -87,6 +95,17 @@ export async function createAuthenticatedRuntimeServer(
     broker: credentialClient,
   })
 
+  const modelCatalog =
+    options.modelCatalog ??
+    new ModelCatalogService(
+      await ModelRuntime.create({
+        credentials,
+        modelsPath: null,
+        modelsStore: new InMemoryModelsStore(),
+        allowModelNetwork: false,
+      }),
+    )
+
   const sessionRegistry =
     options.sessionRegistry ??
     createSessionRegistry({
@@ -147,6 +166,13 @@ export async function createAuthenticatedRuntimeServer(
                 'credential.put',
                 'credential.status',
                 'credential.delete',
+                'model.catalog',
+                'model.select',
+                'model.oauth.start',
+                'model.oauth.status',
+                'model.oauth.respond',
+                'model.oauth.cancel',
+                'model.logout',
               ],
             }),
           )
@@ -211,7 +237,55 @@ export async function createAuthenticatedRuntimeServer(
       void handleCredentialManagementRequest(socket, request)
       return
     }
+    if (request.method.startsWith('model.')) {
+      void handleModelManagementRequest(socket, request)
+      return
+    }
     void handleSessionRequest(socket, request)
+  }
+
+  async function handleModelManagementRequest(socket: Socket, request: RequestEnvelope) {
+    try {
+      const command = parseModelManagementRequest(request)
+      if (command.method === 'model.catalog') {
+        socket.write(response(request, await modelCatalog.catalog()))
+        return
+      }
+      if (command.method === 'model.select') {
+        modelCatalog.select(command.params.role, command.params.providerId, command.params.modelId)
+        socket.write(response(request, await modelCatalog.catalog()))
+        return
+      }
+      if (command.method === 'model.oauth.start') {
+        socket.write(
+          response(
+            request,
+            modelCatalog.startOAuth(command.params.operationId, command.params.providerId),
+          ),
+        )
+        return
+      }
+      if (command.method === 'model.oauth.status') {
+        socket.write(response(request, modelCatalog.oauthStatus(command.params.operationId)))
+        return
+      }
+      if (command.method === 'model.oauth.respond') {
+        modelCatalog.respondOAuth(command.params.operationId, command.params.value)
+        socket.write(response(request, modelCatalog.oauthStatus(command.params.operationId)))
+        return
+      }
+      if (command.method === 'model.oauth.cancel') {
+        modelCatalog.cancelOAuth(command.params.operationId)
+        socket.write(response(request, modelCatalog.oauthStatus(command.params.operationId)))
+        return
+      }
+      await modelCatalog.logout(command.params.providerId)
+      socket.write(response(request, await modelCatalog.catalog()))
+    } catch (error) {
+      socket.write(
+        errorResponse(request, error instanceof ModelCatalogError ? error.code : 'invalid_request'),
+      )
+    }
   }
 
   async function handleCredentialManagementRequest(socket: Socket, request: RequestEnvelope) {

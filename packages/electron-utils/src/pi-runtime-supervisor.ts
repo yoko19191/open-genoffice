@@ -8,6 +8,8 @@ import type {
   SessionSnapshot,
   SessionSubscriptionReceipt,
   ProviderCredentialStatus,
+  ModelCatalogProjection,
+  OAuthOperationProjection,
 } from '@genoffice/agent-runtime-protocol'
 import type {
   PiRuntimeHealth,
@@ -21,6 +23,11 @@ import type {
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
+  ModelSelectRequest,
+  ModelOAuthStartRequest,
+  ModelOAuthOperationRequest,
+  ModelOAuthRespondRequest,
+  ModelProviderRequest,
 } from './pi-runtime-manager'
 
 export type SupervisedPiRuntimeManager = {
@@ -38,6 +45,13 @@ export type SupervisedPiRuntimeManager = {
   putCredential(input: ProviderCredentialPutRequest): Promise<ProviderCredentialStatus>
   credentialStatus(input: ProviderCredentialProviderRequest): Promise<ProviderCredentialStatus>
   deleteCredential(input: ProviderCredentialProviderRequest): Promise<ProviderCredentialStatus>
+  modelCatalog(): Promise<ModelCatalogProjection>
+  selectModel(input: ModelSelectRequest): Promise<ModelCatalogProjection>
+  startModelOAuth(input: ModelOAuthStartRequest): Promise<OAuthOperationProjection>
+  modelOAuthStatus(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection>
+  respondModelOAuth(input: ModelOAuthRespondRequest): Promise<OAuthOperationProjection>
+  cancelModelOAuth(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection>
+  logoutModel(input: ModelProviderRequest): Promise<ModelCatalogProjection>
 }
 
 export type PiRuntimeSupervisorState =
@@ -199,6 +213,34 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
     input: ProviderCredentialProviderRequest,
   ): Promise<ProviderCredentialStatus> {
     return (await this.readyManager()).deleteCredential(input)
+  }
+
+  async modelCatalog(): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).modelCatalog()
+  }
+
+  async selectModel(input: ModelSelectRequest): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).selectModel(input)
+  }
+
+  async startModelOAuth(input: ModelOAuthStartRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).startModelOAuth(input)
+  }
+
+  async modelOAuthStatus(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).modelOAuthStatus(input)
+  }
+
+  async respondModelOAuth(input: ModelOAuthRespondRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).respondModelOAuth(input)
+  }
+
+  async cancelModelOAuth(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).cancelModelOAuth(input)
+  }
+
+  async logoutModel(input: ModelProviderRequest): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).logoutModel(input)
   }
 
   private async readyManager(): Promise<SupervisedPiRuntimeManager> {

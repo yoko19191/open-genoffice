@@ -3,7 +3,7 @@ import { chmod, mkdtemp, stat } from 'node:fs/promises'
 import { createConnection, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   PROTOCOL_VERSION,
   RUNTIME_VERSION,
@@ -14,6 +14,7 @@ import {
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
 import { createAuthenticatedRuntimeServer, createSessionRegistry } from '../src'
+import { ModelCatalogError } from '../src/model-catalog-service'
 
 const token = 'a'.repeat(64)
 
@@ -247,6 +248,95 @@ describe('authenticated Runtime socket', () => {
     await runtime.closed
   })
 
+  it('serves model catalog, selection, and OAuth control as redacted Runtime methods', async () => {
+    const socketPath = await endpoint()
+    const catalog = {
+      providers: [
+        {
+          providerId: 'openai-codex',
+          name: 'OpenAI Codex',
+          state: 'needs_credentials',
+          authMethods: ['oauth'],
+          models: [],
+          errorCode: 'provider_auth_required',
+        },
+      ],
+      selections: {},
+    } as const
+    const oauth = {
+      operationId: '55555555-5555-4555-8555-555555555555',
+      providerId: 'openai-codex',
+      state: 'running',
+    } as const
+    const modelCatalog = {
+      catalog: vi.fn(async () => catalog),
+      select: vi.fn(),
+      startOAuth: vi.fn(() => oauth),
+      oauthStatus: vi.fn(() => oauth),
+      respondOAuth: vi.fn(),
+      cancelOAuth: vi.fn(),
+      logout: vi.fn(async () => undefined),
+    }
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-model-management',
+      modelCatalog: modelCatalog as never,
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+
+    const modelRequests = [
+      ['model.catalog', {}, catalog],
+      [
+        'model.select',
+        { role: 'conversation', providerId: 'openai-codex', modelId: 'gpt-5.4' },
+        catalog,
+      ],
+      ['model.oauth.start', { operationId: oauth.operationId, providerId: 'openai-codex' }, oauth],
+      ['model.oauth.status', { operationId: oauth.operationId }, oauth],
+      [
+        'model.oauth.respond',
+        { operationId: oauth.operationId, value: 'write-only-oauth-response' },
+        oauth,
+      ],
+      ['model.oauth.cancel', { operationId: oauth.operationId }, oauth],
+      ['model.logout', { providerId: 'openai-codex' }, catalog],
+    ] as const
+    for (const [index, [method, params, expected]] of modelRequests.entries()) {
+      const id = `model-${index}`
+      client.write(`${request(method, params, id)}\n`)
+      const received = await reader.next((frame) => frame.kind === 'response' && frame.id === id)
+      expect(received).toMatchObject({ result: expected })
+      expect(JSON.stringify(received)).not.toContain('write-only-oauth-response')
+    }
+    expect(modelCatalog.select).toHaveBeenCalledWith('conversation', 'openai-codex', 'gpt-5.4')
+    expect(modelCatalog.respondOAuth).toHaveBeenCalledWith(
+      oauth.operationId,
+      'write-only-oauth-response',
+    )
+    expect(modelCatalog.logout).toHaveBeenCalledWith('openai-codex')
+
+    modelCatalog.startOAuth.mockImplementationOnce(() => {
+      throw new ModelCatalogError('oauth_operation_exists')
+    })
+    client.write(
+      `${request(
+        'model.oauth.start',
+        { operationId: oauth.operationId, providerId: 'openai-codex' },
+        'model-error',
+      )}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'model-error'),
+    ).toMatchObject({ error: { code: 'oauth_operation_exists' } })
+
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
   it('manages a persistent credential through broker CAS and returns stable errors', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({
@@ -377,6 +467,13 @@ describe('authenticated Runtime socket', () => {
           'credential.put',
           'credential.status',
           'credential.delete',
+          'model.catalog',
+          'model.select',
+          'model.oauth.start',
+          'model.oauth.status',
+          'model.oauth.respond',
+          'model.oauth.cancel',
+          'model.logout',
         ],
       },
     })

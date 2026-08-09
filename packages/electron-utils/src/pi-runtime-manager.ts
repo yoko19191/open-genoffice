@@ -8,6 +8,8 @@ import {
   SCHEMA_VERSION,
   createNdjsonFrameDecoder,
   parseCredentialBrokerRequest,
+  parseModelCatalogProjection,
+  parseOAuthOperationProjection,
   parseProviderCredentialStatus,
   parseSessionAbortReceipt,
   parseSessionConnectionReceipt,
@@ -19,6 +21,9 @@ import {
   type BootstrapRecord,
   type CredentialManagementRequest,
   type EventEnvelope,
+  type ModelCatalogProjection,
+  type ModelSelectionRole,
+  type OAuthOperationProjection,
   type ProtocolEnvelope,
   type RequestEnvelope,
   type SessionConnectionReceipt,
@@ -109,6 +114,15 @@ export type ProviderCredentialProviderRequest = Extract<
   CredentialManagementRequest,
   { method: 'credential.status' }
 >['params']
+export type ModelSelectRequest = {
+  role: ModelSelectionRole
+  providerId: string
+  modelId: string
+}
+export type ModelOAuthStartRequest = { operationId: string; providerId: string }
+export type ModelOAuthOperationRequest = { operationId: string }
+export type ModelOAuthRespondRequest = ModelOAuthOperationRequest & { value: string }
+export type ModelProviderRequest = { providerId: string }
 
 type ClientRuntimeMethod =
   | 'runtime.hello'
@@ -125,6 +139,13 @@ type ClientRuntimeMethod =
   | 'credential.put'
   | 'credential.status'
   | 'credential.delete'
+  | 'model.catalog'
+  | 'model.select'
+  | 'model.oauth.start'
+  | 'model.oauth.status'
+  | 'model.oauth.respond'
+  | 'model.oauth.cancel'
+  | 'model.logout'
 
 export class PiRuntimeManagerError extends Error {
   readonly code: string
@@ -341,7 +362,14 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('session.subscribe') ||
         !hello.capabilities.includes('credential.put') ||
         !hello.capabilities.includes('credential.status') ||
-        !hello.capabilities.includes('credential.delete')
+        !hello.capabilities.includes('credential.delete') ||
+        !hello.capabilities.includes('model.catalog') ||
+        !hello.capabilities.includes('model.select') ||
+        !hello.capabilities.includes('model.oauth.start') ||
+        !hello.capabilities.includes('model.oauth.status') ||
+        !hello.capabilities.includes('model.oauth.respond') ||
+        !hello.capabilities.includes('model.oauth.cancel') ||
+        !hello.capabilities.includes('model.logout')
       ) {
         throw new PiRuntimeManagerError('runtime_hello_invalid')
       }
@@ -497,6 +525,66 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('provider_credential_status_invalid')
+    }
+  }
+
+  async modelCatalog(): Promise<ModelCatalogProjection> {
+    this.assertReady()
+    try {
+      return parseModelCatalogProjection(await this.request('model.catalog', {}))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('model_catalog_invalid')
+    }
+  }
+
+  async selectModel(input: ModelSelectRequest): Promise<ModelCatalogProjection> {
+    this.assertReady()
+    try {
+      return parseModelCatalogProjection(await this.request('model.select', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('model_catalog_invalid')
+    }
+  }
+
+  async startModelOAuth(input: ModelOAuthStartRequest): Promise<OAuthOperationProjection> {
+    return this.modelOAuthRequest('model.oauth.start', input)
+  }
+
+  async modelOAuthStatus(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection> {
+    return this.modelOAuthRequest('model.oauth.status', input)
+  }
+
+  async respondModelOAuth(input: ModelOAuthRespondRequest): Promise<OAuthOperationProjection> {
+    return this.modelOAuthRequest('model.oauth.respond', input)
+  }
+
+  async cancelModelOAuth(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection> {
+    return this.modelOAuthRequest('model.oauth.cancel', input)
+  }
+
+  async logoutModel(input: ModelProviderRequest): Promise<ModelCatalogProjection> {
+    this.assertReady()
+    try {
+      return parseModelCatalogProjection(await this.request('model.logout', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('model_catalog_invalid')
+    }
+  }
+
+  private async modelOAuthRequest(
+    method:
+      'model.oauth.start' | 'model.oauth.status' | 'model.oauth.respond' | 'model.oauth.cancel',
+    input: ModelOAuthStartRequest | ModelOAuthOperationRequest | ModelOAuthRespondRequest,
+  ): Promise<OAuthOperationProjection> {
+    this.assertReady()
+    try {
+      return parseOAuthOperationProjection(await this.request(method, input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('oauth_operation_projection_invalid')
     }
   }
 

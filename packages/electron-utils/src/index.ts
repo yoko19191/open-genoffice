@@ -41,6 +41,13 @@ export {
   type SessionOpenRequest,
   type SessionPromptRequest,
   type SessionSubscribeRequest,
+  type ProviderCredentialPutRequest,
+  type ProviderCredentialProviderRequest,
+  type ModelSelectRequest,
+  type ModelOAuthStartRequest,
+  type ModelOAuthOperationRequest,
+  type ModelOAuthRespondRequest,
+  type ModelProviderRequest,
 } from './pi-runtime-manager'
 export {
   connectRuntimeEndpoint,

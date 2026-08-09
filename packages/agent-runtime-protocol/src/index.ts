@@ -4,6 +4,7 @@ import {
   CredentialKindSchema,
   CredentialPersistenceSchema,
   CredentialProviderIdSchema,
+  ModelSelectionRoleSchema,
   MAX_FRAME_BYTES,
   NODE_VERSION,
   PI_VERSION,
@@ -21,12 +22,27 @@ export {
   RUNTIME_NAME,
   RUNTIME_VERSION,
   SCHEMA_VERSION,
+  ModelCatalogProjectionSchema,
+  ModelSelectionRoleSchema,
+  OAuthInteractionProjectionSchema,
+  OAuthOperationProjectionSchema,
   ProviderCredentialStatusSchema,
   RuntimeHealthProjectionSchema,
   parseCredentialProviderId,
+  parseModelCatalogProjection,
+  parseOAuthOperationProjection,
   parseProviderCredentialStatus,
   parseRuntimeHealthProjection,
   type ProviderCredentialStatus,
+  type ModelCapability,
+  type ModelCatalogProjection,
+  type ModelDescriptor,
+  type ModelProviderProjection,
+  type ModelProviderState,
+  type ModelSelectionRole,
+  type ModelProviderErrorCode,
+  type OAuthInteractionProjection,
+  type OAuthOperationProjection,
   type RuntimeHealthProjection,
 } from '#renderer'
 
@@ -131,6 +147,15 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('credential_status_failed'),
   Type.Literal('credential_delete_failed'),
   Type.Literal('credential_persistence_conflict'),
+  Type.Literal('model_not_selected'),
+  Type.Literal('model_not_found'),
+  Type.Literal('model_provider_not_found'),
+  Type.Literal('model_provider_invalid'),
+  Type.Literal('oauth_operation_exists'),
+  Type.Literal('oauth_provider_unsupported'),
+  Type.Literal('oauth_operation_not_found'),
+  Type.Literal('oauth_not_waiting'),
+  Type.Literal('oauth_response_invalid'),
 ])
 
 export const CredentialBrokerMetadataSchema = Type.Object(
@@ -377,6 +402,67 @@ const SessionCreateRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const ModelCatalogRequestSchema = sessionRequestEnvelope(
+  'model.catalog',
+  Type.Object({}, { additionalProperties: false }),
+)
+
+const ModelSelectRequestSchema = sessionRequestEnvelope(
+  'model.select',
+  Type.Object(
+    {
+      role: ModelSelectionRoleSchema,
+      providerId: CredentialProviderIdSchema,
+      modelId: Type.String({ minLength: 1, maxLength: 256 }),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const ModelOAuthStartRequestSchema = sessionRequestEnvelope(
+  'model.oauth.start',
+  Type.Object(
+    { operationId: OperationIdSchema, providerId: CredentialProviderIdSchema },
+    { additionalProperties: false },
+  ),
+)
+
+const ModelOAuthStatusRequestSchema = sessionRequestEnvelope(
+  'model.oauth.status',
+  Type.Object({ operationId: OperationIdSchema }, { additionalProperties: false }),
+)
+
+const ModelOAuthRespondRequestSchema = sessionRequestEnvelope(
+  'model.oauth.respond',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      value: Type.String({ minLength: 1, maxLength: 16_384 }),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const ModelOAuthCancelRequestSchema = sessionRequestEnvelope(
+  'model.oauth.cancel',
+  Type.Object({ operationId: OperationIdSchema }, { additionalProperties: false }),
+)
+
+const ModelLogoutRequestSchema = sessionRequestEnvelope(
+  'model.logout',
+  Type.Object({ providerId: CredentialProviderIdSchema }, { additionalProperties: false }),
+)
+
+export const ModelManagementRequestSchema = Type.Union([
+  ModelCatalogRequestSchema,
+  ModelSelectRequestSchema,
+  ModelOAuthStartRequestSchema,
+  ModelOAuthStatusRequestSchema,
+  ModelOAuthRespondRequestSchema,
+  ModelOAuthCancelRequestSchema,
+  ModelLogoutRequestSchema,
+])
+
 const OfficeToolInvokeRequestSchema = sessionRequestEnvelope(
   'office.tool.invoke',
   OfficeToolInvocationSchema,
@@ -592,6 +678,13 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionNavigateRequestSchema,
   SessionSnapshotRequestSchema,
   SessionSubscribeRequestSchema,
+  ModelCatalogRequestSchema,
+  ModelSelectRequestSchema,
+  ModelOAuthStartRequestSchema,
+  ModelOAuthStatusRequestSchema,
+  ModelOAuthRespondRequestSchema,
+  ModelOAuthCancelRequestSchema,
+  ModelLogoutRequestSchema,
 ])
 
 const ResponseResultEnvelopeSchema = Type.Object(
@@ -909,6 +1002,7 @@ export type CredentialBrokerGetResult = Exclude<
 export type CredentialBrokerDeleteReceipt = Static<typeof CredentialBrokerDeleteReceiptSchema>
 export type CredentialBrokerRequest = Static<typeof CredentialBrokerRequestSchema>
 export type CredentialManagementRequest = Static<typeof CredentialManagementRequestSchema>
+export type ModelManagementRequest = Static<typeof ModelManagementRequestSchema>
 
 export function parseBootstrapLine(line: string): BootstrapRecord {
   try {
@@ -952,6 +1046,11 @@ export function parseCredentialBrokerDeleteReceipt(value: unknown): CredentialBr
 export function parseCredentialManagementRequest(value: unknown): CredentialManagementRequest {
   if (Value.Check(CredentialManagementRequestSchema, value)) return value
   throw new Error('credential_management_request_invalid')
+}
+
+export function parseModelManagementRequest(value: unknown): ModelManagementRequest {
+  if (Value.Check(ModelManagementRequestSchema, value)) return value
+  throw new Error('model_management_request_invalid')
 }
 
 export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifest {

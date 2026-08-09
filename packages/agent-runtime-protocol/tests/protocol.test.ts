@@ -5,6 +5,8 @@ import {
   CredentialManagementRequestSchema,
   EventEnvelopeSchema,
   MAX_FRAME_BYTES,
+  ModelCatalogProjectionSchema,
+  ModelManagementRequestSchema,
   NODE_VERSION,
   PI_VERSION,
   PROTOCOL_VERSION,
@@ -28,6 +30,9 @@ import {
   parseAgentSessionConnectReceipt,
   parseAgentSessionConnectRequest,
   parseEventEnvelope,
+  parseModelCatalogProjection,
+  parseModelManagementRequest,
+  parseOAuthOperationProjection,
   parseOfficeToolInvocation,
   parseOfficeToolReceipt,
   parseProtocolFrame,
@@ -183,7 +188,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(20)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(27)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -668,6 +673,153 @@ describe('Electron to Runtime credential management contract', () => {
   ])('rejects %s', (_label, request) => {
     expect(() => parseCredentialManagementRequest(request)).toThrowError(
       'credential_management_request_invalid',
+    )
+  })
+})
+
+describe('renderer-safe model catalog projection', () => {
+  const catalog = {
+    providers: [
+      {
+        providerId: 'openai-codex',
+        name: 'OpenAI Codex',
+        state: 'ready',
+        authMethods: ['oauth'],
+        models: [
+          {
+            providerId: 'openai-codex',
+            modelId: 'gpt-5.4',
+            name: 'GPT-5.4',
+            capabilities: ['text-input', 'image-input', 'tool-use', 'reasoning'],
+          },
+        ],
+      },
+      {
+        providerId: 'local-openai',
+        name: 'Local OpenAI-compatible',
+        state: 'needs_credentials',
+        authMethods: ['api_key'],
+        models: [],
+        errorCode: 'provider_auth_required',
+      },
+    ],
+    selections: {
+      conversation: {
+        providerId: 'openai-codex',
+        modelId: 'gpt-5.4',
+        capabilities: ['text-input', 'image-input', 'tool-use', 'reasoning'],
+      },
+    },
+  } as const
+
+  it('accepts only provider/model/capability/health metadata', () => {
+    expect(parseModelCatalogProjection(catalog)).toEqual(catalog)
+    expect(ModelCatalogProjectionSchema).toBeDefined()
+    expect(JSON.stringify(catalog)).not.toContain('secret-model-canary')
+  })
+
+  it.each([
+    ['secret', { ...catalog, apiKey: 'secret-model-canary' }],
+    [
+      'endpoint',
+      {
+        ...catalog,
+        providers: [{ ...catalog.providers[0], baseUrl: 'https://private.invalid/v1' }],
+      },
+    ],
+    [
+      'unknown capability',
+      {
+        ...catalog,
+        providers: [
+          {
+            ...catalog.providers[0],
+            models: [{ ...catalog.providers[0].models[0], capabilities: ['shell-execution'] }],
+          },
+        ],
+      },
+    ],
+    [
+      'raw provider error',
+      {
+        ...catalog,
+        providers: [{ ...catalog.providers[1], error: 'upstream response body' }],
+      },
+    ],
+  ])('rejects %s fields before they cross into a renderer', (_label, value) => {
+    expect(() => parseModelCatalogProjection(value)).toThrowError('model_catalog_invalid')
+  })
+
+  it('accepts only redacted OAuth operation state', () => {
+    const projection = {
+      operationId,
+      providerId: 'openai-codex',
+      state: 'waiting_for_user',
+      interaction: {
+        type: 'auth_url',
+        url: 'https://auth.openai.com/oauth/authorize?client_id=public&state=opaque',
+        messageKey: 'model_auth_open_browser',
+      },
+    } as const
+    expect(parseOAuthOperationProjection(projection)).toEqual(projection)
+    expect(() =>
+      parseOAuthOperationProjection({ ...projection, accessToken: 'secret-model-canary' }),
+    ).toThrowError('oauth_operation_projection_invalid')
+    expect(() =>
+      parseOAuthOperationProjection({
+        ...projection,
+        interaction: { ...projection.interaction, message: 'private provider text' },
+      }),
+    ).toThrowError('oauth_operation_projection_invalid')
+  })
+})
+
+describe('model management Runtime contract', () => {
+  const envelope = (method: string, params: unknown) => ({
+    protocolVersion: PROTOCOL_VERSION,
+    kind: 'request',
+    id: `request-${method}`,
+    method,
+    correlationId: `correlation-${method}`,
+    params,
+  })
+
+  const requests = [
+    envelope('model.catalog', {}),
+    envelope('model.select', {
+      role: 'conversation',
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+    }),
+    envelope('model.oauth.start', { operationId, providerId: 'openai-codex' }),
+    envelope('model.oauth.status', { operationId }),
+    envelope('model.oauth.respond', { operationId, value: 'write-only-response' }),
+    envelope('model.oauth.cancel', { operationId }),
+    envelope('model.logout', { providerId: 'openai-codex' }),
+  ]
+
+  it('accepts seven exact model methods without a secret-reading operation', () => {
+    expect(ModelManagementRequestSchema.anyOf).toHaveLength(7)
+    for (const request of requests) {
+      expect(parseModelManagementRequest(request)).toEqual(request)
+      expect(parseProtocolFrame(JSON.stringify(request))).toEqual(request)
+    }
+    expect(JSON.stringify(ModelManagementRequestSchema)).not.toContain('credential.get')
+  })
+
+  it.each([
+    ['unknown field', { ...requests[0], params: { secret: true } }],
+    [
+      'unknown role',
+      { ...requests[1], params: { ...(requests[1]!.params as object), role: 'fallback' } },
+    ],
+    ['invalid provider', { ...requests[2], params: { operationId, providerId: '../escape' } }],
+    ['missing response', { ...requests[4], params: { operationId } }],
+    ['oversized response', { ...requests[4], params: { operationId, value: 'x'.repeat(16_385) } }],
+    ['secret read method', envelope('model.credential.get', { providerId: 'openai' })],
+  ])('rejects %s', (_label, request) => {
+    expect(() => parseModelManagementRequest(request)).toThrowError(
+      'model_management_request_invalid',
     )
   })
 })

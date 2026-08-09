@@ -3,6 +3,8 @@ import {
   RUNTIME_VERSION,
   SCHEMA_VERSION,
   type RuntimeHealthProjection,
+  type ModelCatalogProjection,
+  type OAuthOperationProjection,
   type EventEnvelope,
   type SessionConnectionReceipt,
   type SessionAbortReceipt,
@@ -27,6 +29,11 @@ import type {
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
+  ModelSelectRequest,
+  ModelOAuthStartRequest,
+  ModelOAuthOperationRequest,
+  ModelOAuthRespondRequest,
+  ModelProviderRequest,
 } from './pi-runtime-manager'
 
 export type PiRuntimeServiceOptions = {
@@ -54,6 +61,13 @@ type OwnedPiRuntimeManager = Pick<
   | 'putCredential'
   | 'credentialStatus'
   | 'deleteCredential'
+  | 'modelCatalog'
+  | 'selectModel'
+  | 'startModelOAuth'
+  | 'modelOAuthStatus'
+  | 'respondModelOAuth'
+  | 'cancelModelOAuth'
+  | 'logoutModel'
 >
 
 export type PiRuntimeServiceDependencies = {
@@ -148,6 +162,34 @@ export class PiRuntimeService {
 
   async deleteCredential(input: ProviderCredentialProviderRequest) {
     return (await this.readyManager()).deleteCredential(input)
+  }
+
+  async modelCatalog(): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).modelCatalog()
+  }
+
+  async selectModel(input: ModelSelectRequest): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).selectModel(input)
+  }
+
+  async startModelOAuth(input: ModelOAuthStartRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).startModelOAuth(input)
+  }
+
+  async modelOAuthStatus(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).modelOAuthStatus(input)
+  }
+
+  async respondModelOAuth(input: ModelOAuthRespondRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).respondModelOAuth(input)
+  }
+
+  async cancelModelOAuth(input: ModelOAuthOperationRequest): Promise<OAuthOperationProjection> {
+    return (await this.readyManager()).cancelModelOAuth(input)
+  }
+
+  async logoutModel(input: ModelProviderRequest): Promise<ModelCatalogProjection> {
+    return (await this.readyManager()).logoutModel(input)
   }
 
   private async readyManager(): Promise<OwnedPiRuntimeManager> {
