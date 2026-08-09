@@ -29,7 +29,6 @@ const GenericRuntimeMethodSchema = Type.Union([
 ])
 
 const ElectronMethodSchema = Type.Union([
-  Type.Literal('office.tool.invoke'),
   Type.Literal('office.tool.abort'),
   Type.Literal('office.context.read'),
   Type.Literal('permission.request'),
@@ -89,7 +88,9 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('rate_limit'),
   Type.Literal('unavailable'),
   Type.Literal('tool_failed'),
+  Type.Literal('tool_not_in_snapshot'),
   Type.Literal('tool_timeout'),
+  Type.Literal('mutation_outcome_unknown'),
   Type.Literal('abort_incomplete'),
   Type.Literal('artifact_invalid'),
   Type.Literal('runtime_unavailable'),
@@ -103,6 +104,55 @@ export const ArtifactRefSchema = Type.Object(
     byteLength: Type.Integer({ minimum: 0 }),
     sha256: Sha256Schema,
     displayName: Type.Optional(Type.String({ minLength: 1 })),
+  },
+  { additionalProperties: false },
+)
+
+const OfficeToolIdSchema = Type.String({
+  pattern: '^office:[a-z0-9-]+:[a-z][a-z0-9_]*$',
+  maxLength: 256,
+})
+
+const OfficeToolActorSchema = Type.Union([
+  Type.Object(
+    {
+      type: Type.Literal('parent'),
+      actorId: EntityIdSchema,
+      sessionId: SessionIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('subagent'),
+      actorId: EntityIdSchema,
+      subagentRunId: EntityIdSchema,
+      parentRunId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+])
+
+export const OfficeToolInvocationSchema = Type.Object(
+  {
+    operationId: OperationIdSchema,
+    sessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    runId: EntityIdSchema,
+    toolCallId: EntityIdSchema,
+    toolId: OfficeToolIdSchema,
+    toolOrder: Type.Integer({ minimum: 0 }),
+    actor: OfficeToolActorSchema,
+    permissionSnapshot: Type.Object(
+      {
+        snapshotId: EntityIdSchema,
+        createdForRunId: EntityIdSchema,
+        permissionVersion: EntityIdSchema,
+        toolIds: Type.Array(OfficeToolIdSchema, { maxItems: 512 }),
+      },
+      { additionalProperties: false },
+    ),
+    input: Type.Unknown(),
   },
   { additionalProperties: false },
 )
@@ -198,6 +248,11 @@ const SessionCreateRequestSchema = sessionRequestEnvelope(
     },
     { additionalProperties: false },
   ),
+)
+
+const OfficeToolInvokeRequestSchema = sessionRequestEnvelope(
+  'office.tool.invoke',
+  OfficeToolInvocationSchema,
 )
 
 const SessionOpenRequestSchema = sessionRequestEnvelope(
@@ -306,6 +361,7 @@ export const RequestEnvelopeSchema = Type.Union([
   GenericRequestEnvelopeSchema,
   HelloRequestEnvelopeSchema,
   ArtifactRegisterRequestSchema,
+  OfficeToolInvokeRequestSchema,
   SessionCreateRequestSchema,
   SessionOpenRequestSchema,
   SessionPromptRequestSchema,
@@ -382,6 +438,37 @@ export const SessionAbortReceiptSchema = Type.Object(
     runId: EntityIdSchema,
     state: Type.Union([Type.Literal('cancelling'), Type.Literal('already_terminal')]),
     acceptedCursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
+export const OfficeToolReceiptSchema = Type.Object(
+  {
+    operationId: OperationIdSchema,
+    toolCallId: EntityIdSchema,
+    toolId: OfficeToolIdSchema,
+    status: Type.Union([Type.Literal('completed'), Type.Literal('failed')]),
+    output: Type.String(),
+    details: Type.Optional(Type.Unknown()),
+    mutationOutcome: Type.Optional(
+      Type.Union([
+        Type.Literal('not_started'),
+        Type.Literal('committed'),
+        Type.Literal('rolled_back'),
+        Type.Literal('unknown'),
+      ]),
+    ),
+    errorCode: Type.Optional(
+      Type.Union([Type.Literal('mutation_outcome_unknown'), Type.Literal('tool_failed')]),
+    ),
+    provenance: Type.Object(
+      {
+        actorId: EntityIdSchema,
+        runId: EntityIdSchema,
+        documentId: DocumentIdSchema,
+      },
+      { additionalProperties: false },
+    ),
   },
   { additionalProperties: false },
 )
@@ -554,6 +641,8 @@ export type BootstrapRecord = Static<typeof BootstrapSchema>
 export type RuntimeBundleManifest = Static<typeof RuntimeBundleManifestSchema>
 export type RuntimeHealthProjection = Static<typeof RuntimeHealthProjectionSchema>
 export type ArtifactRef = Static<typeof ArtifactRefSchema>
+export type OfficeToolInvocation = Static<typeof OfficeToolInvocationSchema>
+export type OfficeToolReceipt = Static<typeof OfficeToolReceiptSchema>
 export type SessionMessageProjection = Static<typeof SessionMessageProjectionSchema>
 export type SessionSnapshot = Static<typeof SessionSnapshotSchema>
 export type RequestEnvelope = Static<typeof RequestEnvelopeSchema>
@@ -602,6 +691,16 @@ export function parseSessionPromptReceipt(value: unknown): SessionPromptReceipt 
 export function parseSessionAbortReceipt(value: unknown): SessionAbortReceipt {
   if (Value.Check(SessionAbortReceiptSchema, value)) return value
   throw new Error('session_abort_receipt_invalid')
+}
+
+export function parseOfficeToolInvocation(value: unknown): OfficeToolInvocation {
+  if (Value.Check(OfficeToolInvocationSchema, value)) return value
+  throw new Error('office_tool_invocation_invalid')
+}
+
+export function parseOfficeToolReceipt(value: unknown): OfficeToolReceipt {
+  if (Value.Check(OfficeToolReceiptSchema, value)) return value
+  throw new Error('office_tool_receipt_invalid')
 }
 
 export function parseSessionSnapshot(value: unknown): SessionSnapshot {

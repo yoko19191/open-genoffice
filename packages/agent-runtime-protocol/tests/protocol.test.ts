@@ -18,6 +18,8 @@ import {
   parseAgentSessionConnectReceipt,
   parseAgentSessionConnectRequest,
   parseEventEnvelope,
+  parseOfficeToolInvocation,
+  parseOfficeToolReceipt,
   parseProtocolFrame,
   parseRuntimeBundleManifest,
   parseRuntimeHealthProjection,
@@ -169,7 +171,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(9)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(10)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -597,5 +599,84 @@ describe('narrow renderer Agent Session bridge', () => {
     ['event secret field', () => parseEventEnvelope({ kind: 'event', token: 'secret' })],
   ])('rejects %s with a redacted stable error', (_label, parse) => {
     expect(parse).toThrowError(/(?:agent_session_.*|event_envelope)_invalid/)
+  })
+})
+
+describe('Runtime to Electron Office Tool contract', () => {
+  const invocation = {
+    operationId,
+    sessionId,
+    documentId,
+    runId: 'run-1',
+    toolCallId: 'tool-call-1',
+    toolId: 'office:docs:insert_content',
+    toolOrder: 2,
+    actor: { type: 'parent', actorId: 'parent-1', sessionId },
+    permissionSnapshot: {
+      snapshotId: 'snapshot-1',
+      createdForRunId: 'run-1',
+      permissionVersion: 'permission-1',
+      toolIds: ['office:docs:insert_content'],
+    },
+    input: { text: 'safe input' },
+  }
+
+  it('accepts an exact invoke request and renderer-free receipt', () => {
+    expect(parseOfficeToolInvocation(invocation)).toEqual(invocation)
+    expect(
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'request',
+          id: 'office-request-1',
+          method: 'office.tool.invoke',
+          correlationId: 'office-correlation-1',
+          params: invocation,
+        }),
+      ),
+    ).toMatchObject({ method: 'office.tool.invoke', params: { toolOrder: 2 } })
+    expect(
+      parseOfficeToolReceipt({
+        operationId,
+        toolCallId: 'tool-call-1',
+        toolId: 'office:docs:insert_content',
+        status: 'completed',
+        output: 'inserted',
+        mutationOutcome: 'committed',
+        provenance: { actorId: 'parent-1', runId: 'run-1', documentId },
+      }),
+    ).toMatchObject({ status: 'completed', mutationOutcome: 'committed' })
+  })
+
+  it.each([
+    ['unknown invocation field', { ...invocation, endpoint: '/tmp/runtime.sock' }],
+    ['negative order', { ...invocation, toolOrder: -1 }],
+    [
+      'mismatched actor shape',
+      { ...invocation, actor: { type: 'subagent', actorId: 'subagent-1' } },
+    ],
+    [
+      'unknown snapshot field',
+      {
+        ...invocation,
+        permissionSnapshot: { ...invocation.permissionSnapshot, token: 'secret' },
+      },
+    ],
+  ])('rejects %s before Electron dispatch', (_label, value) => {
+    expect(() => parseOfficeToolInvocation(value)).toThrowError('office_tool_invocation_invalid')
+  })
+
+  it('rejects malformed receipts without echoing executor data', () => {
+    expect(() =>
+      parseOfficeToolReceipt({
+        operationId,
+        toolCallId: 'tool-call-1',
+        toolId: 'office:docs:insert_content',
+        status: 'completed',
+        output: 'inserted',
+        mutationOutcome: 'maybe',
+        provenance: { actorId: 'parent-1', runId: 'run-1', documentId },
+      }),
+    ).toThrowError('office_tool_receipt_invalid')
   })
 })

@@ -64,3 +64,15 @@ export {
   type AgentSessionIpcRenderer,
   type AgentSessionPreloadApi,
 } from './agent-session-ipc'
+export {
+  OfficeToolBroker,
+  OfficeToolBrokerError,
+  type OfficeMutationBoundary,
+  type OfficeMutationOutcome,
+  type OfficePermissionSnapshot,
+  type OfficeToolActor,
+  type OfficeToolBrokerDependencies,
+  type OfficeToolDescriptor,
+  type OfficeToolInvocation,
+  type OfficeToolReceipt,
+} from './office-tool-broker'

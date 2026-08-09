@@ -36,3 +36,4 @@ export {
   type RunAbortSummary,
   type RunAbortTreeOptions,
 } from './run-abort-tree'
+export { ToolResultReorderBuffer } from './tool-result-reorder-buffer'
