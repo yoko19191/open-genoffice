@@ -1,4 +1,6 @@
+import { join } from 'node:path'
 import {
+  PackageLockService,
   ProjectTrustStore,
   ResourceActivationStore,
   createCapabilitySnapshot,
@@ -6,6 +8,7 @@ import {
   scanResourceCatalog,
   verifyCapabilitySnapshot,
   type CapabilitySnapshot,
+  type ResolvedPackage,
   type ResourceCatalog,
 } from '@genoffice/agent-resource'
 import type { ResourceCatalogProjection } from '@genoffice/agent-runtime-protocol'
@@ -28,6 +31,22 @@ export type PreparedRunResources = {
   snapshot: CapabilitySnapshot
   skillPaths: readonly string[]
   promptPaths: readonly string[]
+  extensionTools: readonly PreparedExtensionTool[]
+  packageDiagnostics: readonly PackageDiagnostic[]
+}
+
+export type PreparedExtensionTool = {
+  namespace: 'global' | 'project'
+  packageId: string
+  contentSha256: string
+  extensionPath: string
+  name: string
+  canonicalToolId: string
+}
+
+export type PackageDiagnostic = {
+  packageId: string
+  code: 'tool_alias_collision'
 }
 
 export type RunResourceServiceOptions = {
@@ -66,16 +85,24 @@ export class RunResourceService {
         resource.contentSha256,
     ) as Array<(typeof catalog.resources)[number] & { path: string; contentSha256: string }>
     const hasActiveSkill = activeResources.some((resource) => resource.kind === 'skill')
-    const toolIds = input.toolIds.filter(
-      (toolId) => toolId !== 'platform:resource:read' || hasActiveSkill,
-    )
+    const packageSelection = await this.selectPackageTools(input.projectRoot)
+    const toolIds = [
+      ...input.toolIds.filter((toolId) => toolId !== 'platform:resource:read' || hasActiveSkill),
+      ...packageSelection.extensionTools.map((tool) => tool.canonicalToolId),
+    ]
     const snapshot = createCapabilitySnapshot({
       createdForRunId: input.runId,
       model: input.model,
-      resources: activeResources.map((resource) => ({
-        resourceKey: resource.resourceKey,
-        contentSha256: resource.contentSha256,
-      })),
+      resources: [
+        ...activeResources.map((resource) => ({
+          resourceKey: resource.resourceKey,
+          contentSha256: resource.contentSha256,
+        })),
+        ...packageSelection.packages.map(({ namespace, resolved }) => ({
+          resourceKey: this.packageResourceKey(namespace, resolved.entry.packageId),
+          contentSha256: resolved.entry.contentSha256,
+        })),
+      ],
       toolIds,
       permissionVersion: this.permissionVersion(),
     })
@@ -92,6 +119,8 @@ export class RunResourceService {
           .filter((resource) => resource.kind === 'prompt')
           .map((resource) => resource.path),
       ),
+      extensionTools: Object.freeze(packageSelection.extensionTools),
+      packageDiagnostics: Object.freeze(packageSelection.diagnostics),
     })
   }
 
@@ -102,6 +131,13 @@ export class RunResourceService {
         .filter((resource) => resource.state === 'eligible' && resource.contentSha256 !== undefined)
         .map((resource) => [resource.resourceKey, resource.contentSha256!]),
     )
+    const packageSelection = await this.selectPackageTools(projectRoot)
+    for (const { namespace, resolved } of packageSelection.packages) {
+      authorized.set(
+        this.packageResourceKey(namespace, resolved.entry.packageId),
+        resolved.entry.contentSha256,
+      )
+    }
     await verifyCapabilitySnapshot(snapshot, {
       permissionVersion: this.permissionVersion(),
       isResourceAuthorized: async (resourceKey, contentSha256) =>
@@ -172,5 +208,79 @@ export class RunResourceService {
       ...(projectRoot ? { projectRoot, projectTrusted } : {}),
       isActivated: (descriptor) => this.activation.isActive(descriptor),
     })
+  }
+
+  private async selectPackageTools(projectRoot?: string): Promise<{
+    packages: Array<{ namespace: 'global' | 'project'; resolved: ResolvedPackage }>
+    extensionTools: PreparedExtensionTool[]
+    diagnostics: PackageDiagnostic[]
+  }> {
+    const packages: Array<{ namespace: 'global' | 'project'; resolved: ResolvedPackage }> = (
+      await new PackageLockService({
+        resourceHome: this.options.resourceHome,
+        deviceId: this.options.deviceId,
+        namespace: 'global',
+      }).resolveEligible()
+    ).map((resolved) => ({ namespace: 'global' as const, resolved }))
+    if (projectRoot) {
+      try {
+        const identity = await resolveProjectIdentity(projectRoot, this.options.deviceId)
+        if (await this.trust.isTrusted(identity)) {
+          packages.push(
+            ...(
+              await new PackageLockService({
+                resourceHome: this.options.resourceHome,
+                deviceId: this.options.deviceId,
+                namespace: 'project',
+                projectRoot,
+              }).resolveEligible()
+            ).map((resolved) => ({ namespace: 'project' as const, resolved })),
+          )
+        }
+      } catch {
+        // Invalid or unavailable projects never contribute executable resources.
+      }
+    }
+
+    const aliases = new Map<string, string[]>()
+    for (const { namespace, resolved } of packages) {
+      const packageKey = `${namespace}/${resolved.entry.packageId}`
+      for (const tool of resolved.tools) {
+        const owners = aliases.get(tool.name) ?? []
+        owners.push(packageKey)
+        aliases.set(tool.name, owners)
+      }
+    }
+    aliases.set('read', ['platform/resource-read', ...(aliases.get('read') ?? [])])
+    const collisions = new Set(
+      [...aliases.values()].filter((owners) => owners.length > 1).flatMap((owners) => owners),
+    )
+    const selectedPackages = packages.filter(
+      ({ namespace, resolved }) => !collisions.has(`${namespace}/${resolved.entry.packageId}`),
+    )
+    const extensionTools = selectedPackages.flatMap(({ namespace, resolved }) =>
+      resolved.tools.map((tool) => ({
+        namespace,
+        packageId: resolved.entry.packageId,
+        contentSha256: resolved.entry.contentSha256,
+        extensionPath: join(resolved.directory, tool.extension),
+        name: tool.name,
+        canonicalToolId: `platform:extension:${namespace}/${resolved.entry.packageId}/${tool.name}`,
+      })),
+    )
+    const diagnostics = packages
+      .filter(({ namespace, resolved }) =>
+        collisions.has(`${namespace}/${resolved.entry.packageId}`),
+      )
+      .map(({ resolved }) => ({
+        packageId: resolved.entry.packageId,
+        code: 'tool_alias_collision' as const,
+      }))
+      .sort((left, right) => left.packageId.localeCompare(right.packageId))
+    return { packages: selectedPackages, extensionTools, diagnostics }
+  }
+
+  private packageResourceKey(namespace: 'global' | 'project', packageId: string): string {
+    return `package:${namespace}/${packageId}`
   }
 }

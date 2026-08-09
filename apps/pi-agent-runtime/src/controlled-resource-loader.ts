@@ -1,21 +1,51 @@
 import { lstat } from 'node:fs/promises'
-import { DefaultResourceLoader, type ResourceLoader } from '@earendil-works/pi-coding-agent'
+import { resolve } from 'node:path'
+import {
+  DefaultResourceLoader,
+  createExtensionRuntime,
+  type Extension,
+  type LoadExtensionsResult,
+  type RegisteredTool,
+  type ResourceLoader,
+} from '@earendil-works/pi-coding-agent'
 
 type DefaultOptions = ConstructorParameters<typeof DefaultResourceLoader>[0]
 
 export type ControlledResourceLoaderOptions = Pick<
   DefaultOptions,
   'cwd' | 'agentDir' | 'settingsManager' | 'eventBus' | 'systemPrompt' | 'appendSystemPrompt'
->
+> & {
+  authorizeExtensionTool?: (canonicalToolId: string) => Promise<ExtensionToolProvenance>
+}
+
+export type ExtensionToolProvenance = {
+  toolId: string
+  actorId: string
+  runId: string
+  documentId: string
+}
+
+export type ControlledExtensionTool = {
+  extensionPath: string
+  name: string
+  canonicalToolId: string
+  packageId: string
+  contentSha256: string
+}
 
 export type ControlledResourcePaths = {
   skillPaths: readonly string[]
   promptPaths: readonly string[]
+  extensionTools?: readonly ControlledExtensionTool[]
 }
 
 export class ControlledResourceLoader implements ResourceLoader {
   private delegate: DefaultResourceLoader
-  private paths: ControlledResourcePaths = { skillPaths: [], promptPaths: [] }
+  private paths: Required<ControlledResourcePaths> = {
+    skillPaths: [],
+    promptPaths: [],
+    extensionTools: [],
+  }
 
   constructor(private readonly options: ControlledResourceLoaderOptions) {
     this.delegate = this.createDelegate()
@@ -25,6 +55,7 @@ export class ControlledResourceLoader implements ResourceLoader {
     this.paths = {
       skillPaths: [...paths.skillPaths],
       promptPaths: [...paths.promptPaths],
+      extensionTools: (paths.extensionTools ?? []).map((tool) => ({ ...tool })),
     }
   }
 
@@ -79,6 +110,7 @@ export class ControlledResourceLoader implements ResourceLoader {
     const candidate = this.createDelegate()
     await candidate.reload(options)
     if (
+      candidate.getExtensions().errors.length > 0 ||
       candidate.getSkills().diagnostics.length > 0 ||
       candidate.getPrompts().diagnostics.length > 0
     ) {
@@ -98,6 +130,10 @@ export class ControlledResourceLoader implements ResourceLoader {
           const metadata = await lstat(path)
           if (!metadata.isFile()) throw new Error('invalid')
         }),
+        ...this.paths.extensionTools.map(async ({ extensionPath }) => {
+          const metadata = await lstat(extensionPath)
+          if (!metadata.isFile()) throw new Error('invalid')
+        }),
       ])
     } catch {
       throw new Error('resource_loader_diagnostics')
@@ -105,8 +141,12 @@ export class ControlledResourceLoader implements ResourceLoader {
   }
 
   private createDelegate(): DefaultResourceLoader {
+    const extensionTools = this.paths.extensionTools.map((tool) => ({ ...tool }))
     return new DefaultResourceLoader({
       ...this.options,
+      additionalExtensionPaths: [
+        ...new Set(extensionTools.map(({ extensionPath }) => extensionPath)),
+      ],
       additionalSkillPaths: [...this.paths.skillPaths],
       additionalPromptTemplatePaths: [...this.paths.promptPaths],
       noExtensions: true,
@@ -114,6 +154,95 @@ export class ControlledResourceLoader implements ResourceLoader {
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
+      extensionsOverride: (base) => this.isolateExtensions(base, extensionTools),
     })
+  }
+
+  private isolateExtensions(
+    base: LoadExtensionsResult,
+    expectedTools: readonly ControlledExtensionTool[],
+  ): LoadExtensionsResult {
+    const errors = [...base.errors]
+    const expectedByPath = new Map<string, ControlledExtensionTool[]>()
+    for (const tool of expectedTools) {
+      const path = resolve(tool.extensionPath)
+      const entries = expectedByPath.get(path) ?? []
+      entries.push(tool)
+      expectedByPath.set(path, entries)
+    }
+    const loadedByPath = new Map(
+      base.extensions.map((extension) => [extension.resolvedPath, extension]),
+    )
+    const providerRegistrationAttempted =
+      base.runtime.pendingProviderRegistrations.length > 0 ||
+      base.runtime.pendingNativeProviderRegistrations.length > 0
+    const extensions: Extension[] = []
+    for (const [path, expected] of expectedByPath) {
+      const extension = loadedByPath.get(path)
+      if (!extension) {
+        errors.push({ path, error: 'Declared Extension did not load' })
+        continue
+      }
+      const registeredNames = [...extension.tools.keys()].sort()
+      const expectedNames = expected.map(({ name }) => name).sort()
+      const hasUndeclaredAuthority =
+        extension.handlers.size > 0 ||
+        extension.commands.size > 0 ||
+        extension.flags.size > 0 ||
+        extension.shortcuts.size > 0 ||
+        extension.messageRenderers.size > 0 ||
+        (extension.entryRenderers?.size ?? 0) > 0 ||
+        extension.markdownTransformer !== undefined ||
+        providerRegistrationAttempted
+      if (
+        hasUndeclaredAuthority ||
+        registeredNames.length !== expectedNames.length ||
+        registeredNames.some((name, index) => name !== expectedNames[index])
+      ) {
+        errors.push({ path, error: 'Extension authority does not match Package manifest' })
+        continue
+      }
+      const tools = new Map<string, RegisteredTool>()
+      for (const permission of expected) {
+        const registered = extension.tools.get(permission.name)!
+        tools.set(permission.name, {
+          sourceInfo: registered.sourceInfo,
+          definition: {
+            ...registered.definition,
+            execute: async (toolCallId, params, signal, onUpdate, context) => {
+              const provenance = await this.options.authorizeExtensionTool?.(
+                permission.canonicalToolId,
+              )
+              if (!provenance) throw new Error('extension_tool_not_authorized')
+              const result = await registered.definition.execute(
+                toolCallId,
+                params,
+                signal,
+                onUpdate,
+                context,
+              )
+              return {
+                ...result,
+                details: { extension: result.details, provenance },
+              }
+            },
+          },
+        })
+      }
+      extensions.push({
+        path: extension.path,
+        resolvedPath: extension.resolvedPath,
+        sourceInfo: extension.sourceInfo,
+        handlers: new Map(),
+        tools,
+        messageRenderers: new Map(),
+        entryRenderers: new Map(),
+        commands: new Map(),
+        flags: new Map(),
+        shortcuts: new Map(),
+      })
+    }
+    base.runtime.invalidate('extension_runtime_isolated')
+    return { extensions, errors, runtime: createExtensionRuntime() }
   }
 }

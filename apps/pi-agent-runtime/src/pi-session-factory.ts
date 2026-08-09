@@ -23,6 +23,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
 } from '@earendil-works/pi-coding-agent'
+import type { CapabilitySnapshot } from '@genoffice/agent-resource'
 import type { RunResourceService, RunModelMetadata } from './run-resource-service'
 import { ControlledResourceLoader } from './controlled-resource-loader'
 import { ResourceReadBoundary } from './resource-read-boundary'
@@ -156,6 +157,8 @@ export async function createDeterministicPiSession(
     retry: { enabled: false, provider: { maxRetries: 0 } },
     compaction: { enabled: false, keepRecentTokens: 1, reserveTokens: 32 },
   })
+  let extensionExecution:
+    { snapshot: CapabilitySnapshot; projectRoot?: string; runId: string } | undefined
   const resourceLoader = new ControlledResourceLoader({
     cwd: options.cwd,
     agentDir: options.agentDir,
@@ -163,6 +166,28 @@ export async function createDeterministicPiSession(
     systemPrompt: managedModel
       ? 'You are the GenOffice document assistant. Use only the capabilities provided for this session.'
       : 'You are the isolated GenOffice runtime contract agent.',
+    ...(managedModel
+      ? {
+          authorizeExtensionTool: async (canonicalToolId: string) => {
+            if (
+              !extensionExecution ||
+              !extensionExecution.snapshot.toolIds.includes(canonicalToolId)
+            ) {
+              throw new Error('extension_tool_not_authorized')
+            }
+            await options.runResources!.verify(
+              extensionExecution.snapshot,
+              extensionExecution.projectRoot,
+            )
+            return {
+              toolId: canonicalToolId,
+              actorId: options.sessionId,
+              runId: extensionExecution.runId,
+              documentId: options.documentId,
+            }
+          },
+        }
+      : {}),
   })
   await resourceLoader.reload()
   const resourceReadBoundary = managedModel
@@ -234,10 +259,10 @@ export async function createDeterministicPiSession(
     sessionManager,
     settingsManager,
     resourceLoader,
-    noTools: 'all',
-    tools: managedModel ? ['read'] : ['genoffice_contract_probe'],
+    ...(managedModel ? {} : { noTools: 'all' as const, tools: ['genoffice_contract_probe'] }),
     customTools: managedModel ? [resourceReadTool!] : [contractProbe],
   })
+  if (managedModel) session.setActiveToolsByName([])
 
   return {
     session,
@@ -257,14 +282,23 @@ export async function createDeterministicPiSession(
         resourceLoader.configure({
           skillPaths: prepared.skillPaths,
           promptPaths: prepared.promptPaths,
+          extensionTools: prepared.extensionTools,
         })
+        extensionExecution = {
+          snapshot: prepared.snapshot,
+          ...(context.projectRoot ? { projectRoot: context.projectRoot } : {}),
+          runId: context.runId,
+        }
         resourceReadBoundary!.configure({
           snapshot: prepared.snapshot,
           skillRoots: prepared.skillPaths,
           ...(context.projectRoot ? { projectRoot: context.projectRoot } : {}),
         })
         await session.reload()
-        session.setActiveToolsByName(prepared.skillPaths.length > 0 ? ['read'] : [])
+        session.setActiveToolsByName([
+          ...(prepared.skillPaths.length > 0 ? ['read'] : []),
+          ...prepared.extensionTools.map(({ name }) => name),
+        ])
         sessionManager.appendCustomEntry('genoffice.capability-snapshot', prepared.snapshot)
         await options.runResources.verify(prepared.snapshot, context.projectRoot)
         if (signal.aborted) return undefined

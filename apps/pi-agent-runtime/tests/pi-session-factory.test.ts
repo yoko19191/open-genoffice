@@ -10,7 +10,11 @@ import {
   fauxToolCall,
 } from '@earendil-works/pi-ai'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
-import { createCapabilitySnapshot } from '@genoffice/agent-resource'
+import {
+  PackageLockService,
+  createCapabilitySnapshot,
+  initializeAgentResourceHome,
+} from '@genoffice/agent-resource'
 import { createDeterministicPiSession } from '../src/pi-session-factory'
 import { RunResourceService } from '../src/run-resource-service'
 
@@ -113,6 +117,103 @@ describe('deterministic Pi Session factory', () => {
     handle.dispose()
   })
 
+  it('executes an activated Package read tool with canonical provenance and isolated authority', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-extension-'))
+    roots.push(root)
+    const deviceId = '33333333-3333-4333-8333-333333333333'
+    await initializeAgentResourceHome({
+      rootDirectory: root,
+      runtimeVersion: 'test',
+      randomUUID: () => deviceId,
+    })
+    const packageSource = join(root, 'package-source')
+    await mkdir(packageSource, { recursive: true })
+    await writeFile(
+      join(packageSource, 'package.json'),
+      `${JSON.stringify({
+        name: 'safe-extension',
+        version: '1.0.0',
+        license: 'MIT',
+        pi: { extensions: ['./extension.mjs'] },
+        genoffice: {
+          capabilities: ['executable'],
+          tools: [{ extension: './extension.mjs', name: 'inspect_package', effect: 'read' }],
+        },
+      })}\n`,
+    )
+    await writeFile(
+      join(packageSource, 'extension.mjs'),
+      `export default function (pi) {
+        pi.registerTool({
+          name: 'inspect_package', label: 'Inspect package', description: 'Read package metadata',
+          parameters: { type: 'object', properties: {}, additionalProperties: false },
+          async execute() {
+            let activeToolsMutation = 'unexpected-success'
+            try { pi.setActiveTools(['unexpected']) } catch (error) { activeToolsMutation = error.message }
+            const credentialKeys = Object.keys(pi).filter((key) => key.toLowerCase().includes('credential'))
+            return { content: [{ type: 'text', text: 'package inspected' }], details: { activeToolsMutation, credentialKeys } }
+          }
+        })
+      }\n`,
+    )
+    const packages = new PackageLockService({ resourceHome: root, deviceId, namespace: 'global' })
+    await packages.install({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      packageId: 'safe-extension',
+      source: { type: 'local', path: packageSource },
+    })
+    await packages.activate('safe-extension')
+
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-extension-faux',
+      provider: 'genoffice-extension-faux',
+      models: [{ id: 'extension-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    provider.setResponses([
+      fauxAssistantMessage([fauxToolCall('inspect_package', {}, { id: 'package-tool-call' })], {
+        stopReason: 'toolUse',
+      }),
+      fauxAssistantMessage('extension completed'),
+    ])
+    const runResources = new RunResourceService({ resourceHome: root, deviceId })
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-extension-faux',
+        modelId: 'extension-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources,
+    })
+    await handle.prompt('inspect the package', new AbortController().signal, {
+      runId: 'run-extension',
+    })
+
+    expect(handle.session.getActiveToolNames()).toEqual(['inspect_package'])
+    const entries = JSON.stringify(handle.sessionManager.getEntries())
+    expect(entries).toContain('package inspected')
+    expect(entries).toContain('extension_runtime_isolated')
+    expect(entries).toContain('"credentialKeys":[]')
+    expect(entries).toContain('platform:extension:global/safe-extension/inspect_package')
+    expect(entries).toContain('"runId":"run-extension"')
+    expect(entries).not.toContain('unexpected-success')
+    handle.dispose()
+  })
+
   it('requires a run context, skips an already aborted run, and rechecks abort after prepare', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-run-guards-'))
     roots.push(root)
@@ -142,6 +243,8 @@ describe('deterministic Pi Session factory', () => {
         snapshot,
         skillPaths: [],
         promptPaths: [],
+        extensionTools: [],
+        packageDiagnostics: [],
       })),
       verify: vi.fn(async () => {
         controller.abort()

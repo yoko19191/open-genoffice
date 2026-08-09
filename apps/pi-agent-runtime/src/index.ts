@@ -81,15 +81,19 @@ export {
 } from './session-recovery'
 export {
   RunResourceService,
+  type PackageDiagnostic,
   type PrepareRunResourcesInput,
+  type PreparedExtensionTool,
   type PreparedRunResources,
   type RunModelMetadata,
   type RunResourceServiceOptions,
 } from './run-resource-service'
 export {
   ControlledResourceLoader,
+  type ControlledExtensionTool,
   type ControlledResourceLoaderOptions,
   type ControlledResourcePaths,
+  type ExtensionToolProvenance,
 } from './controlled-resource-loader'
 export {
   ResourceReadBoundary,

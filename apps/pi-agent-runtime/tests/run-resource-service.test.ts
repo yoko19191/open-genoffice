@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  PackageLockService,
   ProjectTrustStore,
   initializeAgentResourceHome,
   resolveProjectIdentity,
@@ -50,6 +51,28 @@ async function fixture() {
     '---\nname: project-skill\ndescription: project\n---\nProject body\n',
   )
   return { resourceHome, projectRoot }
+}
+
+async function packageSource(rootDirectory: string, packageId: string, toolName: string) {
+  const directory = join(rootDirectory, `${packageId}-source`)
+  await write(
+    join(directory, 'package.json'),
+    `${JSON.stringify({
+      name: packageId,
+      version: '1.0.0',
+      license: 'MIT',
+      pi: { extensions: ['./extension.mjs'] },
+      genoffice: {
+        capabilities: ['executable'],
+        tools: [{ extension: './extension.mjs', name: toolName, effect: 'read' }],
+      },
+    })}\n`,
+  )
+  await write(
+    join(directory, 'extension.mjs'),
+    `export default function (pi) { pi.registerTool({ name: '${toolName}', label: 'Read', description: 'Read', parameters: { type: 'object', properties: {} }, async execute() { return { content: [], details: {} } } }) }\n`,
+  )
+  return directory
 }
 
 describe('RunResourceService', () => {
@@ -272,5 +295,137 @@ describe('RunResourceService', () => {
         }),
       ]),
     )
+  })
+
+  it('adds activated Package tools and immutable hashes only to the next run snapshot', async () => {
+    const { resourceHome } = await fixture()
+    const packages = new PackageLockService({ resourceHome, deviceId, namespace: 'global' })
+    await packages.install({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      packageId: 'safe-extension',
+      source: {
+        type: 'local',
+        path: await packageSource(resourceHome, 'safe-extension', 'inspect_package'),
+      },
+    })
+    const service = new RunResourceService({ resourceHome, deviceId })
+    const before = await service.prepare({
+      runId: 'run-before-activation',
+      model: { providerId: 'local', modelId: 'model', capabilities: ['tool-use'] },
+      toolIds: [],
+    })
+    expect(before.extensionTools).toEqual([])
+    expect(before.snapshot.resourceHashes).not.toHaveProperty('package:global/safe-extension')
+
+    await packages.activate('safe-extension')
+    const after = await service.prepare({
+      runId: 'run-after-activation',
+      model: { providerId: 'local', modelId: 'model', capabilities: ['tool-use'] },
+      toolIds: [],
+    })
+    expect(after.extensionTools).toEqual([
+      expect.objectContaining({
+        packageId: 'safe-extension',
+        name: 'inspect_package',
+        canonicalToolId: 'platform:extension:global/safe-extension/inspect_package',
+        extensionPath: expect.stringContaining('extension.mjs'),
+      }),
+    ])
+    expect(after.snapshot.resourceHashes).toMatchObject({
+      'package:global/safe-extension': expect.stringMatching(/^[0-9a-f]{64}$/),
+    })
+    expect(after.snapshot.toolIds).toContain(
+      'platform:extension:global/safe-extension/inspect_package',
+    )
+    expect(before.snapshot.toolIds).not.toContain(
+      'platform:extension:global/safe-extension/inspect_package',
+    )
+    await expect(service.verify(after.snapshot)).resolves.toBeUndefined()
+    await packages.disable('safe-extension')
+    await expect(service.verify(after.snapshot)).rejects.toMatchObject({
+      code: 'capability_revoked',
+    })
+  })
+
+  it('isolates every Package involved in a model alias collision', async () => {
+    const { resourceHome } = await fixture()
+    const packages = new PackageLockService({ resourceHome, deviceId, namespace: 'global' })
+    for (const [index, packageId] of ['first-extension', 'second-extension'].entries()) {
+      await packages.install({
+        operationId: `${index + 3}3333333-3333-4333-8333-333333333333`,
+        packageId,
+        source: {
+          type: 'local',
+          path: await packageSource(resourceHome, packageId, 'shared_alias'),
+        },
+      })
+      await packages.activate(packageId)
+    }
+    await packages.install({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      packageId: 'reserved-extension',
+      source: {
+        type: 'local',
+        path: await packageSource(resourceHome, 'reserved-extension', 'read'),
+      },
+    })
+    await packages.activate('reserved-extension')
+    const service = new RunResourceService({ resourceHome, deviceId })
+    const prepared = await service.prepare({
+      runId: 'run-collision',
+      model: { providerId: 'local', modelId: 'model', capabilities: ['tool-use'] },
+      toolIds: [],
+    })
+    expect(prepared.extensionTools).toEqual([])
+    expect(prepared.packageDiagnostics).toEqual([
+      { packageId: 'first-extension', code: 'tool_alias_collision' },
+      { packageId: 'reserved-extension', code: 'tool_alias_collision' },
+      { packageId: 'second-extension', code: 'tool_alias_collision' },
+    ])
+    expect(Object.keys(prepared.snapshot.resourceHashes)).not.toEqual(
+      expect.arrayContaining([
+        'package:global/first-extension',
+        'package:global/reserved-extension',
+        'package:global/second-extension',
+      ]),
+    )
+  })
+
+  it('loads project Package tools only after Project Trust and project Activation', async () => {
+    const { resourceHome, projectRoot } = await fixture()
+    const projectPackages = new PackageLockService({
+      resourceHome,
+      deviceId,
+      namespace: 'project',
+      projectRoot,
+    })
+    await projectPackages.install({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      packageId: 'project-extension',
+      source: {
+        type: 'local',
+        path: await packageSource(projectRoot, 'project-extension', 'inspect_project'),
+      },
+    })
+    await projectPackages.activate('project-extension')
+    const service = new RunResourceService({ resourceHome, deviceId })
+    const input = {
+      model: { providerId: 'local', modelId: 'model', capabilities: ['tool-use'] },
+      toolIds: [] as string[],
+    }
+    expect(
+      (await service.prepare({ ...input, runId: 'run-untrusted', projectRoot })).extensionTools,
+    ).toEqual([])
+    await new ProjectTrustStore({ rootDirectory: resourceHome, deviceId }).grant(
+      await resolveProjectIdentity(projectRoot, deviceId),
+    )
+    expect(
+      (await service.prepare({ ...input, runId: 'run-trusted', projectRoot })).extensionTools,
+    ).toEqual([
+      expect.objectContaining({
+        packageId: 'project-extension',
+        canonicalToolId: 'platform:extension:project/project-extension/inspect_project',
+      }),
+    ])
   })
 })
