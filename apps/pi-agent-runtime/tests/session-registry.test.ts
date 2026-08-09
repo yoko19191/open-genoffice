@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -425,6 +425,127 @@ describe('document-bound Pi Session registry', () => {
     })
     expect(subscription).toMatchObject({ resetRequired: false, events: [] })
     await reopened.shutdown()
+  })
+
+  it('interrupts a crashed run once, marks an uncertain mutation, and accepts a new prompt', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-crash-recovery-'))
+    roots.push(dataRoot)
+    const sessionFile = join(dataRoot, 'fake-session.jsonl')
+    const blocked = new Promise<void>(() => {})
+    const crashedPi = fakePiSession({
+      sessionFile,
+      prompt: async (emit) => {
+        emit({ type: 'agent_start' })
+        await blocked
+      },
+    })
+    let firstUuid = 0
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-before-crash',
+      cursorSecret: Buffer.alloc(32, 21),
+      randomUUID: () => `${String(++firstUuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => crashedPi.handle as never,
+    })
+    const created = await first.create({ operationId, documentId })
+    const prompted = await first.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'crash during an Office mutation',
+    })
+    await vi.waitFor(async () => {
+      expect(
+        (await first.readJournal(created.sessionId)).some((item) => item.type === 'run.started'),
+      ).toBe(true)
+    })
+    const beforeCrash = await first.readJournal(created.sessionId)
+    const journalPath = join(dataRoot, 'state', 'session-journals', `${created.sessionId}.jsonl`)
+    for (const [offset, type] of ['tool.requested', 'tool.started'].entries()) {
+      await appendFile(
+        journalPath,
+        `${JSON.stringify({
+          protocolVersion: '1',
+          kind: 'event',
+          eventId: `crash-tool-${offset}`,
+          instanceId: 'instance-before-crash',
+          sessionId: created.sessionId,
+          documentId,
+          runId: prompted.runId,
+          sequence: beforeCrash.length + offset + 1,
+          cursor: `old-tool-cursor-${offset}`,
+          occurredAt: '2026-08-09T12:00:01.000Z',
+          type,
+          payload: {
+            toolCallId: 'office-write',
+            toolName: 'office:docs:replace',
+            effect: 'mutation',
+          },
+        })}\n`,
+      )
+    }
+
+    const recoveredPi = fakePiSession({ sessionFile, prompt: async () => {} })
+    let secondUuid = 100
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-after-crash',
+      cursorSecret: Buffer.alloc(32, 22),
+      randomUUID: () => `${String(++secondUuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => recoveredPi.handle as never,
+    })
+    const reopened = await second.open({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(reopened.snapshot.activeRun).toEqual({ runId: prompted.runId, state: 'interrupted' })
+    expect(
+      await second.subscribe({
+        sessionId: created.sessionId,
+        documentId,
+        afterCursor: prompted.acceptedCursor,
+      }),
+    ).toMatchObject({ resetRequired: true, events: [] })
+    const recoveredJournal = await second.readJournal(created.sessionId)
+    expect(recoveredJournal.filter((item) => item.type === 'run.interrupted')).toHaveLength(1)
+    expect(recoveredJournal.find((item) => item.type === 'tool.failed')).toMatchObject({
+      runId: prompted.runId,
+      payload: {
+        toolCallId: 'office-write',
+        mutationOutcome: 'unknown',
+        code: 'mutation_outcome_unknown',
+        documentNeedsReview: true,
+      },
+    })
+
+    await second.prompt({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'continue after reviewing the document',
+    })
+    await second.waitForIdle(created.sessionId)
+    await second.shutdown()
+
+    const third = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-third-start',
+      cursorSecret: Buffer.alloc(32, 23),
+      randomUUID: () => '99999999-9999-4999-8999-999999999999',
+      createPiSession: async () => fakePiSession({ sessionFile }).handle as never,
+    })
+    await third.open({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(
+      (await third.readJournal(created.sessionId)).filter(
+        (item) => item.type === 'run.interrupted',
+      ),
+    ).toHaveLength(1)
+    await third.shutdown()
   })
 
   it('covers reset cursors, missing sessions, busy runs, and provider failures without duplicating work', async () => {

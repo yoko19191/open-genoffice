@@ -80,6 +80,7 @@ export type PiRuntimeManagerOptions = {
   parentPid: number
   resourceHome?: string
   diagnostic?: (code: string) => void
+  onCrash?: () => void
 }
 
 export type SessionCreateRequest = { operationId: string; documentId: string }
@@ -223,6 +224,11 @@ export class PiRuntimeManager {
           this.rejectPending('runtime_crashed')
           this.options.diagnostic?.('runtime_crashed')
           void this.cleanup()
+            .then(
+              () => this.options.onCrash?.(),
+              () => this.options.onCrash?.(),
+            )
+            .catch(() => {})
         }
       })
       this.child.stdin.write(`${JSON.stringify(bootstrap)}\n`)

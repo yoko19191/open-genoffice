@@ -44,7 +44,14 @@ export {
   connectRuntimeEndpoint,
   createNodePiRuntimeDependencies,
   createPiRuntimeManager,
+  createPiRuntimeSupervisor,
 } from './pi-runtime-node'
+export {
+  PiRuntimeSupervisor,
+  type PiRuntimeSupervisorDependencies,
+  type PiRuntimeSupervisorState,
+  type SupervisedPiRuntimeManager,
+} from './pi-runtime-supervisor'
 export {
   PiRuntimeService,
   createInstalledPiRuntimeService,

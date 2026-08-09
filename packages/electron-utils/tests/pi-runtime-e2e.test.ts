@@ -4,7 +4,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseProtocolFrame } from '@genoffice/agent-runtime-protocol'
 import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
 import {
@@ -12,7 +12,12 @@ import {
   createAgentSessionProjection,
   restoreAgentSessionProjection,
 } from '@genoffice/ui/agent-session-projection'
-import { AgentSessionBroker, createInstalledPiRuntimeService, createPiRuntimeManager } from '../src'
+import {
+  AgentSessionBroker,
+  createInstalledPiRuntimeService,
+  createPiRuntimeManager,
+  createPiRuntimeSupervisor,
+} from '../src'
 
 const execFileAsync = promisify(execFile)
 
@@ -290,6 +295,133 @@ describe('copied Pi Runtime end to end', () => {
 
     await rm(root, { recursive: true, force: true })
   }, 15_000)
+
+  it('restarts after a forced process crash and interrupts the persisted run without replay', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pi-runtime-crash-e2e-'))
+    const runtimeDirectoriesBefore = new Set(
+      (await readdir(tmpdir())).filter((name) => name.startsWith('open-genoffice-runtime-')),
+    )
+    const verified = await buildCopiedRuntime(root)
+    const resourceHome = join(root, 'resource-home')
+    const supervisor = createPiRuntimeSupervisor({
+      bundle: verified,
+      platform: process.platform,
+      parentPid: process.pid,
+      resourceHome,
+      startupTimeoutMs: 5_000,
+    })
+    const coldStartedAt = Date.now()
+    const firstHealth = await supervisor.start()
+    expect(Date.now() - coldStartedAt).toBeLessThan(5_000)
+
+    const documentId = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1'
+    const created = await supervisor.createSession({ operationId: randomUUID(), documentId })
+    let resolveStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve
+    })
+    const unsubscribe = supervisor.onSessionEvent((event) => {
+      if (event.sessionId === created.sessionId && event.type === 'run.started') resolveStarted()
+    })
+    const prompted = await supervisor.promptSession({
+      operationId: randomUUID(),
+      sessionId: created.sessionId,
+      documentId,
+      text: 'force a process crash during the active model response',
+    })
+    await started
+
+    const restartStartedAt = Date.now()
+    process.kill(firstHealth.pid, 'SIGKILL')
+    await vi.waitFor(() => expect(supervisor.state).not.toBe('ready'))
+    const secondHealth = await supervisor.waitUntilReady()
+    expect(Date.now() - restartStartedAt).toBeLessThan(8_000)
+    expect(secondHealth.instanceId).not.toBe(firstHealth.instanceId)
+    expect(secondHealth.pid).not.toBe(firstHealth.pid)
+    expect(() => process.kill(firstHealth.pid, 0)).toThrow()
+
+    const reopened = await supervisor.openSession({
+      operationId: randomUUID(),
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(reopened.snapshot.activeRun).toEqual({ runId: prompted.runId, state: 'interrupted' })
+    await expect(
+      supervisor.subscribeSession({
+        sessionId: created.sessionId,
+        documentId,
+        afterCursor: prompted.acceptedCursor,
+      }),
+    ).resolves.toMatchObject({ resetRequired: true, events: [] })
+
+    const journalPath = join(
+      resourceHome,
+      'state',
+      'session-journals',
+      `${created.sessionId}.jsonl`,
+    )
+    const recoveredJournal = (await readFile(journalPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map(parseProtocolFrame)
+    expect(
+      recoveredJournal.filter(
+        (event) =>
+          event.kind === 'event' &&
+          event.runId === prompted.runId &&
+          event.type === 'run.interrupted',
+      ),
+    ).toHaveLength(1)
+    expect(
+      recoveredJournal.some(
+        (event) =>
+          event.kind === 'event' &&
+          event.runId === prompted.runId &&
+          event.type === 'run.completed',
+      ),
+    ).toBe(false)
+
+    let resolveNextStarted!: () => void
+    let resolveAborted!: () => void
+    const nextStarted = new Promise<void>((resolve) => {
+      resolveNextStarted = resolve
+    })
+    const aborted = new Promise<void>((resolve) => {
+      resolveAborted = resolve
+    })
+    const unsubscribeNextRun = supervisor.onSessionEvent((event) => {
+      if (event.sessionId !== created.sessionId) return
+      if (event.type === 'run.started') resolveNextStarted()
+      if (event.type === 'run.aborted') resolveAborted()
+    })
+    const nextPrompt = await supervisor.promptSession({
+      operationId: randomUUID(),
+      sessionId: created.sessionId,
+      documentId,
+      text: 'continue only after the interrupted run is visible',
+    })
+    await nextStarted
+    await expect(
+      supervisor.abortSession({
+        operationId: randomUUID(),
+        sessionId: created.sessionId,
+        documentId,
+        runId: nextPrompt.runId,
+      }),
+    ).resolves.toMatchObject({ state: 'cancelling' })
+    await aborted
+    unsubscribeNextRun()
+    unsubscribe()
+    await supervisor.shutdown()
+
+    const runtimeDirectoriesAfter = (await readdir(tmpdir())).filter((name) =>
+      name.startsWith('open-genoffice-runtime-'),
+    )
+    expect(runtimeDirectoriesAfter.filter((name) => !runtimeDirectoriesBefore.has(name))).toEqual(
+      [],
+    )
+    await rm(root, { recursive: true, force: true })
+  }, 30_000)
 
   it('runs debug stdio with a disposable HOME, fake credentials, and blocked network', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-runtime-debug-e2e-'))

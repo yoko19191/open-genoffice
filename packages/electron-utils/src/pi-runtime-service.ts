@@ -11,7 +11,7 @@ import {
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
-import { createPiRuntimeManager } from './pi-runtime-node'
+import { createPiRuntimeSupervisor } from './pi-runtime-node'
 import type {
   PiRuntimeManager,
   SessionBoundRequest,
@@ -173,6 +173,6 @@ export function createInstalledPiRuntimeService(
   return new PiRuntimeService(serviceOptions, {
     verifyBundle: verifyPiRuntimeBundle,
     createManager: (managerOptions) =>
-      createPiRuntimeManager({ ...managerOptions, startupTimeoutMs }),
+      createPiRuntimeSupervisor({ ...managerOptions, startupTimeoutMs }),
   })
 }

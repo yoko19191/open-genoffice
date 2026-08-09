@@ -20,6 +20,7 @@ import {
   type AbortDescendantRegistration,
   type RunAbortSummary,
 } from './run-abort-tree'
+import { planSessionRecovery, type SessionRecoveryPlan } from './session-recovery'
 
 type Binding = {
   version: 1
@@ -508,7 +509,52 @@ export class SessionRegistry {
     } satisfies SessionRecord
     record.unsubscribe = pi.subscribe((event) => this.projectPiEvent(record, event))
     this.records.set(binding.sessionId, record)
+    await this.recoverInterruptedRun(record, planSessionRecovery(previous))
     return record
+  }
+
+  private async recoverInterruptedRun(
+    record: SessionRecord,
+    recovery: SessionRecoveryPlan | undefined,
+  ): Promise<void> {
+    if (!recovery) return
+    record.activeRun = {
+      runId: recovery.runId,
+      state: 'interrupted',
+      abortTree: new RunAbortTree({
+        cooperativeAbortMs: this.cooperativeAbortMs,
+        forceAbortMs: this.forceAbortMs,
+      }),
+    }
+    for (const tool of recovery.tools) {
+      await this.appendEvent(
+        record,
+        tool.terminalType,
+        {
+          toolCallId: tool.toolCallId,
+          ...(tool.toolName ? { toolName: tool.toolName } : {}),
+          mutationOutcome: tool.mutationOutcome,
+          recovered: true,
+          ...(tool.mutationOutcome === 'unknown'
+            ? { code: 'mutation_outcome_unknown', documentNeedsReview: true }
+            : {}),
+        },
+        recovery.runId,
+      )
+    }
+    await this.appendEvent(
+      record,
+      'run.interrupted',
+      {
+        reason: recovery.reason,
+        documentNeedsReview: recovery.documentNeedsReview,
+        tools: recovery.tools.map(({ toolCallId, mutationOutcome }) => ({
+          toolCallId,
+          mutationOutcome,
+        })),
+      },
+      recovery.runId,
+    )
   }
 
   private projectPiEvent(record: SessionRecord, event: AgentSessionEvent) {

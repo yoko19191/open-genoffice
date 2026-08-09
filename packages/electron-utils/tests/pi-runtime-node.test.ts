@@ -11,6 +11,7 @@ import {
   connectRuntimeEndpoint,
   createNodePiRuntimeDependencies,
   createPiRuntimeManager,
+  createPiRuntimeSupervisor,
   createPrivateRuntimeEndpoint,
   PiRuntimeManagerError,
 } from '../src'
@@ -79,5 +80,15 @@ describe('Node Pi Runtime adapter', () => {
       startupTimeoutMs: 10,
     })
     expect(manager.state).toBe('stopped')
+  })
+
+  it('constructs the production supervisor that owns fresh manager instances', () => {
+    const supervisor = createPiRuntimeSupervisor({
+      bundle: verifiedBundle(),
+      platform: process.platform,
+      parentPid: process.pid,
+      startupTimeoutMs: 10,
+    })
+    expect(supervisor.state).toBe('stopped')
   })
 })

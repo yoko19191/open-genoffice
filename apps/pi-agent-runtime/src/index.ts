@@ -37,3 +37,9 @@ export {
   type RunAbortTreeOptions,
 } from './run-abort-tree'
 export { ToolResultReorderBuffer } from './tool-result-reorder-buffer'
+export {
+  planSessionRecovery,
+  type RecoveredMutationOutcome,
+  type RecoveredTool,
+  type SessionRecoveryPlan,
+} from './session-recovery'

@@ -10,6 +10,7 @@ import {
   type PiRuntimeManagerOptions,
   type PiRuntimeSocket,
 } from './pi-runtime-manager'
+import { PiRuntimeSupervisor } from './pi-runtime-supervisor'
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
@@ -74,4 +75,17 @@ export function createPiRuntimeManager(
 ): PiRuntimeManager {
   const { startupTimeoutMs, ...managerOptions } = options
   return new PiRuntimeManager(managerOptions, createNodePiRuntimeDependencies(startupTimeoutMs))
+}
+
+export function createPiRuntimeSupervisor(
+  options: PiRuntimeManagerOptions & { startupTimeoutMs?: number | undefined },
+): PiRuntimeSupervisor {
+  const { startupTimeoutMs, ...managerOptions } = options
+  return new PiRuntimeSupervisor({
+    createManager: (onCrash) =>
+      new PiRuntimeManager(
+        { ...managerOptions, onCrash },
+        createNodePiRuntimeDependencies(startupTimeoutMs),
+      ),
+  })
 }

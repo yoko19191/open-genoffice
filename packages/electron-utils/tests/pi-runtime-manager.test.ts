@@ -500,15 +500,25 @@ describe('PiRuntimeManager', () => {
   it('marks an unexpected child exit as crashed', async () => {
     const harness = managerHarness()
     const diagnostic = vi.fn()
+    const lifecycle: string[] = []
+    harness.cleanup.mockImplementation(async () => {
+      lifecycle.push('cleanup')
+    })
+    const onCrash = vi.fn(() => {
+      lifecycle.push('crash')
+    })
     const manager = new PiRuntimeManager(
-      { bundle: verifiedBundle(), platform: 'linux', parentPid: 7070, diagnostic },
+      { bundle: verifiedBundle(), platform: 'linux', parentPid: 7070, diagnostic, onCrash },
       harness.dependencies,
     )
     await manager.start()
     harness.child.emit('exit', 70, null)
-    await vi.waitFor(() => expect(manager.state).toBe('crashed'))
+    await vi.waitFor(() => expect(onCrash).toHaveBeenCalledOnce())
+    harness.child.emit('exit', 70, null)
     expect(diagnostic).toHaveBeenCalledWith('runtime_crashed')
     expect(harness.cleanup).toHaveBeenCalledOnce()
+    expect(onCrash).toHaveBeenCalledOnce()
+    expect(lifecycle).toEqual(['cleanup', 'crash'])
   })
 })
 
