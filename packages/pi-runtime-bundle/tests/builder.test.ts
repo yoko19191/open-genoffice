@@ -157,8 +157,9 @@ describe('Pi Runtime bundle builder', () => {
 
   it('emits the frozen Windows and Linux manifest layouts', async () => {
     const actualPlatform = process.platform
-    for (const platform of ['win32', 'linux'] as const) {
-      if (platform === actualPlatform) continue
+    const representablePlatforms =
+      actualPlatform === 'win32' ? (['win32'] as const) : (['win32', 'linux'] as const)
+    for (const platform of representablePlatforms) {
       Object.defineProperty(process, 'platform', { configurable: true, value: platform })
       try {
         const options = await inputs()

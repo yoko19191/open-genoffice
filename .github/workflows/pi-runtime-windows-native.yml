@@ -67,6 +67,7 @@ jobs:
           npm run typecheck -w @genoffice/electron-utils
 
       - name: Run Windows Named Pipe and copied Runtime suites
+        shell: bash
         run: |
           npm run test -w @genoffice/agent-runtime-protocol
           npm run test -w @genoffice/pi-runtime-bundle
