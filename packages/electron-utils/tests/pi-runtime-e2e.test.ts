@@ -264,6 +264,11 @@ describe('copied Pi Runtime end to end', () => {
     const resourceHome = join(root, 'resource-home')
     const localModel = await createOpenAICompatibleFixture()
     await configureLocalModel(resourceHome, localModel.baseUrl)
+    await mkdir(join(resourceHome, 'agent', 'skills', 'global-e2e-skill'), { recursive: true })
+    await writeFile(
+      join(resourceHome, 'agent', 'skills', 'global-e2e-skill', 'SKILL.md'),
+      '---\nname: global-e2e-skill\ndescription: copied Runtime resource proof\n---\nUse the copied Runtime.\n',
+    )
     const credentialBroker = await createFakeCredentialBroker(resourceHome)
     const diagnostics: string[] = []
     const manager = createPiRuntimeManager({
@@ -323,6 +328,7 @@ describe('copied Pi Runtime end to end', () => {
       authorization: 'Bearer local-fixture-key',
       body: { model: localModelId, stream: true },
     })
+    expect(JSON.stringify(localModel.requests[0]?.body)).toContain('global-e2e-skill')
 
     const journal = (
       await readFile(
@@ -341,6 +347,9 @@ describe('copied Pi Runtime end to end', () => {
       'utf8',
     )
     expect(transcript).toContain('genoffice.document-binding')
+    expect(transcript).toContain('genoffice.capability-snapshot')
+    expect(transcript).toContain('skill:global/global-e2e-skill')
+    expect(transcript).not.toContain('Use the copied Runtime.')
     expect(transcript).not.toContain('run.started')
 
     const parentSnapshot = await manager.snapshotSession({

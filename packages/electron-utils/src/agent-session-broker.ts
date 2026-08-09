@@ -31,6 +31,7 @@ export type AgentSessionTransport = {
     sessionId: string
     documentId: string
     text: string
+    projectRoot?: string
   }): Promise<SessionPromptReceipt>
   abortSession(input: {
     operationId: string
@@ -55,6 +56,7 @@ export type AgentSessionTransport = {
 export type AgentSessionBrokerOptions<ClientId> = {
   authorize(clientId: ClientId, documentId: string): boolean | Promise<boolean>
   randomUUID: () => string
+  resolveProjectRoot?: (documentId: string) => Promise<string | undefined>
   replayWindowSize?: number
   currentSessions?: {
     resolveCurrent(documentId: string, create: () => Promise<string>): Promise<string>
@@ -184,11 +186,13 @@ export class AgentSessionBroker<ClientId = number> {
     }
     await this.options.currentSessions?.assertCurrent(command.documentId, command.sessionId)
     if (command.type === 'prompt') {
+      const projectRoot = await this.options.resolveProjectRoot?.(command.documentId)
       return this.transport.promptSession({
         operationId: command.operationId,
         sessionId: command.sessionId,
         documentId: command.documentId,
         text: command.text,
+        ...(projectRoot ? { projectRoot } : {}),
       })
     }
     if (command.type === 'abort') {

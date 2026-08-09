@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import { CapabilitySnapshotError } from '@genoffice/agent-resource'
 import { RuntimeSessionError, createSessionRegistry } from '../src'
 
 const roots: string[] = []
@@ -76,6 +77,39 @@ function fakePiSession(options: {
 }
 
 describe('document-bound Pi Session registry', () => {
+  it('projects an authorization revocation as capability_revoked instead of provider failure', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-revoked-'))
+    roots.push(dataRoot)
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'session.jsonl'),
+      prompt: async () => {
+        throw new CapabilitySnapshotError('capability_revoked')
+      },
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-revoked',
+      cursorSecret: Buffer.alloc(32, 5),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'revoked run',
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.failed',
+      runId: prompted.runId,
+      payload: { code: 'capability_revoked' },
+    })
+    await registry.shutdown()
+  })
+
   it('cancels one registered execution tree, drops late events, and accepts the next prompt', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-abort-'))
     roots.push(dataRoot)

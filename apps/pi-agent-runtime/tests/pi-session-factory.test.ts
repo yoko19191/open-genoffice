@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -7,9 +7,12 @@ import {
   InMemoryModelsStore,
   fauxAssistantMessage,
   fauxProvider,
+  fauxToolCall,
 } from '@earendil-works/pi-ai'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { createCapabilitySnapshot } from '@genoffice/agent-resource'
 import { createDeterministicPiSession } from '../src/pi-session-factory'
+import { RunResourceService } from '../src/run-resource-service'
 
 const roots: string[] = []
 
@@ -34,9 +37,29 @@ describe('deterministic Pi Session factory', () => {
       tokenSize: { min: 1, max: 1 },
       tokensPerSecond: 64,
     })
-    selectedProvider.setResponses([fauxAssistantMessage('selected model response')])
     modelRuntime.registerNativeProvider(selectedProvider.provider)
     const resolveModel = vi.fn(() => selectedProvider.getModel())
+    const skillRoot = join(root, 'agent', 'skills', 'global-skill')
+    const skillPath = join(skillRoot, 'SKILL.md')
+    await mkdir(skillRoot, { recursive: true })
+    await writeFile(
+      skillPath,
+      '---\nname: global-skill\ndescription: global skill\n---\nGlobal instructions\n',
+    )
+    selectedProvider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall('read', { path: skillPath }, { id: 'read-default' }),
+          fauxToolCall('read', { path: skillPath, offset: 1, limit: 2 }, { id: 'read-bounded' }),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('selected model response'),
+    ])
+    const runResources = new RunResourceService({
+      resourceHome: root,
+      deviceId: '33333333-3333-4333-8333-333333333333',
+    })
     const handle = await createDeterministicPiSession({
       cwd: join(root, 'cwd'),
       agentDir: join(root, 'agent'),
@@ -46,9 +69,18 @@ describe('deterministic Pi Session factory', () => {
       modelRuntime,
       initialModel: selectedProvider.getModel(),
       resolveModel,
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-selected-faux',
+        modelId: 'selected-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources,
     })
 
-    await handle.prompt('use my selected model', new AbortController().signal)
+    await handle.prompt('use my selected model', new AbortController().signal, {
+      runId: 'run-1',
+      projectRoot: join(root, 'missing-project'),
+    })
 
     expect(resolveModel).toHaveBeenCalledOnce()
     expect(handle.session.messages).toEqual(
@@ -60,6 +92,90 @@ describe('deterministic Pi Session factory', () => {
     expect(JSON.stringify(handle.sessionManager.getEntries())).not.toContain(
       'genoffice.contract-branch',
     )
+    expect(handle.session.resourceLoader.getSkills().skills.map(({ name }) => name)).toEqual([
+      'global-skill',
+    ])
+    const capabilityEntry = handle.sessionManager
+      .getEntries()
+      .find(
+        (entry) => entry.type === 'custom' && entry.customType === 'genoffice.capability-snapshot',
+      )
+    expect(capabilityEntry).toMatchObject({
+      data: {
+        createdForRunId: 'run-1',
+        model: { providerId: 'genoffice-selected-faux', modelId: 'selected-model' },
+        resourceHashes: { 'skill:global/global-skill': expect.stringMatching(/^[0-9a-f]{64}$/) },
+        toolIds: ['platform:resource:read'],
+        permissionVersion: 'agent-permission-v1',
+      },
+    })
+    expect(JSON.stringify(capabilityEntry)).not.toContain('Global instructions')
+    handle.dispose()
+  })
+
+  it('requires a run context, skips an already aborted run, and rechecks abort after prepare', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-run-guards-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-guard-faux',
+      provider: 'genoffice-guard-faux',
+      models: [{ id: 'guard-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    const snapshot = createCapabilitySnapshot({
+      createdForRunId: 'run-guard',
+      model: { providerId: 'genoffice-guard-faux', modelId: 'guard-model', capabilities: [] },
+      resources: [],
+      toolIds: ['platform:resource:read'],
+      permissionVersion: 'agent-permission-v1',
+    })
+    const controller = new AbortController()
+    const runResources = {
+      prepare: vi.fn(async () => ({
+        catalog: { catalogId: 'catalog', resources: [] },
+        snapshot,
+        skillPaths: [],
+        promptPaths: [],
+      })),
+      verify: vi.fn(async () => {
+        controller.abort()
+      }),
+    }
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-guard-faux',
+        modelId: 'guard-model',
+        capabilities: [],
+      }),
+      runResources,
+    })
+    await expect(handle.prompt('missing context', new AbortController().signal)).rejects.toThrow(
+      'run_context_required',
+    )
+    const alreadyAborted = new AbortController()
+    alreadyAborted.abort()
+    await expect(
+      handle.prompt('already aborted', alreadyAborted.signal, { runId: 'run-aborted' }),
+    ).resolves.toBeUndefined()
+    await expect(
+      handle.prompt('abort after prepare', controller.signal, { runId: 'run-guard' }),
+    ).resolves.toBeUndefined()
+    expect(runResources.prepare).toHaveBeenCalledOnce()
+    expect(handle.session.getActiveToolNames()).toEqual([])
     handle.dispose()
   })
 

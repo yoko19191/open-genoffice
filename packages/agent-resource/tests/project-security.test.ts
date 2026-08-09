@@ -1,4 +1,13 @@
-import { cp, mkdir, mkdtemp, readFile, rename, symlink, writeFile } from 'node:fs/promises'
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rename,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -6,6 +15,7 @@ import {
   ProjectSecurityError,
   ProjectTrustStore,
   ResourceActivationStore,
+  findCanonicalProjectRoot,
   resolveProjectIdentity,
 } from '../src/index'
 
@@ -24,6 +34,63 @@ async function projectFixture(prefix: string): Promise<string> {
   )
   return root
 }
+
+describe('canonical project root discovery', () => {
+  it('walks only the current file ancestors and chooses the nearest valid project marker', async () => {
+    const outer = await projectFixture('project-root-discovery-')
+    const nested = join(outer, 'nested')
+    await mkdir(join(nested, '.open-genoffice'), { recursive: true })
+    await writeFile(
+      join(nested, '.open-genoffice', 'project.json'),
+      `${JSON.stringify({ schemaVersion: 1, projectId: DEVICE_B })}\n`,
+    )
+    const file = join(nested, 'documents', 'report.docx')
+    await mkdir(join(nested, 'documents'), { recursive: true })
+    await writeFile(file, 'document')
+    await mkdir(join(outer, 'adjacent', '.open-genoffice'), { recursive: true })
+    await writeFile(
+      join(outer, 'adjacent', '.open-genoffice', 'project.json'),
+      `${JSON.stringify({ schemaVersion: 1, projectId: DEVICE_A })}\n`,
+    )
+
+    expect(await findCanonicalProjectRoot(file)).toBe(await realpath(nested))
+    expect(await findCanonicalProjectRoot(join(outer, 'missing.docx'))).toBeUndefined()
+  })
+
+  it('fails closed at a symlinked project marker instead of walking into an outer project', async () => {
+    const outer = await projectFixture('project-root-symlink-')
+    const nested = join(outer, 'nested')
+    const external = await projectFixture('project-root-external-')
+    await mkdir(nested, { recursive: true })
+    await symlink(join(external, '.open-genoffice'), join(nested, '.open-genoffice'))
+    const file = join(nested, 'report.docx')
+    await writeFile(file, 'document')
+
+    expect(await findCanonicalProjectRoot(file)).toBeUndefined()
+  })
+
+  it('rejects non-files and malformed markers and stops at the filesystem root', async () => {
+    const plain = await mkdtemp(join(tmpdir(), 'project-root-plain-'))
+    const plainFile = join(plain, 'report.docx')
+    await writeFile(plainFile, 'document')
+    expect(await findCanonicalProjectRoot(plain)).toBeUndefined()
+    expect(await findCanonicalProjectRoot(plainFile)).toBeUndefined()
+
+    const metadataFileRoot = await mkdtemp(join(tmpdir(), 'project-root-metadata-file-'))
+    await writeFile(join(metadataFileRoot, '.open-genoffice'), 'not a directory')
+    const metadataFileDocument = join(metadataFileRoot, 'report.docx')
+    await writeFile(metadataFileDocument, 'document')
+    expect(await findCanonicalProjectRoot(metadataFileDocument)).toBeUndefined()
+
+    const manifestDirectoryRoot = await mkdtemp(join(tmpdir(), 'project-root-manifest-dir-'))
+    await mkdir(join(manifestDirectoryRoot, '.open-genoffice', 'project.json'), {
+      recursive: true,
+    })
+    const manifestDirectoryDocument = join(manifestDirectoryRoot, 'report.docx')
+    await writeFile(manifestDirectoryDocument, 'document')
+    expect(await findCanonicalProjectRoot(manifestDirectoryDocument)).toBeUndefined()
+  })
+})
 
 describe('Project Trust', () => {
   it('persists trust for the same device, project, canonical root, and file identity', async () => {

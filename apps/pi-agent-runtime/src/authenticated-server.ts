@@ -14,6 +14,7 @@ import {
   type RequestEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
+import { initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
 import {
   loadModelCatalogSettings,
@@ -24,6 +25,7 @@ import { OpenGenOfficeCredentialStoreError } from './open-genoffice-credential-s
 import { createDeterministicPiSession } from './pi-session-factory'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import { RuntimeCredentialStore } from './runtime-credential-store'
+import { RunResourceService } from './run-resource-service'
 import {
   RuntimeSessionError,
   createSessionRegistry,
@@ -92,6 +94,12 @@ export async function createAuthenticatedRuntimeServer(
 ): Promise<AuthenticatedRuntimeServer> {
   if (options.bootstrap.parentPid !== options.actualParentPid) throw new Error('invalid_parent_pid')
 
+  const resourceHome = await initializeAgentResourceHome({
+    rootDirectory: options.resourceHome,
+    runtimeVersion: RUNTIME_VERSION,
+    ...(options.platform ? { platform: options.platform } : {}),
+  })
+
   let authenticatedSocket: Socket | undefined
   let tokenConsumed = false
   let closeStarted = false
@@ -119,6 +127,10 @@ export async function createAuthenticatedRuntimeServer(
     ? undefined
     : new ModelCatalogService(modelRuntime, await loadModelCatalogSettings(options.resourceHome))
   const modelCatalog = options.modelCatalog ?? ownedModelCatalog!
+  const runResources = new RunResourceService({
+    resourceHome: options.resourceHome,
+    deviceId: resourceHome.schema.deviceId,
+  })
   const initialModel = modelRuntime.getProviders().flatMap((provider) => provider.getModels())[0]
   if (!initialModel) throw new Error('model_catalog_empty')
   let settingsWrite = Promise.resolve()
@@ -151,6 +163,8 @@ export async function createAuthenticatedRuntimeServer(
                 modelRuntime,
                 initialModel,
                 resolveModel: () => ownedModelCatalog.selectedModel('conversation'),
+                resolveModelMetadata: () => ownedModelCatalog.selectedModelMetadata('conversation'),
+                runResources,
               }),
           }
         : {}),
@@ -399,6 +413,7 @@ export async function createAuthenticatedRuntimeServer(
               sessionId: request.params.sessionId,
               documentId: request.params.documentId,
               text: request.params.text,
+              ...(request.params.projectRoot ? { projectRoot: request.params.projectRoot } : {}),
             }),
           ),
         )

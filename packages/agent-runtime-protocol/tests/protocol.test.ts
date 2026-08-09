@@ -185,6 +185,7 @@ describe('protocol TypeBox source of truth', () => {
       sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       text: 'synthetic prompt',
+      projectRoot: '/trusted/project',
     },
   }
 

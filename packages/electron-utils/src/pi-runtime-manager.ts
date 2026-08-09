@@ -101,7 +101,7 @@ export type PiRuntimeManagerOptions = {
 
 export type SessionCreateRequest = { operationId: string; documentId: string }
 export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
-export type SessionPromptRequest = SessionOpenRequest & { text: string }
+export type SessionPromptRequest = SessionOpenRequest & { text: string; projectRoot?: string }
 export type SessionAbortRequest = SessionOpenRequest & { runId: string }
 export type SessionForkRequest = SessionOpenRequest
 export type SessionNavigateRequest = SessionOpenRequest & { targetEntryId: string }

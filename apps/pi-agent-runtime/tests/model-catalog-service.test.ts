@@ -345,6 +345,11 @@ describe('ModelCatalogService', () => {
     service.recordProviderReady('openai')
     expect((await service.catalog()).providers[0]).toMatchObject({ state: 'ready' })
     expect(service.selectedModel('conversation')).toMatchObject({ id: 'gpt-test' })
+    expect(service.selectedModelMetadata('conversation')).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-test',
+      capabilities: ['image-input', 'reasoning', 'text-input', 'tool-use'],
+    })
   })
 
   it('omits unavailable providers and stale selections and rejects unknown providers', async () => {
@@ -365,8 +370,12 @@ describe('ModelCatalogService', () => {
     runtime.getModel.mockReturnValue(undefined)
     expect((await service.catalog()).selections).toEqual({})
     expect(() => service.selectedModel('conversation')).toThrowError('model_not_found')
+    expect(() => service.selectedModelMetadata('conversation')).toThrowError('model_not_found')
     expect(() =>
       new ModelCatalogService(fakeRuntime() as never).selectedModel('image'),
+    ).toThrowError('model_not_selected')
+    expect(() =>
+      new ModelCatalogService(fakeRuntime() as never).selectedModelMetadata('image'),
     ).toThrowError('model_not_selected')
     expect(() => service.beginCheck('missing')).toThrowError('model_provider_not_found')
     await expect(service.logout('missing')).rejects.toThrowError('model_provider_not_found')

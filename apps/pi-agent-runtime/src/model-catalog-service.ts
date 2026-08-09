@@ -318,6 +318,23 @@ export class ModelCatalogService {
     return model
   }
 
+  selectedModelMetadata(
+    role: ModelSelectionRole,
+  ): NonNullable<ModelCatalogProjection['selections'][ModelSelectionRole]> {
+    const selection = this.selections.get(role)
+    if (!selection) throw new ModelCatalogError('model_not_selected')
+    const model = this.runtime.getModel(selection.providerId, selection.modelId)
+    if (!model) throw new ModelCatalogError('model_not_found')
+    return Object.freeze({
+      providerId: selection.providerId,
+      modelId: selection.modelId,
+      capabilities: modelCapabilities(
+        model,
+        this.explicitCapabilities.get(`${selection.providerId}/${selection.modelId}`),
+      ),
+    })
+  }
+
   beginCheck(providerId: string): void {
     this.assertProvider(providerId)
     this.providerStates.set(providerId, { state: 'checking' })

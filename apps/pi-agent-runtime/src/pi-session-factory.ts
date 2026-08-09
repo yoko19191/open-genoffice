@@ -14,7 +14,6 @@ import {
   type Model,
 } from '@earendil-works/pi-ai'
 import {
-  DefaultResourceLoader,
   CURRENT_SESSION_VERSION,
   ModelRuntime,
   SessionManager,
@@ -24,6 +23,9 @@ import {
   type AgentSession,
   type AgentSessionEvent,
 } from '@earendil-works/pi-coding-agent'
+import type { RunResourceService, RunModelMetadata } from './run-resource-service'
+import { ControlledResourceLoader } from './controlled-resource-loader'
+import { ResourceReadBoundary } from './resource-read-boundary'
 
 export type PiPromptResult = {
   branchCreated?: {
@@ -37,7 +39,11 @@ export type PiSessionHandle = {
   session: AgentSession
   sessionManager: SessionManager
   subscribe: (listener: (event: AgentSessionEvent) => void) => () => void
-  prompt: (text: string, signal: AbortSignal) => Promise<PiPromptResult | undefined>
+  prompt: (
+    text: string,
+    signal: AbortSignal,
+    context?: { runId: string; projectRoot?: string },
+  ) => Promise<PiPromptResult | undefined>
   abort: () => Promise<void>
   fork: (
     newSessionId: string,
@@ -68,6 +74,8 @@ export type CreatePiSessionOptions = CreatePiSessionBaseOptions &
         modelRuntime: ModelRuntime
         initialModel: Model<Api>
         resolveModel: () => Model<Api>
+        resolveModelMetadata: () => RunModelMetadata
+        runResources: Pick<RunResourceService, 'prepare' | 'verify'>
       }
   )
 
@@ -148,20 +156,52 @@ export async function createDeterministicPiSession(
     retry: { enabled: false, provider: { maxRetries: 0 } },
     compaction: { enabled: false, keepRecentTokens: 1, reserveTokens: 32 },
   })
-  const resourceLoader = new DefaultResourceLoader({
+  const resourceLoader = new ControlledResourceLoader({
     cwd: options.cwd,
     agentDir: options.agentDir,
     settingsManager,
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
     systemPrompt: managedModel
       ? 'You are the GenOffice document assistant. Use only the capabilities provided for this session.'
       : 'You are the isolated GenOffice runtime contract agent.',
   })
   await resourceLoader.reload()
+  const resourceReadBoundary = managedModel
+    ? new ResourceReadBoundary({
+        verify: (snapshot, projectRoot) => options.runResources.verify(snapshot, projectRoot),
+      })
+    : undefined
+  const resourceReadTool = resourceReadBoundary
+    ? defineTool({
+        name: 'read',
+        label: 'Read active Skill resource',
+        description: 'Read a text file contained in an active Skill from this run snapshot.',
+        promptSnippet: 'Read text files from active Skill resources.',
+        parameters: Type.Object(
+          {
+            path: Type.String({ minLength: 1 }),
+            offset: Type.Optional(Type.Integer({ minimum: 1 })),
+            limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 2_000 })),
+          },
+          { additionalProperties: false },
+        ),
+        async execute(_toolCallId, input) {
+          const lines = (await resourceReadBoundary.readFile(input.path))
+            .toString('utf8')
+            .split('\n')
+          const offset = input.offset ?? 1
+          const limit = input.limit ?? 2_000
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: lines.slice(offset - 1, offset - 1 + limit).join('\n'),
+              },
+            ],
+            details: { offset, limit },
+          }
+        },
+      })
+    : undefined
 
   let sessionManager: SessionManager
   if (options.sessionFile) {
@@ -195,19 +235,41 @@ export async function createDeterministicPiSession(
     settingsManager,
     resourceLoader,
     noTools: 'all',
-    tools: managedModel ? [] : ['genoffice_contract_probe'],
-    customTools: managedModel ? [] : [contractProbe],
+    tools: managedModel ? ['read'] : ['genoffice_contract_probe'],
+    customTools: managedModel ? [resourceReadTool!] : [contractProbe],
   })
 
   return {
     session,
     sessionManager,
     subscribe: (listener) => session.subscribe(listener),
-    prompt: async (text, signal) => {
+    prompt: async (text, signal, context) => {
       if (managedModel) {
         if (signal.aborted) return undefined
-        await session.setModel(options.resolveModel())
-        await session.prompt(text, { expandPromptTemplates: false, source: 'rpc' })
+        if (!context) throw new Error('run_context_required')
+        const model = options.resolveModel()
+        const prepared = await options.runResources.prepare({
+          runId: context.runId,
+          ...(context.projectRoot ? { projectRoot: context.projectRoot } : {}),
+          model: options.resolveModelMetadata(),
+          toolIds: ['platform:resource:read'],
+        })
+        resourceLoader.configure({
+          skillPaths: prepared.skillPaths,
+          promptPaths: prepared.promptPaths,
+        })
+        resourceReadBoundary!.configure({
+          snapshot: prepared.snapshot,
+          skillRoots: prepared.skillPaths,
+          ...(context.projectRoot ? { projectRoot: context.projectRoot } : {}),
+        })
+        await session.reload()
+        session.setActiveToolsByName(prepared.skillPaths.length > 0 ? ['read'] : [])
+        sessionManager.appendCustomEntry('genoffice.capability-snapshot', prepared.snapshot)
+        await options.runResources.verify(prepared.snapshot, context.projectRoot)
+        if (signal.aborted) return undefined
+        await session.setModel(model)
+        await session.prompt(text, { expandPromptTemplates: true, source: 'rpc' })
         return undefined
       }
       fixtureProvider!.setResponses([

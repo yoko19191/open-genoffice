@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { chmod, lstat, mkdir, readFile, realpath, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Type, type Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 import { atomicWriteJson, type AtomicWriteOptions } from './atomic-file'
@@ -122,6 +122,33 @@ export class ProjectSecurityError extends Error {
   constructor(public readonly code: ProjectSecurityErrorCode) {
     super(code)
     this.name = 'ProjectSecurityError'
+  }
+}
+
+export async function findCanonicalProjectRoot(filePath: string): Promise<string | undefined> {
+  let current: string
+  try {
+    const canonicalFile = await realpath(filePath)
+    if (!(await lstat(canonicalFile)).isFile()) return undefined
+    current = dirname(canonicalFile)
+  } catch {
+    return undefined
+  }
+
+  for (;;) {
+    const metadataDirectory = join(current, '.open-genoffice')
+    try {
+      const metadata = await lstat(metadataDirectory)
+      if (!metadata.isDirectory()) return undefined
+      const manifest = await lstat(join(metadataDirectory, 'project.json'))
+      if (!manifest.isFile()) return undefined
+      return current
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    }
+    const parent = dirname(current)
+    if (parent === current) return undefined
+    current = parent
   }
 }
 

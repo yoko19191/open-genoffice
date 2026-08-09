@@ -68,6 +68,7 @@ export {
   ResourceActivationDescriptorSchema,
   ResourceActivationStateSchema,
   ResourceActivationStore,
+  findCanonicalProjectRoot,
   resolveProjectIdentity,
   type ProjectIdentity,
   type ProjectSecurityErrorCode,

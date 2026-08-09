@@ -11,6 +11,7 @@ import type {
   SessionSnapshot,
 } from '@genoffice/agent-runtime-protocol'
 import {
+  CapabilitySnapshotError,
   SessionLeaseError,
   SessionLeaseStore,
   atomicWriteJson,
@@ -39,7 +40,7 @@ type Binding = {
 
 type CreateInput = { operationId: string; documentId: string }
 type OpenInput = CreateInput & { sessionId: string }
-type PromptInput = OpenInput & { text: string }
+type PromptInput = OpenInput & { text: string; projectRoot?: string }
 type AbortInput = OpenInput & { runId: string }
 type NavigateInput = OpenInput & { targetEntryId: string }
 type BoundInput = { sessionId: string; documentId: string }
@@ -454,7 +455,10 @@ export class SessionRegistry {
         runId,
       )
       const running = record.pi
-        .prompt(input.text, abortTree.signal)
+        .prompt(input.text, abortTree.signal, {
+          runId,
+          ...(input.projectRoot ? { projectRoot: input.projectRoot } : {}),
+        })
         .then(async (result) => {
           completeModel()
           if (record.activeRun !== activeRun || activeRun.abortRegistration) return
@@ -466,12 +470,19 @@ export class SessionRegistry {
           activeRun.state = terminalState
           await this.appendEvent(record, `run.${terminalState}`, {}, runId)
         })
-        .catch(async () => {
+        .catch(async (error) => {
           completeModel()
           if (record.activeRun !== activeRun || activeRun.abortRegistration) return
           record.pendingTerminalState = undefined
           activeRun.state = 'failed'
-          await this.appendEvent(record, 'run.failed', { reason: 'provider_error' }, runId)
+          await this.appendEvent(
+            record,
+            'run.failed',
+            error instanceof CapabilitySnapshotError
+              ? { code: error.code }
+              : { reason: 'provider_error' },
+            runId,
+          )
         })
         .finally(resolveModelSettled)
         .then(() => record.eventQueue)

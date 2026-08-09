@@ -79,3 +79,20 @@ export {
   type RecoveredTool,
   type SessionRecoveryPlan,
 } from './session-recovery'
+export {
+  RunResourceService,
+  type PrepareRunResourcesInput,
+  type PreparedRunResources,
+  type RunModelMetadata,
+  type RunResourceServiceOptions,
+} from './run-resource-service'
+export {
+  ControlledResourceLoader,
+  type ControlledResourceLoaderOptions,
+  type ControlledResourcePaths,
+} from './controlled-resource-loader'
+export {
+  ResourceReadBoundary,
+  type ResourceReadBoundaryOptions,
+  type ResourceReadConfiguration,
+} from './resource-read-boundary'

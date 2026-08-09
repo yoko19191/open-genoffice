@@ -38,6 +38,7 @@ import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
 import {
   DocumentBindingStore,
   DocumentSessionIndexStore,
+  findCanonicalProjectRoot,
   type DocumentFormat,
 } from '@genoffice/agent-resource'
 import {
@@ -1282,6 +1283,12 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
   authorize: (webContentsId, documentId) =>
     tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
   randomUUID,
+  resolveProjectRoot: async (documentId) => {
+    const binding = await documentBindingStore.get(documentId)
+    return binding.state === 'bound' && binding.canonicalPath
+      ? findCanonicalProjectRoot(binding.canonicalPath)
+      : undefined
+  },
   currentSessions: {
     resolveCurrent: async (documentId, create) =>
       (await documentSessionIndexStore.resolveCurrent(documentId, create)).currentSessionId,

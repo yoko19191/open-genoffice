@@ -103,13 +103,16 @@ function harness() {
   }
   let uuid = 0
   const authorize = vi.fn(async () => true)
+  const resolveProjectRoot = vi.fn(async () => undefined as string | undefined)
   const broker = new AgentSessionBroker(transport, {
     authorize,
+    resolveProjectRoot,
     randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
     replayWindowSize: 4,
   })
   return {
     authorize,
+    resolveProjectRoot,
     broker,
     transport,
     emit: (value: EventEnvelope) => listener(value),
@@ -298,12 +301,14 @@ describe('Electron main Agent Session broker', () => {
       'agent_session_not_connected',
     )
     await fixture.broker.connect(1, { documentId, sessionId }, () => {})
+    fixture.resolveProjectRoot.mockResolvedValue('/trusted/project')
     await expect(fixture.broker.command(1, command)).resolves.toMatchObject({ runId: 'run-1' })
     expect(fixture.transport.promptSession).toHaveBeenCalledWith({
       operationId: command.operationId,
       sessionId,
       documentId,
       text: 'continue',
+      projectRoot: '/trusted/project',
     })
     await expect(
       fixture.broker.command(1, {
