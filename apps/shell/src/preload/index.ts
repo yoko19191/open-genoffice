@@ -16,6 +16,7 @@ import type {
 import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
 import { TABS_CHANNELS } from '../shared/tabs-api'
+import { PI_RUNTIME_CHANNELS, asPiRuntimeHealth, type PiRuntimeApi } from '../shared/pi-runtime-api'
 
 const UI_LANGUAGES: readonly UiLanguage[] = [
   'zh',
@@ -253,3 +254,11 @@ const tabsApi: TabsApi = {
 }
 
 contextBridge.exposeInMainWorld('aiOfficeTabs', tabsApi)
+
+const piRuntimeApi: PiRuntimeApi = {
+  async health() {
+    return asPiRuntimeHealth(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.health))
+  },
+}
+
+contextBridge.exposeInMainWorld('aiOfficeAgent', piRuntimeApi)

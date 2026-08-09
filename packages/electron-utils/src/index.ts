@@ -39,3 +39,9 @@ export {
   createNodePiRuntimeDependencies,
   createPiRuntimeManager,
 } from './pi-runtime-node'
+export {
+  PiRuntimeService,
+  createInstalledPiRuntimeService,
+  type PiRuntimeServiceDependencies,
+  type PiRuntimeServiceOptions,
+} from './pi-runtime-service'

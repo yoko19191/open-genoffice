@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { parseProtocolFrame } from '@genoffice/agent-runtime-protocol'
 import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
-import { createPiRuntimeManager } from '../src'
+import { createInstalledPiRuntimeService, createPiRuntimeManager } from '../src'
 
 const execFileAsync = promisify(execFile)
 
@@ -64,6 +64,17 @@ describe('copied Pi Runtime end to end', () => {
     expect(manager.state).toBe('stopped')
     expect(diagnostics).toEqual([])
     expect(() => process.kill(health.pid, 0)).toThrow()
+
+    const service = createInstalledPiRuntimeService({
+      bundleRoot: verified.root,
+      platform: process.platform,
+      arch: process.arch as 'arm64' | 'x64',
+      parentPid: process.pid,
+      startupTimeoutMs: 5_000,
+    })
+    await expect(service.initialize()).resolves.toMatchObject({ state: 'ready' })
+    await service.shutdown()
+    expect(service.health()).toMatchObject({ state: 'stopped' })
 
     await rm(root, { recursive: true, force: true })
   })

@@ -15,7 +15,9 @@
  */
 
 const { existsSync } = require('node:fs')
+const { execFileSync } = require('node:child_process')
 const { join } = require('node:path')
+const { Arch } = require('builder-util')
 
 const updateUrl = process.env.GENOFFICE_UPDATE_URL
 
@@ -60,6 +62,26 @@ function assertModuleTreesPresent() {
   }
 }
 
+function assertPiRuntimeBundle(context) {
+  const arch = Arch[context.arch]
+  if (!['arm64', 'x64'].includes(arch)) {
+    throw new Error('Pi Runtime bundle target architecture is unsupported')
+  }
+  execFileSync(
+    process.execPath,
+    [
+      join(__dirname, '../../tools/verify-pi-runtime-bundle.mjs'),
+      '--bundle',
+      join(__dirname, 'build/pi-runtime'),
+      '--platform',
+      context.electronPlatformName,
+      '--arch',
+      arch,
+    ],
+    { stdio: 'pipe' },
+  )
+}
+
 /** @type {import('electron-builder').Configuration} */
 const config = {
   appId: 'com.genoffice.app',
@@ -96,6 +118,10 @@ const config = {
     {
       from: '../pdf/out',
       to: 'modules/pdf',
+    },
+    {
+      from: 'build/pi-runtime',
+      to: 'pi-runtime',
     },
     {
       from: '../../node_modules/@genspark/cli',
@@ -218,8 +244,9 @@ const config = {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
   },
-  beforePack: async () => {
+  beforePack: async (context) => {
     assertModuleTreesPresent()
+    assertPiRuntimeBundle(context)
   },
   dmg: {
     sign: true,

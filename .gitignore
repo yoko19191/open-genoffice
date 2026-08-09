@@ -18,6 +18,7 @@ electron-builder.env
 /scripts/drivers/driver.*.mjs
 /probe*.mjs
 /apps/shell/build/THIRD-PARTY-NOTICES.txt
+/apps/shell/build/pi-runtime/
 /example/
 /.task/
 /docs-archive/

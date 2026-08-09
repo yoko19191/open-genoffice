@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@genoffice/agent-core": "*",
+    "@genoffice/agent-runtime-protocol": "*",
     "@genoffice/ai-provider": "*",
     "@genoffice/ai-search": "*",
     "@genoffice/docs": "*",

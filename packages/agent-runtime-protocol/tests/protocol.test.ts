@@ -16,6 +16,7 @@ import {
   parseBootstrapLine,
   parseProtocolFrame,
   parseRuntimeBundleManifest,
+  parseRuntimeHealthProjection,
 } from '../src'
 
 const token = 'a'.repeat(64)
@@ -112,6 +113,31 @@ describe('runtime bundle manifest contract', () => {
     expect(() => parseRuntimeBundleManifest({ ...manifest, ...override })).toThrowError(
       'runtime_bundle_invalid',
     )
+  })
+})
+
+describe('renderer-safe Runtime health projection', () => {
+  it('accepts only the versioned projection without process or transport details', () => {
+    const health = {
+      state: 'ready',
+      protocolVersion: PROTOCOL_VERSION,
+      runtimeVersion: RUNTIME_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+    }
+    expect(parseRuntimeHealthProjection(health)).toEqual(health)
+    expect(() => parseRuntimeHealthProjection({ ...health, pid: 42 })).toThrowError(
+      'runtime_health_invalid',
+    )
+    expect(() => parseRuntimeHealthProjection({ ...health, state: 'backoff' })).toThrowError(
+      'runtime_health_invalid',
+    )
+    expect(
+      parseRuntimeHealthProjection({
+        ...health,
+        state: 'unavailable',
+        diagnosticCode: 'runtime_bundle_unavailable',
+      }),
+    ).toMatchObject({ state: 'unavailable' })
   })
 })
 

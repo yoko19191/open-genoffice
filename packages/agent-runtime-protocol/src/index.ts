@@ -311,8 +311,32 @@ const RuntimeBundleManifestSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const RuntimeHealthProjectionSchema = Type.Object(
+  {
+    state: Type.Union([
+      Type.Literal('stopped'),
+      Type.Literal('starting'),
+      Type.Literal('ready'),
+      Type.Literal('crashed'),
+      Type.Literal('unavailable'),
+    ]),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
+    runtimeVersion: Type.Literal(RUNTIME_VERSION),
+    schemaVersion: Type.Literal(SCHEMA_VERSION),
+    diagnosticCode: Type.Optional(
+      Type.Union([
+        Type.Literal('runtime_bundle_unavailable'),
+        Type.Literal('runtime_start_failed'),
+        Type.Literal('runtime_shutdown_failed'),
+      ]),
+    ),
+  },
+  { additionalProperties: false },
+)
+
 export type BootstrapRecord = Static<typeof BootstrapSchema>
 export type RuntimeBundleManifest = Static<typeof RuntimeBundleManifestSchema>
+export type RuntimeHealthProjection = Static<typeof RuntimeHealthProjectionSchema>
 export type ArtifactRef = Static<typeof ArtifactRefSchema>
 export type RequestEnvelope = Static<typeof RequestEnvelopeSchema>
 export type ResponseEnvelope = Static<typeof ResponseEnvelopeSchema>
@@ -333,6 +357,11 @@ export function parseBootstrapLine(line: string): BootstrapRecord {
 export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifest {
   if (Value.Check(RuntimeBundleManifestSchema, value)) return value
   throw new Error('runtime_bundle_invalid')
+}
+
+export function parseRuntimeHealthProjection(value: unknown): RuntimeHealthProjection {
+  if (Value.Check(RuntimeHealthProjectionSchema, value)) return value
+  throw new Error('runtime_health_invalid')
 }
 
 export function parseOfficeToolCatalog(value: unknown): OfficeToolCatalog {

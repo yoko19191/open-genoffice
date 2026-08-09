@@ -41,6 +41,7 @@ import {
   showOpenDialogWithMemory,
   showSaveDialogWithMemory,
   windowMenuTemplate,
+  createInstalledPiRuntimeService,
 } from '@genoffice/electron-utils'
 import { readAppSettings, writeAppSetting } from './app-settings'
 import {
@@ -134,6 +135,7 @@ import { normalizeRecentQuery, pageRecentPaths, statExistingPaths } from './rece
 import { TabManager } from './tab-manager'
 import { applyUpdateChannel, initAutoUpdater } from './updater'
 import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
+import { PI_RUNTIME_CHANNELS } from '../shared/pi-runtime-api'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -183,6 +185,15 @@ const PDF_OUT = app.isPackaged
 const SIDECAR_BIN = app.isPackaged
   ? join(process.resourcesPath, 'native', SIDECAR_EXE)
   : join(APPS_ROOT, 'sheets', 'native', 'xlsx-engine', 'target', 'release', SIDECAR_EXE)
+const PI_RUNTIME_ROOT = app.isPackaged
+  ? join(process.resourcesPath, 'pi-runtime')
+  : (process.env.GENOFFICE_PI_RUNTIME_BUNDLE ?? join(process.resourcesPath, 'pi-runtime'))
+const piRuntimeService = createInstalledPiRuntimeService({
+  bundleRoot: PI_RUNTIME_ROOT,
+  platform: process.platform,
+  arch: process.arch as 'arm64' | 'x64',
+  parentPid: process.pid,
+})
 
 configureDocsRuntime({
   preloadPath: join(DOCS_OUT, 'preload', 'index.js'),
@@ -2230,6 +2241,7 @@ registerProjectIpc()
 registerDocsIpc()
 registerHomeIpc()
 registerTabsIpc()
+ipcMain.handle(PI_RUNTIME_CHANNELS.health, () => piRuntimeService.health())
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here
 setSessionPathResolver(resolveSheetsSessionPath)
@@ -2250,6 +2262,7 @@ app.whenReady().then(() => {
   // mutable lang, whose 'zh' default otherwise wins the race for whichever
   // tab loads first (e.g. sheets booting in Chinese while docs shows English).
   currentLang()
+  void piRuntimeService.initialize()
   startSheetsCaptureServer()
   createShellWindow()
   // deferred to ready: labels need currentLang(), which reads app.getLocale()
@@ -2269,8 +2282,15 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+let piRuntimeShutdownStarted = false
+
+app.on('before-quit', (event) => {
   // No close prompt may fall through to "Save" during shutdown
   markSheetsShuttingDown()
   stopSheetsSidecar()
+  if (!piRuntimeShutdownStarted && piRuntimeService.health().state !== 'stopped') {
+    piRuntimeShutdownStarted = true
+    event.preventDefault()
+    void piRuntimeService.shutdown().finally(() => app.quit())
+  }
 })

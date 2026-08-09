@@ -161,6 +161,8 @@ export async function auditPiPlatformBoundary(repoRootInput) {
   for (const path of [
     join(repoRoot, 'packages/electron-utils/src/pi-runtime-manager.ts'),
     join(repoRoot, 'packages/electron-utils/src/pi-runtime-node.ts'),
+    join(repoRoot, 'packages/electron-utils/src/pi-runtime-service.ts'),
+    join(repoRoot, 'apps/shell/src/shared/pi-runtime-api.ts'),
   ]) {
     try {
       await access(path)
