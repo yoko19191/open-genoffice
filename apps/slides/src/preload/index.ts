@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { createAgentSessionPreloadApi } from '@genoffice/electron-utils'
 import type { IpcRendererEvent } from 'electron'
 import type { ProjectApi } from '@genoffice/project-store'
 import type {
@@ -359,3 +360,4 @@ const projectApi: ProjectApi = {
   getTimeline: (args) => ipcRenderer.invoke('project:timeline', args),
 }
 contextBridge.exposeInMainWorld('projectApi', projectApi)
+contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))

@@ -33,6 +33,7 @@ interface TabRecord {
   view: WebContentsView | null
   title: string
   filePath?: string
+  agentDocumentId?: string
 }
 
 /** must match the tab strip's rendered height (apps/shell/src/renderer/src/TabBar.tsx) */
@@ -62,6 +63,7 @@ export class TabManager {
     private readonly applyMenuFor: (kind: TabKind) => void,
     /** localized placeholder title for a tab that has no file yet */
     private readonly untitledTitleFor?: (kind: TabKind) => string,
+    private readonly onRendererClosed?: (webContentsId: number) => void,
   ) {
     // Layout once synchronously for macOS/Windows (bounds are already correct),
     // then once more on the next tick. On Linux/X11, `resize` fires before the
@@ -222,6 +224,15 @@ export class TabManager {
     this.onChanged()
   }
 
+  bindAgentDocument(webContentsId: number, documentId: string): boolean {
+    const tab = this.tabs.find((item) => item.view?.webContents.id === webContentsId)
+    if (!tab) return false
+    if (tab.agentDocumentId) return tab.agentDocumentId === documentId
+    if (this.tabs.some((item) => item !== tab && item.agentDocumentId === documentId)) return false
+    tab.agentDocumentId = documentId
+    return true
+  }
+
   /** a file was renamed on disk (rename from the Home list) — sync any open tab's title/path;
    *  returns the affected views so callers can notify the embedded editors */
   renameTabFile(
@@ -317,6 +328,7 @@ export class TabManager {
       this.onChanged()
     }
     if (removed.view) {
+      this.onRendererClosed?.(removed.view.webContents.id)
       removed.view.setVisible(false)
       this.shellWindow.contentView.removeChildView(removed.view)
       if (removed.kind === 'docs') {

@@ -372,6 +372,38 @@ export const SessionSubscriptionReceiptSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const AgentSessionConnectRequestSchema = Type.Object(
+  {
+    documentId: DocumentIdSchema,
+    sessionId: Type.Optional(SessionIdSchema),
+    afterCursor: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+  },
+  { additionalProperties: false },
+)
+
+export const AgentSessionCommandSchema = Type.Object(
+  {
+    type: Type.Literal('prompt'),
+    operationId: OperationIdSchema,
+    sessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    text: Type.String({ minLength: 1, maxLength: 262_144 }),
+  },
+  { additionalProperties: false },
+)
+
+export const AgentSessionConnectReceiptSchema = Type.Object(
+  {
+    connectionId: OperationIdSchema,
+    sessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    resetRequired: Type.Boolean(),
+    snapshot: SessionSnapshotSchema,
+    events: Type.Array(EventEnvelopeSchema),
+  },
+  { additionalProperties: false },
+)
+
 export const ProtocolEnvelopeSchema = Type.Union([
   RequestEnvelopeSchema,
   ResponseEnvelopeSchema,
@@ -495,6 +527,9 @@ export type EventEnvelope = Static<typeof EventEnvelopeSchema>
 export type SessionConnectionReceipt = Static<typeof SessionConnectionReceiptSchema>
 export type SessionPromptReceipt = Static<typeof SessionPromptReceiptSchema>
 export type SessionSubscriptionReceipt = Static<typeof SessionSubscriptionReceiptSchema>
+export type AgentSessionConnectRequest = Static<typeof AgentSessionConnectRequestSchema>
+export type AgentSessionCommand = Static<typeof AgentSessionCommandSchema>
+export type AgentSessionConnectReceipt = Static<typeof AgentSessionConnectReceiptSchema>
 export type ProtocolEnvelope = Static<typeof ProtocolEnvelopeSchema>
 export type OfficeToolCatalog = Static<typeof OfficeToolCatalogSchema>
 
@@ -536,6 +571,26 @@ export function parseSessionSnapshot(value: unknown): SessionSnapshot {
 export function parseSessionSubscriptionReceipt(value: unknown): SessionSubscriptionReceipt {
   if (Value.Check(SessionSubscriptionReceiptSchema, value)) return value
   throw new Error('session_subscription_receipt_invalid')
+}
+
+export function parseEventEnvelope(value: unknown): EventEnvelope {
+  if (Value.Check(EventEnvelopeSchema, value)) return value
+  throw new Error('event_envelope_invalid')
+}
+
+export function parseAgentSessionConnectRequest(value: unknown): AgentSessionConnectRequest {
+  if (Value.Check(AgentSessionConnectRequestSchema, value)) return value
+  throw new Error('agent_session_connect_request_invalid')
+}
+
+export function parseAgentSessionCommand(value: unknown): AgentSessionCommand {
+  if (Value.Check(AgentSessionCommandSchema, value)) return value
+  throw new Error('agent_session_command_invalid')
+}
+
+export function parseAgentSessionConnectReceipt(value: unknown): AgentSessionConnectReceipt {
+  if (Value.Check(AgentSessionConnectReceiptSchema, value)) return value
+  throw new Error('agent_session_connect_receipt_invalid')
 }
 
 export function parseOfficeToolCatalog(value: unknown): OfficeToolCatalog {

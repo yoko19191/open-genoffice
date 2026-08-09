@@ -510,4 +510,49 @@ describe('document-bound Pi Session registry', () => {
     await registry.shutdown()
     await reopened.shutdown()
   })
+
+  it('expires cursors outside the bounded replay window without reopening the run', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-replay-window-'))
+    roots.push(dataRoot)
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-replay',
+      cursorSecret: Buffer.alloc(32, 9),
+      replayWindowSize: 2,
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+    })
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      text: 'advance beyond the replay window',
+    })
+    await registry.waitForIdle(created.sessionId)
+
+    await expect(
+      registry.subscribe({
+        sessionId: created.sessionId,
+        documentId: created.documentId,
+        afterCursor: created.cursor,
+      }),
+    ).resolves.toMatchObject({ resetRequired: true, events: [] })
+    const current = await registry.snapshot({
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+    })
+    await expect(
+      registry.subscribe({
+        sessionId: created.sessionId,
+        documentId: created.documentId,
+        afterCursor: current.cursor,
+      }),
+    ).resolves.toMatchObject({ resetRequired: false, events: [] })
+    expect(current.activeRun?.state).toBe('completed')
+    await registry.shutdown()
+  })
 })

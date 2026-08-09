@@ -120,6 +120,7 @@ function makeShellWindow(): FakeShellWindow {
 let shellWindow: FakeShellWindow
 let onChanged: ReturnType<typeof vi.fn>
 let applyMenuFor: ReturnType<typeof vi.fn>
+let onRendererClosed: ReturnType<typeof vi.fn>
 let manager: TabManager
 
 function lastCreatedView(factory: ReturnType<typeof vi.fn>): FakeView {
@@ -137,10 +138,13 @@ beforeEach(() => {
   shellWindow = makeShellWindow()
   onChanged = vi.fn()
   applyMenuFor = vi.fn()
+  onRendererClosed = vi.fn()
   manager = new TabManager(
     shellWindow as never,
     () => onChanged(),
     (kind) => applyMenuFor(kind),
+    undefined,
+    (webContentsId) => onRendererClosed(webContentsId),
   )
 })
 
@@ -262,6 +266,24 @@ describe('activation', () => {
   })
 })
 
+describe('Agent document authorization', () => {
+  it('binds one immutable document id to a renderer and rejects cross-tab reuse', () => {
+    manager.openDocsTab()
+    const docs = lastCreatedView(createDocsView)
+    manager.openSheetsTab()
+    const sheets = lastCreatedView(createSheetsView)
+    const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+
+    expect(manager.bindAgentDocument(docs.webContents.id, documentId)).toBe(true)
+    expect(manager.bindAgentDocument(docs.webContents.id, documentId)).toBe(true)
+    expect(
+      manager.bindAgentDocument(docs.webContents.id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'),
+    ).toBe(false)
+    expect(manager.bindAgentDocument(sheets.webContents.id, documentId)).toBe(false)
+    expect(manager.bindAgentDocument(999, documentId)).toBe(false)
+  })
+})
+
 describe('window resize layout', () => {
   function resizeHandler(): () => void {
     const call = shellWindow.on.mock.calls.find((c) => c[0] === 'resize')
@@ -353,6 +375,7 @@ describe('closing tabs', () => {
     await manager.closeTab(id)
     expect(shellWindow.contentView.removeChildView).toHaveBeenCalledWith(view)
     expect(view.webContents.close).toHaveBeenCalledTimes(1)
+    expect(onRendererClosed).toHaveBeenCalledWith(view.webContents.id)
   })
 
   it('detaches docs views without destroying the webContents (freeze workaround)', async () => {
@@ -363,6 +386,7 @@ describe('closing tabs', () => {
     expect(view.webContents.close).not.toHaveBeenCalled()
     // the orphaned renderer must be told to go inert (recovery-copy resurrection guard)
     expect(teardownDocsRenderer).toHaveBeenCalledWith(view.webContents)
+    expect(onRendererClosed).toHaveBeenCalledWith(view.webContents.id)
   })
 
   it('closes a clean docs tab after the async dirty query says clean', async () => {

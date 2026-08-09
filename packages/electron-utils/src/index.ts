@@ -50,3 +50,16 @@ export {
   type PiRuntimeServiceDependencies,
   type PiRuntimeServiceOptions,
 } from './pi-runtime-service'
+export {
+  AgentSessionBroker,
+  type AgentSessionBrokerOptions,
+  type AgentSessionTransport,
+} from './agent-session-broker'
+export {
+  AGENT_SESSION_CHANNELS,
+  createAgentSessionPreloadApi,
+  installAgentSessionIpc,
+  type AgentSessionIpcMain,
+  type AgentSessionIpcRenderer,
+  type AgentSessionPreloadApi,
+} from './agent-session-ipc'

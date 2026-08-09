@@ -22,7 +22,7 @@ export default defineConfig({
   },
   preload: {
     // Sandboxed preload scripts cannot require arbitrary npm packages at runtime.
-    plugins: [],
+    plugins: [externalizeDepsPlugin({ exclude: ['@genoffice/electron-utils'] })],
   },
   renderer: {
     plugins: [react()],

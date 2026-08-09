@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import {
   copyFileSync,
   cpSync,
@@ -42,6 +43,8 @@ import {
   showSaveDialogWithMemory,
   windowMenuTemplate,
   createInstalledPiRuntimeService,
+  AgentSessionBroker,
+  installAgentSessionIpc,
 } from '@genoffice/electron-utils'
 import { readAppSettings, writeAppSetting } from './app-settings'
 import {
@@ -1187,6 +1190,11 @@ const tm = (key: Parameters<typeof tMain>[1], params?: Parameters<typeof tMain>[
 
 let shellWindow: BrowserWindow | null = null
 let tabManager: TabManager | null = null
+const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
+  authorize: (webContentsId, documentId) =>
+    tabManager?.bindAgentDocument(webContentsId, documentId) ?? false,
+  randomUUID,
+})
 
 /**
  * When the user creates a file from a specific project view, remember which
@@ -1272,6 +1280,7 @@ function createShellWindow(): void {
         : kind === 'slides'
           ? tm('untitledDeck')
           : tm('untitledSheet'),
+    (webContentsId) => agentSessionBroker.disconnect(webContentsId),
   )
   tabManager = manager
 
@@ -2242,6 +2251,7 @@ registerProjectIpc()
 registerDocsIpc()
 registerHomeIpc()
 registerTabsIpc()
+const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker)
 ipcMain.handle(PI_RUNTIME_CHANNELS.health, () => piRuntimeService.health())
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here
@@ -2292,6 +2302,8 @@ app.on('before-quit', (event) => {
   if (!piRuntimeShutdownStarted && piRuntimeService.health().state !== 'stopped') {
     piRuntimeShutdownStarted = true
     event.preventDefault()
-    void piRuntimeService.shutdown().finally(() => app.quit())
+    void disposeAgentSessionIpc()
+      .then(() => piRuntimeService.shutdown())
+      .finally(() => app.quit())
   }
 })

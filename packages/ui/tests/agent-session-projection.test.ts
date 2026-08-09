@@ -3,6 +3,7 @@ import type { EventEnvelope, SessionSnapshot } from '@genoffice/agent-runtime-pr
 import {
   applyAgentSessionEvent,
   createAgentSessionProjection,
+  restoreAgentSessionProjection,
   type AgentSessionProjection,
 } from '../src'
 
@@ -197,5 +198,26 @@ describe('shared AI Panel Session projection', () => {
       role: 'user',
       text: 'prompt',
     })
+  })
+
+  it('replaces renderer state from a reconnect snapshot before applying newer events', () => {
+    const restored = restoreAgentSessionProjection({
+      connectionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      sessionId: snapshot.sessionId,
+      documentId: snapshot.documentId,
+      resetRequired: false,
+      snapshot: {
+        ...snapshot,
+        messages: [{ id: 'server-message', role: 'assistant', text: 'authoritative' }],
+        activeRun: { runId: 'run-1', state: 'running' },
+      },
+      events: [event(2, 'run.completed')],
+    })
+
+    expect(restored.messages).toEqual([
+      { id: 'server-message', role: 'assistant', text: 'authoritative' },
+    ])
+    expect(restored.activeRun?.state).toBe('completed')
+    expect(restored.lastSequence).toBe(2)
   })
 })

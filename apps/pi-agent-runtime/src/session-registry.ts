@@ -63,6 +63,7 @@ export type SessionRegistryOptions = {
   dataRoot?: string
   instanceId: string
   cursorSecret: Buffer
+  replayWindowSize?: number
   randomUUID?: () => string
   now?: () => Date
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
@@ -136,6 +137,7 @@ export class SessionRegistry {
   private readonly randomUUID: () => string
   private readonly now: () => Date
   private readonly createPiSession: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
+  private readonly replayWindowSize: number
   private readonly records = new Map<string, SessionRecord>()
   private readonly operations = new Map<string, OperationEntry>()
   private readonly listeners = new Set<(event: EventEnvelope) => void>()
@@ -151,6 +153,7 @@ export class SessionRegistry {
     this.randomUUID = options.randomUUID ?? randomUUID
     this.now = options.now ?? (() => new Date())
     this.createPiSession = options.createPiSession ?? createDeterministicPiSession
+    this.replayWindowSize = Math.max(1, options.replayWindowSize ?? 512)
   }
 
   onEvent(listener: (event: EventEnvelope) => void): () => void {
@@ -263,6 +266,10 @@ export class SessionRegistry {
     const afterSequence = this.readCursor(input.afterCursor, binding.sessionId)
     if (afterSequence === undefined)
       return { resetRequired: true, snapshot, events: [] as EventEnvelope[] }
+    const earliestReplaySequence = Math.max(0, snapshot.lastSequence - this.replayWindowSize)
+    if (afterSequence < earliestReplaySequence || afterSequence > snapshot.lastSequence) {
+      return { resetRequired: true, snapshot, events: [] as EventEnvelope[] }
+    }
     const events = (await this.readJournal(binding.sessionId)).filter(
       (event) => event.sequence > afterSequence,
     )

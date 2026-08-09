@@ -9,6 +9,7 @@ import type {
   MenuCommand,
 } from '../shared/ipc'
 import type { ProjectApi } from '@genoffice/project-store'
+import { createAgentSessionPreloadApi } from '@genoffice/electron-utils'
 
 const api: DesktopApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
@@ -131,3 +132,4 @@ const projectApi: ProjectApi = {
 
 contextBridge.exposeInMainWorld('desktop', api)
 contextBridge.exposeInMainWorld('projectApi', projectApi)
+contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))

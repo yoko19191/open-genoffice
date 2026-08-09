@@ -20,6 +20,7 @@ export {
 export {
   applyAgentSessionEvent,
   createAgentSessionProjection,
+  restoreAgentSessionProjection,
   type AgentPanelTool,
   type AgentSessionProjection,
 } from './agent-session-projection'

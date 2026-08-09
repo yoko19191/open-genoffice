@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { createAgentSessionPreloadApi } from '@genoffice/electron-utils'
 
 import type {
   AiChatResponse,
@@ -429,6 +430,7 @@ const projectApi: ProjectApi = {
   getTimeline: (args) => ipcRenderer.invoke('project:timeline', args),
 }
 contextBridge.exposeInMainWorld('projectApi', projectApi)
+contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))
 
 function parseWorkbookFile(input: unknown): WorkbookFile {
   if (!isRecord(input)) throw new Error('Invalid workbook response.')

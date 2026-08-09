@@ -80,6 +80,7 @@ export async function createDeterministicPiSession(
     provider: 'genoffice-faux',
     models: [{ id: 'genoffice-faux-1', reasoning: true }],
     tokenSize: { min: 1, max: 1 },
+    tokensPerSecond: 32,
   })
   modelRuntime.registerNativeProvider(faux.provider)
   const settingsManager = SettingsManager.inMemory({

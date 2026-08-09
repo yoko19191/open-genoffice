@@ -10,7 +10,9 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin({ exclude: ['@genoffice/electron-utils'] })],
   },
-  preload: {},
+  preload: {
+    plugins: [externalizeDepsPlugin({ exclude: ['@genoffice/electron-utils'] })],
+  },
   renderer: {
     plugins: [react()],
     server: {

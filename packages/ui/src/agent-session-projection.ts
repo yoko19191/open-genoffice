@@ -1,4 +1,5 @@
 import type {
+  AgentSessionConnectReceipt,
   EventEnvelope,
   SessionMessageProjection,
   SessionSnapshot,
@@ -96,6 +97,15 @@ export function createAgentSessionProjection(snapshot: SessionSnapshot): AgentSe
     cursor: snapshot.cursor,
     recentEventIds: [],
   }
+}
+
+export function restoreAgentSessionProjection(
+  receipt: AgentSessionConnectReceipt,
+): AgentSessionProjection {
+  return receipt.events.reduce(
+    applyAgentSessionEvent,
+    createAgentSessionProjection(receipt.snapshot),
+  )
 }
 
 export function applyAgentSessionEvent(

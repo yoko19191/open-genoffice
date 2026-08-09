@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -9,8 +10,9 @@ import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/
 import {
   applyAgentSessionEvent,
   createAgentSessionProjection,
+  restoreAgentSessionProjection,
 } from '@genoffice/ui/agent-session-projection'
-import { createInstalledPiRuntimeService, createPiRuntimeManager } from '../src'
+import { AgentSessionBroker, createInstalledPiRuntimeService, createPiRuntimeManager } from '../src'
 
 const execFileAsync = promisify(execFile)
 
@@ -131,6 +133,76 @@ describe('copied Pi Runtime end to end', () => {
     )
     expect(transcript).toContain('genoffice.document-binding')
     expect(transcript).not.toContain('run.started')
+
+    const reloadDocumentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
+    const reloadEvents: Parameters<typeof applyAgentSessionEvent>[1][] = []
+    const broker = new AgentSessionBroker(manager, {
+      authorize: () => true,
+      randomUUID,
+    })
+    let reconnected = await broker.connect(500, { documentId: reloadDocumentId }, (event) =>
+      reloadEvents.push(event),
+    )
+    let resolveReloadTerminal!: () => void
+    const reloadTerminal = new Promise<void>((resolve) => {
+      resolveReloadTerminal = resolve
+    })
+    const unsubscribeReloadTerminal = manager.onSessionEvent((event) => {
+      if (event.sessionId === reconnected.sessionId && event.type === 'run.completed') {
+        resolveReloadTerminal()
+      }
+    })
+    await broker.command(500, {
+      type: 'prompt',
+      operationId: randomUUID(),
+      sessionId: reconnected.sessionId,
+      documentId: reloadDocumentId,
+      text: 'survive renderer reload',
+    })
+    let observedActiveDuringReload = false
+    for (let reload = 0; reload < 50; reload += 1) {
+      broker.disconnect(500)
+      reconnected = await broker.connect(
+        500,
+        {
+          documentId: reloadDocumentId,
+          sessionId: reconnected.sessionId,
+          afterCursor: reconnected.snapshot.cursor,
+        },
+        (event) => reloadEvents.push(event),
+      )
+      observedActiveDuringReload ||=
+        reconnected.snapshot.activeRun?.state === 'queued' ||
+        reconnected.snapshot.activeRun?.state === 'running'
+    }
+    expect(observedActiveDuringReload).toBe(true)
+    await reloadTerminal
+    unsubscribeReloadTerminal()
+    broker.disconnect(500)
+    reconnected = await broker.connect(
+      500,
+      {
+        documentId: reloadDocumentId,
+        sessionId: reconnected.sessionId,
+        afterCursor: reconnected.snapshot.cursor,
+      },
+      (event) => reloadEvents.push(event),
+    )
+    expect(restoreAgentSessionProjection(reconnected).activeRun?.state).toBe('completed')
+    expect(new Set(reloadEvents.map((event) => event.eventId)).size).toBe(reloadEvents.length)
+    const reloadJournal = (
+      await readFile(
+        join(resourceHome, 'state', 'session-journals', `${reconnected.sessionId}.jsonl`),
+        'utf8',
+      )
+    )
+      .trim()
+      .split('\n')
+      .map(parseProtocolFrame)
+    expect(
+      reloadJournal.filter((event) => event.kind === 'event' && event.type === 'run.completed'),
+    ).toHaveLength(1)
+    await broker.close()
     await manager.shutdown()
     expect(manager.state).toBe('stopped')
     expect(diagnostics).toEqual([])

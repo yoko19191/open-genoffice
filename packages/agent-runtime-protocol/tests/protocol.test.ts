@@ -14,6 +14,10 @@ import {
   SCHEMA_VERSION,
   createNdjsonFrameDecoder,
   parseBootstrapLine,
+  parseAgentSessionCommand,
+  parseAgentSessionConnectReceipt,
+  parseAgentSessionConnectRequest,
+  parseEventEnvelope,
   parseProtocolFrame,
   parseRuntimeBundleManifest,
   parseRuntimeHealthProjection,
@@ -24,6 +28,9 @@ import {
 } from '../src'
 
 const token = 'a'.repeat(64)
+const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+const sessionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const operationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 describe('runtime bootstrap contract', () => {
   it('accepts the frozen inherited-stdin bootstrap record', () => {
@@ -468,5 +475,92 @@ describe('renderer-safe Session receipts', () => {
     ['subscription', () => parseSessionSubscriptionReceipt({ resetRequired: false, snapshot })],
   ])('rejects an invalid %s receipt with a stable error', (_label, parse) => {
     expect(parse).toThrowError(/_invalid$/)
+  })
+})
+
+describe('narrow renderer Agent Session bridge', () => {
+  const snapshot = {
+    sessionId,
+    documentId,
+    messages: [],
+    activeRun: { runId: 'run-1', state: 'running' },
+    lastSequence: 4,
+    cursor: 'cursor-4',
+  }
+
+  it('accepts only typed connect, prompt command, and reconnect receipt vectors', () => {
+    expect(
+      parseAgentSessionConnectRequest({ documentId, sessionId, afterCursor: 'cursor-3' }),
+    ).toMatchObject({ documentId, sessionId })
+    expect(
+      parseAgentSessionCommand({ type: 'prompt', operationId, sessionId, documentId, text: 'go' }),
+    ).toMatchObject({ type: 'prompt', operationId })
+    expect(
+      parseAgentSessionConnectReceipt({
+        connectionId: operationId,
+        sessionId,
+        documentId,
+        resetRequired: true,
+        snapshot,
+        events: [],
+      }),
+    ).toMatchObject({ connectionId: operationId, resetRequired: true })
+    expect(
+      parseEventEnvelope({
+        protocolVersion: '1',
+        kind: 'event',
+        eventId: 'event-5',
+        instanceId: 'instance-1',
+        sessionId,
+        documentId,
+        sequence: 5,
+        cursor: 'cursor-5',
+        occurredAt: '2026-08-09T13:00:00.000Z',
+        type: 'run.completed',
+        payload: {},
+      }),
+    ).toMatchObject({ kind: 'event', sequence: 5 })
+  })
+
+  it.each([
+    ['connect raw method', () => parseAgentSessionConnectRequest({ documentId, method: 'invoke' })],
+    [
+      'command raw method',
+      () =>
+        parseAgentSessionCommand({
+          type: 'invoke',
+          operationId,
+          sessionId,
+          documentId,
+          text: 'go',
+        }),
+    ],
+    [
+      'command extra field',
+      () =>
+        parseAgentSessionCommand({
+          type: 'prompt',
+          operationId,
+          sessionId,
+          documentId,
+          text: 'go',
+          socket: '/tmp/runtime.sock',
+        }),
+    ],
+    [
+      'receipt binding',
+      () =>
+        parseAgentSessionConnectReceipt({
+          connectionId: operationId,
+          sessionId,
+          documentId: 'other',
+          resetRequired: false,
+          snapshot,
+          events: [],
+        }),
+    ],
+    ['event secret field', () => parseEventEnvelope({ kind: 'event', token: 'secret' })],
+  ])('rejects %s with a redacted stable error', (_label, parse) => {
+    expect(parse).toThrowError(/(?:agent_session_.*|event_envelope)_invalid/)
   })
 })
