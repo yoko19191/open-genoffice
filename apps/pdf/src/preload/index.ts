@@ -1,8 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { createAgentSessionPreloadApi } from '@genoffice/electron-utils/agent-session-preload'
 import type { Lang } from '@genoffice/i18n'
-import type { AiStreamChunk } from '@genoffice/ai-provider'
-import { AI_CHANNELS, PDF_CHANNELS } from '../shared/ipc'
+import { PDF_CHANNELS } from '../shared/ipc'
 import type { PdfApi } from '../shared/ipc'
 
 const api: PdfApi = {
@@ -35,14 +34,6 @@ const api: PdfApi = {
     const listener = (_e: Electron.IpcRendererEvent, lang: Lang) => handler(lang)
     ipcRenderer.on(PDF_CHANNELS.languageChanged, listener)
     return () => ipcRenderer.removeListener(PDF_CHANNELS.languageChanged, listener)
-  },
-  getAiSettings: () => ipcRenderer.invoke(AI_CHANNELS.getSettings),
-  aiStream: (request) => ipcRenderer.invoke(AI_CHANNELS.stream, request),
-  aiStreamCancel: (requestId) => ipcRenderer.invoke(AI_CHANNELS.streamCancel, requestId),
-  onAiStream: (handler) => {
-    const listener = (_e: Electron.IpcRendererEvent, chunk: AiStreamChunk) => handler(chunk)
-    ipcRenderer.on(AI_CHANNELS.streamChunk, listener)
-    return () => ipcRenderer.removeListener(AI_CHANNELS.streamChunk, listener)
   },
 }
 

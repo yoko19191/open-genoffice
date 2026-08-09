@@ -1,10 +1,26 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import type { AgentToolCall, AgentToolDef, ToolExecution } from '@genoffice/agent-core'
 import type { OutlineNode } from '../OutlinePanel'
 import type { SearchIndex } from '../search'
 import { searchInIndex } from '../search'
 import type { FormValueInput, MarkupType } from '../../shared/ipc'
 import { t } from '../i18n/locale'
+
+type AgentToolCall = { name: string; input: Record<string, unknown> }
+type AgentToolDef = {
+  name: string
+  description: string
+  inputSchema: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required?: string[]
+  }
+}
+type ToolExecution = {
+  output: string
+  summary: string
+  isError?: boolean
+  mutated?: boolean
+}
 
 /** Text cap per read_pages fed back to the model (the payload is resent in full each turn, so volume must be limited) */
 const READ_CHUNK_CHARS = 24_000

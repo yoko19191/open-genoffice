@@ -14,8 +14,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@genoffice/agent-core": "*",
-    "@genoffice/ai-provider": "*",
     "@genoffice/electron-utils": "*",
     "@genoffice/i18n": "*",
     "@genoffice/ui": "*",

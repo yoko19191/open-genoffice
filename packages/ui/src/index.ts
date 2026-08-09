@@ -24,3 +24,8 @@ export {
   type AgentPanelTool,
   type AgentSessionProjection,
 } from './agent-session-projection'
+export {
+  AgentSessionController,
+  type AgentSessionClient,
+  type AgentSessionControllerOptions,
+} from './agent-session-controller'

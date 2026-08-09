@@ -5,8 +5,7 @@ import type { CSSProperties, ReactElement, ReactNode, RefObject } from 'react'
 import { GlobalWorkerOptions, TextLayer, getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
-import { AiPanel, GensparkMark } from './ai/AiPanel'
-import type { PdfAiDeps } from './ai/tools'
+import { AgentMark, AiPanel } from './ai/AiPanel'
 import {
   MARKUP_COLORS,
   geomDispSize,
@@ -1649,49 +1648,6 @@ export default function App() {
       }
     })
 
-  /** Capability surface for AI tools; rebuilt each render (AiPanel mirrors it via refs to get the latest) */
-  const aiApi: PdfAiDeps = {
-    doc: () => doc,
-    fileName: () => fileName,
-    pageCount: () => sizes.length,
-    currentPage: () => (visList[currentPage - 1] ?? 0) + 1,
-    readOnly: () => readOnly,
-    outline: () => outline,
-    searchIndex: getSearchIndex,
-    isDeleted: (i) => deleted.has(i),
-    gotoPage: (p) => {
-      const visIdx = visList.indexOf(p - 1)
-      if (visIdx < 0) return false
-      scrollToPage(visIdx + 1)
-      return true
-    },
-    addMarkup: (type, origIdx, rects) => {
-      pushUndo()
-      const quads = rects.map((r) => [r[0], r[3], r[2], r[3], r[0], r[1], r[2], r[1]])
-      setMarkups((prev) => [
-        ...prev,
-        {
-          id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-          pageIndex: origIdx,
-          type,
-          color: MARKUP_COLORS[type],
-          quads,
-        },
-      ])
-    },
-    formEdits: () => formEdits,
-    applyFormEdit: (v) => {
-      pushUndo()
-      setFormEdits((prev) => new Map(prev).set(v.name, v))
-    },
-    rotatePage,
-    deletePage: (origIdx) => {
-      if (pageCount <= 1 || readOnly) return false
-      deletePage(origIdx)
-      return true
-    },
-  }
-
   /** Internal destination of a Link annotation → jump to that page */
   const goToDest = async (dest: unknown) => {
     if (!doc) return
@@ -2263,10 +2219,10 @@ export default function App() {
               title={t('aiOpenAssistant')}
               onClick={() => setAiCollapsed(false)}
             >
-              <GensparkMark size={22} />
+              <AgentMark size={22} />
             </button>
           )}
-          <AiPanel api={aiApi} onCollapse={() => setAiCollapsed(true)} />
+          <AiPanel onCollapse={() => setAiCollapsed(true)} />
         </div>
         <div className="app-content">
           <div className="pdf-body">

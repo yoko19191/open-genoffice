@@ -1,5 +1,4 @@
 import type { Lang } from '@genoffice/i18n'
-import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@genoffice/ai-provider'
 
 export const PDF_CHANNELS = {
   consumePending: 'pdf:consume-pending',
@@ -152,14 +151,6 @@ export type ExportImagesResult =
   | { ok: true; canceled: true }
   | { ok: false; error: string }
 
-/** AI channels are app-wide shared ipcMain handlers (shell registers via docs-main registerAiIpc); pass-through only */
-export const AI_CHANNELS = {
-  getSettings: 'ai:get-settings',
-  stream: 'ai:stream',
-  streamChunk: 'ai:stream-chunk',
-  streamCancel: 'ai:stream-cancel',
-} as const
-
 /** API exposed by preload to the renderer (window.pdfApi) */
 export interface PdfApi {
   /** Take the pdf path pending for this view (queued at tab creation); null if none */
@@ -183,8 +174,4 @@ export interface PdfApi {
   onSaveAsFlow(handler: (inFlight: boolean) => void): () => void
   getLanguage(): Promise<Lang>
   onLanguageChanged(handler: (lang: Lang) => void): () => void
-  getAiSettings(): Promise<AiSettings>
-  aiStream(request: AiStreamRequest): Promise<void>
-  aiStreamCancel(requestId: string): Promise<void>
-  onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
 }
