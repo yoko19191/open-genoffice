@@ -29,9 +29,25 @@ async function inputs() {
     nodeExecutable: process.execPath,
     nodeLicense: resolve(dirname(process.execPath), '../LICENSE'),
     entryPoint: resolve(import.meta.dirname, '../../../apps/pi-agent-runtime/src/main.ts'),
+    capabilitySmokeEntryPoint: resolve(
+      import.meta.dirname,
+      '../../../apps/pi-agent-runtime/fixtures/native-capability-smoke.ts',
+    ),
+    capabilityExtension: resolve(
+      import.meta.dirname,
+      '../../../apps/pi-agent-runtime/fixtures/native-smoke-extension.mjs',
+    ),
+    mcpSmokeServer: resolve(
+      import.meta.dirname,
+      '../../../apps/pi-agent-runtime/fixtures/mcp-stdio-server.mjs',
+    ),
     lockfile: resolve(import.meta.dirname, '../../../package-lock.json'),
     notices: noticesPath,
     windowsJobLauncher: process.env.GENOFFICE_WINDOWS_JOB_LAUNCHER ?? process.execPath,
+    windowsNativeAddon: resolve(
+      import.meta.dirname,
+      '../../../node_modules/@earendil-works/pi-tui/native/win32/prebuilds/win32-x64/win32-console-mode.node',
+    ),
     ...hostTarget(),
   }
 }
@@ -46,14 +62,32 @@ describe('Pi Runtime bundle builder', () => {
       'LICENSE.node.txt',
       'THIRD-PARTY-NOTICES.txt',
       'app/main.mjs',
+      ...(process.platform === 'win32' ? ['native/win32-x64/win32-console-mode.node'] : []),
       ...(process.platform === 'win32' ? ['node/open-genoffice-job-launcher.exe'] : []),
       `node/open-genoffice-pi-agent-runtime${process.platform === 'win32' ? '.exe' : ''}`,
+      'self-test/mcp-stdio-server.mjs',
+      'self-test/native-capability-smoke.mjs',
+      'self-test/native-smoke-extension.mjs',
     ])
     expect((await lstat(verified.executablePath)).isSymbolicLink()).toBe(false)
     expect((await lstat(verified.executablePath)).ino).not.toBe((await lstat(process.execPath)).ino)
     const entry = await readFile(verified.entryPath, 'utf8')
     expect(entry).toContain('runtime_crash')
     expect(entry).toContain('const require = __genofficeCreateRequire(import.meta.url)')
+    expect(verified.capabilitySmokeEntryPath).toBe(
+      join(options.outputDirectory, 'self-test/native-capability-smoke.mjs'),
+    )
+    const capabilitySmoke = await execFileAsync(verified.executablePath, [
+      verified.capabilitySmokeEntryPath,
+    ])
+    expect(capabilitySmoke.stderr).toBe('')
+    expect(JSON.parse(capabilitySmoke.stdout)).toMatchObject({
+      status: 'passed',
+      piEsm: true,
+      extension: 'native_smoke_extension',
+      nativeAddon: process.platform === 'win32' ? 'win32-console-mode.node' : null,
+      mcp: { tool: 'native_smoke_echo', result: 'mcp:windows-native' },
+    })
 
     await expect(buildPiRuntimeBundle(options)).rejects.toEqual(
       new PiRuntimeBundleBuildError('runtime_bundle_output_exists'),
@@ -102,6 +136,13 @@ describe('Pi Runtime bundle builder', () => {
       await expect(buildPiRuntimeBundle(options)).rejects.toThrowError(
         'runtime_bundle_windows_job_launcher_missing',
       )
+
+      const missingAddon = (await inputs()) as import('../src/builder').PiRuntimeBundleBuildOptions
+      missingAddon.platform = 'win32'
+      delete missingAddon.windowsNativeAddon
+      await expect(buildPiRuntimeBundle(missingAddon)).rejects.toThrowError(
+        'runtime_bundle_windows_native_addon_missing',
+      )
     } finally {
       Object.defineProperty(process, 'platform', { configurable: true, value: actualPlatform })
     }
@@ -145,6 +186,12 @@ describe('Pi Runtime bundle builder', () => {
       options.nodeLicense,
       '--entry',
       options.entryPoint,
+      '--capability-smoke-entry',
+      options.capabilitySmokeEntryPoint,
+      '--capability-extension',
+      options.capabilityExtension,
+      '--mcp-smoke-server',
+      options.mcpSmokeServer,
       '--lockfile',
       options.lockfile,
       '--notices',
@@ -154,7 +201,12 @@ describe('Pi Runtime bundle builder', () => {
       '--arch',
       options.arch,
       ...(options.platform === 'win32'
-        ? ['--windows-job-launcher', options.windowsJobLauncher]
+        ? [
+            '--windows-job-launcher',
+            options.windowsJobLauncher,
+            '--windows-native-addon',
+            options.windowsNativeAddon,
+          ]
         : []),
     ]
     await expect(

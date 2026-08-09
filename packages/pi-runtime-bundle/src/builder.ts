@@ -24,8 +24,12 @@ import {
   type RuntimeBundleManifest,
 } from '@genoffice/agent-runtime-protocol'
 import {
+  CAPABILITY_EXTENSION_RELATIVE_PATH,
+  CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH,
   canonicalRuntimeTreeHash,
+  MCP_SMOKE_SERVER_RELATIVE_PATH,
   WINDOWS_JOB_LAUNCHER_RELATIVE_PATH,
+  WINDOWS_NATIVE_ADDON_RELATIVE_PATH,
   verifyPiRuntimeBundle,
   type RuntimeBundleVerifierIo,
   type VerifiedPiRuntimeBundle,
@@ -48,11 +52,15 @@ export type PiRuntimeBundleBuildOptions = {
   nodeExecutable: string
   nodeLicense: string
   entryPoint: string
+  capabilitySmokeEntryPoint: string
+  capabilityExtension: string
+  mcpSmokeServer: string
   lockfile: string
   notices: string
   platform: RuntimeBundleManifest['platform']
   arch: RuntimeBundleManifest['arch']
   windowsJobLauncher?: string
+  windowsNativeAddon?: string
 }
 
 function sha256(value: Buffer | string): string {
@@ -106,6 +114,9 @@ export async function buildPiRuntimeBundle(
   if (options.platform === 'win32' && !options.windowsJobLauncher) {
     fail('runtime_bundle_windows_job_launcher_missing')
   }
+  if (options.platform === 'win32' && !options.windowsNativeAddon) {
+    fail('runtime_bundle_windows_native_addon_missing')
+  }
 
   const outputDirectory = resolve(options.outputDirectory)
   if (await pathExists(outputDirectory)) fail('runtime_bundle_output_exists')
@@ -124,6 +135,7 @@ export async function buildPiRuntimeBundle(
     await mkdir(join(stagingDirectory, 'built-in/skills'), { recursive: true })
     await mkdir(join(stagingDirectory, 'built-in/extensions'), { recursive: true })
     await mkdir(join(stagingDirectory, 'built-in/prompts'), { recursive: true })
+    await mkdir(join(stagingDirectory, 'self-test'), { recursive: true })
     await copyFile(
       options.nodeExecutable,
       join(stagingDirectory, executablePath),
@@ -133,6 +145,12 @@ export async function buildPiRuntimeBundle(
       await copyFile(
         options.windowsJobLauncher!,
         join(stagingDirectory, WINDOWS_JOB_LAUNCHER_RELATIVE_PATH),
+        0,
+      )
+      await mkdir(join(stagingDirectory, 'native/win32-x64'), { recursive: true })
+      await copyFile(
+        options.windowsNativeAddon!,
+        join(stagingDirectory, WINDOWS_NATIVE_ADDON_RELATIVE_PATH),
         0,
       )
     }
@@ -157,6 +175,29 @@ export async function buildPiRuntimeBundle(
         js: "import { createRequire as __genofficeCreateRequire } from 'node:module'; const require = __genofficeCreateRequire(import.meta.url);",
       },
     })
+    await build({
+      entryPoints: [options.capabilitySmokeEntryPoint],
+      outfile: join(stagingDirectory, CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH),
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      target: 'node22',
+      packages: 'bundle',
+      legalComments: 'none',
+      sourcemap: false,
+      minify: false,
+      logLevel: 'silent',
+      banner: {
+        js: "import { createRequire as __genofficeCreateRequire } from 'node:module'; const require = __genofficeCreateRequire(import.meta.url);",
+      },
+    })
+    await Promise.all([
+      copyFile(
+        options.capabilityExtension,
+        join(stagingDirectory, CAPABILITY_EXTENSION_RELATIVE_PATH),
+      ),
+      copyFile(options.mcpSmokeServer, join(stagingDirectory, MCP_SMOKE_SERVER_RELATIVE_PATH)),
+    ])
     await Promise.all([
       copyFile(options.nodeLicense, join(stagingDirectory, 'LICENSE.node.txt')),
       copyFile(options.notices, join(stagingDirectory, 'THIRD-PARTY-NOTICES.txt')),
@@ -166,8 +207,13 @@ export async function buildPiRuntimeBundle(
       'LICENSE.node.txt',
       'THIRD-PARTY-NOTICES.txt',
       'app/main.mjs',
+      CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH,
+      CAPABILITY_EXTENSION_RELATIVE_PATH,
+      MCP_SMOKE_SERVER_RELATIVE_PATH,
       executablePath,
-      ...(options.platform === 'win32' ? [WINDOWS_JOB_LAUNCHER_RELATIVE_PATH] : []),
+      ...(options.platform === 'win32'
+        ? [WINDOWS_JOB_LAUNCHER_RELATIVE_PATH, WINDOWS_NATIVE_ADDON_RELATIVE_PATH]
+        : []),
     ].sort()
     const files = await Promise.all(paths.map((path) => fileRecord(stagingDirectory, path)))
     const [notices, lockfile] = await Promise.all([
@@ -230,12 +276,17 @@ export async function runPiRuntimeBundleBuilderCli(
     '--node-executable',
     '--node-license',
     '--entry',
+    '--capability-smoke-entry',
+    '--capability-extension',
+    '--mcp-smoke-server',
     '--lockfile',
     '--notices',
     '--platform',
     '--arch',
   ]
-  if (values.get('--platform') === 'win32') required.push('--windows-job-launcher')
+  if (values.get('--platform') === 'win32') {
+    required.push('--windows-job-launcher', '--windows-native-addon')
+  }
   if (required.some((name) => !values.has(name))) {
     io.stderr('runtime_bundle_arguments_invalid')
     return 1
@@ -247,11 +298,15 @@ export async function runPiRuntimeBundleBuilderCli(
       nodeExecutable: values.get('--node-executable')!,
       nodeLicense: values.get('--node-license')!,
       entryPoint: values.get('--entry')!,
+      capabilitySmokeEntryPoint: values.get('--capability-smoke-entry')!,
+      capabilityExtension: values.get('--capability-extension')!,
+      mcpSmokeServer: values.get('--mcp-smoke-server')!,
       lockfile: values.get('--lockfile')!,
       notices: values.get('--notices')!,
       platform: values.get('--platform') as RuntimeBundleManifest['platform'],
       arch: values.get('--arch') as RuntimeBundleManifest['arch'],
       windowsJobLauncher: values.get('--windows-job-launcher'),
+      windowsNativeAddon: values.get('--windows-native-addon'),
     })
     io.stdout(
       JSON.stringify({

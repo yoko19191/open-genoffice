@@ -22,6 +22,8 @@ function verifiedBundle(): VerifiedPiRuntimeBundle {
     root: '/installed/pi-agent-runtime',
     executablePath: '/installed/pi-agent-runtime/node/open-genoffice-pi-agent-runtime',
     entryPath: '/installed/pi-agent-runtime/app/main.mjs',
+    capabilitySmokeEntryPath:
+      '/installed/pi-agent-runtime/self-test/native-capability-smoke.mjs',
     manifest: {
       runtimeName: RUNTIME_NAME,
       runtimeVersion: RUNTIME_VERSION,

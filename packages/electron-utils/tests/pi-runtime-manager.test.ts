@@ -31,6 +31,7 @@ function verifiedBundle(): VerifiedPiRuntimeBundle {
     root: '/installed/pi-agent-runtime',
     executablePath: '/installed/pi-agent-runtime/node/open-genoffice-pi-agent-runtime',
     entryPath: '/installed/pi-agent-runtime/app/main.mjs',
+    capabilitySmokeEntryPath: '/installed/pi-agent-runtime/self-test/native-capability-smoke.mjs',
     windowsJobLauncherPath: '/installed/pi-agent-runtime/node/open-genoffice-job-launcher.exe',
     manifest,
     manifestSha256: 'f'.repeat(64),
@@ -553,7 +554,9 @@ describe('PiRuntimeManager', () => {
 })
 
 describe('private Runtime endpoints', () => {
-  it('creates a 0700 POSIX instance directory and removes it', async () => {
+  const posixIt = process.platform === 'win32' ? it.skip : it
+
+  posixIt('creates a 0700 POSIX instance directory and removes it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-endpoint-test-'))
     await chmod(root, 0o700)
     const endpoint = await createPrivateRuntimeEndpoint(

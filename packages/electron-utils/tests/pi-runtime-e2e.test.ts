@@ -42,6 +42,12 @@ async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle
       resolve(dirname(process.execPath), '../LICENSE'),
       '--entry',
       resolve(repoRoot, 'apps/pi-agent-runtime/src/main.ts'),
+      '--capability-smoke-entry',
+      resolve(repoRoot, 'apps/pi-agent-runtime/fixtures/native-capability-smoke.ts'),
+      '--capability-extension',
+      resolve(repoRoot, 'apps/pi-agent-runtime/fixtures/native-smoke-extension.mjs'),
+      '--mcp-smoke-server',
+      resolve(repoRoot, 'apps/pi-agent-runtime/fixtures/mcp-stdio-server.mjs'),
       '--lockfile',
       resolve(repoRoot, 'package-lock.json'),
       '--notices',
@@ -50,7 +56,17 @@ async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle
       process.platform,
       '--arch',
       process.arch,
-      ...(windowsJobLauncher ? ['--windows-job-launcher', windowsJobLauncher] : []),
+      ...(windowsJobLauncher
+        ? [
+            '--windows-job-launcher',
+            windowsJobLauncher,
+            '--windows-native-addon',
+            resolve(
+              repoRoot,
+              'node_modules/@earendil-works/pi-tui/native/win32/prebuilds/win32-x64/win32-console-mode.node',
+            ),
+          ]
+        : []),
     ],
     { cwd: repoRoot },
   )
@@ -61,6 +77,35 @@ async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle
 }
 
 describe('copied Pi Runtime end to end', () => {
+  const windowsIt = process.platform === 'win32' ? it : it.skip
+
+  windowsIt(
+    'loads Pi ESM, a dynamic Extension, a native addon, and stdio MCP',
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), 'pi-runtime-capability-e2e-'))
+      const verified = await buildCopiedRuntime(root)
+      const launcher = verified.windowsJobLauncherPath
+      if (!launcher) throw new Error('runtime_job_launcher_missing')
+      const { stdout, stderr } = await execFileAsync(launcher, [
+        '--owner-pid',
+        String(process.pid),
+        '--',
+        verified.executablePath,
+        verified.capabilitySmokeEntryPath,
+      ])
+      expect(stderr).toBe('')
+      expect(JSON.parse(stdout)).toMatchObject({
+        status: 'passed',
+        piEsm: true,
+        extension: 'native_smoke_extension',
+        nativeAddon: 'win32-console-mode.node',
+        mcp: { tool: 'native_smoke_echo', result: 'mcp:windows-native' },
+      })
+      await rm(root, { recursive: true, force: true })
+    },
+    15_000,
+  )
+
   it('verifies, spawns, authenticates, queries, and shuts down without residue', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-runtime-e2e-'))
     const verified = await buildCopiedRuntime(root)

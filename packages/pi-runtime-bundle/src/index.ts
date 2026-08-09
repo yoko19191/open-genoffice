@@ -17,6 +17,10 @@ export class RuntimeBundleVerificationError extends Error {
 }
 
 export const WINDOWS_JOB_LAUNCHER_RELATIVE_PATH = 'node/open-genoffice-job-launcher.exe'
+export const CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH = 'self-test/native-capability-smoke.mjs'
+export const CAPABILITY_EXTENSION_RELATIVE_PATH = 'self-test/native-smoke-extension.mjs'
+export const MCP_SMOKE_SERVER_RELATIVE_PATH = 'self-test/mcp-stdio-server.mjs'
+export const WINDOWS_NATIVE_ADDON_RELATIVE_PATH = 'native/win32-x64/win32-console-mode.node'
 
 export type RuntimeBundleTarget = {
   platform: RuntimeBundleManifest['platform']
@@ -28,7 +32,9 @@ export type VerifiedPiRuntimeBundle = Readonly<{
   root: string
   executablePath: string
   entryPath: string
+  capabilitySmokeEntryPath: string
   windowsJobLauncherPath?: string
+  windowsNativeAddonPath?: string
   manifest: RuntimeBundleManifest
   manifestSha256: string
 }>
@@ -82,8 +88,18 @@ function validateManifestPaths(manifest: RuntimeBundleManifest) {
     fail('runtime_bundle_launch_path_missing')
   }
   if (!paths.has('THIRD-PARTY-NOTICES.txt')) fail('runtime_bundle_notices_missing')
+  if (
+    !paths.has(CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH) ||
+    !paths.has(CAPABILITY_EXTENSION_RELATIVE_PATH) ||
+    !paths.has(MCP_SMOKE_SERVER_RELATIVE_PATH)
+  ) {
+    fail('runtime_bundle_self_test_missing')
+  }
   if (manifest.platform === 'win32' && !paths.has(WINDOWS_JOB_LAUNCHER_RELATIVE_PATH)) {
     fail('runtime_bundle_windows_job_launcher_missing')
+  }
+  if (manifest.platform === 'win32' && !paths.has(WINDOWS_NATIVE_ADDON_RELATIVE_PATH)) {
+    fail('runtime_bundle_windows_native_addon_missing')
   }
 }
 
@@ -192,9 +208,11 @@ export async function verifyPiRuntimeBundle(
     root,
     executablePath: resolve(root, ...manifest.executable.split('/')),
     entryPath: resolve(root, ...manifest.entry.split('/')),
+    capabilitySmokeEntryPath: resolve(root, ...CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH.split('/')),
     ...(target.platform === 'win32'
       ? {
           windowsJobLauncherPath: resolve(root, ...WINDOWS_JOB_LAUNCHER_RELATIVE_PATH.split('/')),
+          windowsNativeAddonPath: resolve(root, ...WINDOWS_NATIVE_ADDON_RELATIVE_PATH.split('/')),
         }
       : {}),
     manifest: freezeManifest(manifest),

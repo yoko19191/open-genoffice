@@ -33,8 +33,14 @@ async function fixtureBundle() {
       ? ([['node/open-genoffice-job-launcher.exe', 'job launcher\n']] as const)
       : []),
     ['app/main.mjs', 'export {}\n'],
+    ['self-test/mcp-stdio-server.mjs', 'export {}\n'],
+    ['self-test/native-capability-smoke.mjs', 'export {}\n'],
+    ['self-test/native-smoke-extension.mjs', 'export default () => {}\n'],
     ['THIRD-PARTY-NOTICES.txt', 'fixture notice\n'],
     ['LICENSE.node.txt', 'fixture license\n'],
+    ...(process.platform === 'win32'
+      ? ([['native/win32-x64/win32-console-mode.node', 'native addon\n']] as const)
+      : []),
   ])
   for (const [path, contents] of fileContents) {
     const target = join(root, ...path.split('/'))
@@ -195,6 +201,20 @@ describe('installed Pi Runtime bundle verifier', () => {
     ).rejects.toThrowError('runtime_bundle_notices_missing')
   })
 
+  it.each([
+    'self-test/native-capability-smoke.mjs',
+    'self-test/native-smoke-extension.mjs',
+    'self-test/mcp-stdio-server.mjs',
+  ])('rejects a bundle missing required self-test file %s', async (missingPath) => {
+    const { root, manifest } = await fixtureBundle()
+    manifest.files = manifest.files.filter((file) => file.path !== missingPath)
+    refreshTreeHash(manifest)
+    await writeManifest(root, manifest)
+    await expect(
+      verifyPiRuntimeBundle(root, { platform: manifest.platform, arch: manifest.arch }),
+    ).rejects.toThrowError('runtime_bundle_self_test_missing')
+  })
+
   it('rejects invalid roots, manifests, tree hashes, and missing registered files', async () => {
     const rootFile = join(await mkdtemp(join(tmpdir(), 'pi-runtime-root-file-')), 'bundle')
     await writeFile(rootFile, 'not a directory')
@@ -292,6 +312,9 @@ describe('installed Pi Runtime bundle verifier', () => {
     const missingLauncher = await fixtureBundle()
     missingLauncher.manifest.platform = 'win32'
     delete missingLauncher.manifest.libc
+    missingLauncher.manifest.files = missingLauncher.manifest.files.filter(
+      (file) => file.path !== 'node/open-genoffice-job-launcher.exe',
+    )
     for (const file of missingLauncher.manifest.files) delete file.mode
     refreshTreeHash(missingLauncher.manifest)
     await writeManifest(missingLauncher.root, missingLauncher.manifest)
@@ -302,12 +325,63 @@ describe('installed Pi Runtime bundle verifier', () => {
       }),
     ).rejects.toThrowError('runtime_bundle_windows_job_launcher_missing')
 
+    const missingNativeAddon = await fixtureBundle()
+    missingNativeAddon.manifest.platform = 'win32'
+    delete missingNativeAddon.manifest.libc
+    if (
+      !missingNativeAddon.manifest.files.some(
+        (file) => file.path === 'node/open-genoffice-job-launcher.exe',
+      )
+    ) {
+      const contents = 'job launcher\n'
+      const path = 'node/open-genoffice-job-launcher.exe'
+      await writeFile(join(missingNativeAddon.root, path), contents)
+      missingNativeAddon.manifest.files.push({
+        path,
+        sha256: hash(contents),
+        size: Buffer.byteLength(contents),
+      })
+    }
+    missingNativeAddon.manifest.files = missingNativeAddon.manifest.files.filter(
+      (file) => file.path !== 'native/win32-x64/win32-console-mode.node',
+    )
+    missingNativeAddon.manifest.files.sort((left, right) =>
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+    )
+    for (const file of missingNativeAddon.manifest.files) delete file.mode
+    refreshTreeHash(missingNativeAddon.manifest)
+    await writeManifest(missingNativeAddon.root, missingNativeAddon.manifest)
+    await expect(
+      verifyPiRuntimeBundle(missingNativeAddon.root, {
+        platform: 'win32',
+        arch: missingNativeAddon.manifest.arch,
+      }),
+    ).rejects.toThrowError('runtime_bundle_windows_native_addon_missing')
+
     const windows = await fixtureBundle()
     if (
       !windows.manifest.files.some((file) => file.path === 'node/open-genoffice-job-launcher.exe')
     ) {
       const contents = 'job launcher\n'
       const path = 'node/open-genoffice-job-launcher.exe'
+      await writeFile(join(windows.root, path), contents)
+      windows.manifest.files.push({
+        path,
+        sha256: hash(contents),
+        size: Buffer.byteLength(contents),
+      })
+      windows.manifest.files.sort((left, right) =>
+        left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+      )
+    }
+    if (
+      !windows.manifest.files.some(
+        (file) => file.path === 'native/win32-x64/win32-console-mode.node',
+      )
+    ) {
+      const contents = 'native addon\n'
+      const path = 'native/win32-x64/win32-console-mode.node'
+      await mkdir(join(windows.root, 'native/win32-x64'), { recursive: true })
       await writeFile(join(windows.root, path), contents)
       windows.manifest.files.push({
         path,
