@@ -131,7 +131,12 @@ export async function createAuthenticatedRuntimeServer(
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(options.bootstrap.endpoint, resolve)
+    server.listen(
+      options.platform === 'win32'
+        ? { path: options.bootstrap.endpoint, readableAll: false, writableAll: false }
+        : options.bootstrap.endpoint,
+      resolve,
+    )
   })
   if ((options.platform ?? process.platform) !== 'win32') {
     await chmod(options.bootstrap.endpoint, 0o600)

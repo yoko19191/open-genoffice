@@ -22,3 +22,20 @@ export {
   type FetchWithSsrfGuardOptions,
 } from './safe-remote-url'
 export { fetchRemoteImage, remoteImageHeaders } from './remote-image'
+export {
+  PiRuntimeManager,
+  PiRuntimeManagerError,
+  createPrivateRuntimeEndpoint,
+  type PiRuntimeChild,
+  type PiRuntimeHealth,
+  type PiRuntimeManagerDependencies,
+  type PiRuntimeManagerOptions,
+  type PiRuntimeManagerState,
+  type PiRuntimeSocket,
+  type PrivateRuntimeEndpoint,
+} from './pi-runtime-manager'
+export {
+  connectRuntimeEndpoint,
+  createNodePiRuntimeDependencies,
+  createPiRuntimeManager,
+} from './pi-runtime-node'

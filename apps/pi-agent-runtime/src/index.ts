@@ -13,6 +13,7 @@ export {
   type RuntimeDiagnosticCode,
   type StartRuntimeFromStdinOptions,
 } from './bootstrap-stdin'
+export { runRuntimeProcess, type RunRuntimeProcessOptions } from './process-entry'
 
 export type FakeProviderEvent = {
   type: string

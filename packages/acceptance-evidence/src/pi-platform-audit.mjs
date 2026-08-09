@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { access, readdir, readFile } from 'node:fs/promises'
 import { basename, extname, join, relative, resolve } from 'node:path'
 
 const APPROVED_VERSIONS = {
@@ -157,6 +157,17 @@ export async function auditPiPlatformBoundary(repoRootInput) {
     sourceFiles.push(
       ...(await walk(root, (path) => ['.js', '.mjs', '.ts'].includes(extname(path)))),
     )
+  }
+  for (const path of [
+    join(repoRoot, 'packages/electron-utils/src/pi-runtime-manager.ts'),
+    join(repoRoot, 'packages/electron-utils/src/pi-runtime-node.ts'),
+  ]) {
+    try {
+      await access(path)
+      sourceFiles.push(path)
+    } catch {
+      // Older fixtures and pre-migration checkouts do not have the new manager yet.
+    }
   }
   for (const path of sourceFiles) {
     const content = await readFile(path, 'utf8')
