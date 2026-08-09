@@ -59,6 +59,49 @@ _Avoid_: Skill 内容、静态 Prompt、文档缓存
 由 GenOffice 编辑器提供、注册到 Pi Agent Session 的受控领域能力。
 _Avoid_: Pi 内置工具、Skill、编辑器命令
 
+**Office Tool Catalog**:
+由每个 Office 应用的 Electron main 持有的权威工具登记册；它为当前文档冻结 canonical ID、
+模型 alias、schema、effect、actor policy、freshness、rollback 和 executor routing，并把
+Capability Snapshot 所需的无 secret 投影交给 Runtime。
+_Avoid_: renderer 工具数组、Prompt 中的工具清单、全局工具注册表
+
+**Canonical Tool ID**:
+授权、审计和 provenance 使用的稳定工具身份，Office 工具采用 `office:<app>:<name>`，MCP
+工具采用 `mcp:<serverId>:<name>`，平台工具采用 `platform:<name>`；它不直接暴露给模型。
+_Avoid_: 工具显示名、模型 alias、注册顺序
+
+**Model Tool Alias**:
+Runtime 从当前 Capability Snapshot 确定性投影给模型的短工具名；必须映射到唯一 canonical
+ID，碰撞时隔离冲突工具，不能以注册顺序覆盖。
+_Avoid_: Canonical Tool ID、任意重命名、兼容别名层
+
+**Office Tool Receipt**:
+Office Tool Bridge 对一次调用持久化的结构化结果，至少关联 operation、tool call、canonical
+tool、输出、Artifact、执行后的 contextVersion 与 mutation outcome；断连恢复时用它判断
+调用是否已提交，不重新猜测或重放 mutation。
+_Avoid_: Tool result 文本、普通日志、成功布尔值
+
+**Context Version**:
+Office Context 的 opaque freshness token，由应用在读取时产生、Broker 在 mutation 前校验；
+用户编辑、前序 mutation 或 renderer reload 使其失效时返回 `stale_context`，模型不能自行
+构造或复制它。
+_Avoid_: 文件 mtime、block index、页码、单元格 revision 的跨进程暴露
+
+**View Effect**:
+改变当前页、选择区、焦点或可见 UI，却不修改 Office 文件的工具副作用；首版只允许 Parent
+Agent 调用，不进入文档 undo，也不能默认交给后台 Subagent。
+_Avoid_: Read Tool、Document Mutation、无副作用操作
+
+**Resource Mutation**:
+改变 `~/.open-genoffice` 或项目资源的操作，使用原子资源写入、Resource Activation 与独立
+审计，不复用 Office 文档 rollback；首版不向 Subagent 发放该类 Grant。
+_Avoid_: Document Mutation、同步传输、配置读取
+
+**SlidePageSpec**:
+Slides 整页生成使用的受限、带版本 JSON 页面协议，只允许可确定性构造和审计的可编辑元素，
+图片通过 Artifact Reference 引用；禁止 HTML、JavaScript、任意 OOXML、外部 URL 与本地路径。
+_Avoid_: 幻灯片 HTML、cloud marker、模型生成的任意 PPTX
+
 **Tool Provenance**:
 一次工具结果携带的不可变来源链，至少标识 Agent Actor、run、工具命名空间以及 Office
 executor 或 MCP server；它用于授权、审计和 UI 解释，不把原始参数或结果复制成日志。

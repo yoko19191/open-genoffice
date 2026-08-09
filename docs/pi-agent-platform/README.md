@@ -1,6 +1,8 @@
 # Pi Agent Platform 执行文档索引
 
-状态：Scaffold
+<!-- markdownlint-disable MD013 MD060 -->
+
+状态：Contract Stable
 
 本目录把已经批准的迁移规格转换为工程契约、纵向切片和发布证据。架构决策仍以
 [迁移规格](../superpowers/specs/2026-08-07-pi-agent-platform-migration.md)、
@@ -14,13 +16,22 @@
 | 1    | [Runtime IPC 与 Session 契约](01-runtime-ipc-session-contract.md) | Contract Stable | [#1](https://github.com/yoko19191/open-genoffice/issues/1)–[#7](https://github.com/yoko19191/open-genoffice/issues/7) 已发布                                                                 |
 | 2    | [数据、配置与安全契约](02-data-config-security-contract.md)       | Contract Stable | [#8](https://github.com/yoko19191/open-genoffice/issues/8)–[#16](https://github.com/yoko19191/open-genoffice/issues/16)、[#24](https://github.com/yoko19191/open-genoffice/issues/24) 已发布 |
 | 3    | [子系统详细设计](03-subsystem-designs.md)                         | Contract Stable | [#17](https://github.com/yoko19191/open-genoffice/issues/17)–[#26](https://github.com/yoko19191/open-genoffice/issues/26) 已发布                                                             |
-| 4    | [Office Tool 迁移目录](04-office-tool-migration-catalog.md)       | Scaffold        | 尚未提取                                                                                                                                                                                     |
-| 5    | [应用切换手册](05-application-cutover-playbooks.md)               | Scaffold        | 尚未提取                                                                                                                                                                                     |
-| 6    | [测试与验收追踪矩阵](06-test-acceptance-traceability.md)          | Scaffold        | 尚未提取                                                                                                                                                                                     |
-| 7    | [打包、升级与运维手册](07-packaging-upgrade-operations.md)        | Scaffold        | 尚未提取                                                                                                                                                                                     |
+| 4    | [Office Tool 迁移目录](04-office-tool-migration-catalog.md)       | Contract Stable | 63 个现有工具实例、OT-D01～OT-D12 与 OT-I01～OT-I08 已冻结；拆票待发布                                                                                                                       |
+| 5    | [应用切换手册](05-application-cutover-playbooks.md)               | Contract Stable | PDF → Docs → Sheets → Slides/Slide QC 原子切换、删除与证据门已冻结；复用 OT-I01～OT-I08，不重复拆票                                                                                         |
+| 6    | [测试与验收追踪矩阵](06-test-acceptance-traceability.md)          | Contract Stable | 全部 AR/OT/MD/RS/MCP/SA/OCR/SY/SL/GX/PK/QA 已映射；QA-I01～QA-I04 待发布                                                                                                                    |
+| 7    | [打包、升级与运维手册](07-packaging-upgrade-operations.md)        | Contract Stable | Runtime bundle、三平台、升级/卸载与发布门已冻结；PK-I01～PK-I06 待发布                                                                                                                      |
 
-实际写作顺序为 `01 → 02 → 06 → 04 → 03 → 05 → 07`。测试契约在工具和子系统实现前
-出现，避免代码完成后才补验收。
+七份执行文档已经按 `01 → 02 → 03 → 04 → 05 → 06 → 07` 全部达到
+`Contract Stable`。下一步按 `to-issues` 依赖顺序发布 OT、QA、PK 切片，再从 G0 的协议与
+fake Provider 基线进入实际代码；测试和删除证据随每个纵向切片交付，不在功能完成后补写。
+
+Slides 整页生成的实现选择由
+[ADR 0017](../adr/0017-replace-cloud-slide-generation-with-local-slide-page-spec.md) 固定；
+[ADR 0016](../adr/0016-set-the-first-release-quality-gate-for-full-page-slides.md) 继续作为质量门。
+
+需要在独立窗口持续执行整个迁移时，直接使用
+[端到端实施 Goal Prompt](implementation-goal-prompt.md)。它授权创建实施分支、按切片提交和
+推送，并把真实云服务、签名与破坏性边界保留为 HITL 停止点。
 
 ## 共创状态
 
