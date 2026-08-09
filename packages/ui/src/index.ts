@@ -17,3 +17,9 @@ export {
   type ShapeGalleryGroup,
   type ShapeGalleryShape,
 } from './shape-gallery'
+export {
+  applyAgentSessionEvent,
+  createAgentSessionProjection,
+  type AgentPanelTool,
+  type AgentSessionProjection,
+} from './agent-session-projection'

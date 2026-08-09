@@ -3,19 +3,42 @@ import {
   RUNTIME_VERSION,
   SCHEMA_VERSION,
   type RuntimeHealthProjection,
+  type EventEnvelope,
+  type SessionConnectionReceipt,
+  type SessionPromptReceipt,
+  type SessionSnapshot,
+  type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
 import { createPiRuntimeManager } from './pi-runtime-node'
-import type { PiRuntimeManager } from './pi-runtime-manager'
+import type {
+  PiRuntimeManager,
+  SessionBoundRequest,
+  SessionCreateRequest,
+  SessionOpenRequest,
+  SessionPromptRequest,
+  SessionSubscribeRequest,
+} from './pi-runtime-manager'
 
 export type PiRuntimeServiceOptions = {
   bundleRoot: string
   platform: NodeJS.Platform
   arch: 'arm64' | 'x64'
   parentPid: number
+  resourceHome?: string
 }
 
-type OwnedPiRuntimeManager = Pick<PiRuntimeManager, 'start' | 'shutdown'>
+type OwnedPiRuntimeManager = Pick<
+  PiRuntimeManager,
+  | 'start'
+  | 'shutdown'
+  | 'createSession'
+  | 'openSession'
+  | 'promptSession'
+  | 'snapshotSession'
+  | 'subscribeSession'
+  | 'onSessionEvent'
+>
 
 export type PiRuntimeServiceDependencies = {
   verifyBundle: (
@@ -26,6 +49,7 @@ export type PiRuntimeServiceDependencies = {
     bundle: VerifiedPiRuntimeBundle
     platform: NodeJS.Platform
     parentPid: number
+    resourceHome?: string
   }) => OwnedPiRuntimeManager
 }
 
@@ -61,6 +85,37 @@ export class PiRuntimeService {
     return this.initializePromise
   }
 
+  async createSession(input: SessionCreateRequest): Promise<SessionConnectionReceipt> {
+    return (await this.readyManager()).createSession(input)
+  }
+
+  async openSession(input: SessionOpenRequest): Promise<SessionConnectionReceipt> {
+    return (await this.readyManager()).openSession(input)
+  }
+
+  async promptSession(input: SessionPromptRequest): Promise<SessionPromptReceipt> {
+    return (await this.readyManager()).promptSession(input)
+  }
+
+  async snapshotSession(input: SessionBoundRequest): Promise<SessionSnapshot> {
+    return (await this.readyManager()).snapshotSession(input)
+  }
+
+  async subscribeSession(input: SessionSubscribeRequest): Promise<SessionSubscriptionReceipt> {
+    return (await this.readyManager()).subscribeSession(input)
+  }
+
+  async onSessionEvent(listener: (event: EventEnvelope) => void): Promise<() => void> {
+    return (await this.readyManager()).onSessionEvent(listener)
+  }
+
+  private async readyManager(): Promise<OwnedPiRuntimeManager> {
+    await this.initialize()
+    if (this.currentHealth.state !== 'ready' || !this.manager)
+      throw new Error('runtime_unavailable')
+    return this.manager
+  }
+
   private async initializeRuntime(): Promise<RuntimeHealthProjection> {
     this.currentHealth = projection('starting')
     let bundle: VerifiedPiRuntimeBundle
@@ -78,6 +133,7 @@ export class PiRuntimeService {
       bundle,
       platform: this.options.platform,
       parentPid: this.options.parentPid,
+      ...(this.options.resourceHome ? { resourceHome: this.options.resourceHome } : {}),
     })
     try {
       await this.manager.start()
@@ -104,7 +160,7 @@ export class PiRuntimeService {
 }
 
 export function createInstalledPiRuntimeService(
-  options: PiRuntimeServiceOptions & { startupTimeoutMs?: number },
+  options: PiRuntimeServiceOptions & { startupTimeoutMs?: number | undefined },
 ): PiRuntimeService {
   const { startupTimeoutMs, ...serviceOptions } = options
   return new PiRuntimeService(serviceOptions, {

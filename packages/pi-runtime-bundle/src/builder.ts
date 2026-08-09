@@ -141,6 +141,9 @@ export async function buildPiRuntimeBundle(
       sourcemap: false,
       minify: false,
       logLevel: 'silent',
+      banner: {
+        js: "import { createRequire as __genofficeCreateRequire } from 'node:module'; const require = __genofficeCreateRequire(import.meta.url);",
+      },
     })
     await Promise.all([
       copyFile(options.nodeLicense, join(stagingDirectory, 'LICENSE.node.txt')),

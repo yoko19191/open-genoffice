@@ -20,4 +20,10 @@ export {
   type DebugStdioDependencies,
   type DebugStdioWorkspace,
 } from './debug-stdio'
+export {
+  RuntimeSessionError,
+  SessionRegistry,
+  createSessionRegistry,
+  type SessionRegistryOptions,
+} from './session-registry'
 export { runRuntimeEntrypoint, type RuntimeEntrypointDependencies } from './runtime-entrypoint'

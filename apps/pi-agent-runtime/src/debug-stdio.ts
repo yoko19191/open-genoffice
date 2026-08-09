@@ -51,7 +51,7 @@ function eventFrame(type: string, sequence: number, payload: Record<string, unkn
     eventId: `debug-event-${sequence}`,
     instanceId: 'debug-instance',
     sessionId: 'debug-session',
-    documentId: 'debug-document',
+    documentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     runId: 'debug-run',
     sequence,
     cursor: `debug-cursor-${sequence}`,

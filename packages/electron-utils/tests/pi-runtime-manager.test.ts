@@ -80,19 +80,71 @@ class FakeRuntimeSocket extends Duplex {
       callback()
       return
     }
+    const snapshot = {
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      messages: [],
+      lastSequence: 1,
+      cursor: 'cursor-1',
+    }
     const defaultResult =
       request.method === 'runtime.hello'
-        ? { pid: 8128, instanceId, capabilities: ['runtime.status', 'runtime.shutdown'] }
+        ? {
+            pid: 8128,
+            instanceId,
+            capabilities: [
+              'runtime.status',
+              'runtime.shutdown',
+              'session.create',
+              'session.open',
+              'session.prompt',
+              'session.snapshot',
+              'session.subscribe',
+            ],
+          }
         : request.method === 'runtime.status'
           ? { pid: 8128, instanceId, runtimeVersion: RUNTIME_VERSION }
-          : { shuttingDown: true }
+          : request.method === 'session.create' || request.method === 'session.open'
+            ? {
+                sessionId: snapshot.sessionId,
+                documentId: snapshot.documentId,
+                snapshot,
+                cursor: snapshot.cursor,
+              }
+            : request.method === 'session.prompt'
+              ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
+              : request.method === 'session.snapshot'
+                ? snapshot
+                : request.method === 'session.subscribe'
+                  ? { resetRequired: false, snapshot, events: [] }
+                  : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
         : request.method === 'runtime.status' && 'statusResult' in this.options
           ? this.options.statusResult
-          : defaultResult
+          : request.method.startsWith('session.') && 'sessionResult' in this.options
+            ? this.options.sessionResult
+            : defaultResult
     if (request.method === 'runtime.status' && this.options.statusMode === 'error-response') {
+      this.push(
+        `${JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'response',
+          id: request.id,
+          correlationId: request.correlationId,
+          error: {
+            code: 'unavailable',
+            message: 'unavailable',
+            retryable: true,
+            correlationId: request.correlationId,
+          },
+        })}\n`,
+      )
+      callback()
+      return
+    }
+    if (request.method.startsWith('session.') && this.options.sessionMode === 'error-response') {
       this.push(
         `${JSON.stringify({
           protocolVersion: PROTOCOL_VERSION,
@@ -136,6 +188,8 @@ type ManagerHarnessOptions = {
   prelude?: boolean
   endpointFailure?: boolean
   childError?: boolean
+  sessionResult?: unknown
+  sessionMode?: 'error-response'
 }
 
 class FakeRuntimeChild extends EventEmitter implements PiRuntimeChild {
@@ -223,6 +277,109 @@ describe('PiRuntimeManager', () => {
     await expect(manager.shutdown()).resolves.toBeUndefined()
     expect(manager.state).toBe('stopped')
     expect(harness.cleanup).toHaveBeenCalledOnce()
+  })
+
+  it('uses narrow typed Session methods and forwards validated native events in socket order', async () => {
+    const harness = managerHarness()
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+    await manager.start()
+    const operationId = 'abababab-abab-4bab-8bab-abababababab'
+    await expect(
+      manager.createSession({ operationId, documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' }),
+    ).resolves.toMatchObject({
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      cursor: 'cursor-1',
+    })
+    await expect(
+      manager.openSession({
+        operationId,
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      }),
+    ).resolves.toMatchObject({ documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' })
+    await expect(
+      manager.promptSession({
+        operationId,
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        text: 'hello',
+      }),
+    ).resolves.toEqual({ runId: 'run-1', acceptedCursor: 'cursor-1' })
+    await expect(
+      manager.snapshotSession({
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      }),
+    ).resolves.toMatchObject({ lastSequence: 1 })
+    await expect(
+      manager.subscribeSession({
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        afterCursor: 'cursor-1',
+      }),
+    ).resolves.toMatchObject({ resetRequired: false, events: [] })
+    await manager.shutdown()
+  })
+
+  it.each([
+    ['createSession', 'session_connection_receipt_invalid'],
+    ['openSession', 'session_connection_receipt_invalid'],
+    ['promptSession', 'session_prompt_receipt_invalid'],
+    ['snapshotSession', 'session_snapshot_invalid'],
+    ['subscribeSession', 'session_subscription_receipt_invalid'],
+  ] as const)('maps an invalid %s result to a stable redacted error', async (method, code) => {
+    const harness = managerHarness({ sessionResult: null })
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+    await manager.start()
+    const bound = {
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    }
+    const input =
+      method === 'createSession'
+        ? { operationId: 'abababab-abab-4bab-8bab-abababababab', documentId: bound.documentId }
+        : method === 'openSession'
+          ? { operationId: 'abababab-abab-4bab-8bab-abababababab', ...bound }
+          : method === 'promptSession'
+            ? {
+                operationId: 'abababab-abab-4bab-8bab-abababababab',
+                ...bound,
+                text: 'hello',
+              }
+            : bound
+    await expect(manager[method](input as never)).rejects.toEqual(new PiRuntimeManagerError(code))
+    await manager.shutdown()
+  })
+
+  it('preserves stable Runtime errors across every narrow Session method', async () => {
+    const harness = managerHarness({ sessionMode: 'error-response' })
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+    await manager.start()
+    const operationId = 'abababab-abab-4bab-8bab-abababababab'
+    const bound = {
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    }
+    const calls = [
+      manager.createSession({ operationId, documentId: bound.documentId }),
+      manager.openSession({ operationId, ...bound }),
+      manager.promptSession({ operationId, ...bound, text: 'hello' }),
+      manager.snapshotSession(bound),
+      manager.subscribeSession(bound),
+    ]
+    await Promise.all(
+      calls.map((call) => expect(call).rejects.toEqual(new PiRuntimeManagerError('unavailable'))),
+    )
+    await manager.shutdown()
   })
 
   it('fails closed on a mismatched hello and kills the child without leaking the token', async () => {

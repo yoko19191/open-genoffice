@@ -51,6 +51,7 @@ function spawnRuntimeChild(
     stdio: ['pipe', 'pipe', 'pipe']
     detached: boolean
     windowsHide: true
+    env?: NodeJS.ProcessEnv
   },
 ): PiRuntimeChild {
   return spawn(executable, [...args], options) as PiRuntimeChild
@@ -69,7 +70,7 @@ export function createNodePiRuntimeDependencies(
 }
 
 export function createPiRuntimeManager(
-  options: PiRuntimeManagerOptions & { startupTimeoutMs?: number },
+  options: PiRuntimeManagerOptions & { startupTimeoutMs?: number | undefined },
 ): PiRuntimeManager {
   const { startupTimeoutMs, ...managerOptions } = options
   return new PiRuntimeManager(managerOptions, createNodePiRuntimeDependencies(startupTimeoutMs))

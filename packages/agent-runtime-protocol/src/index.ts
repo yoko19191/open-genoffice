@@ -10,22 +10,23 @@ export const PI_VERSION = '0.84.0' as const
 export const MAX_FRAME_BYTES = 1024 * 1024
 
 const Sha256Schema = Type.String({ pattern: '^[0-9a-f]{64}$' })
+const OperationIdSchema = Type.String({
+  pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+})
+const EntityIdSchema = Type.String({ minLength: 1, maxLength: 256 })
+const SessionIdSchema = OperationIdSchema
+const DocumentIdSchema = OperationIdSchema
 
-const RuntimeMethodSchema = Type.Union([
+const GenericRuntimeMethodSchema = Type.Union([
   Type.Literal('runtime.status'),
   Type.Literal('runtime.shutdown'),
-  Type.Literal('session.create'),
-  Type.Literal('session.open'),
   Type.Literal('session.close'),
-  Type.Literal('session.prompt'),
   Type.Literal('session.steer'),
   Type.Literal('session.followUp'),
   Type.Literal('session.abort'),
   Type.Literal('session.compact'),
   Type.Literal('session.fork'),
   Type.Literal('session.navigate'),
-  Type.Literal('session.snapshot'),
-  Type.Literal('session.subscribe'),
 ])
 
 const ElectronMethodSchema = Type.Union([
@@ -107,6 +108,45 @@ export const ArtifactRefSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const SessionMessageProjectionSchema = Type.Object(
+  {
+    id: EntityIdSchema,
+    role: Type.Union([Type.Literal('user'), Type.Literal('assistant'), Type.Literal('toolResult')]),
+    text: Type.String(),
+    toolCallId: Type.Optional(EntityIdSchema),
+    toolName: Type.Optional(EntityIdSchema),
+    isError: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+)
+
+export const SessionSnapshotSchema = Type.Object(
+  {
+    sessionId: EntityIdSchema,
+    documentId: DocumentIdSchema,
+    messages: Type.Array(SessionMessageProjectionSchema),
+    activeRun: Type.Optional(
+      Type.Object(
+        {
+          runId: EntityIdSchema,
+          state: Type.Union([
+            Type.Literal('queued'),
+            Type.Literal('running'),
+            Type.Literal('completed'),
+            Type.Literal('failed'),
+            Type.Literal('aborted'),
+            Type.Literal('interrupted'),
+          ]),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+    lastSequence: Type.Integer({ minimum: 0 }),
+    cursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
 const ProtocolErrorSchema = Type.Object(
   {
     code: RuntimeErrorCodeSchema,
@@ -125,11 +165,88 @@ const GenericRequestEnvelopeSchema = Type.Object(
     protocolVersion: Type.Literal(PROTOCOL_VERSION),
     kind: Type.Literal('request'),
     id: Type.String({ minLength: 1 }),
-    method: Type.Union([RuntimeMethodSchema, ElectronMethodSchema]),
+    method: Type.Union([GenericRuntimeMethodSchema, ElectronMethodSchema]),
     correlationId: Type.String({ minLength: 1 }),
     params: Type.Unknown(),
   },
   { additionalProperties: false },
+)
+
+function sessionRequestEnvelope<
+  TMethod extends string,
+  TParams extends ReturnType<typeof Type.Object>,
+>(method: TMethod, params: TParams) {
+  return Type.Object(
+    {
+      protocolVersion: Type.Literal(PROTOCOL_VERSION),
+      kind: Type.Literal('request'),
+      id: EntityIdSchema,
+      method: Type.Literal(method),
+      correlationId: EntityIdSchema,
+      params,
+    },
+    { additionalProperties: false },
+  )
+}
+
+const SessionCreateRequestSchema = sessionRequestEnvelope(
+  'session.create',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      documentId: DocumentIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionOpenRequestSchema = sessionRequestEnvelope(
+  'session.open',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionPromptRequestSchema = sessionRequestEnvelope(
+  'session.prompt',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      text: Type.String({ minLength: 1, maxLength: 262_144 }),
+      artifacts: Type.Optional(Type.Array(ArtifactRefSchema, { maxItems: 16 })),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionSnapshotRequestSchema = sessionRequestEnvelope(
+  'session.snapshot',
+  Type.Object(
+    {
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionSubscribeRequestSchema = sessionRequestEnvelope(
+  'session.subscribe',
+  Type.Object(
+    {
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      afterCursor: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+    },
+    { additionalProperties: false },
+  ),
 )
 
 const HelloRequestEnvelopeSchema = Type.Object(
@@ -162,7 +279,7 @@ const ArtifactRegisterRequestSchema = Type.Object(
     params: Type.Object(
       {
         sessionId: Type.String({ minLength: 1 }),
-        documentId: Type.String({ minLength: 1 }),
+        documentId: DocumentIdSchema,
         path: Type.String({ minLength: 1 }),
         artifact: ArtifactRefSchema,
       },
@@ -176,6 +293,11 @@ export const RequestEnvelopeSchema = Type.Union([
   GenericRequestEnvelopeSchema,
   HelloRequestEnvelopeSchema,
   ArtifactRegisterRequestSchema,
+  SessionCreateRequestSchema,
+  SessionOpenRequestSchema,
+  SessionPromptRequestSchema,
+  SessionSnapshotRequestSchema,
+  SessionSubscribeRequestSchema,
 ])
 
 const ResponseResultEnvelopeSchema = Type.Object(
@@ -212,13 +334,40 @@ export const EventEnvelopeSchema = Type.Object(
     eventId: Type.String({ minLength: 1 }),
     instanceId: Type.String({ minLength: 1 }),
     sessionId: Type.String({ minLength: 1 }),
-    documentId: Type.String({ minLength: 1 }),
+    documentId: DocumentIdSchema,
     runId: Type.Optional(Type.String({ minLength: 1 })),
     sequence: Type.Integer({ minimum: 1 }),
     cursor: Type.String({ minLength: 1 }),
     occurredAt: Type.String({ minLength: 1 }),
     type: SessionEventTypeSchema,
     payload: Type.Unknown(),
+  },
+  { additionalProperties: false },
+)
+
+export const SessionConnectionReceiptSchema = Type.Object(
+  {
+    sessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    snapshot: SessionSnapshotSchema,
+    cursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
+export const SessionPromptReceiptSchema = Type.Object(
+  {
+    runId: EntityIdSchema,
+    acceptedCursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
+export const SessionSubscriptionReceiptSchema = Type.Object(
+  {
+    resetRequired: Type.Boolean(),
+    snapshot: SessionSnapshotSchema,
+    events: Type.Array(EventEnvelopeSchema),
   },
   { additionalProperties: false },
 )
@@ -338,9 +487,14 @@ export type BootstrapRecord = Static<typeof BootstrapSchema>
 export type RuntimeBundleManifest = Static<typeof RuntimeBundleManifestSchema>
 export type RuntimeHealthProjection = Static<typeof RuntimeHealthProjectionSchema>
 export type ArtifactRef = Static<typeof ArtifactRefSchema>
+export type SessionMessageProjection = Static<typeof SessionMessageProjectionSchema>
+export type SessionSnapshot = Static<typeof SessionSnapshotSchema>
 export type RequestEnvelope = Static<typeof RequestEnvelopeSchema>
 export type ResponseEnvelope = Static<typeof ResponseEnvelopeSchema>
 export type EventEnvelope = Static<typeof EventEnvelopeSchema>
+export type SessionConnectionReceipt = Static<typeof SessionConnectionReceiptSchema>
+export type SessionPromptReceipt = Static<typeof SessionPromptReceiptSchema>
+export type SessionSubscriptionReceipt = Static<typeof SessionSubscriptionReceiptSchema>
 export type ProtocolEnvelope = Static<typeof ProtocolEnvelopeSchema>
 export type OfficeToolCatalog = Static<typeof OfficeToolCatalogSchema>
 
@@ -362,6 +516,26 @@ export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifes
 export function parseRuntimeHealthProjection(value: unknown): RuntimeHealthProjection {
   if (Value.Check(RuntimeHealthProjectionSchema, value)) return value
   throw new Error('runtime_health_invalid')
+}
+
+export function parseSessionConnectionReceipt(value: unknown): SessionConnectionReceipt {
+  if (Value.Check(SessionConnectionReceiptSchema, value)) return value
+  throw new Error('session_connection_receipt_invalid')
+}
+
+export function parseSessionPromptReceipt(value: unknown): SessionPromptReceipt {
+  if (Value.Check(SessionPromptReceiptSchema, value)) return value
+  throw new Error('session_prompt_receipt_invalid')
+}
+
+export function parseSessionSnapshot(value: unknown): SessionSnapshot {
+  if (Value.Check(SessionSnapshotSchema, value)) return value
+  throw new Error('session_snapshot_invalid')
+}
+
+export function parseSessionSubscriptionReceipt(value: unknown): SessionSubscriptionReceipt {
+  if (Value.Check(SessionSubscriptionReceiptSchema, value)) return value
+  throw new Error('session_subscription_receipt_invalid')
 }
 
 export function parseOfficeToolCatalog(value: unknown): OfficeToolCatalog {

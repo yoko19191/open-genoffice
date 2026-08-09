@@ -49,7 +49,9 @@ describe('Pi Runtime bundle builder', () => {
     ])
     expect((await lstat(verified.executablePath)).isSymbolicLink()).toBe(false)
     expect((await lstat(verified.executablePath)).ino).not.toBe((await lstat(process.execPath)).ino)
-    expect(await readFile(verified.entryPath, 'utf8')).toContain('runtime_crash')
+    const entry = await readFile(verified.entryPath, 'utf8')
+    expect(entry).toContain('runtime_crash')
+    expect(entry).toContain('const require = __genofficeCreateRequire(import.meta.url)')
 
     await expect(buildPiRuntimeBundle(options)).rejects.toEqual(
       new PiRuntimeBundleBuildError('runtime_bundle_output_exists'),

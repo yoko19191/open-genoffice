@@ -33,6 +33,11 @@ export {
   type PiRuntimeManagerState,
   type PiRuntimeSocket,
   type PrivateRuntimeEndpoint,
+  type SessionBoundRequest,
+  type SessionCreateRequest,
+  type SessionOpenRequest,
+  type SessionPromptRequest,
+  type SessionSubscribeRequest,
 } from './pi-runtime-manager'
 export {
   connectRuntimeEndpoint,

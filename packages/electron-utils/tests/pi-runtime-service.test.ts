@@ -17,6 +17,13 @@ const verified = {
 } as unknown as VerifiedPiRuntimeBundle
 
 function manager(overrides: Record<string, unknown> = {}) {
+  const snapshot = {
+    sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    messages: [],
+    lastSequence: 0,
+    cursor: 'cursor-1',
+  }
   return {
     state: 'stopped',
     start: vi.fn(async () => ({
@@ -27,6 +34,22 @@ function manager(overrides: Record<string, unknown> = {}) {
     })),
     status: vi.fn(async () => ({ pid: 42, instanceId: 'private-instance' })),
     shutdown: vi.fn(async () => undefined),
+    createSession: vi.fn(async () => ({
+      sessionId: snapshot.sessionId,
+      documentId: snapshot.documentId,
+      snapshot,
+      cursor: snapshot.cursor,
+    })),
+    openSession: vi.fn(async () => ({
+      sessionId: snapshot.sessionId,
+      documentId: snapshot.documentId,
+      snapshot,
+      cursor: snapshot.cursor,
+    })),
+    promptSession: vi.fn(async () => ({ runId: 'run-1', acceptedCursor: 'cursor-1' })),
+    snapshotSession: vi.fn(async () => snapshot),
+    subscribeSession: vi.fn(async () => ({ resetRequired: false, snapshot, events: [] })),
+    onSessionEvent: vi.fn(() => () => {}),
     ...overrides,
   }
 }
@@ -34,6 +57,7 @@ function manager(overrides: Record<string, unknown> = {}) {
 function service(options: {
   verify?: () => Promise<VerifiedPiRuntimeBundle>
   runtimeManager?: ReturnType<typeof manager>
+  resourceHome?: string
 }) {
   const runtimeManager = options.runtimeManager ?? manager()
   const createManager = vi.fn(() => runtimeManager)
@@ -46,6 +70,7 @@ function service(options: {
         platform: 'darwin',
         arch: 'arm64',
         parentPid: 123,
+        ...(options.resourceHome ? { resourceHome: options.resourceHome } : {}),
       },
       {
         verifyBundle: options.verify ?? (async () => verified),
@@ -100,6 +125,60 @@ describe('installed Pi Runtime service', () => {
       diagnosticCode: 'runtime_start_failed',
     })
     expect(JSON.stringify(failed.instance.health())).not.toContain('private')
+  })
+
+  it('owns the narrow Session client and refuses commands when Runtime is unavailable', async () => {
+    const fixture = service({})
+    await fixture.instance.createSession({
+      operationId: '11111111-1111-4111-8111-111111111111',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    expect(fixture.runtimeManager.createSession).toHaveBeenCalledOnce()
+    const bound = {
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    }
+    await fixture.instance.openSession({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      ...bound,
+    })
+    await fixture.instance.promptSession({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      ...bound,
+      text: 'hello',
+    })
+    await fixture.instance.snapshotSession(bound)
+    await fixture.instance.subscribeSession({ ...bound, afterCursor: 'cursor-1' })
+    expect(fixture.runtimeManager.openSession).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.promptSession).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.snapshotSession).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.subscribeSession).toHaveBeenCalledOnce()
+    const listener = vi.fn()
+    await expect(fixture.instance.onSessionEvent(listener)).resolves.toEqual(expect.any(Function))
+    expect(fixture.runtimeManager.onSessionEvent).toHaveBeenCalledWith(listener)
+
+    const missing = service({
+      verify: async () => {
+        throw new Error('missing')
+      },
+    })
+    await expect(
+      missing.instance.createSession({
+        operationId: '11111111-1111-4111-8111-111111111111',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      }),
+    ).rejects.toThrowError('runtime_unavailable')
+  })
+
+  it('passes an explicit Resource Home only to the owned Runtime manager', async () => {
+    const fixture = service({ resourceHome: '/private/resource-home' })
+    await fixture.instance.initialize()
+    expect(fixture.createManager).toHaveBeenCalledWith({
+      bundle: verified,
+      platform: 'darwin',
+      parentPid: 123,
+      resourceHome: '/private/resource-home',
+    })
   })
 
   it('shuts down the owned manager after initialization and remains stopped', async () => {

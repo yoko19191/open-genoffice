@@ -193,6 +193,7 @@ const piRuntimeService = createInstalledPiRuntimeService({
   platform: process.platform,
   arch: process.arch as 'arm64' | 'x64',
   parentPid: process.pid,
+  resourceHome: join(app.getPath('home'), '.open-genoffice'),
 })
 
 configureDocsRuntime({

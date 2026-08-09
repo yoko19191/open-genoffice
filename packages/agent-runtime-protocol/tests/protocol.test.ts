@@ -17,6 +17,10 @@ import {
   parseProtocolFrame,
   parseRuntimeBundleManifest,
   parseRuntimeHealthProjection,
+  parseSessionConnectionReceipt,
+  parseSessionPromptReceipt,
+  parseSessionSnapshot,
+  parseSessionSubscriptionReceipt,
 } from '../src'
 
 const token = 'a'.repeat(64)
@@ -148,16 +152,100 @@ describe('protocol TypeBox source of truth', () => {
     id: 'request-1',
     method: 'session.prompt',
     correlationId: 'correlation-1',
-    params: { operationId: 'operation-1', text: 'synthetic prompt' },
+    params: {
+      operationId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      text: 'synthetic prompt',
+    },
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(3)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(8)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
     expect(ArtifactRefSchema.additionalProperties).toBe(false)
     expect(parseProtocolFrame(JSON.stringify(request))).toEqual(request)
+  })
+
+  it.each([
+    [
+      'session.create',
+      {
+        operationId: '11111111-1111-4111-8111-111111111111',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      },
+    ],
+    [
+      'session.open',
+      {
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      },
+    ],
+    [
+      'session.snapshot',
+      {
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      },
+    ],
+    [
+      'session.subscribe',
+      {
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        afterCursor: 'cursor-1',
+      },
+    ],
+  ])('accepts the exact %s request shape', (method, params) => {
+    expect(
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'request',
+          id: `request-${method}`,
+          method,
+          correlationId: `correlation-${method}`,
+          params,
+        }),
+      ),
+    ).toMatchObject({ method, params })
+  })
+
+  it.each([
+    ['missing operation id', { ...request, params: { ...request.params, operationId: undefined } }],
+    [
+      'invalid operation id',
+      { ...request, params: { ...request.params, operationId: 'operation-1' } },
+    ],
+    [
+      'missing document binding',
+      { ...request, params: { ...request.params, documentId: undefined } },
+    ],
+    ['unknown session param', { ...request, params: { ...request.params, unexpected: true } }],
+    [
+      'inline artifact path',
+      {
+        ...request,
+        params: {
+          ...request.params,
+          artifacts: [
+            {
+              artifactId: 'artifact-1',
+              mediaType: 'image/png',
+              byteLength: 10,
+              sha256: 'a'.repeat(64),
+              path: '/private/image.png',
+            },
+          ],
+        },
+      },
+    ],
+  ])('rejects %s for a session command', (_label, value) => {
+    expect(() => parseProtocolFrame(JSON.stringify(value))).toThrowError('protocol_frame_invalid')
   })
 
   it('accepts exactly one response outcome and a sequenced event', () => {
@@ -199,7 +287,7 @@ describe('protocol TypeBox source of truth', () => {
           eventId: 'event-1',
           instanceId: 'instance-1',
           sessionId: 'session-1',
-          documentId: 'document-1',
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
           runId: 'run-1',
           sequence: 1,
           cursor: 'opaque-cursor-1',
@@ -322,5 +410,63 @@ describe('runtime hello authentication envelope', () => {
         JSON.stringify({ ...hello, params: { ...hello.params, runtimeVersion: '1.0.1' } }),
       ),
     ).toThrowError('protocol_frame_invalid')
+  })
+})
+
+describe('renderer-safe Session receipts', () => {
+  const snapshot = {
+    sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    messages: [
+      { id: 'message-1', role: 'user', text: 'hello' },
+      {
+        id: 'message-2',
+        role: 'toolResult',
+        text: 'done',
+        toolCallId: 'tool-call-1',
+        toolName: 'contract_probe',
+        isError: false,
+      },
+    ],
+    activeRun: { runId: 'run-1', state: 'running' },
+    lastSequence: 2,
+    cursor: 'cursor-2',
+  }
+
+  it('parses exact connection, prompt, snapshot, and subscription receipts', () => {
+    expect(parseSessionSnapshot(snapshot)).toEqual(snapshot)
+    expect(
+      parseSessionConnectionReceipt({
+        sessionId: snapshot.sessionId,
+        documentId: snapshot.documentId,
+        snapshot,
+        cursor: snapshot.cursor,
+      }),
+    ).toMatchObject({ sessionId: snapshot.sessionId })
+    expect(parseSessionPromptReceipt({ runId: 'run-1', acceptedCursor: 'cursor-2' })).toEqual({
+      runId: 'run-1',
+      acceptedCursor: 'cursor-2',
+    })
+    expect(
+      parseSessionSubscriptionReceipt({ resetRequired: false, snapshot, events: [] }),
+    ).toMatchObject({ resetRequired: false })
+  })
+
+  it.each([
+    ['snapshot', () => parseSessionSnapshot({ ...snapshot, secret: 'no' })],
+    [
+      'connection',
+      () =>
+        parseSessionConnectionReceipt({
+          sessionId: 'not-a-uuid',
+          documentId: snapshot.documentId,
+          snapshot,
+          cursor: snapshot.cursor,
+        }),
+    ],
+    ['prompt', () => parseSessionPromptReceipt({ runId: '', acceptedCursor: 'cursor-2' })],
+    ['subscription', () => parseSessionSubscriptionReceipt({ resetRequired: false, snapshot })],
+  ])('rejects an invalid %s receipt with a stable error', (_label, parse) => {
+    expect(parse).toThrowError(/_invalid$/)
   })
 })

@@ -8,9 +8,10 @@ import {
   RUNTIME_VERSION,
   SCHEMA_VERSION,
   type BootstrapRecord,
+  type ProtocolEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
-import { createAuthenticatedRuntimeServer } from '../src'
+import { createAuthenticatedRuntimeServer, createSessionRegistry } from '../src'
 
 const token = 'a'.repeat(64)
 
@@ -73,6 +74,28 @@ async function nextLine(socket: Socket): Promise<ResponseEnvelope | null> {
   })
 }
 
+function frameReader(socket: Socket) {
+  let pending = ''
+  const frames: ProtocolEnvelope[] = []
+  const waiters: Array<() => void> = []
+  socket.on('data', (chunk) => {
+    pending += chunk.toString('utf8')
+    const lines = pending.split('\n')
+    pending = lines.pop()!
+    frames.push(...lines.filter(Boolean).map((line) => JSON.parse(line) as ProtocolEnvelope))
+    for (const wake of waiters.splice(0)) wake()
+  })
+  return {
+    async next(predicate: (frame: ProtocolEnvelope) => boolean): Promise<ProtocolEnvelope> {
+      for (;;) {
+        const index = frames.findIndex(predicate)
+        if (index !== -1) return frames.splice(index, 1)[0]!
+        await new Promise<void>((resolve) => waiters.push(resolve))
+      }
+    },
+  }
+}
+
 describe('authenticated Runtime socket', () => {
   it('does not consume the token after a rejected hello, then serves status and shutdown', async () => {
     const socketPath = await endpoint()
@@ -92,7 +115,18 @@ describe('authenticated Runtime socket', () => {
     client.write(`${hello()}\n`)
     expect(await helloResponsePromise).toMatchObject({
       kind: 'response',
-      result: { instanceId: 'instance-1', capabilities: ['runtime.status', 'runtime.shutdown'] },
+      result: {
+        instanceId: 'instance-1',
+        capabilities: [
+          'runtime.status',
+          'runtime.shutdown',
+          'session.create',
+          'session.open',
+          'session.prompt',
+          'session.snapshot',
+          'session.subscribe',
+        ],
+      },
     })
 
     const statusPromise = nextLine(client)
@@ -183,6 +217,135 @@ describe('authenticated Runtime socket', () => {
     client.end(`${hello()}\n`)
     expect(await rejectedRequest).toBeNull()
     await runtime.shutdown()
+    await runtime.closed
+  })
+
+  it('carries create, prompt, snapshot, subscribe, idempotency, and document errors over one socket', async () => {
+    const socketPath = await endpoint()
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-runtime-session-e2e-'))
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-session',
+      cursorSecret: Buffer.alloc(32, 9),
+      randomUUID: () => {
+        uuid += 1
+        return `${String(uuid).padStart(8, '0')}-0000-4000-8000-000000000000`
+      },
+      now: () => new Date('2026-08-09T12:00:00.000Z'),
+    })
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-session',
+      sessionRegistry: registry,
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+
+    const createId = 'session-create'
+    client.write(
+      `${request(
+        'session.create',
+        {
+          operationId: '11111111-1111-4111-8111-111111111111',
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        },
+        createId,
+      )}\n`,
+    )
+    const opened = await reader.next(
+      (frame) => frame.kind === 'event' && frame.type === 'session.opened',
+    )
+    const created = await reader.next((frame) => frame.kind === 'response' && frame.id === createId)
+    expect(opened).toMatchObject({
+      kind: 'event',
+      sequence: 1,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    expect(created).toMatchObject({
+      kind: 'response',
+      result: { documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' },
+    })
+    const sessionId = (created as ResponseEnvelope & { result: { sessionId: string } }).result
+      .sessionId
+
+    client.write(
+      `${request(
+        'session.prompt',
+        {
+          operationId: '22222222-2222-4222-8222-222222222222',
+          sessionId,
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+          text: 'run through the authenticated socket',
+        },
+        'session-prompt',
+      )}\n`,
+    )
+    const queued = await reader.next(
+      (frame) => frame.kind === 'event' && frame.type === 'run.queued',
+    )
+    const promptReceipt = await reader.next(
+      (frame) => frame.kind === 'response' && frame.id === 'session-prompt',
+    )
+    const completed = await reader.next(
+      (frame) => frame.kind === 'event' && frame.type === 'run.completed',
+    )
+    expect(
+      [queued, completed].map((frame) => (frame.kind === 'event' ? frame.sequence : 0)),
+    ).toEqual([2, expect.any(Number)])
+    expect(promptReceipt).toMatchObject({ kind: 'response', result: { runId: expect.any(String) } })
+
+    client.write(
+      `${request('session.snapshot', { sessionId, documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' }, 'snapshot')}\n`,
+    )
+    const snapshot = await reader.next(
+      (frame) => frame.kind === 'response' && frame.id === 'snapshot',
+    )
+    expect(snapshot).toMatchObject({ kind: 'response', result: { sessionId } })
+    const snapshotResult = (
+      snapshot as ResponseEnvelope & {
+        result: { cursor: string; messages: Array<{ role: string }> }
+      }
+    ).result
+    expect(snapshotResult.messages[0]).toMatchObject({ role: 'user' })
+    const cursor = snapshotResult.cursor
+
+    client.write(
+      `${request(
+        'session.subscribe',
+        { sessionId, documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', afterCursor: cursor },
+        'subscribe',
+      )}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'subscribe'),
+    ).toMatchObject({ kind: 'response', result: { resetRequired: false, events: [] } })
+
+    client.write(
+      `${request(
+        'session.open',
+        {
+          operationId: '33333333-3333-4333-8333-333333333333',
+          sessionId,
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+        },
+        'mismatch',
+      )}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'mismatch'),
+    ).toMatchObject({ kind: 'response', error: { code: 'document_mismatch' } })
+
+    client.write(`${request('session.close', {}, 'unsupported')}\n`)
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'unsupported'),
+    ).toMatchObject({ kind: 'response', error: { code: 'method_not_found' } })
+
+    client.write(`${request('runtime.shutdown', {}, 'shutdown')}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'shutdown')
     await runtime.closed
   })
 })
