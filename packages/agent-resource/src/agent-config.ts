@@ -333,11 +333,19 @@ export class AgentConfigurationService {
           }
         : {}),
       projectTrusted: trusted,
-      session: options.session,
-      sessionOverrideAuthorized: options.sessionOverrideAuthorized,
-      productPolicy: this.options.productPolicy,
-      actorCapabilities: options.actorCapabilities,
-      readTextFile: this.options.readTextFile,
+      ...(options.session === undefined ? {} : { session: options.session }),
+      ...(options.sessionOverrideAuthorized === undefined
+        ? {}
+        : { sessionOverrideAuthorized: options.sessionOverrideAuthorized }),
+      ...(this.options.productPolicy === undefined
+        ? {}
+        : { productPolicy: this.options.productPolicy }),
+      ...(options.actorCapabilities === undefined
+        ? {}
+        : { actorCapabilities: options.actorCapabilities }),
+      ...(this.options.readTextFile === undefined
+        ? {}
+        : { readTextFile: this.options.readTextFile }),
     })
     return Object.freeze({
       ...result,

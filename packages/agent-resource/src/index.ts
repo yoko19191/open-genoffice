@@ -90,3 +90,19 @@ export {
   type MigrationJournal,
   type RunLegacyAgentCleanupOptions,
 } from './legacy-cleanup'
+export {
+  CapabilitySnapshotError,
+  createCapabilitySnapshot,
+  scanResourceCatalog,
+  verifyCapabilitySnapshot,
+  type BuiltInResource,
+  type CapabilitySnapshot,
+  type CreateCapabilitySnapshotInput,
+  type ResourceCatalog,
+  type ResourceCatalogEntry,
+  type ResourceKind,
+  type ResourceNamespace,
+  type ResourceReason,
+  type ResourceState,
+  type ScanResourceCatalogOptions,
+} from './resource-catalog'
