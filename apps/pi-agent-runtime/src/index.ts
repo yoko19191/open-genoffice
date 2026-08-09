@@ -5,6 +5,14 @@ export {
   type AuthenticatedRuntimeServer,
   type AuthenticatedRuntimeServerOptions,
 } from './authenticated-server'
+export {
+  RUNTIME_EXIT_CODES,
+  RuntimeBootstrapError,
+  RuntimeStartError,
+  startRuntimeFromStdin,
+  type RuntimeDiagnosticCode,
+  type StartRuntimeFromStdinOptions,
+} from './bootstrap-stdin'
 
 export type FakeProviderEvent = {
   type: string
