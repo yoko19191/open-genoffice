@@ -35,6 +35,7 @@ import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@genoffice/i18n'
 import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
+import { DocumentBindingStore, type DocumentFormat } from '@genoffice/agent-resource'
 import {
   appMenuLabels,
   contextMenuLabels,
@@ -1218,11 +1219,6 @@ const tm = (key: Parameters<typeof tMain>[1], params?: Parameters<typeof tMain>[
 
 let shellWindow: BrowserWindow | null = null
 let tabManager: TabManager | null = null
-const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
-  authorize: (webContentsId, documentId) =>
-    tabManager?.bindAgentDocument(webContentsId, documentId) ?? false,
-  randomUUID,
-})
 
 /**
  * When the user creates a file from a specific project view, remember which
@@ -1230,6 +1226,53 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
  * Consumed by each app's saveHook once the file first hits disk (P1 item 3).
  */
 const pendingNewFileProject = new Map<string, string>()
+
+const documentBindingStore = new DocumentBindingStore({
+  rootDirectory: AGENT_RESOURCE_HOME,
+  platform: process.platform,
+})
+
+function agentDocumentType(kind: Exclude<TabKind, 'home'>): {
+  format: DocumentFormat
+  pendingProjectKey?: string
+} {
+  switch (kind) {
+    case 'docs':
+      return { format: 'docx', pendingProjectKey: 'doc' }
+    case 'sheets':
+      return { format: 'xlsx', pendingProjectKey: 'sheet' }
+    case 'slides':
+      return { format: 'pptx', pendingProjectKey: 'slide' }
+    case 'pdf':
+      return { format: 'pdf' }
+  }
+}
+
+const tabDocumentBindings = {
+  async open(kind: Exclude<TabKind, 'home'>, filePath?: string) {
+    const { format, pendingProjectKey } = agentDocumentType(kind)
+    const pendingProjectId = pendingProjectKey
+      ? pendingNewFileProject.get(pendingProjectKey)
+      : undefined
+    const projectId =
+      pendingProjectId ??
+      (filePath
+        ? new ProjectStore(app.getPath('userData')).resolveProjectForFile(filePath)
+        : 'default')
+    return filePath
+      ? documentBindingStore.openOrCreate({ projectId, format, canonicalPath: filePath })
+      : documentBindingStore.createUnsaved({ projectId, format })
+  },
+  bindPath(documentId: string, filePath: string) {
+    return documentBindingStore.bindPath(documentId, filePath, 'in_app')
+  },
+}
+
+const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
+  authorize: (webContentsId, documentId) =>
+    tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
+  randomUUID,
+})
 
 /**
  * P1: after a file first hits disk, if a pending project was set earlier via
@@ -1309,6 +1352,7 @@ function createShellWindow(): void {
           ? tm('untitledDeck')
           : tm('untitledSheet'),
     (webContentsId) => agentSessionBroker.disconnect(webContentsId),
+    tabDocumentBindings,
   )
   tabManager = manager
 
@@ -1332,13 +1376,13 @@ function createShellWindow(): void {
   setSlidesCloseTabHook(() => manager.closeActiveTab())
   // When ⌘O opens a file inside a tab, sync the tab title/path (used for de-dup by path) and record it as recent.
   // The first save / save-as fires this too, so applyPendingProject also runs here.
-  setSheetsWorkbookOpenedHook((wc, path) => {
-    manager.setTabFileFor(wc.id, path)
+  setSheetsWorkbookOpenedHook((wc, path, transition) => {
+    manager.setTabFileFor(wc.id, path, transition)
     recordRecentFile(path)
     applyPendingProject(path)
   })
-  setSlidesOpenedHook((wc, path) => {
-    manager.setTabFileFor(wc.id, path)
+  setSlidesOpenedHook((wc, path, transition) => {
+    manager.setTabFileFor(wc.id, path, transition)
     recordRecentFile(path)
     applyPendingProject(path)
   })
@@ -2279,7 +2323,12 @@ registerProjectIpc()
 registerDocsIpc()
 registerHomeIpc()
 registerTabsIpc()
-const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker)
+const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker, {
+  documentIdFor: (webContentsId) => {
+    if (!tabManager) throw new Error('document_binding_not_found')
+    return tabManager.agentDocumentIdFor(webContentsId)
+  },
+})
 ipcMain.handle(PI_RUNTIME_CHANNELS.health, () => piRuntimeService.health())
 installProviderCredentialIpc(ipcMain, piRuntimeService, () =>
   shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null,

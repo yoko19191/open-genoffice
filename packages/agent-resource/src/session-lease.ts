@@ -1,23 +1,12 @@
-import { chmod, lstat, mkdir, readFile, unlink } from 'node:fs/promises'
+import { chmod, lstat, mkdir, readFile, rm } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { Type, type Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 import { atomicWriteJson } from './atomic-file'
+import { lock } from './proper-lockfile'
 
 const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-const require = createRequire(import.meta.url)
-const { lock } = require('proper-lockfile') as {
-  lock(
-    path: string,
-    options: {
-      realpath: false
-      stale: number
-      retries: { retries: number; factor: number; minTimeout: number; maxTimeout: number }
-    },
-  ): Promise<() => Promise<void>>
-}
 
 export const SessionLeaseSchema = Type.Object(
   {
@@ -52,6 +41,7 @@ export type SessionLeaseStoreOptions = {
   platform?: NodeJS.Platform
   now?: () => Date
   randomUUID?: () => string
+  isProcessAlive?: (pid: number) => boolean
 }
 
 export type SessionLeaseHandle = {
@@ -88,7 +78,10 @@ export class SessionLeaseStore {
       let generation = 1
       try {
         const existing = await this.read(path)
-        if (Date.parse(existing.expiresAt) > this.now().getTime()) {
+        if (
+          Date.parse(existing.expiresAt) > this.now().getTime() &&
+          (this.options.isProcessAlive?.(existing.pid) ?? true)
+        ) {
           throw new SessionLeaseError('session_in_use')
         }
         generation = existing.generation + 1
@@ -126,11 +119,7 @@ export class SessionLeaseStore {
             throw error
           }
           if (current.ownerToken !== owned.ownerToken) return
-          try {
-            await unlink(path)
-          } catch (error) {
-            if (!isMissing(error)) throw error
-          }
+          await rm(path, { force: true })
         }),
     })
   }

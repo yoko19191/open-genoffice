@@ -1146,9 +1146,10 @@ function sanitizeAutoRenameBase(raw: string): string | null {
 }
 
 /** shell hook: a tab opened a workbook (dialog or queued path) — used for tab titles/dedupe */
-let workbookOpenedHook: ((wc: WebContents, path: string) => void) | null = null
+let workbookOpenedHook:
+  ((wc: WebContents, path: string, transition: 'open' | 'save') => void) | null = null
 export function setSheetsWorkbookOpenedHook(
-  fn: ((wc: WebContents, path: string) => void) | null,
+  fn: ((wc: WebContents, path: string, transition: 'open' | 'save') => void) | null,
 ): void {
   workbookOpenedHook = fn
 }
@@ -1680,7 +1681,7 @@ export function registerSheetsIpc(): void {
       prepared.suggestSaveAs,
       prepared.csvImport,
     )
-    if (result) workbookOpenedHook?.(event.sender, path)
+    if (result) workbookOpenedHook?.(event.sender, path, 'open')
     return result
   })
 
@@ -1939,7 +1940,7 @@ export function registerSheetsIpc(): void {
     // Notify shell (if running) so it can update the tab title and record the
     // saved path in recent files (mirrors the open hook; covers Save As + first
     // save after converting an .xls/.csv import).
-    workbookOpenedHook?.(event.sender, targetPath)
+    workbookOpenedHook?.(event.sender, targetPath, 'save')
     // The file on disk now carries these edits
     clearWorkbookRecovery(targetPath)
     if (session.suggestSaveAs !== undefined) clearWorkbookRecovery(session.suggestSaveAs)
@@ -1997,7 +1998,7 @@ export function registerSheetsIpc(): void {
       entry.sessions.set(validatedSessionId, { ...session, path: target })
       event.sender.send(IPC_CHANNELS.workbookRenamed, basename(target))
       // Same contract as open/save: shell updates the tab title and recents
-      workbookOpenedHook?.(event.sender, target)
+      workbookOpenedHook?.(event.sender, target, 'save')
       return { renamed: true, name: basename(target) }
     },
   )

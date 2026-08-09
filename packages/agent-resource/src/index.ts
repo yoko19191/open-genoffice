@@ -22,3 +22,14 @@ export {
   type SessionLeaseRecord,
   type SessionLeaseStoreOptions,
 } from './session-lease'
+export {
+  DocumentBindingError,
+  DocumentBindingSchema,
+  DocumentBindingStore,
+  type DocumentBinding,
+  type DocumentBindingErrorCode,
+  type DocumentBindingState,
+  type DocumentBindingStoreOptions,
+  type DocumentFormat,
+  type DocumentPathTransition,
+} from './document-binding'

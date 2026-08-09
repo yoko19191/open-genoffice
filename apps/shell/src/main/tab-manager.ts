@@ -33,7 +33,14 @@ interface TabRecord {
   view: WebContentsView | null
   title: string
   filePath?: string
-  agentDocumentId?: string
+  agentDocument?: Promise<AgentDocumentBinding>
+}
+
+type AgentDocumentBinding = { documentId: string }
+
+export type TabDocumentBindingService = {
+  open(kind: Exclude<TabKind, 'home'>, filePath?: string): Promise<AgentDocumentBinding>
+  bindPath(documentId: string, filePath: string): Promise<AgentDocumentBinding>
 }
 
 /** must match the tab strip's rendered height (apps/shell/src/renderer/src/TabBar.tsx) */
@@ -56,6 +63,7 @@ export class TabManager {
   private htmlFullScreenId: string | null = null
   /** tabs mid unsaved-changes prompt, so a second close click doesn't stack dialogs */
   private readonly closingIds = new Set<string>()
+  private readonly agentDocumentOwners = new Map<string, number>()
 
   constructor(
     private readonly shellWindow: BrowserWindow,
@@ -64,6 +72,7 @@ export class TabManager {
     /** localized placeholder title for a tab that has no file yet */
     private readonly untitledTitleFor?: (kind: TabKind) => string,
     private readonly onRendererClosed?: (webContentsId: number) => void,
+    private readonly agentDocuments?: TabDocumentBindingService,
   ) {
     // Layout once synchronously for macOS/Windows (bounds are already correct),
     // then once more on the next tick. On Linux/X11, `resize` fires before the
@@ -139,6 +148,7 @@ export class TabManager {
       view,
       title: openPath ? basename(openPath) : this.untitled('docs', 'GenOffice Docs'),
       filePath: openPath,
+      agentDocument: this.openAgentDocument('docs', openPath),
     })
     this.activateTab(id)
     return id
@@ -157,6 +167,7 @@ export class TabManager {
       view,
       title: openPath ? basename(openPath) : this.untitled('sheets', 'AI Sheets'),
       filePath: openPath,
+      agentDocument: this.openAgentDocument('sheets', openPath),
     })
     this.activateTab(id)
     return id
@@ -174,6 +185,7 @@ export class TabManager {
       view,
       title: openPath ? basename(openPath) : this.untitled('slides', 'AI Slides'),
       filePath: openPath,
+      agentDocument: this.openAgentDocument('slides', openPath),
     })
     this.activateTab(id)
     return id
@@ -185,7 +197,14 @@ export class TabManager {
     this.shellWindow.contentView.addChildView(view)
     view.setVisible(false)
     this.trackHtmlFullScreen(id, view)
-    this.tabs.push({ id, kind: 'pdf', view, title: basename(openPath), filePath: openPath })
+    this.tabs.push({
+      id,
+      kind: 'pdf',
+      view,
+      title: basename(openPath),
+      filePath: openPath,
+      agentDocument: this.openAgentDocument('pdf', openPath),
+    })
     this.activateTab(id)
     return id
   }
@@ -216,21 +235,43 @@ export class TabManager {
   }
 
   /** a module opened a file inside an existing tab (⌘O / queued path) — sync title + dedupe path */
-  setTabFileFor(webContentsId: number, filePath: string): void {
+  setTabFileFor(
+    webContentsId: number,
+    filePath: string,
+    transition: 'open' | 'save' = 'save',
+  ): void {
     const tab = this.tabs.find((t) => t.view?.webContents.id === webContentsId)
     if (!tab) return
+    if (tab.filePath !== filePath) {
+      if (transition === 'open' && tab.kind !== 'home') {
+        this.releaseAgentDocumentOwner(webContentsId)
+        this.onRendererClosed?.(webContentsId)
+        tab.agentDocument = this.openAgentDocument(tab.kind, filePath)
+      } else {
+        this.bindAgentDocumentPath(tab, filePath)
+      }
+    }
     tab.filePath = filePath
     tab.title = basename(filePath)
     this.onChanged()
   }
 
-  bindAgentDocument(webContentsId: number, documentId: string): boolean {
+  async agentDocumentIdFor(webContentsId: number): Promise<string> {
     const tab = this.tabs.find((item) => item.view?.webContents.id === webContentsId)
-    if (!tab) return false
-    if (tab.agentDocumentId) return tab.agentDocumentId === documentId
-    if (this.tabs.some((item) => item !== tab && item.agentDocumentId === documentId)) return false
-    tab.agentDocumentId = documentId
-    return true
+    if (!tab?.agentDocument) throw new Error('document_binding_not_found')
+    return (await tab.agentDocument).documentId
+  }
+
+  async authorizeAgentDocument(webContentsId: number, documentId: string): Promise<boolean> {
+    try {
+      if ((await this.agentDocumentIdFor(webContentsId)) !== documentId) return false
+      const owner = this.agentDocumentOwners.get(documentId)
+      if (owner !== undefined && owner !== webContentsId) return false
+      this.agentDocumentOwners.set(documentId, webContentsId)
+      return true
+    } catch {
+      return false
+    }
   }
 
   /** a file was renamed on disk (rename from the Home list) — sync any open tab's title/path;
@@ -242,6 +283,7 @@ export class TabManager {
     const affected: Array<{ kind: TabKind; webContents: WebContents }> = []
     for (const tab of this.tabs) {
       if (tab.filePath !== oldPath) continue
+      this.bindAgentDocumentPath(tab, newPath)
       tab.filePath = newPath
       tab.title = basename(newPath)
       if (tab.view) affected.push({ kind: tab.kind, webContents: tab.view.webContents })
@@ -328,6 +370,7 @@ export class TabManager {
       this.onChanged()
     }
     if (removed.view) {
+      this.releaseAgentDocumentOwner(removed.view.webContents.id)
       this.onRendererClosed?.(removed.view.webContents.id)
       removed.view.setVisible(false)
       this.shellWindow.contentView.removeChildView(removed.view)
@@ -371,5 +414,30 @@ export class TabManager {
     return tab?.kind === 'pdf' && tab.view
       ? { id: tab.id, webContents: tab.view.webContents, filePath: tab.filePath }
       : undefined
+  }
+
+  private openAgentDocument(
+    kind: Exclude<TabKind, 'home'>,
+    filePath?: string,
+  ): Promise<AgentDocumentBinding> | undefined {
+    if (!this.agentDocuments) return undefined
+    const binding = this.agentDocuments.open(kind, filePath)
+    void binding.catch(() => undefined)
+    return binding
+  }
+
+  private bindAgentDocumentPath(tab: TabRecord, filePath: string): void {
+    if (!this.agentDocuments || !tab.agentDocument) return
+    const binding = tab.agentDocument.then((current) =>
+      this.agentDocuments!.bindPath(current.documentId, filePath),
+    )
+    void binding.catch(() => undefined)
+    tab.agentDocument = binding
+  }
+
+  private releaseAgentDocumentOwner(webContentsId: number): void {
+    for (const [documentId, owner] of this.agentDocumentOwners) {
+      if (owner === webContentsId) this.agentDocumentOwners.delete(documentId)
+    }
   }
 }

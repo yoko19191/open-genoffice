@@ -375,8 +375,11 @@ function trackSlidesWebContents(wc: WebContents): void {
 const clipboards = new Map<number, { items: ElementClipboardItem[]; pasteCount: number }>()
 
 /** Shell hook: a view opened a file (including ⌘O inside a tab) — used to update tab titles and de-duplicate paths */
-let slidesOpenedHook: ((wc: WebContents, path: string) => void) | null = null
-export function setSlidesOpenedHook(fn: ((wc: WebContents, path: string) => void) | null): void {
+let slidesOpenedHook:
+  ((wc: WebContents, path: string, transition: 'open' | 'save') => void) | null = null
+export function setSlidesOpenedHook(
+  fn: ((wc: WebContents, path: string, transition: 'open' | 'save') => void) | null,
+): void {
   slidesOpenedHook = fn
 }
 
@@ -674,7 +677,7 @@ async function openAndBuild(
     ...(recovered ? { metaDirty: true } : {}),
   })
   await pushRecent(path)
-  slidesOpenedHook?.(wc, path)
+  slidesOpenedHook?.(wc, path, 'open')
   let slides = buildAllRenderSlides(opened, fitWidthPx)
   // If the first layout pass had complex-script misses (Arabic/Thai etc.), re-lay out once with renderer-measured widths
   if (await refineComplexWidths(wc)) slides = buildAllRenderSlides(opened, fitWidthPx)
@@ -757,7 +760,7 @@ async function saveDraftAfterGenerate(
     await writeFile(draftPath, Buffer.from(bytes))
     session.path = draftPath
     await pushRecent(draftPath)
-    slidesOpenedHook?.(wc, draftPath)
+    slidesOpenedHook?.(wc, draftPath, 'save')
   } catch (err) {
     console.warn(
       '[slides] Failed to persist AI-generated draft to disk; the in-memory session still works:',
@@ -3364,7 +3367,7 @@ export function registerSlidesIpc(): void {
       if (!existsSync(draftsDir)) mkdirSync(draftsDir, { recursive: true })
       session.path = pickDraftPath(draftsDir, tm('untitledDeck'))
       await pushRecent(session.path)
-      slidesOpenedHook?.(e.sender, session.path)
+      slidesOpenedHook?.(e.sender, session.path, 'save')
     }
     try {
       await savePptxToFile(session.opened, session.path)
@@ -3403,7 +3406,7 @@ export function registerSlidesIpc(): void {
       autosaveBackoff.delete(r.filePath)
       dropUntitledRecovery(e.sender.id)
       await pushRecent(r.filePath)
-      slidesOpenedHook?.(e.sender, r.filePath)
+      slidesOpenedHook?.(e.sender, r.filePath, 'save')
       commitSaved(session.opened)
       session.metaDirty = false
       return {

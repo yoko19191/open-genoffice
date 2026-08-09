@@ -112,6 +112,35 @@ describe('Session writer lease', () => {
     ).value.release()
   })
 
+  it('takes over before TTL when the previous Runtime process is confirmed dead', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'agent-session-lease-dead-owner-'))
+    const options = {
+      leasesDirectory: root,
+      ttlMs: 15_000,
+      platform: 'linux' as const,
+      isProcessAlive: (pid: number) => pid !== 101,
+    }
+    const first = await new SessionLeaseStore({
+      ...options,
+      instanceId: 'runtime-a',
+      pid: 101,
+      randomUUID: () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    }).acquire(sessionId)
+    const second = await new SessionLeaseStore({
+      ...options,
+      instanceId: 'runtime-b',
+      pid: 202,
+      randomUUID: () => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    }).acquire(sessionId)
+
+    await expect(first.heartbeat()).rejects.toMatchObject({ code: 'session_lease_lost' })
+    await expect(second.heartbeat()).resolves.toMatchObject({
+      instanceId: 'runtime-b',
+      generation: 3,
+    })
+    await second.release()
+  })
+
   it('loses ownership after TTL or removal and creates a missing lease directory', async () => {
     const root = await mkdtemp(join(tmpdir(), 'agent-session-lease-lost-'))
     const leasesDirectory = join(root, 'state', 'leases')

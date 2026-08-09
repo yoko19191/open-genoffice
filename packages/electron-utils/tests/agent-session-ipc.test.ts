@@ -84,9 +84,15 @@ function mainHarness() {
 describe('Agent Session IPC main bridge', () => {
   it('validates requests, observes a sender once, and routes only safe events', async () => {
     const fixture = mainHarness()
-    const dispose = installAgentSessionIpc(fixture.ipcMain as never, fixture.broker as never)
+    const resolveDocumentId = vi.fn(async () => documentId)
+    const dispose = installAgentSessionIpc(fixture.ipcMain as never, fixture.broker as never, {
+      documentIdFor: resolveDocumentId,
+    })
     const connect = fixture.handlers.get(AGENT_SESSION_CHANNELS.connect)!
+    const document = fixture.handlers.get(AGENT_SESSION_CHANNELS.document)!
     const event = { sender: fixture.sender } as never
+    await expect(document(event, undefined)).resolves.toBe(documentId)
+    expect(resolveDocumentId).toHaveBeenCalledWith(42)
     await expect(connect(event, { documentId, sessionId })).resolves.toEqual(receipt)
     await expect(connect(event, { documentId, sessionId })).resolves.toEqual(receipt)
     expect(fixture.sender.once).toHaveBeenCalledTimes(2)
@@ -104,7 +110,7 @@ describe('Agent Session IPC main bridge', () => {
     )
     expect(fixture.broker.connect).toHaveBeenCalledTimes(2)
     await dispose()
-    expect(fixture.ipcMain.removeHandler).toHaveBeenCalledTimes(2)
+    expect(fixture.ipcMain.removeHandler).toHaveBeenCalledTimes(3)
     expect(fixture.broker.close).toHaveBeenCalledOnce()
   })
 
@@ -124,17 +130,29 @@ describe('Agent Session IPC main bridge', () => {
     await dispose()
     expect(fixture.ipcMain.removeListener).toHaveBeenCalledOnce()
   })
+
+  it('fails closed when the main process resolves a malformed document id', async () => {
+    const fixture = mainHarness()
+    const dispose = installAgentSessionIpc(fixture.ipcMain as never, fixture.broker as never, {
+      documentIdFor: async () => 'forged',
+    })
+    const document = fixture.handlers.get(AGENT_SESSION_CHANNELS.document)!
+    await expect(document({ sender: fixture.sender } as never, undefined)).rejects.toThrowError(
+      'agent_document_id_invalid',
+    )
+    await dispose()
+  })
 })
 
 describe('Agent Session preload bridge', () => {
-  it('exposes four typed methods without a raw invoke surface', async () => {
+  it('exposes five typed methods without a raw invoke surface', async () => {
     const listeners = new Map<string, (event: unknown, value: unknown) => void>()
     const ipcRenderer = {
-      invoke: vi.fn(async (channel: string): Promise<unknown> =>
-        channel === AGENT_SESSION_CHANNELS.connect
-          ? receipt
-          : { runId: 'run-1', acceptedCursor: 'cursor-2' },
-      ),
+      invoke: vi.fn(async (channel: string): Promise<unknown> => {
+        if (channel === AGENT_SESSION_CHANNELS.document) return documentId
+        if (channel === AGENT_SESSION_CHANNELS.connect) return receipt
+        return { runId: 'run-1', acceptedCursor: 'cursor-2' }
+      }),
       send: vi.fn(),
       on: vi.fn((channel: string, listener: (event: unknown, value: unknown) => void) =>
         listeners.set(channel, listener),
@@ -142,7 +160,14 @@ describe('Agent Session preload bridge', () => {
       removeListener: vi.fn(),
     }
     const api = createAgentSessionPreloadApi(ipcRenderer)
-    expect(Object.keys(api).sort()).toEqual(['command', 'connect', 'disconnect', 'onEvent'])
+    expect(Object.keys(api).sort()).toEqual([
+      'command',
+      'connect',
+      'disconnect',
+      'documentId',
+      'onEvent',
+    ])
+    await expect(api.documentId()).resolves.toBe(documentId)
     await expect(api.connect({ documentId, sessionId })).resolves.toEqual(receipt)
     await expect(
       api.command({ type: 'prompt', operationId, sessionId, documentId, text: 'go' }),
@@ -158,7 +183,7 @@ describe('Agent Session preload bridge', () => {
     await expect(api.connect({ documentId: 'other' })).rejects.toThrowError(
       'agent_session_connect_request_invalid',
     )
-    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(3)
+    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(4)
 
     const next = vi.fn()
     const remove = api.onEvent(next)

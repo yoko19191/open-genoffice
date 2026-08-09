@@ -18,6 +18,7 @@ export const AGENT_SESSION_CHANNELS = Object.freeze({
   connect: 'agent-session:connect',
   command: 'agent-session:command',
   disconnect: 'agent-session:disconnect',
+  document: 'agent-session:document',
   event: 'agent-session:event',
 })
 
@@ -48,6 +49,7 @@ export type AgentSessionIpcRenderer = {
 }
 
 export interface AgentSessionPreloadApi {
+  documentId(): Promise<string>
   connect(request: AgentSessionConnectRequest): Promise<AgentSessionConnectReceipt>
   command(command: AgentSessionCommand): Promise<SessionPromptReceipt | SessionAbortReceipt>
   disconnect(): void
@@ -57,6 +59,7 @@ export interface AgentSessionPreloadApi {
 export function installAgentSessionIpc(
   ipcMain: AgentSessionIpcMain,
   broker: AgentSessionBroker<number>,
+  options?: { documentIdFor(clientId: number): string | Promise<string> },
 ): () => Promise<void> {
   const observedSenders = new WeakSet<IpcSender>()
   const observeSender = (sender: IpcSender) => {
@@ -78,12 +81,23 @@ export function installAgentSessionIpc(
     observeSender(event.sender)
     return broker.command(event.sender.id, parseAgentSessionCommand(value))
   })
+  if (options) {
+    ipcMain.handle(AGENT_SESSION_CHANNELS.document, async (event) => {
+      const documentId = await options.documentIdFor(event.sender.id)
+      try {
+        return parseAgentSessionConnectRequest({ documentId }).documentId
+      } catch {
+        throw new Error('agent_document_id_invalid')
+      }
+    })
+  }
   const disconnect = (event: IpcMainEvent) => broker.disconnect(event.sender.id)
   ipcMain.on(AGENT_SESSION_CHANNELS.disconnect, disconnect)
 
   return async () => {
     ipcMain.removeHandler(AGENT_SESSION_CHANNELS.connect)
     ipcMain.removeHandler(AGENT_SESSION_CHANNELS.command)
+    if (options) ipcMain.removeHandler(AGENT_SESSION_CHANNELS.document)
     ipcMain.removeListener(AGENT_SESSION_CHANNELS.disconnect, disconnect)
     await broker.close()
   }
@@ -93,6 +107,14 @@ export function createAgentSessionPreloadApi(
   ipcRenderer: AgentSessionIpcRenderer,
 ): AgentSessionPreloadApi {
   const api: AgentSessionPreloadApi = {
+    async documentId() {
+      const documentId = await ipcRenderer.invoke(AGENT_SESSION_CHANNELS.document, undefined)
+      try {
+        return parseAgentSessionConnectRequest({ documentId }).documentId
+      } catch {
+        throw new Error('agent_document_id_invalid')
+      }
+    },
     async connect(request: AgentSessionConnectRequest) {
       const validated = parseAgentSessionConnectRequest(request)
       return parseAgentSessionConnectReceipt(
