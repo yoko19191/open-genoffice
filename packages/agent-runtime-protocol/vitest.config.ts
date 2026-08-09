@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    reporters: ['default', 'json'],
+    outputFile: { json: 'reports/tests.json' },
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
