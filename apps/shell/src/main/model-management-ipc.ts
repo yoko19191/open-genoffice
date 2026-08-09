@@ -9,6 +9,12 @@ import {
   asModelProviderConfigurationInput,
   asModelSelectInput,
   asProviderId,
+  asPackageGitInstallInput,
+  asPackageLocalInstallInput,
+  asPackageMutationInput,
+  asPackageNamespace,
+  asPackageNpmInstallInput,
+  type PackageNamespace,
 } from '../shared/pi-runtime-api'
 
 type IpcMainLike = {
@@ -28,6 +34,14 @@ type ModelManagementService = Pick<
   | 'resourceCatalog'
   | 'grantProjectTrust'
   | 'revokeProjectTrust'
+  | 'packageCatalog'
+  | 'installLocalPackage'
+  | 'installNpmPackage'
+  | 'installGitPackage'
+  | 'activatePackage'
+  | 'enablePackage'
+  | 'disablePackage'
+  | 'uninstallPackage'
 >
 
 export function installModelManagementIpc(
@@ -36,6 +50,7 @@ export function installModelManagementIpc(
   trustedSender: () => object | null,
   openAuthUrl: (url: string) => Promise<void>,
   selectProjectRoot: () => Promise<string | undefined>,
+  selectPackageRoot: () => Promise<string | undefined>,
 ): void {
   const openedInteractions = new Set<string>()
   let selectedProjectRoot: string | undefined
@@ -52,6 +67,16 @@ export function installModelManagementIpc(
     }
     return projection
   }
+  const packageScope = (namespace: PackageNamespace) => {
+    if (namespace === 'global') return { namespace }
+    if (!selectedProjectRoot) throw new Error('project_not_selected')
+    return { namespace, projectRoot: selectedProjectRoot }
+  }
+  const packageMutation = (input: { namespace: PackageNamespace; packageId: string }) => ({
+    ...packageScope(input.namespace),
+    operationId: randomUUID(),
+    packageId: input.packageId,
+  })
 
   ipcMain.handle(PI_RUNTIME_CHANNELS.modelCatalog, async (event) => {
     assertTrusted(event)
@@ -114,4 +139,57 @@ export function installModelManagementIpc(
       projectRoot: selectedProjectRoot,
     })
   })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.packageCatalog, async (event, value) => {
+    assertTrusted(event)
+    return service.packageCatalog(packageScope(asPackageNamespace(value)))
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.installLocalPackage, async (event, value) => {
+    assertTrusted(event)
+    const input = asPackageLocalInstallInput(value)
+    const localPath = await selectPackageRoot()
+    if (!localPath) throw new Error('package_selection_cancelled')
+    return service.installLocalPackage({
+      ...packageMutation(input),
+      localPath,
+      ...(input.expectedPreviousContentSha256
+        ? { expectedPreviousContentSha256: input.expectedPreviousContentSha256 }
+        : {}),
+    })
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.installNpmPackage, async (event, value) => {
+    assertTrusted(event)
+    const input = asPackageNpmInstallInput(value)
+    return service.installNpmPackage({
+      ...packageMutation(input),
+      name: input.name,
+      version: input.version,
+      ...(input.integrity ? { integrity: input.integrity } : {}),
+      ...(input.expectedPreviousContentSha256
+        ? { expectedPreviousContentSha256: input.expectedPreviousContentSha256 }
+        : {}),
+    })
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.installGitPackage, async (event, value) => {
+    assertTrusted(event)
+    const input = asPackageGitInstallInput(value)
+    return service.installGitPackage({
+      ...packageMutation(input),
+      url: input.url,
+      commit: input.commit,
+      ...(input.expectedPreviousContentSha256
+        ? { expectedPreviousContentSha256: input.expectedPreviousContentSha256 }
+        : {}),
+    })
+  })
+  for (const [channel, method] of [
+    [PI_RUNTIME_CHANNELS.activatePackage, 'activatePackage'],
+    [PI_RUNTIME_CHANNELS.enablePackage, 'enablePackage'],
+    [PI_RUNTIME_CHANNELS.disablePackage, 'disablePackage'],
+    [PI_RUNTIME_CHANNELS.uninstallPackage, 'uninstallPackage'],
+  ] as const) {
+    ipcMain.handle(channel, async (event, value) => {
+      assertTrusted(event)
+      return service[method](packageMutation(asPackageMutationInput(value)))
+    })
+  }
 }

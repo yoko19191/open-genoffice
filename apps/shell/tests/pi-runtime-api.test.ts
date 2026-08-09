@@ -12,6 +12,12 @@ import {
   asModelOAuthOperationInput,
   asModelOAuthResponseInput,
   asOAuthOperation,
+  asPackageCatalog,
+  asPackageGitInstallInput,
+  asPackageLocalInstallInput,
+  asPackageMutationInput,
+  asPackageNamespace,
+  asPackageNpmInstallInput,
   asResourceCatalog,
 } from '../src/shared/pi-runtime-api'
 
@@ -82,6 +88,14 @@ describe('typed Pi Runtime preload health contract', () => {
       selectResourceProject: 'pi-runtime:resource-project-select',
       grantProjectTrust: 'pi-runtime:project-trust-grant',
       revokeProjectTrust: 'pi-runtime:project-trust-revoke',
+      packageCatalog: 'pi-runtime:package-catalog',
+      installLocalPackage: 'pi-runtime:package-install-local',
+      installNpmPackage: 'pi-runtime:package-install-npm',
+      installGitPackage: 'pi-runtime:package-install-git',
+      activatePackage: 'pi-runtime:package-activate',
+      enablePackage: 'pi-runtime:package-enable',
+      disablePackage: 'pi-runtime:package-disable',
+      uninstallPackage: 'pi-runtime:package-uninstall',
     })
     expect(JSON.stringify(PI_RUNTIME_CHANNELS)).not.toContain('credential-get')
   })
@@ -187,5 +201,57 @@ describe('typed Pi Runtime preload health contract', () => {
     expect(() => asResourceCatalog({ ...catalog, body: 'secret' })).toThrowError(
       'resource_catalog_invalid',
     )
+  })
+
+  it('accepts only fixed Package inputs and path-free Package projections', () => {
+    const mutation = { namespace: 'global', packageId: 'safe-extension' } as const
+    expect(asPackageNamespace('project')).toBe('project')
+    expect(() => asPackageNamespace('/private/project')).toThrowError('package_namespace_invalid')
+    expect(asPackageMutationInput(mutation)).toEqual(mutation)
+    expect(asPackageLocalInstallInput(mutation)).toEqual(mutation)
+    expect(
+      asPackageNpmInstallInput({ ...mutation, name: '@scope/safe-extension', version: '1.2.3' }),
+    ).toEqual({ ...mutation, name: '@scope/safe-extension', version: '1.2.3' })
+    expect(
+      asPackageGitInstallInput({
+        ...mutation,
+        url: 'https://example.com/safe-extension.git',
+        commit: 'a'.repeat(40),
+      }),
+    ).toMatchObject({ commit: 'a'.repeat(40) })
+    expect(() =>
+      asPackageNpmInstallInput({ ...mutation, name: 'safe-extension', version: '^1.2.3' }),
+    ).toThrowError('package_npm_install_input_invalid')
+    expect(() =>
+      asPackageGitInstallInput({
+        ...mutation,
+        url: 'https://example.com/safe-extension.git',
+        commit: 'main',
+      }),
+    ).toThrowError('package_git_install_input_invalid')
+    expect(() => asPackageLocalInstallInput({ ...mutation, localPath: '/leak' })).toThrowError(
+      'package_local_install_input_invalid',
+    )
+
+    const catalog = {
+      globalGeneration: 2,
+      packages: [
+        {
+          namespace: 'global',
+          packageId: 'safe-extension',
+          source: `local-sha256:${'a'.repeat(64)}`,
+          contentSha256: 'a'.repeat(64),
+          license: 'MIT',
+          capabilities: ['executable'],
+          enabled: true,
+          status: 'eligible',
+          resourceCount: 1,
+        },
+      ],
+    } as const
+    expect(asPackageCatalog(catalog)).toEqual(catalog)
+    expect(() =>
+      asPackageCatalog({ ...catalog, packages: [{ ...catalog.packages[0], localPath: '/leak' }] }),
+    ).toThrowError('package_catalog_invalid')
   })
 })

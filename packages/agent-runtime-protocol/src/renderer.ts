@@ -197,6 +197,42 @@ export const ResourceCatalogProjectionSchema = Type.Object(
   { additionalProperties: false },
 )
 
+const PackageProjectionSchema = Type.Object(
+  {
+    namespace: Type.Union([Type.Literal('global'), Type.Literal('project')]),
+    packageId: Type.String({
+      pattern: '^(?:@[a-z0-9][a-z0-9._-]*\\/)?[a-z0-9][a-z0-9._-]{0,127}$',
+    }),
+    source: Type.String({ minLength: 1, maxLength: 4096 }),
+    contentSha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+    license: Type.String({ minLength: 1, maxLength: 256 }),
+    capabilities: Type.Array(Type.Union([Type.Literal('executable'), Type.Literal('network')]), {
+      maxItems: 2,
+      uniqueItems: true,
+    }),
+    enabled: Type.Boolean(),
+    status: Type.Union([
+      Type.Literal('disabled'),
+      Type.Literal('source_unavailable'),
+      Type.Literal('integrity_invalid'),
+      Type.Literal('activation_required'),
+      Type.Literal('eligible'),
+      Type.Literal('tool_alias_collision'),
+    ]),
+    resourceCount: Type.Integer({ minimum: 1, maximum: 256 }),
+  },
+  { additionalProperties: false },
+)
+
+export const PackageCatalogProjectionSchema = Type.Object(
+  {
+    globalGeneration: Type.Integer({ minimum: 1 }),
+    projectGeneration: Type.Optional(Type.Integer({ minimum: 1 })),
+    packages: Type.Array(PackageProjectionSchema, { maxItems: 4096 }),
+  },
+  { additionalProperties: false },
+)
+
 const OAuthOperationIdSchema = Type.String({
   pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
 })
@@ -299,6 +335,7 @@ export type ModelDescriptor = Static<typeof ModelDescriptorSchema>
 export type ModelProviderProjection = Static<typeof ModelProviderProjectionSchema>
 export type ModelCatalogProjection = Static<typeof ModelCatalogProjectionSchema>
 export type ResourceCatalogProjection = Static<typeof ResourceCatalogProjectionSchema>
+export type PackageCatalogProjection = Static<typeof PackageCatalogProjectionSchema>
 export type ModelSelectionRole = Static<typeof ModelSelectionRoleSchema>
 export type ModelProviderErrorCode = Static<typeof ModelProviderErrorCodeSchema>
 export type OAuthInteractionProjection = Static<typeof OAuthInteractionProjectionSchema>
@@ -327,6 +364,11 @@ export function parseModelCatalogProjection(value: unknown): ModelCatalogProject
 export function parseResourceCatalogProjection(value: unknown): ResourceCatalogProjection {
   if (Value.Check(ResourceCatalogProjectionSchema, value)) return value
   throw new Error('resource_catalog_invalid')
+}
+
+export function parsePackageCatalogProjection(value: unknown): PackageCatalogProjection {
+  if (Value.Check(PackageCatalogProjectionSchema, value)) return value
+  throw new Error('package_catalog_invalid')
 }
 
 export function parseOpenAICompatibleProviderConfiguration(

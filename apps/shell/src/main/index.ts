@@ -2378,6 +2378,17 @@ installModelManagementIpc(
     })
     return result.canceled ? undefined : result.filePaths[0]
   },
+  async () => {
+    const win = shellWindow ?? BrowserWindow.getFocusedWindow()
+    const result = await showOpenDialogWithMemory(dialog, win, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择 Pi Package 目录'
+          : 'Select Pi Package directory',
+      properties: ['openDirectory'],
+    })
+    return result.canceled ? undefined : result.filePaths[0]
+  },
 )
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here

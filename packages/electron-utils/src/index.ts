@@ -44,12 +44,18 @@ export {
   type ProviderCredentialPutRequest,
   type ProviderCredentialProviderRequest,
   type ModelSelectRequest,
+  type ModelProviderConfigureRequest,
   type ModelOAuthStartRequest,
   type ModelOAuthOperationRequest,
   type ModelOAuthRespondRequest,
   type ModelProviderRequest,
   type ResourceCatalogRequest,
   type ProjectTrustRequest,
+  type PackageCatalogRequest,
+  type PackageInstallGitRequest,
+  type PackageInstallLocalRequest,
+  type PackageInstallNpmRequest,
+  type PackageMutationRequest,
 } from './pi-runtime-manager'
 export {
   connectRuntimeEndpoint,

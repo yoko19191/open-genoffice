@@ -76,6 +76,100 @@ async function packageSource(rootDirectory: string, packageId: string, toolName:
 }
 
 describe('RunResourceService', () => {
+  it('manages fixed Packages through a path-free catalog and requires Project Trust', async () => {
+    const { resourceHome, projectRoot } = await fixture()
+    const service = new RunResourceService({ resourceHome, deviceId })
+    const source = await packageSource(resourceHome, 'managed-extension', 'inspect_managed')
+
+    const installed = await service.installPackage({
+      namespace: 'global',
+      operationId: '33333333-3333-4333-8333-333333333333',
+      packageId: 'managed-extension',
+      source: { type: 'local', path: source },
+    })
+    expect(installed).toMatchObject({
+      globalGeneration: 2,
+      packages: [
+        {
+          namespace: 'global',
+          packageId: 'managed-extension',
+          source: expect.stringMatching(/^local-sha256:[0-9a-f]{64}$/),
+          status: 'activation_required',
+          enabled: true,
+          resourceCount: 1,
+        },
+      ],
+    })
+    expect(JSON.stringify(installed)).not.toContain(source)
+
+    expect(
+      await service.activatePackage({
+        namespace: 'global',
+        operationId: '44444444-4444-4444-8444-444444444444',
+        packageId: 'managed-extension',
+      }),
+    ).toMatchObject({ packages: [expect.objectContaining({ status: 'eligible' })] })
+    expect(
+      await service.disablePackage({
+        namespace: 'global',
+        operationId: '55555555-5555-4555-8555-555555555555',
+        packageId: 'managed-extension',
+      }),
+    ).toMatchObject({ packages: [expect.objectContaining({ status: 'disabled' })] })
+    expect(
+      await service.enablePackage({
+        namespace: 'global',
+        operationId: '66666666-6666-4666-8666-666666666666',
+        packageId: 'managed-extension',
+      }),
+    ).toMatchObject({ packages: [expect.objectContaining({ status: 'eligible' })] })
+
+    await expect(
+      service.installPackage({
+        namespace: 'project',
+        projectRoot,
+        operationId: '77777777-7777-4777-8777-777777777777',
+        packageId: 'project-extension',
+        source: {
+          type: 'local',
+          path: await packageSource(projectRoot, 'project-extension', 'inspect_project'),
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'package_project_untrusted' })
+    await service.grantProjectTrust(projectRoot)
+    const projectInstalled = await service.installPackage({
+      namespace: 'project',
+      projectRoot,
+      operationId: '88888888-8888-4888-8888-888888888888',
+      packageId: 'project-extension',
+      source: {
+        type: 'local',
+        path: await packageSource(projectRoot, 'project-extension', 'inspect_project'),
+      },
+    })
+    expect(projectInstalled).toMatchObject({
+      globalGeneration: 4,
+      projectGeneration: 2,
+      packages: expect.arrayContaining([
+        expect.objectContaining({ namespace: 'global', packageId: 'managed-extension' }),
+        expect.objectContaining({ namespace: 'project', packageId: 'project-extension' }),
+      ]),
+    })
+    expect(JSON.stringify(projectInstalled)).not.toContain(projectRoot)
+
+    expect(
+      await service.uninstallPackage({
+        namespace: 'project',
+        projectRoot,
+        operationId: '99999999-9999-4999-8999-999999999999',
+        packageId: 'project-extension',
+      }),
+    ).toMatchObject({ projectGeneration: 3 })
+    await expect(
+      service.packageCatalog({ namespace: 'global', projectRoot }),
+    ).rejects.toMatchObject({ code: 'package_scope_invalid' })
+  })
+
   it('adds newly trusted project resources only to the next run snapshot', async () => {
     const { resourceHome, projectRoot } = await fixture()
     const service = new RunResourceService({ resourceHome, deviceId })

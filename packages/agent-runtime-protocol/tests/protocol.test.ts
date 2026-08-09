@@ -8,6 +8,7 @@ import {
   ModelCatalogProjectionSchema,
   ModelManagementRequestSchema,
   ResourceCatalogProjectionSchema,
+  PackageCatalogProjectionSchema,
   ResourceManagementRequestSchema,
   NODE_VERSION,
   PI_VERSION,
@@ -35,6 +36,7 @@ import {
   parseModelCatalogProjection,
   parseModelManagementRequest,
   parseResourceCatalogProjection,
+  parsePackageCatalogProjection,
   parseResourceManagementRequest,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
@@ -194,7 +196,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(31)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(39)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -825,7 +827,7 @@ describe('renderer-safe resource catalog projection', () => {
     expect(() => parseResourceCatalogProjection(value)).toThrowError('resource_catalog_invalid')
   })
 
-  it('accepts only the three authenticated resource management operations', () => {
+  it('accepts the three authenticated catalog and trust operations', () => {
     const base = {
       protocolVersion: PROTOCOL_VERSION,
       kind: 'request',
@@ -845,7 +847,7 @@ describe('renderer-safe resource catalog projection', () => {
         params: { operationId, projectRoot: '/selected/project' },
       },
     ]
-    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(3)
+    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(11)
     for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
     expect(() =>
       parseResourceManagementRequest({
@@ -853,6 +855,140 @@ describe('renderer-safe resource catalog projection', () => {
         params: { projectRoot: '/selected/project', rendererPath: '/forbidden' },
       }),
     ).toThrowError('resource_management_request_invalid')
+  })
+})
+
+describe('renderer-safe Package management contract', () => {
+  const catalog = {
+    globalGeneration: 4,
+    projectGeneration: 2,
+    packages: [
+      {
+        namespace: 'global',
+        packageId: 'safe-extension',
+        source: 'npm:safe-extension@1.2.3',
+        contentSha256: 'a'.repeat(64),
+        license: 'MIT',
+        capabilities: ['executable'],
+        enabled: true,
+        status: 'eligible',
+        resourceCount: 1,
+      },
+      {
+        namespace: 'project',
+        packageId: 'colliding-extension',
+        source: `git:https://example.com/owner/repo.git#${'b'.repeat(40)}`,
+        contentSha256: 'c'.repeat(64),
+        license: 'Apache-2.0',
+        capabilities: ['executable', 'network'],
+        enabled: true,
+        status: 'tool_alias_collision',
+        resourceCount: 2,
+      },
+    ],
+  } as const
+
+  it('accepts immutable Package metadata without paths or executable bodies', () => {
+    expect(parsePackageCatalogProjection(catalog)).toEqual(catalog)
+    expect(PackageCatalogProjectionSchema).toBeDefined()
+    expect(() =>
+      parsePackageCatalogProjection({
+        ...catalog,
+        packages: [{ ...catalog.packages[0], path: '/private/package-source' }],
+      }),
+    ).toThrowError('package_catalog_invalid')
+    expect(() =>
+      parsePackageCatalogProjection({
+        ...catalog,
+        packages: [{ ...catalog.packages[0], body: 'export default secret' }],
+      }),
+    ).toThrowError('package_catalog_invalid')
+  })
+
+  it('accepts only exact authenticated Package operations', () => {
+    const base = {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: 'request',
+      id: 'package-request',
+      correlationId: 'package-correlation',
+    } as const
+    const scope = { namespace: 'project', projectRoot: '/selected/project' } as const
+    const requests = [
+      { ...base, method: 'package.catalog', params: scope },
+      {
+        ...base,
+        method: 'package.install.local',
+        params: {
+          ...scope,
+          operationId,
+          packageId: 'local-extension',
+          localPath: '/selected/package',
+        },
+      },
+      {
+        ...base,
+        method: 'package.install.npm',
+        params: {
+          namespace: 'global',
+          operationId,
+          packageId: 'npm-extension',
+          name: '@scope/npm-extension',
+          version: '1.2.3',
+          expectedPreviousContentSha256: 'a'.repeat(64),
+        },
+      },
+      {
+        ...base,
+        method: 'package.install.git',
+        params: {
+          namespace: 'global',
+          operationId,
+          packageId: 'git-extension',
+          url: 'ssh://git@example.com/owner/repo.git',
+          commit: 'b'.repeat(40),
+        },
+      },
+      ...(['activate', 'enable', 'disable', 'uninstall'] as const).map((operation) => ({
+        ...base,
+        method: `package.${operation}`,
+        params: { namespace: 'global', operationId, packageId: 'safe-extension' },
+      })),
+    ]
+    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(11)
+    for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
+    for (const request of [
+      { ...requests[2], params: { ...requests[2]!.params, version: '^1.2.3' } },
+      { ...requests[3], params: { ...requests[3]!.params, commit: 'main' } },
+      { ...requests[1], params: { ...requests[1]!.params, rendererPath: '/forbidden' } },
+    ]) {
+      expect(() => parseResourceManagementRequest(request)).toThrowError(
+        'resource_management_request_invalid',
+      )
+    }
+  })
+
+  it('accepts stable Package errors without exposing source details', () => {
+    const value = {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: 'response',
+      id: 'package-response',
+      correlationId: 'package-correlation',
+      error: {
+        code: 'package_integrity_invalid',
+        message: 'package_integrity_invalid',
+        retryable: false,
+        correlationId: 'package-correlation',
+      },
+    }
+    expect(parseProtocolFrame(JSON.stringify(value))).toEqual(value)
+    expect(() =>
+      parseProtocolFrame(
+        JSON.stringify({
+          ...value,
+          error: { ...value.error, localPath: '/private/package-source' },
+        }),
+      ),
+    ).toThrowError('protocol_frame_invalid')
   })
 })
 

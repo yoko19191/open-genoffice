@@ -11,7 +11,15 @@ import {
   type ResolvedPackage,
   type ResourceCatalog,
 } from '@genoffice/agent-resource'
-import type { ResourceCatalogProjection } from '@genoffice/agent-runtime-protocol'
+import type {
+  PackageCatalogProjection,
+  ResourceCatalogProjection,
+} from '@genoffice/agent-runtime-protocol'
+import {
+  PackageInstallCoordinator,
+  PackageSourceResolver,
+  type PackageSourceRequest,
+} from './package-source-resolver'
 
 export type RunModelMetadata = {
   providerId: string
@@ -54,6 +62,31 @@ export type RunResourceServiceOptions = {
   deviceId: string
   permissionVersion?: () => string
   isToolEnabled?: (toolId: string) => boolean
+  packageSourceResolver?: Pick<PackageSourceResolver, 'resolve'>
+}
+
+export type PackageScope = {
+  namespace: 'global' | 'project'
+  projectRoot?: string
+}
+
+export type PackageMutation = PackageScope & {
+  operationId: string
+  packageId: string
+}
+
+export type PackageInstall = PackageMutation & {
+  source: PackageSourceRequest
+  expectedPreviousContentSha256?: string
+}
+
+export type RunResourceServiceErrorCode = 'package_scope_invalid' | 'package_project_untrusted'
+
+export class RunResourceServiceError extends Error {
+  constructor(readonly code: RunResourceServiceErrorCode) {
+    super(code)
+    this.name = 'RunResourceServiceError'
+  }
 }
 
 export class RunResourceService {
@@ -61,6 +94,7 @@ export class RunResourceService {
   private readonly activation: ResourceActivationStore
   private readonly permissionVersion: () => string
   private readonly isToolEnabled: (toolId: string) => boolean
+  private readonly packageSourceResolver: Pick<PackageSourceResolver, 'resolve'>
 
   constructor(private readonly options: RunResourceServiceOptions) {
     this.trust = new ProjectTrustStore({
@@ -73,6 +107,9 @@ export class RunResourceService {
     })
     this.permissionVersion = options.permissionVersion ?? (() => 'agent-permission-v1')
     this.isToolEnabled = options.isToolEnabled ?? (() => true)
+    this.packageSourceResolver =
+      options.packageSourceResolver ??
+      new PackageSourceResolver({ resourceHome: options.resourceHome })
   }
 
   async prepare(input: PrepareRunResourcesInput): Promise<PreparedRunResources> {
@@ -193,6 +230,68 @@ export class RunResourceService {
     return this.catalog(projectRoot)
   }
 
+  async packageCatalog(scope: PackageScope): Promise<PackageCatalogProjection> {
+    const scopedStore = await this.packageStore(scope)
+    const global = await (
+      scope.namespace === 'global' ? scopedStore : await this.packageStore({ namespace: 'global' })
+    ).catalog()
+    const project = scope.namespace === 'project' ? await scopedStore.catalog() : undefined
+    const diagnostics = new Set(
+      (
+        await this.selectPackageTools(scope.namespace === 'project' ? scope.projectRoot : undefined)
+      ).diagnostics.map((diagnostic) => diagnostic.packageId),
+    )
+    const packages = [
+      ...global.packages.map((entry) => ({ namespace: 'global' as const, ...entry })),
+      ...(project?.packages.map((entry) => ({ namespace: 'project' as const, ...entry })) ?? []),
+    ].map((entry) => ({
+      ...entry,
+      capabilities: [...entry.capabilities],
+      status: diagnostics.has(entry.packageId) ? ('tool_alias_collision' as const) : entry.status,
+    }))
+    return {
+      globalGeneration: global.generation,
+      ...(project ? { projectGeneration: project.generation } : {}),
+      packages,
+    }
+  }
+
+  async installPackage(input: PackageInstall): Promise<PackageCatalogProjection> {
+    const packages = await this.packageStore(input)
+    await new PackageInstallCoordinator({
+      resolver: this.packageSourceResolver,
+      packages,
+    }).install({
+      operationId: input.operationId,
+      packageId: input.packageId,
+      source: input.source,
+      ...(input.expectedPreviousContentSha256
+        ? { expectedPreviousContentSha256: input.expectedPreviousContentSha256 }
+        : {}),
+    })
+    return this.packageCatalog(input)
+  }
+
+  async activatePackage(input: PackageMutation): Promise<PackageCatalogProjection> {
+    await (await this.packageStore(input)).activate(input.packageId)
+    return this.packageCatalog(input)
+  }
+
+  async enablePackage(input: PackageMutation): Promise<PackageCatalogProjection> {
+    await (await this.packageStore(input)).enable(input.packageId)
+    return this.packageCatalog(input)
+  }
+
+  async disablePackage(input: PackageMutation): Promise<PackageCatalogProjection> {
+    await (await this.packageStore(input)).disable(input.packageId)
+    return this.packageCatalog(input)
+  }
+
+  async uninstallPackage(input: PackageMutation): Promise<PackageCatalogProjection> {
+    await (await this.packageStore(input)).uninstall(input.packageId)
+    return this.packageCatalog(input)
+  }
+
   private async scan(projectRoot?: string): Promise<ResourceCatalog> {
     let projectTrusted = false
     if (projectRoot) {
@@ -207,6 +306,30 @@ export class RunResourceService {
       resourceHome: this.options.resourceHome,
       ...(projectRoot ? { projectRoot, projectTrusted } : {}),
       isActivated: (descriptor) => this.activation.isActive(descriptor),
+    })
+  }
+
+  private async packageStore(scope: PackageScope): Promise<PackageLockService> {
+    if (scope.namespace === 'global') {
+      if (scope.projectRoot !== undefined) {
+        throw new RunResourceServiceError('package_scope_invalid')
+      }
+      return new PackageLockService({
+        resourceHome: this.options.resourceHome,
+        deviceId: this.options.deviceId,
+        namespace: 'global',
+      })
+    }
+    if (!scope.projectRoot) throw new RunResourceServiceError('package_scope_invalid')
+    const identity = await resolveProjectIdentity(scope.projectRoot, this.options.deviceId)
+    if (!(await this.trust.isTrusted(identity))) {
+      throw new RunResourceServiceError('package_project_untrusted')
+    }
+    return new PackageLockService({
+      resourceHome: this.options.resourceHome,
+      deviceId: this.options.deviceId,
+      namespace: 'project',
+      projectRoot: scope.projectRoot,
     })
   }
 

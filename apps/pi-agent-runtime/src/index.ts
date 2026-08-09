@@ -93,12 +93,17 @@ export {
 } from './package-source-resolver'
 export {
   RunResourceService,
+  RunResourceServiceError,
   type PackageDiagnostic,
+  type PackageInstall,
+  type PackageMutation,
+  type PackageScope,
   type PrepareRunResourcesInput,
   type PreparedExtensionTool,
   type PreparedRunResources,
   type RunModelMetadata,
   type RunResourceServiceOptions,
+  type RunResourceServiceErrorCode,
 } from './run-resource-service'
 export {
   ControlledResourceLoader,

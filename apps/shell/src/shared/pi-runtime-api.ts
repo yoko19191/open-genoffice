@@ -6,6 +6,7 @@ import {
   parseModelCatalogProjection,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
+  parsePackageCatalogProjection,
   parseResourceCatalogProjection,
   parseProviderCredentialStatus as parseProtocolProviderCredentialStatus,
   parseRuntimeHealthProjection,
@@ -15,6 +16,7 @@ import {
   type ModelSelectionRole,
   type OAuthOperationProjection,
   type OpenAICompatibleProviderConfiguration,
+  type PackageCatalogProjection,
   type ResourceCatalogProjection,
 } from '@genoffice/agent-runtime-protocol/renderer'
 
@@ -35,6 +37,14 @@ export const PI_RUNTIME_CHANNELS = {
   selectResourceProject: 'pi-runtime:resource-project-select',
   grantProjectTrust: 'pi-runtime:project-trust-grant',
   revokeProjectTrust: 'pi-runtime:project-trust-revoke',
+  packageCatalog: 'pi-runtime:package-catalog',
+  installLocalPackage: 'pi-runtime:package-install-local',
+  installNpmPackage: 'pi-runtime:package-install-npm',
+  installGitPackage: 'pi-runtime:package-install-git',
+  activatePackage: 'pi-runtime:package-activate',
+  enablePackage: 'pi-runtime:package-enable',
+  disablePackage: 'pi-runtime:package-disable',
+  uninstallPackage: 'pi-runtime:package-uninstall',
 } as const
 
 export type ProviderCredentialInput = {
@@ -52,9 +62,32 @@ export type ModelOAuthStartInput = { operationId: string; providerId: string }
 export type ModelOAuthOperationInput = { operationId: string }
 export type ModelOAuthResponseInput = ModelOAuthOperationInput & { value: string }
 export type ModelProviderConfigurationInput = OpenAICompatibleProviderConfiguration
+export type PackageNamespace = 'global' | 'project'
+export type PackageMutationInput = {
+  namespace: PackageNamespace
+  packageId: string
+}
+export type PackageLocalInstallInput = PackageMutationInput & {
+  expectedPreviousContentSha256?: string
+}
+export type PackageNpmInstallInput = PackageLocalInstallInput & {
+  name: string
+  version: string
+  integrity?: string
+}
+export type PackageGitInstallInput = PackageLocalInstallInput & {
+  url: string
+  commit: string
+}
 
 const operationIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const packageIdPattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]{0,127}$/
+const exactVersionPattern =
+  /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
+const sha256Pattern = /^[0-9a-f]{64}$/
+const integrityPattern = /^sha512-[A-Za-z0-9+/]+={0,2}$/
+const commitPattern = /^[0-9a-f]{40}$/
 
 function isExactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return (
@@ -63,6 +96,35 @@ function isExactRecord(value: unknown, keys: readonly string[]): value is Record
     !Array.isArray(value) &&
     Object.keys(value).length === keys.length &&
     keys.every((key) => Object.hasOwn(value, key))
+  )
+}
+
+function isPackageRecord(
+  value: unknown,
+  required: readonly string[],
+  optional: readonly string[],
+): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const keys = Object.keys(value)
+  return (
+    required.every((key) => Object.hasOwn(value, key)) &&
+    keys.every((key) => required.includes(key) || optional.includes(key))
+  )
+}
+
+function isPackageMutation(value: Record<string, unknown>): boolean {
+  return (
+    (value.namespace === 'global' || value.namespace === 'project') &&
+    typeof value.packageId === 'string' &&
+    packageIdPattern.test(value.packageId)
+  )
+}
+
+function hasValidPreviousHash(value: Record<string, unknown>): boolean {
+  return (
+    value.expectedPreviousContentSha256 === undefined ||
+    (typeof value.expectedPreviousContentSha256 === 'string' &&
+      sha256Pattern.test(value.expectedPreviousContentSha256))
   )
 }
 
@@ -111,6 +173,83 @@ export function asOAuthOperation(value: unknown): Readonly<OAuthOperationProject
 
 export function asResourceCatalog(value: unknown): Readonly<ResourceCatalogProjection> {
   return Object.freeze(parseResourceCatalogProjection(value))
+}
+
+export function asPackageCatalog(value: unknown): Readonly<PackageCatalogProjection> {
+  return Object.freeze(parsePackageCatalogProjection(value))
+}
+
+export function asPackageNamespace(value: unknown): PackageNamespace {
+  if (value !== 'global' && value !== 'project') throw new Error('package_namespace_invalid')
+  return value
+}
+
+export function asPackageMutationInput(value: unknown): Readonly<PackageMutationInput> {
+  if (!isPackageRecord(value, ['namespace', 'packageId'], []) || !isPackageMutation(value)) {
+    throw new Error('package_mutation_input_invalid')
+  }
+  return Object.freeze({
+    namespace: value.namespace as PackageNamespace,
+    packageId: value.packageId as string,
+  })
+}
+
+export function asPackageLocalInstallInput(value: unknown): Readonly<PackageLocalInstallInput> {
+  if (
+    !isPackageRecord(value, ['namespace', 'packageId'], ['expectedPreviousContentSha256']) ||
+    !isPackageMutation(value) ||
+    !hasValidPreviousHash(value)
+  ) {
+    throw new Error('package_local_install_input_invalid')
+  }
+  return Object.freeze({
+    namespace: value.namespace as PackageNamespace,
+    packageId: value.packageId as string,
+    ...(value.expectedPreviousContentSha256
+      ? { expectedPreviousContentSha256: value.expectedPreviousContentSha256 as string }
+      : {}),
+  })
+}
+
+export function asPackageNpmInstallInput(value: unknown): Readonly<PackageNpmInstallInput> {
+  if (
+    !isPackageRecord(
+      value,
+      ['namespace', 'packageId', 'name', 'version'],
+      ['integrity', 'expectedPreviousContentSha256'],
+    ) ||
+    !isPackageMutation(value) ||
+    typeof value.name !== 'string' ||
+    !packageIdPattern.test(value.name) ||
+    typeof value.version !== 'string' ||
+    !exactVersionPattern.test(value.version) ||
+    (value.integrity !== undefined &&
+      (typeof value.integrity !== 'string' || !integrityPattern.test(value.integrity))) ||
+    !hasValidPreviousHash(value)
+  ) {
+    throw new Error('package_npm_install_input_invalid')
+  }
+  return Object.freeze({ ...value }) as Readonly<PackageNpmInstallInput>
+}
+
+export function asPackageGitInstallInput(value: unknown): Readonly<PackageGitInstallInput> {
+  if (
+    !isPackageRecord(
+      value,
+      ['namespace', 'packageId', 'url', 'commit'],
+      ['expectedPreviousContentSha256'],
+    ) ||
+    !isPackageMutation(value) ||
+    typeof value.url !== 'string' ||
+    value.url.length > 2048 ||
+    !/^(?:https|ssh):\/\//.test(value.url) ||
+    typeof value.commit !== 'string' ||
+    !commitPattern.test(value.commit) ||
+    !hasValidPreviousHash(value)
+  ) {
+    throw new Error('package_git_install_input_invalid')
+  }
+  return Object.freeze({ ...value }) as Readonly<PackageGitInstallInput>
 }
 
 export function asModelSelectInput(value: unknown): Readonly<ModelSelectInput> {
@@ -209,4 +348,12 @@ export interface PiRuntimeApi {
   selectResourceProject(): Promise<Readonly<ResourceCatalogProjection>>
   grantProjectTrust(): Promise<Readonly<ResourceCatalogProjection>>
   revokeProjectTrust(): Promise<Readonly<ResourceCatalogProjection>>
+  packageCatalog(namespace: PackageNamespace): Promise<Readonly<PackageCatalogProjection>>
+  installLocalPackage(input: PackageLocalInstallInput): Promise<Readonly<PackageCatalogProjection>>
+  installNpmPackage(input: PackageNpmInstallInput): Promise<Readonly<PackageCatalogProjection>>
+  installGitPackage(input: PackageGitInstallInput): Promise<Readonly<PackageCatalogProjection>>
+  activatePackage(input: PackageMutationInput): Promise<Readonly<PackageCatalogProjection>>
+  enablePackage(input: PackageMutationInput): Promise<Readonly<PackageCatalogProjection>>
+  disablePackage(input: PackageMutationInput): Promise<Readonly<PackageCatalogProjection>>
+  uninstallPackage(input: PackageMutationInput): Promise<Readonly<PackageCatalogProjection>>
 }

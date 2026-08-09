@@ -137,6 +137,14 @@ function manager(overrides: Record<string, unknown> = {}) {
       projectState: 'untrusted' as const,
       resources: [],
     })),
+    packageCatalog: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    installLocalPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    installNpmPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    installGitPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    activatePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    enablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    disablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    uninstallPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
     ...overrides,
   }
 }
@@ -374,6 +382,33 @@ describe('installed Pi Runtime service', () => {
     expect(fixture.runtimeManager.resourceCatalog).toHaveBeenCalledWith({ projectRoot })
     expect(fixture.runtimeManager.grantProjectTrust).toHaveBeenCalledWith(trust)
     expect(fixture.runtimeManager.revokeProjectTrust).toHaveBeenCalledWith(trust)
+
+    const mutation = {
+      namespace: 'global' as const,
+      operationId: trust.operationId,
+      packageId: 'safe-extension',
+    }
+    await fixture.instance.packageCatalog({ namespace: 'global' })
+    await fixture.instance.installLocalPackage({ ...mutation, localPath: '/main/selected/package' })
+    await fixture.instance.installNpmPackage({
+      ...mutation,
+      name: 'safe-extension',
+      version: '1.2.3',
+    })
+    await fixture.instance.installGitPackage({
+      ...mutation,
+      url: 'https://example.com/safe-extension.git',
+      commit: 'a'.repeat(40),
+    })
+    await fixture.instance.activatePackage(mutation)
+    await fixture.instance.enablePackage(mutation)
+    await fixture.instance.disablePackage(mutation)
+    await fixture.instance.uninstallPackage(mutation)
+    expect(fixture.runtimeManager.installLocalPackage).toHaveBeenCalledWith({
+      ...mutation,
+      localPath: '/main/selected/package',
+    })
+    expect(fixture.runtimeManager.uninstallPackage).toHaveBeenCalledWith(mutation)
   })
 
   it('passes the main-process credential broker only to the owned Runtime manager', async () => {

@@ -179,6 +179,14 @@ function harness(
         projectState: 'untrusted' as const,
         resources: [],
       })),
+      packageCatalog: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      installLocalPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      installNpmPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      installGitPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      activatePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      enablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      disablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      uninstallPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
       onSessionEvent: vi.fn((listener: (event: EventEnvelope) => void) => {
         eventListener = listener
         return () => {
@@ -401,6 +409,36 @@ describe('PiRuntimeSupervisor', () => {
     })
     await expect(fixture.supervisor.revokeProjectTrust(trust)).resolves.toMatchObject({
       projectState: 'untrusted',
+    })
+    const packageMutation = {
+      namespace: 'global' as const,
+      operationId: oauthOperationId,
+      packageId: 'safe-extension',
+    }
+    await expect(fixture.supervisor.packageCatalog({ namespace: 'global' })).resolves.toMatchObject(
+      { globalGeneration: 1 },
+    )
+    await fixture.supervisor.installLocalPackage({
+      ...packageMutation,
+      localPath: '/main/selected/package',
+    })
+    await fixture.supervisor.installNpmPackage({
+      ...packageMutation,
+      name: 'safe-extension',
+      version: '1.2.3',
+    })
+    await fixture.supervisor.installGitPackage({
+      ...packageMutation,
+      url: 'https://example.com/safe-extension.git',
+      commit: 'a'.repeat(40),
+    })
+    await fixture.supervisor.activatePackage(packageMutation)
+    await fixture.supervisor.enablePackage(packageMutation)
+    await fixture.supervisor.disablePackage(packageMutation)
+    await fixture.supervisor.uninstallPackage(packageMutation)
+    expect(fixture.managers[0]!.installLocalPackage).toHaveBeenCalledWith({
+      ...packageMutation,
+      localPath: '/main/selected/package',
     })
     const emitted = {
       protocolVersion: '1',

@@ -44,6 +44,29 @@ function resourceHome(instanceId: string): string {
   return join(tmpdir(), `genoffice-runtime-resource-${instanceId}-${randomUUID()}`)
 }
 
+async function packageSource(directory: string): Promise<string> {
+  const source = join(directory, 'package-source')
+  await mkdir(source, { recursive: true })
+  await writeFile(
+    join(source, 'package.json'),
+    `${JSON.stringify({
+      name: 'socket-extension',
+      version: '1.0.0',
+      license: 'MIT',
+      pi: { extensions: ['./extension.mjs'] },
+      genoffice: {
+        capabilities: ['executable'],
+        tools: [{ extension: './extension.mjs', name: 'inspect_socket', effect: 'read' }],
+      },
+    })}\n`,
+  )
+  await writeFile(
+    join(source, 'extension.mjs'),
+    "export default function (pi) { pi.registerTool({ name: 'inspect_socket' }) }\n",
+  )
+  return source
+}
+
 function request(method: string, params: unknown, id = method) {
   return JSON.stringify({
     protocolVersion: PROTOCOL_VERSION,
@@ -440,6 +463,86 @@ describe('authenticated Runtime socket', () => {
     await runtime.closed
   })
 
+  it('manages a fixed local Package through authenticated path-safe results', async () => {
+    const socketPath = await endpoint()
+    const runtimeHome = resourceHome('instance-package-management')
+    const localPath = await packageSource(runtimeHome)
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-package-management',
+      resourceHome: runtimeHome,
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+
+    const operations = [
+      [
+        'package.install.local',
+        {
+          namespace: 'global',
+          operationId: randomUUID(),
+          packageId: 'socket-extension',
+          localPath,
+        },
+        'activation_required',
+      ],
+      [
+        'package.activate',
+        { namespace: 'global', operationId: randomUUID(), packageId: 'socket-extension' },
+        'eligible',
+      ],
+      [
+        'package.disable',
+        { namespace: 'global', operationId: randomUUID(), packageId: 'socket-extension' },
+        'disabled',
+      ],
+      [
+        'package.enable',
+        { namespace: 'global', operationId: randomUUID(), packageId: 'socket-extension' },
+        'eligible',
+      ],
+    ] as const
+    for (const [index, [method, params, status]] of operations.entries()) {
+      const id = `package-${index}`
+      client.write(`${request(method, params, id)}\n`)
+      const received = await reader.next((frame) => frame.kind === 'response' && frame.id === id)
+      expect(received).toMatchObject({
+        result: {
+          packages: [expect.objectContaining({ packageId: 'socket-extension', status })],
+        },
+      })
+      expect(JSON.stringify(received)).not.toContain(localPath)
+    }
+
+    client.write(
+      `${request(
+        'package.catalog',
+        { namespace: 'global', projectRoot: '/renderer-path-injection' },
+        'package-scope-error',
+      )}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'package-scope-error'),
+    ).toMatchObject({ error: { code: 'package_scope_invalid' } })
+
+    client.write(
+      `${request(
+        'package.uninstall',
+        { namespace: 'global', operationId: randomUUID(), packageId: 'socket-extension' },
+        'package-uninstall',
+      )}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'package-uninstall'),
+    ).toMatchObject({ result: { packages: [] } })
+
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
   it('manages a persistent credential through broker CAS and returns stable errors', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({
@@ -583,6 +686,14 @@ describe('authenticated Runtime socket', () => {
           'resource.catalog',
           'project.trust.grant',
           'project.trust.revoke',
+          'package.catalog',
+          'package.install.local',
+          'package.install.npm',
+          'package.install.git',
+          'package.activate',
+          'package.enable',
+          'package.disable',
+          'package.uninstall',
         ],
       },
     })

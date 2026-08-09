@@ -10,6 +10,7 @@ import type {
   ProviderCredentialStatus,
   ModelCatalogProjection,
   OAuthOperationProjection,
+  PackageCatalogProjection,
   ResourceCatalogProjection,
 } from '@genoffice/agent-runtime-protocol'
 import type {
@@ -32,6 +33,11 @@ import type {
   ModelProviderRequest,
   ResourceCatalogRequest,
   ProjectTrustRequest,
+  PackageCatalogRequest,
+  PackageInstallGitRequest,
+  PackageInstallLocalRequest,
+  PackageInstallNpmRequest,
+  PackageMutationRequest,
 } from './pi-runtime-manager'
 
 export type SupervisedPiRuntimeManager = {
@@ -60,6 +66,14 @@ export type SupervisedPiRuntimeManager = {
   resourceCatalog(input?: ResourceCatalogRequest): Promise<ResourceCatalogProjection>
   grantProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection>
   revokeProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection>
+  packageCatalog(input: PackageCatalogRequest): Promise<PackageCatalogProjection>
+  installLocalPackage(input: PackageInstallLocalRequest): Promise<PackageCatalogProjection>
+  installNpmPackage(input: PackageInstallNpmRequest): Promise<PackageCatalogProjection>
+  installGitPackage(input: PackageInstallGitRequest): Promise<PackageCatalogProjection>
+  activatePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection>
+  enablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection>
+  disablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection>
+  uninstallPackage(input: PackageMutationRequest): Promise<PackageCatalogProjection>
 }
 
 export type PiRuntimeSupervisorState =
@@ -267,6 +281,38 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async revokeProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
     return (await this.readyManager()).revokeProjectTrust(input)
+  }
+
+  async packageCatalog(input: PackageCatalogRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).packageCatalog(input)
+  }
+
+  async installLocalPackage(input: PackageInstallLocalRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).installLocalPackage(input)
+  }
+
+  async installNpmPackage(input: PackageInstallNpmRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).installNpmPackage(input)
+  }
+
+  async installGitPackage(input: PackageInstallGitRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).installGitPackage(input)
+  }
+
+  async activatePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).activatePackage(input)
+  }
+
+  async enablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).enablePackage(input)
+  }
+
+  async disablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).disablePackage(input)
+  }
+
+  async uninstallPackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).uninstallPackage(input)
   }
 
   private async readyManager(): Promise<SupervisedPiRuntimeManager> {

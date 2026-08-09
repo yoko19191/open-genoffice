@@ -430,6 +430,8 @@ const CHANNEL_OPTIONS = [
 const PRIMARY_MODEL_PROVIDER_ID = 'openai'
 type ModelCatalog = Awaited<ReturnType<PiRuntimeApi['modelCatalog']>>
 type ResourceCatalog = Awaited<ReturnType<PiRuntimeApi['resourceCatalog']>>
+type PackageCatalog = Awaited<ReturnType<PiRuntimeApi['packageCatalog']>>
+type PackageNamespace = Parameters<PiRuntimeApi['packageCatalog']>[0]
 type OAuthOperation = Awaited<ReturnType<PiRuntimeApi['modelOAuthStatus']>>
 type ModelCapability = ModelCatalog['providers'][number]['models'][number]['capabilities'][number]
 const configurableCapabilities: readonly ModelCapability[] = [
@@ -446,6 +448,13 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const zh = lang === 'zh' || lang === 'zh-TW'
   const [catalog, setCatalog] = useState<ModelCatalog>()
   const [resourceCatalog, setResourceCatalog] = useState<ResourceCatalog>()
+  const [packageCatalog, setPackageCatalog] = useState<PackageCatalog>()
+  const [packageNamespace, setPackageNamespace] = useState<PackageNamespace>('global')
+  const [packageId, setPackageId] = useState('')
+  const [npmPackageName, setNpmPackageName] = useState('')
+  const [npmPackageVersion, setNpmPackageVersion] = useState('')
+  const [gitPackageUrl, setGitPackageUrl] = useState('')
+  const [gitPackageCommit, setGitPackageCommit] = useState('')
   const [providerId, setProviderId] = useState(PRIMARY_MODEL_PROVIDER_ID)
   const [apiKey, setApiKey] = useState('')
   const [persistence, setPersistence] = useState<'persistent' | 'memory_only'>('persistent')
@@ -486,10 +495,19 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     }
   }, [])
 
+  const refreshPackageCatalog = useCallback(async () => {
+    try {
+      setPackageCatalog(await window.aiOfficeAgent.packageCatalog(packageNamespace))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'package_catalog_failed')
+    }
+  }, [packageNamespace])
+
   useEffect(() => {
     void refreshCatalog()
     void refreshResourceCatalog()
-  }, [refreshCatalog, refreshResourceCatalog])
+    void refreshPackageCatalog()
+  }, [refreshCatalog, refreshPackageCatalog, refreshResourceCatalog])
 
   useEffect(() => {
     if (
@@ -689,13 +707,74 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setError(null)
     try {
-      setResourceCatalog(
-        trusted
-          ? await window.aiOfficeAgent.grantProjectTrust()
-          : await window.aiOfficeAgent.revokeProjectTrust(),
-      )
+      const next = trusted
+        ? await window.aiOfficeAgent.grantProjectTrust()
+        : await window.aiOfficeAgent.revokeProjectTrust()
+      setResourceCatalog(next)
+      if (!trusted && packageNamespace === 'project') setPackageNamespace('global')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'project_trust_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const selectedPackageHash = packageCatalog?.packages.find(
+    (item) => item.namespace === packageNamespace && item.packageId === packageId,
+  )?.contentSha256
+
+  const installPackage = async (source: 'local' | 'npm' | 'git') => {
+    if (!packageId || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const base = {
+        namespace: packageNamespace,
+        packageId,
+        ...(selectedPackageHash ? { expectedPreviousContentSha256: selectedPackageHash } : {}),
+      }
+      const next =
+        source === 'local'
+          ? await window.aiOfficeAgent.installLocalPackage(base)
+          : source === 'npm'
+            ? await window.aiOfficeAgent.installNpmPackage({
+                ...base,
+                name: npmPackageName,
+                version: npmPackageVersion,
+              })
+            : await window.aiOfficeAgent.installGitPackage({
+                ...base,
+                url: gitPackageUrl,
+                commit: gitPackageCommit,
+              })
+      setPackageCatalog(next)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'package_install_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const mutatePackage = async (
+    action: 'activate' | 'enable' | 'disable' | 'uninstall',
+    targetPackageId: string,
+  ) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const input = { namespace: packageNamespace, packageId: targetPackageId }
+      const next =
+        action === 'activate'
+          ? await window.aiOfficeAgent.activatePackage(input)
+          : action === 'enable'
+            ? await window.aiOfficeAgent.enablePackage(input)
+            : action === 'disable'
+              ? await window.aiOfficeAgent.disablePackage(input)
+              : await window.aiOfficeAgent.uninstallPackage(input)
+      setPackageCatalog(next)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'package_mutation_failed')
     } finally {
       setBusy(false)
     }
@@ -903,6 +982,147 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </details>
+        <details className="provider-resource-catalog">
+          <summary>{zh ? 'Pi Packages' : 'Pi Packages'}</summary>
+          <p className="provider-credential-status">
+            {zh
+              ? '只接受本地目录、精确 npm 版本或固定 Git commit；本地路径不会显示在界面中。'
+              : 'Only local directories, exact npm versions, or fixed Git commits are accepted. Local paths are never displayed.'}
+          </p>
+          <label className="provider-credential-field">
+            <span>{zh ? '安装范围' : 'Scope'}</span>
+            <select
+              value={packageNamespace}
+              onChange={(event) => setPackageNamespace(event.target.value as PackageNamespace)}
+            >
+              <option value="global">global</option>
+              <option value="project" disabled={resourceCatalog?.projectState !== 'trusted'}>
+                project
+              </option>
+            </select>
+          </label>
+          <label className="provider-credential-field">
+            <span>Package ID</span>
+            <input
+              value={packageId}
+              spellCheck={false}
+              placeholder="safe-extension"
+              onChange={(event) => setPackageId(event.target.value)}
+            />
+          </label>
+          <div className="provider-resource-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || !packageId}
+              onClick={() => void installPackage('local')}
+            >
+              {zh ? '选择本地目录并安装' : 'Choose local directory'}
+            </button>
+          </div>
+          <label className="provider-credential-field">
+            <span>npm name</span>
+            <input
+              value={npmPackageName}
+              spellCheck={false}
+              onChange={(event) => setNpmPackageName(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '精确版本' : 'Exact version'}</span>
+            <input
+              value={npmPackageVersion}
+              spellCheck={false}
+              placeholder="1.2.3"
+              onChange={(event) => setNpmPackageVersion(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || !packageId || !npmPackageName || !npmPackageVersion}
+            onClick={() => void installPackage('npm')}
+          >
+            {zh ? '安装固定 npm Package' : 'Install fixed npm package'}
+          </button>
+          <label className="provider-credential-field">
+            <span>Git URL</span>
+            <input
+              value={gitPackageUrl}
+              spellCheck={false}
+              placeholder="https://example.com/owner/repo.git"
+              onChange={(event) => setGitPackageUrl(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '完整 commit' : 'Full commit'}</span>
+            <input
+              value={gitPackageCommit}
+              spellCheck={false}
+              placeholder="40 hexadecimal characters"
+              onChange={(event) => setGitPackageCommit(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || !packageId || !gitPackageUrl || !gitPackageCommit}
+            onClick={() => void installPackage('git')}
+          >
+            {zh ? '安装固定 Git Package' : 'Install fixed Git package'}
+          </button>
+          <div className="provider-resource-list">
+            {packageCatalog?.packages
+              .filter((item) => item.namespace === packageNamespace)
+              .map((item) => (
+                <article
+                  key={`${item.namespace}/${item.packageId}`}
+                  className="provider-resource-item"
+                >
+                  <strong>{item.packageId}</strong>
+                  <span>
+                    {item.namespace} · {item.status} · {item.license}
+                  </span>
+                  <code>{item.source}</code>
+                  <code>sha256:{item.contentSha256}</code>
+                  <span>
+                    {item.capabilities.join(', ')} · {item.resourceCount}{' '}
+                    {zh ? '个工具' : 'tool(s)'}
+                  </span>
+                  <div className="provider-resource-actions">
+                    {item.status === 'activation_required' && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={busy}
+                        onClick={() => void mutatePackage('activate', item.packageId)}
+                      >
+                        {zh ? '授权并激活' : 'Authorize and activate'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void mutatePackage(item.enabled ? 'disable' : 'enable', item.packageId)
+                      }
+                    >
+                      {item.enabled ? (zh ? '停用' : 'Disable') : zh ? '启用' : 'Enable'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      disabled={busy}
+                      onClick={() => void mutatePackage('uninstall', item.packageId)}
+                    >
+                      {zh ? '卸载' : 'Uninstall'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+          </div>
+        </details>
         {provider?.authMethods.includes('api_key') && (
           <>
             <label className="provider-credential-field">
@@ -999,9 +1219,13 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
                 ? zh
                   ? '本地服务配置无效。请检查 ID、地址与模型能力。'
                   : 'The local provider configuration is invalid. Check its IDs, endpoint, and capabilities.'
-                : zh
-                  ? '凭据操作失败，请重试。'
-                  : 'Credential operation failed. Please retry.'}
+                : error.includes('package_')
+                  ? zh
+                    ? `Package 操作失败：${error}`
+                    : `Package operation failed: ${error}`
+                  : zh
+                    ? '凭据操作失败，请重试。'
+                    : 'Credential operation failed. Please retry.'}
           </p>
         )}
         <div className="modal-buttons provider-credential-actions">

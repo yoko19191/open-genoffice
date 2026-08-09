@@ -29,6 +29,12 @@ import {
   asModelOAuthOperationInput,
   asModelOAuthResponseInput,
   asOAuthOperation,
+  asPackageCatalog,
+  asPackageGitInstallInput,
+  asPackageLocalInstallInput,
+  asPackageMutationInput,
+  asPackageNamespace,
+  asPackageNpmInstallInput,
   asResourceCatalog,
   type PiRuntimeApi,
 } from '../shared/pi-runtime-api'
@@ -356,6 +362,55 @@ const piRuntimeApi: PiRuntimeApi = {
   },
   async revokeProjectTrust() {
     return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.revokeProjectTrust))
+  },
+  async packageCatalog(namespace) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.packageCatalog, asPackageNamespace(namespace)),
+    )
+  },
+  async installLocalPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.installLocalPackage,
+        asPackageLocalInstallInput(input),
+      ),
+    )
+  },
+  async installNpmPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.installNpmPackage,
+        asPackageNpmInstallInput(input),
+      ),
+    )
+  },
+  async installGitPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.installGitPackage,
+        asPackageGitInstallInput(input),
+      ),
+    )
+  },
+  async activatePackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.activatePackage, asPackageMutationInput(input)),
+    )
+  },
+  async enablePackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.enablePackage, asPackageMutationInput(input)),
+    )
+  },
+  async disablePackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.disablePackage, asPackageMutationInput(input)),
+    )
+  },
+  async uninstallPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.uninstallPackage, asPackageMutationInput(input)),
+    )
   },
 }
 

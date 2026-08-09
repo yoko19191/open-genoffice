@@ -5,6 +5,7 @@ import {
   type RuntimeHealthProjection,
   type ModelCatalogProjection,
   type OAuthOperationProjection,
+  type PackageCatalogProjection,
   type ResourceCatalogProjection,
   type EventEnvelope,
   type SessionConnectionReceipt,
@@ -38,6 +39,11 @@ import type {
   ModelProviderRequest,
   ResourceCatalogRequest,
   ProjectTrustRequest,
+  PackageCatalogRequest,
+  PackageInstallGitRequest,
+  PackageInstallLocalRequest,
+  PackageInstallNpmRequest,
+  PackageMutationRequest,
 } from './pi-runtime-manager'
 
 export type PiRuntimeServiceOptions = {
@@ -76,6 +82,14 @@ type OwnedPiRuntimeManager = Pick<
   | 'resourceCatalog'
   | 'grantProjectTrust'
   | 'revokeProjectTrust'
+  | 'packageCatalog'
+  | 'installLocalPackage'
+  | 'installNpmPackage'
+  | 'installGitPackage'
+  | 'activatePackage'
+  | 'enablePackage'
+  | 'disablePackage'
+  | 'uninstallPackage'
 >
 
 export type PiRuntimeServiceDependencies = {
@@ -216,6 +230,38 @@ export class PiRuntimeService {
 
   async revokeProjectTrust(input: ProjectTrustRequest): Promise<ResourceCatalogProjection> {
     return (await this.readyManager()).revokeProjectTrust(input)
+  }
+
+  async packageCatalog(input: PackageCatalogRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).packageCatalog(input)
+  }
+
+  async installLocalPackage(input: PackageInstallLocalRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).installLocalPackage(input)
+  }
+
+  async installNpmPackage(input: PackageInstallNpmRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).installNpmPackage(input)
+  }
+
+  async installGitPackage(input: PackageInstallGitRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).installGitPackage(input)
+  }
+
+  async activatePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).activatePackage(input)
+  }
+
+  async enablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).enablePackage(input)
+  }
+
+  async disablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).disablePackage(input)
+  }
+
+  async uninstallPackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return (await this.readyManager()).uninstallPackage(input)
   }
 
   private async readyManager(): Promise<OwnedPiRuntimeManager> {

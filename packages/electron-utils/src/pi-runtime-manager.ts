@@ -10,6 +10,7 @@ import {
   parseCredentialBrokerRequest,
   parseModelCatalogProjection,
   parseOAuthOperationProjection,
+  parsePackageCatalogProjection,
   parseProviderCredentialStatus,
   parseResourceCatalogProjection,
   parseSessionAbortReceipt,
@@ -26,8 +27,10 @@ import {
   type ModelManagementRequest,
   type ModelSelectionRole,
   type OAuthOperationProjection,
+  type PackageCatalogProjection,
   type ProtocolEnvelope,
   type ResourceCatalogProjection,
+  type ResourceManagementRequest,
   type RequestEnvelope,
   type SessionConnectionReceipt,
   type SessionAbortReceipt,
@@ -132,6 +135,28 @@ export type ModelProviderConfigureRequest = Extract<
 >['params']
 export type ResourceCatalogRequest = { projectRoot?: string }
 export type ProjectTrustRequest = { operationId: string; projectRoot: string }
+export type PackageCatalogRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'package.catalog' }
+>['params']
+export type PackageInstallLocalRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'package.install.local' }
+>['params']
+export type PackageInstallNpmRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'package.install.npm' }
+>['params']
+export type PackageInstallGitRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'package.install.git' }
+>['params']
+export type PackageMutationRequest = Extract<
+  ResourceManagementRequest,
+  {
+    method: 'package.activate' | 'package.enable' | 'package.disable' | 'package.uninstall'
+  }
+>['params']
 
 type ClientRuntimeMethod =
   | 'runtime.hello'
@@ -159,6 +184,14 @@ type ClientRuntimeMethod =
   | 'resource.catalog'
   | 'project.trust.grant'
   | 'project.trust.revoke'
+  | 'package.catalog'
+  | 'package.install.local'
+  | 'package.install.npm'
+  | 'package.install.git'
+  | 'package.activate'
+  | 'package.enable'
+  | 'package.disable'
+  | 'package.uninstall'
 
 export class PiRuntimeManagerError extends Error {
   readonly code: string
@@ -386,7 +419,15 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('model.logout') ||
         !hello.capabilities.includes('resource.catalog') ||
         !hello.capabilities.includes('project.trust.grant') ||
-        !hello.capabilities.includes('project.trust.revoke')
+        !hello.capabilities.includes('project.trust.revoke') ||
+        !hello.capabilities.includes('package.catalog') ||
+        !hello.capabilities.includes('package.install.local') ||
+        !hello.capabilities.includes('package.install.npm') ||
+        !hello.capabilities.includes('package.install.git') ||
+        !hello.capabilities.includes('package.activate') ||
+        !hello.capabilities.includes('package.enable') ||
+        !hello.capabilities.includes('package.disable') ||
+        !hello.capabilities.includes('package.uninstall')
       ) {
         throw new PiRuntimeManagerError('runtime_hello_invalid')
       }
@@ -615,6 +656,38 @@ export class PiRuntimeManager {
     return this.resourceManagementRequest('project.trust.revoke', input)
   }
 
+  async packageCatalog(input: PackageCatalogRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.catalog', input)
+  }
+
+  async installLocalPackage(input: PackageInstallLocalRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.install.local', input)
+  }
+
+  async installNpmPackage(input: PackageInstallNpmRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.install.npm', input)
+  }
+
+  async installGitPackage(input: PackageInstallGitRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.install.git', input)
+  }
+
+  async activatePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.activate', input)
+  }
+
+  async enablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.enable', input)
+  }
+
+  async disablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.disable', input)
+  }
+
+  async uninstallPackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
+    return this.packageManagementRequest('package.uninstall', input)
+  }
+
   private async resourceManagementRequest(
     method: 'resource.catalog' | 'project.trust.grant' | 'project.trust.revoke',
     input: ResourceCatalogRequest | ProjectTrustRequest,
@@ -625,6 +698,32 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('resource_catalog_invalid')
+    }
+  }
+
+  private async packageManagementRequest(
+    method:
+      | 'package.catalog'
+      | 'package.install.local'
+      | 'package.install.npm'
+      | 'package.install.git'
+      | 'package.activate'
+      | 'package.enable'
+      | 'package.disable'
+      | 'package.uninstall',
+    input:
+      | PackageCatalogRequest
+      | PackageInstallLocalRequest
+      | PackageInstallNpmRequest
+      | PackageInstallGitRequest
+      | PackageMutationRequest,
+  ): Promise<PackageCatalogProjection> {
+    this.assertReady()
+    try {
+      return parsePackageCatalogProjection(await this.request(method, input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('package_catalog_invalid')
     }
   }
 

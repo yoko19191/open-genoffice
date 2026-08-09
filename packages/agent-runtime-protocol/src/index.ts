@@ -24,6 +24,7 @@ export {
   RUNTIME_VERSION,
   SCHEMA_VERSION,
   ModelCatalogProjectionSchema,
+  PackageCatalogProjectionSchema,
   ModelCapabilitySchema,
   OpenAICompatibleProviderConfigurationSchema,
   ModelSelectionRoleSchema,
@@ -34,6 +35,7 @@ export {
   RuntimeHealthProjectionSchema,
   parseCredentialProviderId,
   parseModelCatalogProjection,
+  parsePackageCatalogProjection,
   parseResourceCatalogProjection,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
@@ -42,6 +44,7 @@ export {
   type ProviderCredentialStatus,
   type ModelCapability,
   type ModelCatalogProjection,
+  type PackageCatalogProjection,
   type ResourceCatalogProjection,
   type OpenAICompatibleProviderConfiguration,
   type ModelDescriptor,
@@ -165,6 +168,15 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('oauth_operation_not_found'),
   Type.Literal('oauth_not_waiting'),
   Type.Literal('oauth_response_invalid'),
+  Type.Literal('package_source_invalid'),
+  Type.Literal('package_manifest_invalid'),
+  Type.Literal('package_integrity_invalid'),
+  Type.Literal('package_lock_invalid'),
+  Type.Literal('package_not_found'),
+  Type.Literal('package_generation_conflict'),
+  Type.Literal('package_source_unavailable'),
+  Type.Literal('package_scope_invalid'),
+  Type.Literal('package_project_untrusted'),
 ])
 
 export const CredentialBrokerMetadataSchema = Type.Object(
@@ -446,10 +458,97 @@ const ProjectTrustRevokeRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const PackageNamespaceSchema = Type.Union([Type.Literal('global'), Type.Literal('project')])
+const PackageIdSchema = Type.String({
+  pattern: '^(?:@[a-z0-9][a-z0-9._-]*\\/)?[a-z0-9][a-z0-9._-]{0,127}$',
+})
+const ExactPackageVersionSchema = Type.String({
+  pattern:
+    '^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$',
+})
+const PackageScopeProperties = {
+  namespace: PackageNamespaceSchema,
+  projectRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+}
+const PackageMutationProperties = {
+  ...PackageScopeProperties,
+  operationId: OperationIdSchema,
+  packageId: PackageIdSchema,
+}
+
+const PackageCatalogRequestSchema = sessionRequestEnvelope(
+  'package.catalog',
+  Type.Object(PackageScopeProperties, { additionalProperties: false }),
+)
+
+const PackageInstallLocalRequestSchema = sessionRequestEnvelope(
+  'package.install.local',
+  Type.Object(
+    {
+      ...PackageMutationProperties,
+      localPath: Type.String({ minLength: 1, maxLength: 4096 }),
+      expectedPreviousContentSha256: Type.Optional(Sha256Schema),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const PackageInstallNpmRequestSchema = sessionRequestEnvelope(
+  'package.install.npm',
+  Type.Object(
+    {
+      ...PackageMutationProperties,
+      name: PackageIdSchema,
+      version: ExactPackageVersionSchema,
+      integrity: Type.Optional(Type.String({ pattern: '^sha512-[A-Za-z0-9+/]+={0,2}$' })),
+      expectedPreviousContentSha256: Type.Optional(Sha256Schema),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const PackageInstallGitRequestSchema = sessionRequestEnvelope(
+  'package.install.git',
+  Type.Object(
+    {
+      ...PackageMutationProperties,
+      url: Type.String({ minLength: 1, maxLength: 2048, pattern: '^(?:https|ssh)://' }),
+      commit: Type.String({ pattern: '^[0-9a-f]{40}$' }),
+      expectedPreviousContentSha256: Type.Optional(Sha256Schema),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const PackageActivateRequestSchema = sessionRequestEnvelope(
+  'package.activate',
+  Type.Object(PackageMutationProperties, { additionalProperties: false }),
+)
+const PackageEnableRequestSchema = sessionRequestEnvelope(
+  'package.enable',
+  Type.Object(PackageMutationProperties, { additionalProperties: false }),
+)
+const PackageDisableRequestSchema = sessionRequestEnvelope(
+  'package.disable',
+  Type.Object(PackageMutationProperties, { additionalProperties: false }),
+)
+const PackageUninstallRequestSchema = sessionRequestEnvelope(
+  'package.uninstall',
+  Type.Object(PackageMutationProperties, { additionalProperties: false }),
+)
+
 export const ResourceManagementRequestSchema = Type.Union([
   ResourceCatalogRequestSchema,
   ProjectTrustGrantRequestSchema,
   ProjectTrustRevokeRequestSchema,
+  PackageCatalogRequestSchema,
+  PackageInstallLocalRequestSchema,
+  PackageInstallNpmRequestSchema,
+  PackageInstallGitRequestSchema,
+  PackageActivateRequestSchema,
+  PackageEnableRequestSchema,
+  PackageDisableRequestSchema,
+  PackageUninstallRequestSchema,
 ])
 
 const ModelSelectRequestSchema = sessionRequestEnvelope(
@@ -734,6 +833,14 @@ export const RequestEnvelopeSchema = Type.Union([
   ResourceCatalogRequestSchema,
   ProjectTrustGrantRequestSchema,
   ProjectTrustRevokeRequestSchema,
+  PackageCatalogRequestSchema,
+  PackageInstallLocalRequestSchema,
+  PackageInstallNpmRequestSchema,
+  PackageInstallGitRequestSchema,
+  PackageActivateRequestSchema,
+  PackageEnableRequestSchema,
+  PackageDisableRequestSchema,
+  PackageUninstallRequestSchema,
   ModelSelectRequestSchema,
   ModelProviderConfigureRequestSchema,
   ModelOAuthStartRequestSchema,

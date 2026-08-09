@@ -15,7 +15,7 @@ import {
   type RequestEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
-import { initializeAgentResourceHome } from '@genoffice/agent-resource'
+import { PackageLockError, initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
 import {
   loadModelCatalogSettings,
@@ -26,7 +26,8 @@ import { OpenGenOfficeCredentialStoreError } from './open-genoffice-credential-s
 import { createDeterministicPiSession } from './pi-session-factory'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import { RuntimeCredentialStore } from './runtime-credential-store'
-import { RunResourceService } from './run-resource-service'
+import { PackageSourceResolverError } from './package-source-resolver'
+import { RunResourceService, RunResourceServiceError } from './run-resource-service'
 import {
   RuntimeSessionError,
   createSessionRegistry,
@@ -234,6 +235,14 @@ export async function createAuthenticatedRuntimeServer(
                 'resource.catalog',
                 'project.trust.grant',
                 'project.trust.revoke',
+                'package.catalog',
+                'package.install.local',
+                'package.install.npm',
+                'package.install.git',
+                'package.activate',
+                'package.enable',
+                'package.disable',
+                'package.uninstall',
               ],
             }),
           )
@@ -302,7 +311,11 @@ export async function createAuthenticatedRuntimeServer(
       void handleModelManagementRequest(socket, request)
       return
     }
-    if (request.method === 'resource.catalog' || request.method.startsWith('project.trust.')) {
+    if (
+      request.method === 'resource.catalog' ||
+      request.method.startsWith('project.trust.') ||
+      request.method.startsWith('package.')
+    ) {
       void handleResourceManagementRequest(socket, request)
       return
     }
@@ -322,11 +335,102 @@ export async function createAuthenticatedRuntimeServer(
         )
         return
       }
-      socket.write(
-        response(request, await runResources.revokeProjectTrust(command.params.projectRoot)),
-      )
-    } catch {
-      socket.write(errorResponse(request, 'invalid_request'))
+      if (command.method === 'project.trust.revoke') {
+        socket.write(
+          response(request, await runResources.revokeProjectTrust(command.params.projectRoot)),
+        )
+        return
+      }
+      const scope = {
+        namespace: command.params.namespace,
+        ...(command.params.projectRoot ? { projectRoot: command.params.projectRoot } : {}),
+      }
+      if (command.method === 'package.catalog') {
+        socket.write(response(request, await runResources.packageCatalog(scope)))
+        return
+      }
+      const mutation = {
+        ...scope,
+        operationId: command.params.operationId,
+        packageId: command.params.packageId,
+      }
+      if (command.method === 'package.install.local') {
+        socket.write(
+          response(
+            request,
+            await runResources.installPackage({
+              ...mutation,
+              source: { type: 'local', path: command.params.localPath },
+              ...(command.params.expectedPreviousContentSha256
+                ? {
+                    expectedPreviousContentSha256: command.params.expectedPreviousContentSha256,
+                  }
+                : {}),
+            }),
+          ),
+        )
+        return
+      }
+      if (command.method === 'package.install.npm') {
+        socket.write(
+          response(
+            request,
+            await runResources.installPackage({
+              ...mutation,
+              source: {
+                type: 'npm',
+                name: command.params.name,
+                version: command.params.version,
+                ...(command.params.integrity ? { integrity: command.params.integrity } : {}),
+              },
+              ...(command.params.expectedPreviousContentSha256
+                ? {
+                    expectedPreviousContentSha256: command.params.expectedPreviousContentSha256,
+                  }
+                : {}),
+            }),
+          ),
+        )
+        return
+      }
+      if (command.method === 'package.install.git') {
+        socket.write(
+          response(
+            request,
+            await runResources.installPackage({
+              ...mutation,
+              source: {
+                type: 'git',
+                url: command.params.url,
+                commit: command.params.commit,
+              },
+              ...(command.params.expectedPreviousContentSha256
+                ? {
+                    expectedPreviousContentSha256: command.params.expectedPreviousContentSha256,
+                  }
+                : {}),
+            }),
+          ),
+        )
+        return
+      }
+      const result =
+        command.method === 'package.activate'
+          ? await runResources.activatePackage(mutation)
+          : command.method === 'package.enable'
+            ? await runResources.enablePackage(mutation)
+            : command.method === 'package.disable'
+              ? await runResources.disablePackage(mutation)
+              : await runResources.uninstallPackage(mutation)
+      socket.write(response(request, result))
+    } catch (error) {
+      const code =
+        error instanceof PackageLockError ||
+        error instanceof PackageSourceResolverError ||
+        error instanceof RunResourceServiceError
+          ? error.code
+          : 'invalid_request'
+      socket.write(errorResponse(request, code))
     }
   }
 

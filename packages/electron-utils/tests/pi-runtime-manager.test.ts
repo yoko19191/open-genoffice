@@ -131,6 +131,14 @@ class FakeRuntimeSocket extends Duplex {
               'resource.catalog',
               'project.trust.grant',
               'project.trust.revoke',
+              'package.catalog',
+              'package.install.local',
+              'package.install.npm',
+              'package.install.git',
+              'package.activate',
+              'package.enable',
+              'package.disable',
+              'package.uninstall',
             ],
           }
         : request.method === 'runtime.status'
@@ -154,78 +162,80 @@ class FakeRuntimeSocket extends Duplex {
                           : 'none',
                   resources: [],
                 }
-              : request.method.startsWith('model.')
-                ? {
-                    providers: [],
-                    selections:
-                      request.method === 'model.select'
-                        ? {
-                            [request.params.role]: {
-                              providerId: request.params.providerId,
-                              modelId: request.params.modelId,
-                              capabilities: ['text-input'],
-                            },
-                          }
-                        : {},
-                  }
-                : request.method === 'credential.put'
+              : request.method.startsWith('package.')
+                ? { globalGeneration: 1, packages: [] }
+                : request.method.startsWith('model.')
                   ? {
-                      providerId: request.params.providerId,
-                      persistence: request.params.persistence,
-                      status: 'available',
-                      kind: 'api_key',
+                      providers: [],
+                      selections:
+                        request.method === 'model.select'
+                          ? {
+                              [request.params.role]: {
+                                providerId: request.params.providerId,
+                                modelId: request.params.modelId,
+                                capabilities: ['text-input'],
+                              },
+                            }
+                          : {},
                     }
-                  : request.method === 'credential.status'
+                  : request.method === 'credential.put'
                     ? {
                         providerId: request.params.providerId,
-                        persistence: 'persistent',
-                        status: 'missing',
+                        persistence: request.params.persistence,
+                        status: 'available',
+                        kind: 'api_key',
                       }
-                    : request.method === 'credential.delete'
+                    : request.method === 'credential.status'
                       ? {
                           providerId: request.params.providerId,
                           persistence: 'persistent',
                           status: 'missing',
                         }
-                      : request.method === 'session.create' || request.method === 'session.open'
+                      : request.method === 'credential.delete'
                         ? {
-                            sessionId: snapshot.sessionId,
-                            documentId: snapshot.documentId,
-                            snapshot,
-                            cursor: snapshot.cursor,
+                            providerId: request.params.providerId,
+                            persistence: 'persistent',
+                            status: 'missing',
                           }
-                        : request.method === 'session.prompt'
-                          ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
-                          : request.method === 'session.abort'
-                            ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
-                            : request.method === 'session.fork'
-                              ? {
-                                  sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                  parentSessionId: snapshot.sessionId,
-                                  documentId: snapshot.documentId,
-                                  snapshot: {
-                                    ...snapshot,
-                                    sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                    branch: { parentSessionId: snapshot.sessionId, nodes: [] },
-                                  },
-                                  cursor: snapshot.cursor,
-                                }
-                              : request.method === 'session.navigate'
+                        : request.method === 'session.create' || request.method === 'session.open'
+                          ? {
+                              sessionId: snapshot.sessionId,
+                              documentId: snapshot.documentId,
+                              snapshot,
+                              cursor: snapshot.cursor,
+                            }
+                          : request.method === 'session.prompt'
+                            ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
+                            : request.method === 'session.abort'
+                              ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
+                              : request.method === 'session.fork'
                                 ? {
-                                    sessionId: snapshot.sessionId,
+                                    sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                    parentSessionId: snapshot.sessionId,
                                     documentId: snapshot.documentId,
-                                    activeLeafId: 'navigation-leaf',
                                     snapshot: {
                                       ...snapshot,
-                                      branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                      branch: { parentSessionId: snapshot.sessionId, nodes: [] },
                                     },
                                     cursor: snapshot.cursor,
                                   }
-                                : request.method === 'session.snapshot'
-                                  ? snapshot
-                                  : request.method === 'session.subscribe'
-                                    ? { resetRequired: false, snapshot, events: [] }
-                                    : { shuttingDown: true }
+                                : request.method === 'session.navigate'
+                                  ? {
+                                      sessionId: snapshot.sessionId,
+                                      documentId: snapshot.documentId,
+                                      activeLeafId: 'navigation-leaf',
+                                      snapshot: {
+                                        ...snapshot,
+                                        branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                      },
+                                      cursor: snapshot.cursor,
+                                    }
+                                  : request.method === 'session.snapshot'
+                                    ? snapshot
+                                    : request.method === 'session.subscribe'
+                                      ? { resetRequired: false, snapshot, events: [] }
+                                      : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
@@ -237,11 +247,13 @@ class FakeRuntimeSocket extends Duplex {
                   request.method.startsWith('project.trust.')) &&
                 'resourceResult' in this.options
               ? this.options.resourceResult
-              : request.method.startsWith('credential.') && 'credentialResult' in this.options
-                ? this.options.credentialResult
-                : request.method.startsWith('session.') && 'sessionResult' in this.options
-                  ? this.options.sessionResult
-                  : defaultResult
+              : request.method.startsWith('package.') && 'packageResult' in this.options
+                ? this.options.packageResult
+                : request.method.startsWith('credential.') && 'credentialResult' in this.options
+                  ? this.options.credentialResult
+                  : request.method.startsWith('session.') && 'sessionResult' in this.options
+                    ? this.options.sessionResult
+                    : defaultResult
     if (request.method === 'runtime.status' && this.options.statusMode === 'error-response') {
       this.push(
         `${JSON.stringify({
@@ -317,6 +329,24 @@ class FakeRuntimeSocket extends Duplex {
       callback()
       return
     }
+    if (request.method.startsWith('package.') && this.options.packageMode === 'error-response') {
+      this.push(
+        `${JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'response',
+          id: request.id,
+          correlationId: request.correlationId,
+          error: {
+            code: 'package_source_invalid',
+            message: 'package_source_invalid',
+            retryable: false,
+            correlationId: request.correlationId,
+          },
+        })}\n`,
+      )
+      callback()
+      return
+    }
     if (
       request.method.startsWith('credential.') &&
       this.options.credentialMode === 'error-response'
@@ -374,6 +404,8 @@ type ManagerHarnessOptions = {
   modelMode?: 'error-response'
   resourceResult?: unknown
   resourceMode?: 'error-response'
+  packageResult?: unknown
+  packageMode?: 'error-response'
 }
 
 class FakeRuntimeChild extends EventEmitter implements PiRuntimeChild {
@@ -731,6 +763,63 @@ describe('PiRuntimeManager', () => {
     await failed.start()
     await expect(failed.grantProjectTrust(trust)).rejects.toEqual(
       new PiRuntimeManagerError('invalid_request'),
+    )
+    await failed.shutdown()
+  })
+
+  it('validates Package projections and preserves Package Runtime errors', async () => {
+    const harness = managerHarness()
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+    await manager.start()
+    const operationId = '55555555-5555-4555-8555-555555555555'
+    const mutation = {
+      namespace: 'global' as const,
+      operationId,
+      packageId: 'safe-extension',
+    }
+    await expect(manager.packageCatalog({ namespace: 'global' })).resolves.toEqual({
+      globalGeneration: 1,
+      packages: [],
+    })
+    await expect(
+      manager.installLocalPackage({ ...mutation, localPath: '/trusted/main/selection' }),
+    ).resolves.toMatchObject({ globalGeneration: 1 })
+    await expect(
+      manager.installNpmPackage({ ...mutation, name: 'safe-extension', version: '1.2.3' }),
+    ).resolves.toMatchObject({ globalGeneration: 1 })
+    await expect(
+      manager.installGitPackage({
+        ...mutation,
+        url: 'https://example.com/safe-extension.git',
+        commit: 'a'.repeat(40),
+      }),
+    ).resolves.toMatchObject({ globalGeneration: 1 })
+    await expect(manager.activatePackage(mutation)).resolves.toMatchObject({ globalGeneration: 1 })
+    await expect(manager.enablePackage(mutation)).resolves.toMatchObject({ globalGeneration: 1 })
+    await expect(manager.disablePackage(mutation)).resolves.toMatchObject({ globalGeneration: 1 })
+    await expect(manager.uninstallPackage(mutation)).resolves.toMatchObject({ globalGeneration: 1 })
+    await manager.shutdown()
+
+    const invalid = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness({ packageResult: { localPath: '/leak' } }).dependencies,
+    )
+    await invalid.start()
+    await expect(invalid.packageCatalog({ namespace: 'global' })).rejects.toEqual(
+      new PiRuntimeManagerError('package_catalog_invalid'),
+    )
+    await invalid.shutdown()
+
+    const failed = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness({ packageMode: 'error-response' }).dependencies,
+    )
+    await failed.start()
+    await expect(failed.activatePackage(mutation)).rejects.toEqual(
+      new PiRuntimeManagerError('package_source_invalid'),
     )
     await failed.shutdown()
   })

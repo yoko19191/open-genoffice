@@ -52,6 +52,14 @@ function harness(options: { selectedProjectRoot?: string; trustedSenderAvailable
       projectState: 'untrusted' as const,
       resources: [],
     })),
+    packageCatalog: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    installLocalPackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
+    installNpmPackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
+    installGitPackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
+    activatePackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
+    enablePackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
+    disablePackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
+    uninstallPackage: vi.fn(async () => ({ globalGeneration: 3, packages: [] })),
   }
   const openAuthUrl = vi.fn(async () => undefined)
   const selectProjectRoot = vi.fn(async () =>
@@ -59,14 +67,24 @@ function harness(options: { selectedProjectRoot?: string; trustedSenderAvailable
       ? options.selectedProjectRoot
       : '/selected/project',
   )
+  const selectPackageRoot = vi.fn(async () => '/main-selected/package')
   installModelManagementIpc(
     ipcMain,
     service,
     () => (options.trustedSenderAvailable === false ? null : trustedSender),
     openAuthUrl,
     selectProjectRoot,
+    selectPackageRoot,
   )
-  return { handlers, ipcMain, service, trustedSender, openAuthUrl, selectProjectRoot }
+  return {
+    handlers,
+    ipcMain,
+    service,
+    trustedSender,
+    openAuthUrl,
+    selectProjectRoot,
+    selectPackageRoot,
+  }
 }
 
 describe('model management IPC', () => {
@@ -151,6 +169,14 @@ describe('model management IPC', () => {
       PI_RUNTIME_CHANNELS.selectResourceProject,
       PI_RUNTIME_CHANNELS.grantProjectTrust,
       PI_RUNTIME_CHANNELS.revokeProjectTrust,
+      PI_RUNTIME_CHANNELS.packageCatalog,
+      PI_RUNTIME_CHANNELS.installLocalPackage,
+      PI_RUNTIME_CHANNELS.installNpmPackage,
+      PI_RUNTIME_CHANNELS.installGitPackage,
+      PI_RUNTIME_CHANNELS.activatePackage,
+      PI_RUNTIME_CHANNELS.enablePackage,
+      PI_RUNTIME_CHANNELS.disablePackage,
+      PI_RUNTIME_CHANNELS.uninstallPackage,
     ]) {
       await expect(
         fixture.handlers.get(channel)!({ sender: {} }, { secret: 'untrusted' }),
@@ -202,6 +228,61 @@ describe('model management IPC', () => {
       projectRoot: '/selected/project',
     })
     expect(JSON.stringify(projection)).not.toContain('/selected/project')
+  })
+
+  it('keeps Package paths and operation IDs in main while forwarding fixed sources', async () => {
+    const fixture = harness()
+    const sender = { sender: fixture.trustedSender }
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.installLocalPackage)!(sender, {
+      namespace: 'global',
+      packageId: 'safe-extension',
+    })
+    expect(fixture.selectPackageRoot).toHaveBeenCalledOnce()
+    expect(fixture.service.installLocalPackage).toHaveBeenCalledWith({
+      namespace: 'global',
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      packageId: 'safe-extension',
+      localPath: '/main-selected/package',
+    })
+
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.installNpmPackage)!(sender, {
+      namespace: 'global',
+      packageId: 'safe-extension',
+      name: '@scope/safe-extension',
+      version: '1.2.3',
+    })
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.installGitPackage)!(sender, {
+      namespace: 'global',
+      packageId: 'safe-extension',
+      url: 'https://example.com/safe-extension.git',
+      commit: 'a'.repeat(40),
+    })
+    expect(fixture.service.installNpmPackage).toHaveBeenCalledWith(
+      expect.objectContaining({ version: '1.2.3' }),
+    )
+    expect(fixture.service.installGitPackage).toHaveBeenCalledWith(
+      expect.objectContaining({ commit: 'a'.repeat(40) }),
+    )
+
+    for (const channel of [
+      PI_RUNTIME_CHANNELS.activatePackage,
+      PI_RUNTIME_CHANNELS.enablePackage,
+      PI_RUNTIME_CHANNELS.disablePackage,
+      PI_RUNTIME_CHANNELS.uninstallPackage,
+    ]) {
+      await fixture.handlers.get(channel)!(sender, {
+        namespace: 'global',
+        packageId: 'safe-extension',
+      })
+    }
+    expect(fixture.service.uninstallPackage).toHaveBeenCalledWith({
+      namespace: 'global',
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      packageId: 'safe-extension',
+    })
+    expect(JSON.stringify(fixture.service.installNpmPackage.mock.calls)).not.toContain(
+      '/selected/project',
+    )
   })
 
   it('keeps the previous selection on cancel and requires one before Trust changes', async () => {
