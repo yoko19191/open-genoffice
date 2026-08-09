@@ -1,0 +1,178 @@
+import { readdir, readFile } from 'node:fs/promises'
+import { basename, extname, join, relative, resolve } from 'node:path'
+
+const APPROVED_VERSIONS = {
+  '@agwab/pi-subagent': '0.4.8',
+  '@aws-sdk/client-s3': '3.1106.0',
+  '@earendil-works/pi-agent-core': '0.84.0',
+  '@earendil-works/pi-ai': '0.84.0',
+  '@earendil-works/pi-coding-agent': '0.84.0',
+  '@earendil-works/pi-tui': '0.84.0',
+  '@modelcontextprotocol/client': '2.0.0',
+  '@sinclair/typebox': '0.34.52',
+  fflate: '0.8.2',
+  webdav: '5.10.0',
+}
+
+const RUNTIME_DEPENDENCIES = {
+  '@agwab/pi-subagent': '0.4.8',
+  '@earendil-works/pi-agent-core': '0.84.0',
+  '@earendil-works/pi-ai': '0.84.0',
+  '@earendil-works/pi-coding-agent': '0.84.0',
+  '@earendil-works/pi-tui': '0.84.0',
+  '@genoffice/agent-runtime-protocol': '*',
+  '@modelcontextprotocol/client': '2.0.0',
+  fflate: '0.8.2',
+}
+
+const FORBIDDEN_DEPENDENCIES = ['@agwab/pi-workflow', 'oh-my-pi', 'pi-mcp-adapter', 'pi-mcporter']
+
+const FORBIDDEN_SOURCE = [
+  /@genspark\/cli/i,
+  /\bgenspark\b/i,
+  /\bgsk\b/i,
+  /cloudpptx/i,
+  /\bAgentLoop\b/,
+  /\butilityProcess\b/,
+  /\bnpx\b/,
+  /\bfetch\s*\(/,
+  /node:https?/,
+  /https?:\/\//,
+]
+
+const SKIP_DIRECTORIES = new Set([
+  '.git',
+  '.scratch',
+  'coverage',
+  'dist',
+  'evidence',
+  'node_modules',
+  'out',
+  'release',
+  'reports',
+])
+
+async function readJson(path) {
+  return JSON.parse(await readFile(path, 'utf8'))
+}
+
+async function walk(root, predicate, files = []) {
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const path = join(root, entry.name)
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRECTORIES.has(entry.name)) await walk(path, predicate, files)
+    } else if (predicate(path)) files.push(path)
+  }
+  return files
+}
+
+function sameRecord(left, right) {
+  return (
+    JSON.stringify(Object.entries(left).sort()) === JSON.stringify(Object.entries(right).sort())
+  )
+}
+
+function packageNameFromLockPath(path) {
+  const marker = 'node_modules/'
+  const index = path.lastIndexOf(marker)
+  return index === -1 ? null : path.slice(index + marker.length)
+}
+
+export async function auditPiPlatformBoundary(repoRootInput) {
+  const repoRoot = resolve(repoRootInput)
+  const violations = []
+  const rootPackage = await readJson(join(repoRoot, 'package.json'))
+  const runtimePackage = await readJson(join(repoRoot, 'apps/pi-agent-runtime/package.json'))
+  const lock = await readJson(join(repoRoot, 'package-lock.json'))
+
+  if (rootPackage.engines?.node !== '22.19.0') {
+    violations.push({
+      code: 'node_version_mismatch',
+      path: 'package.json',
+      message: 'Node must be pinned to 22.19.0',
+    })
+  }
+
+  if (!sameRecord(runtimePackage.dependencies ?? {}, RUNTIME_DEPENDENCIES)) {
+    violations.push({
+      code: 'runtime_dependency_set_mismatch',
+      path: 'apps/pi-agent-runtime/package.json',
+      message: 'Runtime dependencies differ from the approved exact set',
+    })
+  }
+
+  const installed = new Map()
+  for (const [path, metadata] of Object.entries(lock.packages ?? {})) {
+    const name = packageNameFromLockPath(path)
+    if (!name) continue
+    if (!installed.has(name)) installed.set(name, new Set())
+    installed.get(name).add(metadata.version)
+  }
+
+  for (const [name, expected] of Object.entries(APPROVED_VERSIONS)) {
+    const versions = [...(installed.get(name) ?? [])]
+    if (versions.length === 0 || versions.some((version) => version !== expected)) {
+      violations.push({
+        code: 'version_mismatch',
+        path: 'package-lock.json',
+        message: `${name} must resolve only to ${expected}`,
+      })
+    }
+  }
+
+  for (const name of FORBIDDEN_DEPENDENCIES) {
+    if (installed.has(name)) {
+      violations.push({
+        code: 'forbidden_dependency',
+        path: 'package-lock.json',
+        message: `${name} is forbidden in the first Pi release`,
+      })
+    }
+  }
+
+  const lockfiles = (
+    await walk(repoRoot, (path) =>
+      ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'].includes(
+        basename(path),
+      ),
+    )
+  )
+    .map((path) => relative(repoRoot, path).split('\\').join('/'))
+    .sort()
+  if (lockfiles.length !== 1 || lockfiles[0] !== 'package-lock.json') {
+    violations.push({
+      code: 'multiple_lockfiles',
+      path: '.',
+      message: 'The root package-lock.json must be the only JavaScript lockfile',
+    })
+  }
+
+  const sourceRoots = [
+    join(repoRoot, 'apps/pi-agent-runtime/src'),
+    join(repoRoot, 'packages/agent-runtime-protocol/src'),
+  ]
+  const sourceFiles = []
+  for (const root of sourceRoots) {
+    sourceFiles.push(
+      ...(await walk(root, (path) => ['.js', '.mjs', '.ts'].includes(extname(path)))),
+    )
+  }
+  for (const path of sourceFiles) {
+    const content = await readFile(path, 'utf8')
+    if (FORBIDDEN_SOURCE.some((pattern) => pattern.test(content))) {
+      violations.push({
+        code: 'production_source_forbidden',
+        path: relative(repoRoot, path).split('\\').join('/'),
+        message: 'New platform production source contains a forbidden runtime or network marker',
+      })
+    }
+  }
+
+  return {
+    schemaVersion: 1,
+    status: violations.length === 0 ? 'passed' : 'failed',
+    lockfiles,
+    filesScanned: sourceFiles.length,
+    violations,
+  }
+}

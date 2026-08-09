@@ -51,6 +51,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit Pi platform dependency and production-source boundary
+        run: npm run audit:pi-platform
+
       - name: Check dependency licenses
         run: npm run licenses
 
@@ -90,6 +93,17 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Collect G0 acceptance evidence
+        run: npm run acceptance:evidence:g0
+
+      - name: Upload G0 acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: g0-acceptance-evidence-${{ github.sha }}
+          path: evidence/g0
+          if-no-files-found: error
+          retention-days: 14
 
       # Preservation gate: a no-op-adjacent edit through the OOXML gateway must
       # leave every untouched package entry byte-identical (fails closed otherwise).
