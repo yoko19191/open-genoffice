@@ -1,5 +1,3 @@
-import eventSequence from '../fixtures/fake-provider-events.json' with { type: 'json' }
-
 export {
   createAuthenticatedRuntimeServer,
   type AuthenticatedRuntimeServer,
@@ -14,19 +12,12 @@ export {
   type StartRuntimeFromStdinOptions,
 } from './bootstrap-stdin'
 export { runRuntimeProcess, type RunRuntimeProcessOptions } from './process-entry'
-
-export type FakeProviderEvent = {
-  type: string
-  sequence: number
-  payload: Record<string, unknown>
-}
-
-const EVENT_SEQUENCE: readonly FakeProviderEvent[] = eventSequence
-
-export function createDeterministicFakeProvider() {
-  return {
-    async run(_prompt: string): Promise<readonly FakeProviderEvent[]> {
-      return structuredClone(EVENT_SEQUENCE)
-    },
-  }
-}
+export { createDeterministicFakeProvider, type FakeProviderEvent } from './fake-provider'
+export {
+  createIsolatedDebugWorkspace,
+  removeIsolatedDebugWorkspace,
+  runDebugStdio,
+  type DebugStdioDependencies,
+  type DebugStdioWorkspace,
+} from './debug-stdio'
+export { runRuntimeEntrypoint, type RuntimeEntrypointDependencies } from './runtime-entrypoint'
