@@ -308,6 +308,25 @@ describe('protocol TypeBox source of truth', () => {
       ),
     ).toMatchObject({ kind: 'response', error: { code: 'cursor_expired' } })
 
+    for (const code of ['session_in_use', 'session_lease_invalid', 'session_lease_lost']) {
+      expect(
+        parseProtocolFrame(
+          JSON.stringify({
+            protocolVersion: PROTOCOL_VERSION,
+            kind: 'response',
+            id: `request-${code}`,
+            correlationId: `correlation-${code}`,
+            error: {
+              code,
+              message: code,
+              retryable: false,
+              correlationId: `correlation-${code}`,
+            },
+          }),
+        ),
+      ).toMatchObject({ kind: 'response', error: { code } })
+    }
+
     expect(
       parseProtocolFrame(
         JSON.stringify({

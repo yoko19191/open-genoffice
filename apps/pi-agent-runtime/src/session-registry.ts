@@ -11,6 +11,11 @@ import type {
   SessionSnapshot,
 } from '@genoffice/agent-runtime-protocol'
 import {
+  SessionLeaseError,
+  SessionLeaseStore,
+  type SessionLeaseHandle,
+} from '@genoffice/agent-resource'
+import {
   createDeterministicPiSession,
   type CreatePiSessionOptions,
   type PiSessionHandle,
@@ -59,6 +64,11 @@ type OperationEntry = { hash: string; result: Promise<unknown> }
 type SessionRecord = {
   binding: Binding
   pi: PiSessionHandle
+  lease: SessionLeaseHandle
+  leaseHeartbeatTimer?: NodeJS.Timeout
+  leaseHeartbeat?: Promise<void>
+  leaseError?: RuntimeSessionError
+  writeError?: RuntimeSessionError
   unsubscribe: () => void
   sequence: number
   eventQueue: Promise<void>
@@ -80,6 +90,8 @@ export type SessionRegistryOptions = {
   replayWindowSize?: number
   cooperativeAbortMs?: number
   forceAbortMs?: number
+  sessionLeaseTtlMs?: number
+  sessionLeaseHeartbeatMs?: number
   randomUUID?: () => string
   now?: () => Date
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
@@ -89,7 +101,13 @@ export type SessionRegistryOptions = {
 export class RuntimeSessionError extends Error {
   constructor(
     public readonly code:
-      'session_not_found' | 'document_mismatch' | 'duplicate_operation_mismatch' | 'invalid_state',
+      | 'session_not_found'
+      | 'session_in_use'
+      | 'session_lease_invalid'
+      | 'session_lease_lost'
+      | 'document_mismatch'
+      | 'duplicate_operation_mismatch'
+      | 'invalid_state',
   ) {
     super(code)
     this.name = 'RuntimeSessionError'
@@ -149,6 +167,7 @@ export class SessionRegistry {
   private readonly bindingsRoot: string
   private readonly sessionsRoot: string
   private readonly journalsRoot: string
+  private readonly leasesRoot: string
   private readonly agentDir: string
   private readonly cwd: string
   private readonly randomUUID: () => string
@@ -157,7 +176,10 @@ export class SessionRegistry {
   private readonly replayWindowSize: number
   private readonly cooperativeAbortMs: number
   private readonly forceAbortMs: number
+  private readonly sessionLeaseStore: SessionLeaseStore
+  private readonly sessionLeaseHeartbeatMs: number
   private readonly records = new Map<string, SessionRecord>()
+  private readonly loadingRecords = new Map<string, Promise<SessionRecord>>()
   private readonly operations = new Map<string, OperationEntry>()
   private readonly listeners = new Set<(event: EventEnvelope) => void>()
 
@@ -167,6 +189,7 @@ export class SessionRegistry {
     this.bindingsRoot = join(this.dataRoot, 'state', 'session-bindings')
     this.sessionsRoot = join(this.dataRoot, 'agent', 'sessions')
     this.journalsRoot = join(this.dataRoot, 'state', 'session-journals')
+    this.leasesRoot = join(this.dataRoot, 'state', 'leases')
     this.agentDir = join(this.dataRoot, 'agent')
     this.cwd = join(this.dataRoot, 'projects', 'runtime')
     this.randomUUID = options.randomUUID ?? randomUUID
@@ -180,6 +203,18 @@ export class SessionRegistry {
     this.replayWindowSize = Math.max(1, options.replayWindowSize ?? 512)
     this.cooperativeAbortMs = Math.max(1, options.cooperativeAbortMs ?? 2_000)
     this.forceAbortMs = Math.max(this.cooperativeAbortMs, options.forceAbortMs ?? 5_000)
+    const sessionLeaseTtlMs = Math.max(1_000, options.sessionLeaseTtlMs ?? 15_000)
+    this.sessionLeaseHeartbeatMs = Math.max(
+      250,
+      options.sessionLeaseHeartbeatMs ?? Math.floor(sessionLeaseTtlMs / 3),
+    )
+    this.sessionLeaseStore = new SessionLeaseStore({
+      leasesDirectory: this.leasesRoot,
+      instanceId: options.instanceId,
+      pid: process.pid,
+      ttlMs: sessionLeaseTtlMs,
+      now: this.now,
+    })
   }
 
   onEvent(listener: (event: EventEnvelope) => void): () => void {
@@ -191,28 +226,53 @@ export class SessionRegistry {
     return this.idempotent('session.create', input, async () => {
       await this.ensureRoots()
       const sessionId = this.randomUUID()
-      const pi = await this.createPiSession({
-        cwd: this.cwd,
-        agentDir: this.agentDir,
-        sessionDir: this.sessionDirectory(input.documentId),
-        sessionId,
-        documentId: input.documentId,
-      })
+      const lease = await this.acquireLease(sessionId)
+      let pi: PiSessionHandle
+      try {
+        pi = await this.createPiSession({
+          cwd: this.cwd,
+          agentDir: this.agentDir,
+          sessionDir: this.sessionDirectory(input.documentId),
+          sessionId,
+          documentId: input.documentId,
+        })
+      } catch (error) {
+        await lease.release()
+        throw error
+      }
       const sessionFile = pi.session.sessionFile
       if (!sessionFile) {
         pi.dispose()
+        await lease.release()
         throw new RuntimeSessionError('invalid_state')
       }
-      const binding: Binding = { version: 1, sessionId, documentId: input.documentId, sessionFile }
-      await this.writeBinding(binding)
-      const record = await this.attach(binding, pi)
-      await this.appendEvent(record, 'session.opened', { restored: false })
-      const snapshot = this.snapshotFor(record)
-      return {
+      const binding: Binding = {
+        version: 1,
         sessionId,
         documentId: input.documentId,
-        snapshot,
-        cursor: snapshot.cursor,
+        sessionFile,
+      }
+      let record: SessionRecord
+      try {
+        record = await this.attach(binding, pi, lease)
+      } catch (error) {
+        pi.dispose()
+        await lease.release()
+        throw error
+      }
+      try {
+        await this.appendEvent(record, 'session.opened', { restored: false })
+        await this.writeBinding(binding)
+        const snapshot = this.snapshotFor(record)
+        return {
+          sessionId,
+          documentId: input.documentId,
+          snapshot,
+          cursor: snapshot.cursor,
+        }
+      } catch (error) {
+        await this.disposeRecord(record)
+        throw error
       }
     })
   }
@@ -235,6 +295,7 @@ export class SessionRegistry {
     const binding = await this.readBoundBinding(input)
     return this.idempotent('session.prompt', input, async () => {
       const record = await this.loadRecord(binding)
+      await this.renewLease(record)
       if (
         record.activeRun &&
         (record.activeRun.state === 'queued' ||
@@ -404,27 +465,30 @@ export class SessionRegistry {
   }
 
   async shutdown(): Promise<void> {
-    await Promise.all(
-      [...this.records.values()].map((record) => {
-        const activeRun = record.activeRun
-        if (
-          activeRun &&
-          (activeRun.state === 'queued' ||
-            activeRun.state === 'running' ||
-            activeRun.state === 'cancelling')
-        ) {
-          return this.beginAbort(record, activeRun).then(() => activeRun.promise)
-        }
-        return activeRun?.promise
-      }),
-    )
-    await Promise.all([...this.records.values()].map((record) => record.eventQueue))
-    for (const record of this.records.values()) {
-      record.unsubscribe()
-      record.pi.dispose()
+    const records = [...this.records.values()]
+    for (const record of records) clearInterval(record.leaseHeartbeatTimer)
+    try {
+      await Promise.all(
+        records.map((record) => {
+          const activeRun = record.activeRun
+          if (
+            activeRun &&
+            (activeRun.state === 'queued' ||
+              activeRun.state === 'running' ||
+              activeRun.state === 'cancelling')
+          ) {
+            return this.beginAbort(record, activeRun).then(() => activeRun.promise)
+          }
+          return activeRun?.promise
+        }),
+      )
+      await Promise.all(records.map((record) => record.eventQueue))
+    } finally {
+      await Promise.all(records.map((record) => this.disposeRecord(record)))
+      this.records.clear()
+      this.loadingRecords.clear()
+      this.listeners.clear()
     }
-    this.records.clear()
-    this.listeners.clear()
   }
 
   private async idempotent<T>(
@@ -448,6 +512,7 @@ export class SessionRegistry {
       mkdir(this.bindingsRoot, { recursive: true }),
       mkdir(this.sessionsRoot, { recursive: true }),
       mkdir(this.journalsRoot, { recursive: true }),
+      mkdir(this.leasesRoot, { recursive: true }),
     ])
   }
 
@@ -500,32 +565,79 @@ export class SessionRegistry {
   private async loadRecord(binding: Binding): Promise<SessionRecord> {
     const existing = this.records.get(binding.sessionId)
     if (existing) return existing
-    const pi = await this.createPiSession({
-      cwd: this.cwd,
-      agentDir: this.agentDir,
-      sessionDir: this.sessionDirectory(binding.documentId),
-      sessionId: binding.sessionId,
-      sessionFile: binding.sessionFile,
-      documentId: binding.documentId,
-    })
-    const record = await this.attach(binding, pi)
-    await this.appendEvent(record, 'session.opened', { restored: true })
-    return record
+    const pending = this.loadingRecords.get(binding.sessionId)
+    if (pending) return pending
+    const loading = this.loadNewRecord(binding)
+    this.loadingRecords.set(binding.sessionId, loading)
+    try {
+      return await loading
+    } finally {
+      this.loadingRecords.delete(binding.sessionId)
+    }
   }
 
-  private async attach(binding: Binding, pi: PiSessionHandle): Promise<SessionRecord> {
+  private async loadNewRecord(binding: Binding): Promise<SessionRecord> {
+    const lease = await this.acquireLease(binding.sessionId)
+    let pi: PiSessionHandle
+    try {
+      pi = await this.createPiSession({
+        cwd: this.cwd,
+        agentDir: this.agentDir,
+        sessionDir: this.sessionDirectory(binding.documentId),
+        sessionId: binding.sessionId,
+        sessionFile: binding.sessionFile,
+        documentId: binding.documentId,
+      })
+    } catch (error) {
+      await lease.release()
+      throw error
+    }
+    let record: SessionRecord
+    try {
+      record = await this.attach(binding, pi, lease)
+    } catch (error) {
+      pi.dispose()
+      await lease.release()
+      throw error
+    }
+    try {
+      await this.appendEvent(record, 'session.opened', { restored: true })
+      return record
+    } catch (error) {
+      await this.disposeRecord(record)
+      throw error
+    }
+  }
+
+  private async attach(
+    binding: Binding,
+    pi: PiSessionHandle,
+    lease: SessionLeaseHandle,
+  ): Promise<SessionRecord> {
     const previous = await this.readJournal(binding.sessionId)
-    const record = {
+    const record: SessionRecord = {
       binding,
       pi,
+      lease,
       sequence: previous.at(-1)?.sequence ?? 0,
       eventQueue: Promise.resolve(),
       unsubscribe: () => {},
-    } satisfies SessionRecord
+    }
     record.unsubscribe = pi.subscribe((event) => this.projectPiEvent(record, event))
+    record.leaseHeartbeatTimer = setInterval(() => {
+      void this.renewLease(record).catch(() => {})
+    }, this.sessionLeaseHeartbeatMs)
+    record.leaseHeartbeatTimer.unref()
     this.records.set(binding.sessionId, record)
-    await this.recoverInterruptedRun(record, planSessionRecovery(previous))
-    return record
+    try {
+      await this.recoverInterruptedRun(record, planSessionRecovery(previous))
+      return record
+    } catch (error) {
+      clearInterval(record.leaseHeartbeatTimer)
+      record.unsubscribe()
+      this.records.delete(binding.sessionId)
+      throw error
+    }
   }
 
   private async recoverInterruptedRun(
@@ -749,11 +861,14 @@ export class SessionRegistry {
     runId?: string,
   ): Promise<EventEnvelope> {
     let resolveEvent!: (event: EventEnvelope) => void
-    const result = new Promise<EventEnvelope>((resolve) => {
+    let rejectEvent!: (error: unknown) => void
+    const result = new Promise<EventEnvelope>((resolve, reject) => {
       resolveEvent = resolve
+      rejectEvent = reject
     })
-    record.eventQueue = record.eventQueue.then(async () => {
-      record.sequence += 1
+    const write = record.eventQueue.then(async () => {
+      this.assertWritable(record)
+      const sequence = record.sequence + 1
       const event: EventEnvelope = {
         protocolVersion: '1',
         kind: 'event',
@@ -762,8 +877,8 @@ export class SessionRegistry {
         sessionId: record.binding.sessionId,
         documentId: record.binding.documentId,
         ...(runId ? { runId } : {}),
-        sequence: record.sequence,
-        cursor: this.cursor(record.binding.sessionId, record.sequence),
+        sequence,
+        cursor: this.cursor(record.binding.sessionId, sequence),
         occurredAt: this.now().toISOString(),
         type,
         payload,
@@ -772,10 +887,63 @@ export class SessionRegistry {
         encoding: 'utf8',
         mode: 0o600,
       })
+      record.sequence = sequence
       for (const listener of this.listeners) listener(event)
-      resolveEvent(event)
+      return event
     })
+    record.eventQueue = write.then(
+      () => undefined,
+      () => {
+        record.writeError = new RuntimeSessionError('invalid_state')
+      },
+    )
+    write.then(resolveEvent, rejectEvent)
     return result
+  }
+
+  private async acquireLease(sessionId: string): Promise<SessionLeaseHandle> {
+    try {
+      return await this.sessionLeaseStore.acquire(sessionId)
+    } catch (error) {
+      if (error instanceof SessionLeaseError) throw new RuntimeSessionError(error.code)
+      throw error
+    }
+  }
+
+  private async renewLease(record: SessionRecord): Promise<void> {
+    if (record.leaseError) throw record.leaseError
+    record.leaseHeartbeat ??= record.lease
+      .heartbeat()
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        record.leaseError =
+          error instanceof SessionLeaseError
+            ? new RuntimeSessionError(error.code)
+            : new RuntimeSessionError('session_lease_lost')
+        void record.pi.abort().catch(() => {})
+      })
+      .finally(() => {
+        record.leaseHeartbeat = undefined
+      })
+    await record.leaseHeartbeat
+    if (record.leaseError) throw record.leaseError
+  }
+
+  private assertWritable(record: SessionRecord): void {
+    if (record.leaseError) throw record.leaseError
+    if (record.writeError) throw record.writeError
+  }
+
+  private async disposeRecord(record: SessionRecord): Promise<void> {
+    clearInterval(record.leaseHeartbeatTimer)
+    await record.leaseHeartbeat
+    this.records.delete(record.binding.sessionId)
+    try {
+      record.unsubscribe()
+      record.pi.dispose()
+    } finally {
+      await record.lease.release()
+    }
   }
 
   private snapshotFor(record: SessionRecord): SessionSnapshot {

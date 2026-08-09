@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { appendFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -208,6 +209,58 @@ describe('document-bound Pi Session registry', () => {
     await registry.shutdown()
   })
 
+  it('reports an incomplete non-mutation abort without marking the document uncertain', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-abort-rejected-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-abort-rejected',
+      cursorSecret: Buffer.alloc(32, 37),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'cancel a rejected read-only descendant',
+    })
+    registry.registerRunDescendant(created.sessionId, prompted.runId, {
+      id: 'read-only-mcp',
+      kind: 'mcp',
+      abort: async () => {
+        throw new Error('synthetic cancellation failure')
+      },
+    })
+    await registry.abort({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      runId: prompted.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.failed',
+      payload: {
+        code: 'abort_incomplete',
+        mutationOutcome: 'not_started',
+        documentNeedsReview: false,
+      },
+    })
+    await registry.shutdown()
+  })
+
   it('rejects an unknown run and aborts an active execution tree during Runtime shutdown', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-shutdown-abort-'))
     roots.push(dataRoot)
@@ -232,6 +285,13 @@ describe('document-bound Pi Session registry', () => {
       createPiSession: async () => fake.handle as never,
     })
     const created = await registry.create({ operationId, documentId })
+    expect(() =>
+      registry.registerRunDescendant('ffffffff-ffff-4fff-8fff-ffffffffffff', 'missing-run', {
+        id: 'missing-session',
+        kind: 'mcp',
+        abort: async () => {},
+      }),
+    ).toThrowError('session_not_found')
     await expect(
       registry.abort({
         operationId: '22222222-2222-4222-8222-222222222222',
@@ -429,6 +489,175 @@ describe('document-bound Pi Session registry', () => {
     await reopened.shutdown()
   })
 
+  it('returns session_in_use to a second Runtime and releases the writer lease on shutdown', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({ operationId, documentId })
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-2',
+      cursorSecret: Buffer.alloc(32, 8),
+      now: () => new Date('2026-08-09T12:00:00.000Z'),
+    })
+    const openInput = {
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+    }
+
+    await expect(second.open(openInput)).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await registry.shutdown()
+    await expect(
+      second.open({
+        ...openInput,
+        operationId: '33333333-3333-4333-8333-333333333333',
+      }),
+    ).resolves.toMatchObject({
+      sessionId: created.sessionId,
+      documentId,
+    })
+    await second.shutdown()
+  })
+
+  it('single-flights concurrent opens inside one Runtime while retaining one writer lease', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({ operationId, documentId })
+    const binding = (await registry.listBindings())[0]!
+    await registry.shutdown()
+
+    const fake = fakePiSession({ sessionFile: binding.sessionFile })
+    const createPiSession = vi.fn(async () => {
+      await Promise.resolve()
+      return fake.handle as never
+    })
+    const reopened = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-concurrent',
+      cursorSecret: Buffer.alloc(32, 9),
+      createPiSession,
+    })
+    const bound = { sessionId: created.sessionId, documentId }
+    await expect(
+      Promise.all([
+        reopened.open({
+          ...bound,
+          operationId: '22222222-2222-4222-8222-222222222222',
+        }),
+        reopened.snapshot(bound),
+      ]),
+    ).resolves.toHaveLength(2)
+    expect(createPiSession).toHaveBeenCalledOnce()
+    await reopened.shutdown()
+  })
+
+  it('heartbeats an owned Session before TTL so another Runtime cannot take it over', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-lease-heartbeat-'))
+    roots.push(dataRoot)
+    let currentTime = Date.parse('2026-08-09T12:00:00.000Z')
+    const now = () => {
+      const value = new Date(currentTime)
+      currentTime += 300
+      return value
+    }
+    let uuid = 0
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-heartbeat',
+      cursorSecret: Buffer.alloc(32, 34),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      now,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 250,
+    })
+    const created = await first.create({ operationId, documentId })
+    const leasePath = join(dataRoot, 'state', 'leases', `session-${created.sessionId}.json`)
+    await vi.waitFor(async () => {
+      expect(JSON.parse(await readFile(leasePath, 'utf8'))).toMatchObject({ generation: 2 })
+    })
+
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-heartbeat-contender',
+      cursorSecret: Buffer.alloc(32, 35),
+      now,
+      sessionLeaseTtlMs: 1_000,
+    })
+    await expect(
+      second.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await second.shutdown()
+    await first.shutdown()
+  })
+
+  it('takes over an expired lease and makes the old Runtime fail closed without deleting the new lease', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-lease-expiry-'))
+    roots.push(dataRoot)
+    let currentTime = Date.parse('2026-08-09T12:00:00.000Z')
+    const now = () => new Date(currentTime)
+    let uuid = 0
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-before-expiry',
+      cursorSecret: Buffer.alloc(32, 31),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      now,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
+    })
+    const created = await first.create({ operationId, documentId })
+    currentTime += 1_001
+
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-after-expiry',
+      cursorSecret: Buffer.alloc(32, 32),
+      now,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
+    })
+    await second.open({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    await expect(
+      first.prompt({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId: created.sessionId,
+        documentId,
+        text: 'must not write after takeover',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_lease_lost'))
+    await expect(
+      first.prompt({
+        operationId: '44444444-4444-4444-8444-444444444444',
+        sessionId: created.sessionId,
+        documentId,
+        text: 'must remain blocked after lease loss',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_lease_lost'))
+    await first.shutdown()
+
+    const third = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-third',
+      cursorSecret: Buffer.alloc(32, 33),
+      now,
+    })
+    await expect(
+      third.open({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        sessionId: created.sessionId,
+        documentId,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await third.shutdown()
+    await second.shutdown()
+  })
+
   it('interrupts a crashed run once, marks an uncertain mutation, and accepts a new prompt', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-crash-recovery-'))
     roots.push(dataRoot)
@@ -441,6 +670,8 @@ describe('document-bound Pi Session registry', () => {
         await blocked
       },
     })
+    let crashTime = Date.parse('2026-08-09T12:00:00.000Z')
+    const crashNow = () => new Date(crashTime)
     let firstUuid = 0
     const first = createSessionRegistry({
       dataRoot,
@@ -448,6 +679,9 @@ describe('document-bound Pi Session registry', () => {
       cursorSecret: Buffer.alloc(32, 21),
       randomUUID: () => `${String(++firstUuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
       createPiSession: async () => crashedPi.handle as never,
+      now: crashNow,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
     })
     const created = await first.create({ operationId, documentId })
     const prompted = await first.prompt({
@@ -486,6 +720,7 @@ describe('document-bound Pi Session registry', () => {
         })}\n`,
       )
     }
+    crashTime += 1_001
 
     const recoveredPi = fakePiSession({ sessionFile, prompt: async () => {} })
     let secondUuid = 100
@@ -495,6 +730,9 @@ describe('document-bound Pi Session registry', () => {
       cursorSecret: Buffer.alloc(32, 22),
       randomUUID: () => `${String(++secondUuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
       createPiSession: async () => recoveredPi.handle as never,
+      now: crashNow,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
     })
     const reopened = await second.open({
       operationId: '33333333-3333-4333-8333-333333333333',
@@ -697,6 +935,17 @@ describe('document-bound Pi Session registry', () => {
             {
               role: 'assistant',
               content: [],
+              stopReason: 'aborted',
+            } as never,
+          ],
+          willRetry: false,
+        })
+        emit({
+          type: 'agent_end',
+          messages: [
+            {
+              role: 'assistant',
+              content: [],
               stopReason: 'error',
             } as never,
           ],
@@ -739,7 +988,7 @@ describe('document-bound Pi Session registry', () => {
         'tool.failed',
         'compaction.started',
         'compaction.failed',
-        'run.failed',
+        'run.aborted',
       ]),
     )
     await registry.shutdown()
@@ -791,6 +1040,50 @@ describe('document-bound Pi Session registry', () => {
     await registry.shutdown()
     await noFileRegistry.shutdown()
   })
+
+  it.each(['factory', 'attach', 'append', 'binding'] as const)(
+    'releases the lease and leaves no binding when Session creation fails during %s',
+    async (failurePoint) => {
+      const dataRoot = await mkdtemp(join(tmpdir(), `genoffice-session-create-${failurePoint}-`))
+      roots.push(dataRoot)
+      const createdSessionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+      const bindingPath = join(dataRoot, 'state', 'session-bindings', `${createdSessionId}.json`)
+      const journalPath = join(dataRoot, 'state', 'session-journals', `${createdSessionId}.jsonl`)
+      if (failurePoint === 'attach') mkdirSync(journalPath, { recursive: true })
+      if (failurePoint === 'binding') {
+        mkdirSync(`${bindingPath}.${process.pid}.tmp`, { recursive: true })
+      }
+      const fake = fakePiSession({ sessionFile: join(dataRoot, 'fake-session.jsonl') })
+      const dispose = vi.fn()
+      fake.handle.dispose = dispose
+      if (failurePoint === 'append') {
+        fake.handle.subscribe = () => {
+          mkdirSync(journalPath, { recursive: true })
+          return () => {}
+        }
+      }
+      const registry = createSessionRegistry({
+        dataRoot,
+        instanceId: `instance-create-${failurePoint}`,
+        cursorSecret: Buffer.alloc(32, 36),
+        randomUUID: () => createdSessionId,
+        createPiSession: async () => {
+          if (failurePoint === 'factory') throw new Error('synthetic Pi factory failure')
+          return fake.handle as never
+        },
+      })
+      const unsubscribe = registry.onEvent(() => {})
+
+      await expect(registry.create({ operationId, documentId })).rejects.toThrow()
+      expect(dispose).toHaveBeenCalledTimes(failurePoint === 'factory' ? 0 : 1)
+      await expect(
+        readFile(join(dataRoot, 'state', 'leases', `session-${createdSessionId}.json`), 'utf8'),
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(readFile(bindingPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      unsubscribe()
+      await registry.shutdown()
+    },
+  )
 
   it('rejects cursors signed for another instance, session, signature, or sequence', async () => {
     const { dataRoot, registry } = await harness()
