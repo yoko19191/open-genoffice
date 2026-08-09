@@ -9,7 +9,7 @@ import type {
   MenuCommand,
 } from '../shared/ipc'
 import type { ProjectApi } from '@genoffice/project-store'
-import { createAgentSessionPreloadApi } from '@genoffice/electron-utils'
+import { createAgentSessionPreloadApi } from '@genoffice/electron-utils/agent-session-preload'
 
 const api: DesktopApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),

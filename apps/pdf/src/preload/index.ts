@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { createAgentSessionPreloadApi } from '@genoffice/electron-utils'
+import { createAgentSessionPreloadApi } from '@genoffice/electron-utils/agent-session-preload'
 import type { Lang } from '@genoffice/i18n'
 import type { AiStreamChunk } from '@genoffice/ai-provider'
 import { AI_CHANNELS, PDF_CHANNELS } from '../shared/ipc'
