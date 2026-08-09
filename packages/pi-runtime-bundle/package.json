@@ -6,7 +6,8 @@
   "type": "module",
   "description": "Build-time and installed-resource verification for the Pi Runtime bundle",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./builder": "./src/builder.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
+    "esbuild": "0.25.12",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   }

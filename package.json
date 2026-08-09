@@ -22,6 +22,7 @@
     "format:check": "node tools/format-changed.mjs --check",
     "acceptance:evidence": "node tools/collect-acceptance-evidence.mjs",
     "acceptance:evidence:g0": "npm run acceptance:evidence -- --acceptance AR-001,AR-002,AR-006,OTC-001,QA-001 --fixture fakeProvider=apps/pi-agent-runtime/fixtures/fake-provider-events.json --fixture officeCatalog=packages/agent-runtime-protocol/fixtures/office-tool-catalog-baseline.json --suite evidence=packages/acceptance-evidence/reports/tests.json --suite protocol=packages/agent-runtime-protocol/reports/tests.json --suite runtime=apps/pi-agent-runtime/reports/tests.json --command 'npm run test -w @genoffice/acceptance-evidence' --command 'npm run test -w @genoffice/agent-runtime-protocol' --command 'npm run test -w @genoffice/pi-agent-runtime' --protocol 1 --runtime 1.0.0 --output evidence/g0/evidence.json",
+    "build:pi-runtime-bundle": "node tools/build-pi-runtime-bundle.mjs",
     "audit:pi-platform": "node tools/audit-pi-platform.mjs",
     "verify:pi-runtime-bundle": "node tools/verify-pi-runtime-bundle.mjs",
     "audit:genspark-free": "node tools/audit-genspark-free.mjs --mode baseline",
