@@ -5,13 +5,15 @@ import type { CredentialStore } from '@earendil-works/pi-ai'
 import {
   RUNTIME_VERSION,
   createNdjsonFrameDecoder,
+  parseCredentialManagementRequest,
   type BootstrapRecord,
   type ProtocolEnvelope,
   type RequestEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
-import { OpenGenOfficeCredentialStore } from './open-genoffice-credential-store'
+import { OpenGenOfficeCredentialStoreError } from './open-genoffice-credential-store'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
+import { RuntimeCredentialStore } from './runtime-credential-store'
 import {
   RuntimeSessionError,
   createSessionRegistry,
@@ -81,8 +83,7 @@ export async function createAuthenticatedRuntimeServer(
       authenticatedSocket.write(`${JSON.stringify(request)}\n`)
     },
   })
-  const credentials = new OpenGenOfficeCredentialStore({
-    mode: 'persistent',
+  const credentials = new RuntimeCredentialStore({
     broker: credentialClient,
   })
 
@@ -141,6 +142,9 @@ export async function createAuthenticatedRuntimeServer(
                 'session.abort',
                 'session.snapshot',
                 'session.subscribe',
+                'credential.put',
+                'credential.status',
+                'credential.delete',
               ],
             }),
           )
@@ -197,7 +201,53 @@ export async function createAuthenticatedRuntimeServer(
       void beginShutdown()
       return
     }
+    if (
+      request.method === 'credential.put' ||
+      request.method === 'credential.status' ||
+      request.method === 'credential.delete'
+    ) {
+      void handleCredentialManagementRequest(socket, request)
+      return
+    }
     void handleSessionRequest(socket, request)
+  }
+
+  async function handleCredentialManagementRequest(socket: Socket, request: RequestEnvelope) {
+    try {
+      const command = parseCredentialManagementRequest(request)
+      if (command.method === 'credential.put') {
+        socket.write(
+          response(
+            request,
+            await credentials.put(
+              command.params.providerId,
+              command.params.persistence,
+              command.params.secretPayload,
+            ),
+          ),
+        )
+        return
+      }
+      if (command.method === 'credential.status') {
+        socket.write(response(request, await credentials.status(command.params.providerId)))
+        return
+      }
+      await credentials.delete(command.params.providerId)
+      socket.write(
+        response(request, {
+          providerId: command.params.providerId,
+          persistence: 'persistent',
+          status: 'missing',
+        }),
+      )
+    } catch (error) {
+      socket.write(
+        errorResponse(
+          request,
+          error instanceof OpenGenOfficeCredentialStoreError ? error.code : 'invalid_request',
+        ),
+      )
+    }
   }
 
   async function handleSessionRequest(socket: Socket, request: RequestEnvelope) {

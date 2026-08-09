@@ -188,6 +188,161 @@ describe('authenticated Runtime socket', () => {
     await runtime.closed
   })
 
+  it('accepts write-only credential management while keeping status responses redacted', async () => {
+    const socketPath = await endpoint()
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-credential-management',
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+
+    client.write(
+      `${request(
+        'credential.put',
+        {
+          providerId: 'openai',
+          persistence: 'memory_only',
+          secretPayload: '{"type":"api_key","key":"management-secret-canary"}',
+        },
+        'management-put',
+      )}\n`,
+    )
+    const brokerStatus = await reader.next(
+      (frame) => frame.kind === 'request' && frame.method === 'credential.status',
+    )
+    client.write(
+      `${resultResponse(brokerStatus, {
+        slot: 'model/openai/default',
+        status: 'secure_storage_unavailable',
+      })}\n`,
+    )
+    const putResponse = await reader.next(
+      (frame) => frame.kind === 'response' && frame.id === 'management-put',
+    )
+    expect(putResponse).toMatchObject({
+      result: {
+        providerId: 'openai',
+        persistence: 'memory_only',
+        status: 'available',
+        kind: 'api_key',
+      },
+    })
+    expect(JSON.stringify(putResponse)).not.toContain('management-secret-canary')
+
+    client.write(`${request('credential.status', { providerId: 'openai' }, 'management-status')}\n`)
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'management-status'),
+    ).toMatchObject({ result: { status: 'available', persistence: 'memory_only' } })
+
+    client.write(`${request('credential.delete', { providerId: 'openai' }, 'management-delete')}\n`)
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'management-delete'),
+    ).toMatchObject({ result: { status: 'missing', persistence: 'persistent' } })
+
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
+  it('manages a persistent credential through broker CAS and returns stable errors', async () => {
+    const socketPath = await endpoint()
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-persistent-credential-management',
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+    const metadata = {
+      credentialId: '22222222-2222-4222-8222-222222222222',
+      slot: 'model/openai/default',
+      providerId: 'openai',
+      kind: 'api_key',
+      generation: 1,
+      status: 'available',
+    } as const
+
+    client.write(
+      `${request(
+        'credential.put',
+        {
+          providerId: 'openai',
+          persistence: 'persistent',
+          secretPayload: '{"type":"api_key","key":"persistent-management-canary"}',
+        },
+        'persistent-put',
+      )}\n`,
+    )
+    const getRequest = await reader.next(
+      (frame) => frame.kind === 'request' && frame.method === 'credential.get',
+    )
+    client.write(`${resultResponse(getRequest, null)}\n`)
+    const putRequest = await reader.next(
+      (frame) =>
+        frame.kind === 'request' && frame.method === 'credential.put' && 'slot' in frame.params,
+    )
+    client.write(`${resultResponse(putRequest, metadata)}\n`)
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'persistent-put'),
+    ).toMatchObject({ result: { status: 'available', persistence: 'persistent' } })
+
+    client.write(`${request('credential.status', { providerId: 'openai' }, 'persistent-status')}\n`)
+    const statusRequest = await reader.next(
+      (frame) =>
+        frame.kind === 'request' && frame.method === 'credential.status' && 'slot' in frame.params,
+    )
+    client.write(`${resultResponse(statusRequest, metadata)}\n`)
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'persistent-status'),
+    ).toMatchObject({ result: { status: 'available', kind: 'api_key' } })
+
+    client.write(`${request('credential.delete', { providerId: 'openai' }, 'persistent-delete')}\n`)
+    const deleteStatusRequest = await reader.next(
+      (frame) =>
+        frame.kind === 'request' && frame.method === 'credential.status' && 'slot' in frame.params,
+    )
+    client.write(`${resultResponse(deleteStatusRequest, metadata)}\n`)
+    const deleteRequest = await reader.next(
+      (frame) =>
+        frame.kind === 'request' && frame.method === 'credential.delete' && 'slot' in frame.params,
+    )
+    client.write(
+      `${resultResponse(deleteRequest, {
+        slot: metadata.slot,
+        generation: metadata.generation,
+        status: 'deleted',
+      })}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'persistent-delete'),
+    ).toMatchObject({ result: { status: 'missing' } })
+
+    client.write(
+      `${request(
+        'credential.put',
+        {
+          providerId: 'openai',
+          persistence: 'persistent',
+          secretPayload: '{"type":"api_key","key":42}',
+        },
+        'invalid-credential-put',
+      )}\n`,
+    )
+    expect(
+      await reader.next(
+        (frame) => frame.kind === 'response' && frame.id === 'invalid-credential-put',
+      ),
+    ).toMatchObject({ error: { code: 'credential_payload_invalid' } })
+
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
   it('does not consume the token after a rejected hello, then serves status and shutdown', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({
@@ -217,6 +372,9 @@ describe('authenticated Runtime socket', () => {
           'session.abort',
           'session.snapshot',
           'session.subscribe',
+          'credential.put',
+          'credential.status',
+          'credential.delete',
         ],
       },
     })

@@ -1,13 +1,34 @@
 import { Type, type Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
+import {
+  CredentialKindSchema,
+  CredentialPersistenceSchema,
+  CredentialProviderIdSchema,
+  MAX_FRAME_BYTES,
+  NODE_VERSION,
+  PI_VERSION,
+  PROTOCOL_VERSION,
+  RUNTIME_NAME,
+  RUNTIME_VERSION,
+  SCHEMA_VERSION,
+} from '#renderer'
 
-export const PROTOCOL_VERSION = '1' as const
-export const RUNTIME_VERSION = '1.0.0' as const
-export const SCHEMA_VERSION = '1' as const
-export const RUNTIME_NAME = 'open-genoffice-pi-agent-runtime' as const
-export const NODE_VERSION = '22.19.0' as const
-export const PI_VERSION = '0.84.0' as const
-export const MAX_FRAME_BYTES = 1024 * 1024
+export {
+  MAX_FRAME_BYTES,
+  NODE_VERSION,
+  PI_VERSION,
+  PROTOCOL_VERSION,
+  RUNTIME_NAME,
+  RUNTIME_VERSION,
+  SCHEMA_VERSION,
+  ProviderCredentialStatusSchema,
+  RuntimeHealthProjectionSchema,
+  parseCredentialProviderId,
+  parseProviderCredentialStatus,
+  parseRuntimeHealthProjection,
+  type ProviderCredentialStatus,
+  type RuntimeHealthProjection,
+} from '#renderer'
 
 const Sha256Schema = Type.String({ pattern: '^[0-9a-f]{64}$' })
 const OperationIdSchema = Type.String({
@@ -17,13 +38,9 @@ const EntityIdSchema = Type.String({ minLength: 1, maxLength: 256 })
 const SessionIdSchema = OperationIdSchema
 const DocumentIdSchema = OperationIdSchema
 const CredentialIdSchema = OperationIdSchema
-const CredentialProviderIdSchema = Type.String({
-  pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
-})
 const CredentialSlotSchema = Type.String({
   pattern: '^model/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/default$',
 })
-const CredentialKindSchema = Type.Union([Type.Literal('api_key'), Type.Literal('oauth')])
 
 const GenericRuntimeMethodSchema = Type.Union([
   Type.Literal('runtime.status'),
@@ -108,6 +125,11 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('credential_index_invalid'),
   Type.Literal('credential_persist_failed'),
   Type.Literal('credential_decrypt_failed'),
+  Type.Literal('credential_payload_invalid'),
+  Type.Literal('credential_provider_id_invalid'),
+  Type.Literal('credential_status_failed'),
+  Type.Literal('credential_delete_failed'),
+  Type.Literal('credential_persistence_conflict'),
 ])
 
 export const CredentialBrokerMetadataSchema = Type.Object(
@@ -152,6 +174,34 @@ export const CredentialBrokerDeleteReceiptSchema = Type.Object(
   },
   { additionalProperties: false },
 )
+
+const CredentialManagementPutRequestSchema = sessionRequestEnvelope(
+  'credential.put',
+  Type.Object(
+    {
+      providerId: CredentialProviderIdSchema,
+      persistence: CredentialPersistenceSchema,
+      secretPayload: Type.String({ minLength: 1, maxLength: 262_144 }),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const CredentialManagementStatusRequestSchema = sessionRequestEnvelope(
+  'credential.status',
+  Type.Object({ providerId: CredentialProviderIdSchema }, { additionalProperties: false }),
+)
+
+const CredentialManagementDeleteRequestSchema = sessionRequestEnvelope(
+  'credential.delete',
+  Type.Object({ providerId: CredentialProviderIdSchema }, { additionalProperties: false }),
+)
+
+export const CredentialManagementRequestSchema = Type.Union([
+  CredentialManagementPutRequestSchema,
+  CredentialManagementStatusRequestSchema,
+  CredentialManagementDeleteRequestSchema,
+])
 
 export const ArtifactRefSchema = Type.Object(
   {
@@ -485,6 +535,9 @@ export const RequestEnvelopeSchema = Type.Union([
   CredentialStatusRequestSchema,
   CredentialRotateRequestSchema,
   CredentialDeleteRequestSchema,
+  CredentialManagementPutRequestSchema,
+  CredentialManagementStatusRequestSchema,
+  CredentialManagementDeleteRequestSchema,
   SessionCreateRequestSchema,
   SessionOpenRequestSchema,
   SessionPromptRequestSchema,
@@ -737,32 +790,8 @@ const RuntimeBundleManifestSchema = Type.Object(
   { additionalProperties: false },
 )
 
-export const RuntimeHealthProjectionSchema = Type.Object(
-  {
-    state: Type.Union([
-      Type.Literal('stopped'),
-      Type.Literal('starting'),
-      Type.Literal('ready'),
-      Type.Literal('crashed'),
-      Type.Literal('unavailable'),
-    ]),
-    protocolVersion: Type.Literal(PROTOCOL_VERSION),
-    runtimeVersion: Type.Literal(RUNTIME_VERSION),
-    schemaVersion: Type.Literal(SCHEMA_VERSION),
-    diagnosticCode: Type.Optional(
-      Type.Union([
-        Type.Literal('runtime_bundle_unavailable'),
-        Type.Literal('runtime_start_failed'),
-        Type.Literal('runtime_shutdown_failed'),
-      ]),
-    ),
-  },
-  { additionalProperties: false },
-)
-
 export type BootstrapRecord = Static<typeof BootstrapSchema>
 export type RuntimeBundleManifest = Static<typeof RuntimeBundleManifestSchema>
-export type RuntimeHealthProjection = Static<typeof RuntimeHealthProjectionSchema>
 export type ArtifactRef = Static<typeof ArtifactRefSchema>
 export type OfficeToolInvocation = Static<typeof OfficeToolInvocationSchema>
 export type OfficeToolReceipt = Static<typeof OfficeToolReceiptSchema>
@@ -788,6 +817,7 @@ export type CredentialBrokerGetResult = Exclude<
 >
 export type CredentialBrokerDeleteReceipt = Static<typeof CredentialBrokerDeleteReceiptSchema>
 export type CredentialBrokerRequest = Static<typeof CredentialBrokerRequestSchema>
+export type CredentialManagementRequest = Static<typeof CredentialManagementRequestSchema>
 
 export function parseBootstrapLine(line: string): BootstrapRecord {
   try {
@@ -828,14 +858,14 @@ export function parseCredentialBrokerDeleteReceipt(value: unknown): CredentialBr
   throw new Error('credential_broker_delete_receipt_invalid')
 }
 
+export function parseCredentialManagementRequest(value: unknown): CredentialManagementRequest {
+  if (Value.Check(CredentialManagementRequestSchema, value)) return value
+  throw new Error('credential_management_request_invalid')
+}
+
 export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifest {
   if (Value.Check(RuntimeBundleManifestSchema, value)) return value
   throw new Error('runtime_bundle_invalid')
-}
-
-export function parseRuntimeHealthProjection(value: unknown): RuntimeHealthProjection {
-  if (Value.Check(RuntimeHealthProjectionSchema, value)) return value
-  throw new Error('runtime_health_invalid')
 }
 
 export function parseSessionConnectionReceipt(value: unknown): SessionConnectionReceipt {

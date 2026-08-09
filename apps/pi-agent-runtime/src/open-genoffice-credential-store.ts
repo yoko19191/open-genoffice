@@ -35,6 +35,12 @@ export type CredentialBrokerClient = {
   delete(slot: string, expectedGeneration: number): Promise<void>
 }
 
+export type CredentialStoreStatus = {
+  providerId: string
+  status: 'available' | 'missing' | 'secure_storage_unavailable'
+  kind?: Credential['type']
+}
+
 export type OpenGenOfficeCredentialStoreOptions =
   | {
       mode: 'persistent'
@@ -97,7 +103,7 @@ function validOAuthCredential(value: Record<string, unknown>): boolean {
   )
 }
 
-function parseCredential(payload: string): Credential {
+export function parseCredentialPayload(payload: string): Credential {
   let parsed: unknown
   try {
     parsed = JSON.parse(payload)
@@ -117,7 +123,7 @@ function parseCredential(payload: string): Credential {
 
 function serializeCredential(credential: Credential): string {
   const payload = JSON.stringify(credential)
-  parseCredential(payload)
+  parseCredentialPayload(payload)
   return payload
 }
 
@@ -179,6 +185,25 @@ export class OpenGenOfficeCredentialStore implements CredentialStore {
       if (status.status === 'available') listed.push({ providerId, type: status.kind })
     }
     return listed
+  }
+
+  async status(providerId: string, options?: AuthOperationOptions): Promise<CredentialStoreStatus> {
+    options?.signal?.throwIfAborted()
+    this.register(providerId)
+    if (this.mode === 'memory_only') {
+      const credential = this.memory.get(providerId)
+      return credential
+        ? { providerId, status: 'available', kind: credential.type }
+        : { providerId, status: 'missing' }
+    }
+    let status: CredentialBrokerStatus
+    try {
+      status = await this.requireBroker().status(slotFor(providerId))
+    } catch (error) {
+      throw normalizeBrokerError(error, 'credential_status_failed')
+    }
+    if (status.status !== 'available') return { providerId, status: status.status }
+    return { providerId, status: 'available', kind: status.kind }
   }
 
   modify(
@@ -268,7 +293,7 @@ export class OpenGenOfficeCredentialStore implements CredentialStore {
       throw normalizeBrokerError(error, 'credential_read_failed')
     }
     if (!stored) return { credential: undefined, generation: 0 }
-    const credential = parseCredential(stored.secretPayload)
+    const credential = parseCredentialPayload(stored.secretPayload)
     if (
       stored.metadata.providerId !== providerId ||
       stored.metadata.slot !== slotFor(providerId) ||

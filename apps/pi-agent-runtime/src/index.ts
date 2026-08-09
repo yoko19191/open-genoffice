@@ -47,6 +47,10 @@ export {
   type OpenGenOfficeCredentialStoreOptions,
 } from './open-genoffice-credential-store'
 export {
+  RuntimeCredentialStore,
+  type RuntimeCredentialStoreOptions,
+} from './runtime-credential-store'
+export {
   RuntimeCredentialBrokerClient,
   RuntimeCredentialBrokerClientError,
   type RuntimeCredentialBrokerClientOptions,

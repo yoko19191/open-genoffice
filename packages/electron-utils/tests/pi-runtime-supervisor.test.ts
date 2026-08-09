@@ -87,6 +87,22 @@ function harness(
         },
         events: [],
       })),
+      putCredential: vi.fn(async (input) => ({
+        providerId: input.providerId,
+        persistence: input.persistence,
+        status: 'available' as const,
+        kind: 'api_key' as const,
+      })),
+      credentialStatus: vi.fn(async (input) => ({
+        providerId: input.providerId,
+        persistence: 'persistent' as const,
+        status: 'missing' as const,
+      })),
+      deleteCredential: vi.fn(async (input) => ({
+        providerId: input.providerId,
+        persistence: 'persistent' as const,
+        status: 'missing' as const,
+      })),
       onSessionEvent: vi.fn((listener: (event: EventEnvelope) => void) => {
         eventListener = listener
         return () => {
@@ -225,6 +241,19 @@ describe('PiRuntimeSupervisor', () => {
     await expect(fixture.supervisor.subscribeSession(bound)).resolves.toMatchObject({
       resetRequired: false,
     })
+    await expect(
+      fixture.supervisor.putCredential({
+        providerId: 'openai',
+        persistence: 'memory_only',
+        secretPayload: '{"type":"api_key","key":"supervisor-canary"}',
+      }),
+    ).resolves.toMatchObject({ status: 'available', persistence: 'memory_only' })
+    await expect(
+      fixture.supervisor.credentialStatus({ providerId: 'openai' }),
+    ).resolves.toMatchObject({ status: 'missing' })
+    await expect(
+      fixture.supervisor.deleteCredential({ providerId: 'openai' }),
+    ).resolves.toMatchObject({ status: 'missing' })
     const emitted = {
       protocolVersion: '1',
       kind: 'event',

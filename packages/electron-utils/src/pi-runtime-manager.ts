@@ -8,12 +8,14 @@ import {
   SCHEMA_VERSION,
   createNdjsonFrameDecoder,
   parseCredentialBrokerRequest,
+  parseProviderCredentialStatus,
   parseSessionAbortReceipt,
   parseSessionConnectionReceipt,
   parseSessionPromptReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
   type BootstrapRecord,
+  type CredentialManagementRequest,
   type EventEnvelope,
   type ProtocolEnvelope,
   type RequestEnvelope,
@@ -93,6 +95,14 @@ export type SessionPromptRequest = SessionOpenRequest & { text: string }
 export type SessionAbortRequest = SessionOpenRequest & { runId: string }
 export type SessionBoundRequest = { sessionId: string; documentId: string }
 export type SessionSubscribeRequest = SessionBoundRequest & { afterCursor?: string }
+export type ProviderCredentialPutRequest = Extract<
+  CredentialManagementRequest,
+  { method: 'credential.put' }
+>['params']
+export type ProviderCredentialProviderRequest = Extract<
+  CredentialManagementRequest,
+  { method: 'credential.status' }
+>['params']
 
 type ClientRuntimeMethod =
   | 'runtime.hello'
@@ -104,6 +114,9 @@ type ClientRuntimeMethod =
   | 'session.abort'
   | 'session.snapshot'
   | 'session.subscribe'
+  | 'credential.put'
+  | 'credential.status'
+  | 'credential.delete'
 
 export class PiRuntimeManagerError extends Error {
   readonly code: string
@@ -315,7 +328,10 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('session.prompt') ||
         !hello.capabilities.includes('session.abort') ||
         !hello.capabilities.includes('session.snapshot') ||
-        !hello.capabilities.includes('session.subscribe')
+        !hello.capabilities.includes('session.subscribe') ||
+        !hello.capabilities.includes('credential.put') ||
+        !hello.capabilities.includes('credential.status') ||
+        !hello.capabilities.includes('credential.delete')
       ) {
         throw new PiRuntimeManagerError('runtime_hello_invalid')
       }
@@ -442,6 +458,36 @@ export class PiRuntimeManager {
   onSessionEvent(listener: (event: EventEnvelope) => void): () => void {
     this.eventListeners.add(listener)
     return () => this.eventListeners.delete(listener)
+  }
+
+  async putCredential(input: ProviderCredentialPutRequest) {
+    this.assertReady()
+    try {
+      return parseProviderCredentialStatus(await this.request('credential.put', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('provider_credential_status_invalid')
+    }
+  }
+
+  async credentialStatus(input: ProviderCredentialProviderRequest) {
+    this.assertReady()
+    try {
+      return parseProviderCredentialStatus(await this.request('credential.status', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('provider_credential_status_invalid')
+    }
+  }
+
+  async deleteCredential(input: ProviderCredentialProviderRequest) {
+    this.assertReady()
+    try {
+      return parseProviderCredentialStatus(await this.request('credential.delete', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('provider_credential_status_invalid')
+    }
   }
 
   async createSession(input: SessionCreateRequest): Promise<SessionConnectionReceipt> {

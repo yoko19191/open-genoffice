@@ -21,6 +21,8 @@ import type {
   SessionOpenRequest,
   SessionPromptRequest,
   SessionSubscribeRequest,
+  ProviderCredentialPutRequest,
+  ProviderCredentialProviderRequest,
 } from './pi-runtime-manager'
 
 export type PiRuntimeServiceOptions = {
@@ -43,6 +45,9 @@ type OwnedPiRuntimeManager = Pick<
   | 'snapshotSession'
   | 'subscribeSession'
   | 'onSessionEvent'
+  | 'putCredential'
+  | 'credentialStatus'
+  | 'deleteCredential'
 >
 
 export type PiRuntimeServiceDependencies = {
@@ -119,6 +124,18 @@ export class PiRuntimeService {
     return (await this.readyManager()).onSessionEvent(listener)
   }
 
+  async putCredential(input: ProviderCredentialPutRequest) {
+    return (await this.readyManager()).putCredential(input)
+  }
+
+  async credentialStatus(input: ProviderCredentialProviderRequest) {
+    return (await this.readyManager()).credentialStatus(input)
+  }
+
+  async deleteCredential(input: ProviderCredentialProviderRequest) {
+    return (await this.readyManager()).deleteCredential(input)
+  }
+
   private async readyManager(): Promise<OwnedPiRuntimeManager> {
     await this.initialize()
     if (this.currentHealth.state !== 'ready' || !this.manager)
@@ -177,6 +194,17 @@ export function createInstalledPiRuntimeService(
   return new PiRuntimeService(serviceOptions, {
     verifyBundle: verifyPiRuntimeBundle,
     createManager: (managerOptions) =>
-      createPiRuntimeSupervisor({ ...managerOptions, startupTimeoutMs }),
+      createPiRuntimeSupervisor({
+        bundle: managerOptions.bundle,
+        platform: managerOptions.platform,
+        parentPid: managerOptions.parentPid,
+        ...(managerOptions.resourceHome === undefined
+          ? {}
+          : { resourceHome: managerOptions.resourceHome }),
+        ...(managerOptions.credentialBroker === undefined
+          ? {}
+          : { credentialBroker: managerOptions.credentialBroker }),
+        ...(startupTimeoutMs === undefined ? {} : { startupTimeoutMs }),
+      }),
   })
 }

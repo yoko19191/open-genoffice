@@ -100,7 +100,7 @@ export class SecureStorageBroker {
   private readonly platform: NodeJS.Platform
   private readonly safeStorage: SafeStorageAdapter
   private readonly createCredentialId: () => string
-  private readonly failAt?: SecureStorageFailurePoint
+  private readonly failAt: SecureStorageFailurePoint | undefined
   private readonly slotQueues = new Map<string, Promise<void>>()
   private indexQueue: Promise<void> = Promise.resolve()
 
@@ -116,7 +116,7 @@ export class SecureStorageBroker {
     const home = await initializeAgentResourceHome({
       rootDirectory: options.rootDirectory,
       runtimeVersion: options.runtimeVersion,
-      platform: options.platform,
+      ...(options.platform === undefined ? {} : { platform: options.platform }),
     })
     return new SecureStorageBroker(home, options)
   }

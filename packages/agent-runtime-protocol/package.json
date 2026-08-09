@@ -6,7 +6,11 @@
   "type": "module",
   "description": "Secret-free schemas and validators for the Open GenOffice Pi Runtime boundary",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "imports": {
+    "#renderer": "./src/renderer.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

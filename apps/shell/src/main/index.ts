@@ -142,6 +142,7 @@ import { TabManager } from './tab-manager'
 import { applyUpdateChannel, initAutoUpdater } from './updater'
 import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
 import { PI_RUNTIME_CHANNELS } from '../shared/pi-runtime-api'
+import { installProviderCredentialIpc } from './provider-credential-ipc'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -2280,6 +2281,9 @@ registerHomeIpc()
 registerTabsIpc()
 const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker)
 ipcMain.handle(PI_RUNTIME_CHANNELS.health, () => piRuntimeService.health())
+installProviderCredentialIpc(ipcMain, piRuntimeService, () =>
+  shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null,
+)
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here
 setSessionPathResolver(resolveSheetsSessionPath)

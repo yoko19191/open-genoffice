@@ -35,7 +35,7 @@ export type PiSessionHandle = {
   session: AgentSession
   sessionManager: SessionManager
   subscribe: (listener: (event: AgentSessionEvent) => void) => () => void
-  prompt: (text: string) => Promise<PiPromptResult | undefined>
+  prompt: (text: string, signal: AbortSignal) => Promise<PiPromptResult | undefined>
   abort: () => Promise<void>
   dispose: () => void
 }
@@ -143,8 +143,8 @@ export async function createDeterministicPiSession(
     session,
     sessionManager,
     subscribe: (listener) => session.subscribe(listener),
-    prompt: async (text) => {
-      faux.appendResponses([
+    prompt: async (text, signal) => {
+      faux.setResponses([
         fauxAssistantMessage(
           [
             fauxThinking('checking contract'),
@@ -154,9 +154,13 @@ export async function createDeterministicPiSession(
           { stopReason: 'toolUse' },
         ),
         fauxAssistantMessage('contract probe acknowledged'),
-        fauxAssistantMessage('contract compaction summary'),
       ])
       await session.prompt(text, { expandPromptTemplates: false, source: 'rpc' })
+      if (signal.aborted) return undefined
+      faux.setResponses([
+        fauxAssistantMessage('contract compaction summary'),
+        fauxAssistantMessage('contract compaction summary'),
+      ])
       await session.compact('Summarize the deterministic contract run.')
 
       const activeLeafId = sessionManager.getLeafId()

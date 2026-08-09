@@ -255,10 +255,17 @@ export class SessionRegistry {
         abortTree,
       }
       record.activeRun = activeRun
+      let resolveModelSettled!: () => void
+      const modelSettled = new Promise<void>((resolve) => {
+        resolveModelSettled = resolve
+      })
       const completeModel = abortTree.register({
         id: 'pi-model',
         kind: 'model',
-        abort: () => record.pi.abort(),
+        abort: async () => {
+          await record.pi.abort()
+          await modelSettled
+        },
       })
       await this.appendEvent(record, 'run.queued', {})
       const userMessageId = this.randomUUID()
@@ -275,7 +282,7 @@ export class SessionRegistry {
         runId,
       )
       const running = record.pi
-        .prompt(input.text)
+        .prompt(input.text, abortTree.signal)
         .then(async (result) => {
           completeModel()
           if (record.activeRun !== activeRun || activeRun.abortRegistration) return
@@ -294,6 +301,7 @@ export class SessionRegistry {
           activeRun.state = 'failed'
           await this.appendEvent(record, 'run.failed', { reason: 'provider_error' }, runId)
         })
+        .finally(resolveModelSettled)
         .then(() => record.eventQueue)
       activeRun.promise = running
       return { runId, acceptedCursor: accepted.cursor }

@@ -30,9 +30,9 @@ function createFakeCredentialBroker(rootDirectory: string) {
     safeStorage: {
       isAsyncEncryptionAvailable: async () => true,
       getSelectedStorageBackend: () => 'gnome_libsecret',
-      encryptStringAsync: async (value) => Buffer.from(`cipher:${value}`),
+      encryptStringAsync: async (value) => Buffer.from(value).reverse(),
       decryptStringAsync: async (value) => ({
-        result: value.toString().slice('cipher:'.length),
+        result: Buffer.from(value).reverse().toString(),
         shouldReEncrypt: false,
       }),
     },
@@ -129,6 +129,50 @@ describe('copied Pi Runtime end to end', () => {
     },
     15_000,
   )
+
+  it('saves, projects, and removes a Provider credential without returning the secret', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pi-runtime-credential-e2e-'))
+    const verified = await buildCopiedRuntime(root)
+    const resourceHome = join(root, 'resource-home')
+    const credentialBroker = await createFakeCredentialBroker(resourceHome)
+    const manager = createPiRuntimeManager({
+      bundle: verified,
+      platform: process.platform,
+      parentPid: process.pid,
+      resourceHome,
+      startupTimeoutMs: 5_000,
+      credentialBroker,
+    })
+    await manager.start()
+    const secretPayload = '{"type":"api_key","key":"copied-runtime-provider-credential-canary"}'
+    const saved = await manager.putCredential({
+      providerId: 'openai',
+      persistence: 'persistent',
+      secretPayload,
+    })
+    expect(saved).toEqual({
+      providerId: 'openai',
+      persistence: 'persistent',
+      status: 'available',
+      kind: 'api_key',
+    })
+    expect(JSON.stringify(saved)).not.toContain('copied-runtime-provider-credential-canary')
+    await expect(manager.credentialStatus({ providerId: 'openai' })).resolves.toEqual(saved)
+    const index = await readFile(join(resourceHome, 'state', 'secure-store', 'index.json'), 'utf8')
+    expect(index).not.toContain('copied-runtime-provider-credential-canary')
+    await expect(manager.deleteCredential({ providerId: 'openai' })).resolves.toMatchObject({
+      status: 'missing',
+    })
+    await expect(
+      manager.putCredential({
+        providerId: 'openai',
+        persistence: 'memory_only',
+        secretPayload,
+      }),
+    ).resolves.toMatchObject({ status: 'available', persistence: 'memory_only' })
+    await manager.shutdown()
+    await rm(root, { recursive: true, force: true })
+  }, 15_000)
 
   it('verifies, spawns, authenticates, queries, and shuts down without residue', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-runtime-e2e-'))
@@ -266,11 +310,18 @@ describe('copied Pi Runtime end to end', () => {
     ).toBe('aborted')
 
     let resolveAfterAbort!: () => void
+    let afterAbortTerminal: 'completed' | 'failed' | 'aborted' | undefined
     const afterAbort = new Promise<void>((resolve) => {
       resolveAfterAbort = resolve
     })
     const unsubscribeAfterAbort = manager.onSessionEvent((event) => {
-      if (event.sessionId === abortCreated.sessionId && event.type === 'run.completed') {
+      if (
+        event.sessionId === abortCreated.sessionId &&
+        (event.type === 'run.completed' ||
+          event.type === 'run.failed' ||
+          event.type === 'run.aborted')
+      ) {
+        afterAbortTerminal = event.type.slice('run.'.length) as typeof afterAbortTerminal
         resolveAfterAbort()
       }
     })
@@ -281,6 +332,7 @@ describe('copied Pi Runtime end to end', () => {
       text: 'continue after abort',
     })
     await afterAbort
+    expect(afterAbortTerminal).toBe('completed')
     unsubscribeAfterAbort()
     unsubscribeAborted()
 

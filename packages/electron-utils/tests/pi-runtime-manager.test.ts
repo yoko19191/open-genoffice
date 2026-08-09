@@ -115,34 +115,58 @@ class FakeRuntimeSocket extends Duplex {
               'session.abort',
               'session.snapshot',
               'session.subscribe',
+              'credential.put',
+              'credential.status',
+              'credential.delete',
             ],
           }
         : request.method === 'runtime.status'
           ? { pid: runtimePid, instanceId, runtimeVersion: RUNTIME_VERSION }
-          : request.method === 'session.create' || request.method === 'session.open'
+          : request.method === 'credential.put'
             ? {
-                sessionId: snapshot.sessionId,
-                documentId: snapshot.documentId,
-                snapshot,
-                cursor: snapshot.cursor,
+                providerId: request.params.providerId,
+                persistence: request.params.persistence,
+                status: 'available',
+                kind: 'api_key',
               }
-            : request.method === 'session.prompt'
-              ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
-              : request.method === 'session.abort'
-                ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
-                : request.method === 'session.snapshot'
-                  ? snapshot
-                  : request.method === 'session.subscribe'
-                    ? { resetRequired: false, snapshot, events: [] }
-                    : { shuttingDown: true }
+            : request.method === 'credential.status'
+              ? {
+                  providerId: request.params.providerId,
+                  persistence: 'persistent',
+                  status: 'missing',
+                }
+              : request.method === 'credential.delete'
+                ? {
+                    providerId: request.params.providerId,
+                    persistence: 'persistent',
+                    status: 'missing',
+                  }
+                : request.method === 'session.create' || request.method === 'session.open'
+                  ? {
+                      sessionId: snapshot.sessionId,
+                      documentId: snapshot.documentId,
+                      snapshot,
+                      cursor: snapshot.cursor,
+                    }
+                  : request.method === 'session.prompt'
+                    ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
+                    : request.method === 'session.abort'
+                      ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
+                      : request.method === 'session.snapshot'
+                        ? snapshot
+                        : request.method === 'session.subscribe'
+                          ? { resetRequired: false, snapshot, events: [] }
+                          : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
         : request.method === 'runtime.status' && 'statusResult' in this.options
           ? this.options.statusResult
-          : request.method.startsWith('session.') && 'sessionResult' in this.options
-            ? this.options.sessionResult
-            : defaultResult
+          : request.method.startsWith('credential.') && 'credentialResult' in this.options
+            ? this.options.credentialResult
+            : request.method.startsWith('session.') && 'sessionResult' in this.options
+              ? this.options.sessionResult
+              : defaultResult
     if (request.method === 'runtime.status' && this.options.statusMode === 'error-response') {
       this.push(
         `${JSON.stringify({
@@ -179,6 +203,27 @@ class FakeRuntimeSocket extends Duplex {
       callback()
       return
     }
+    if (
+      request.method.startsWith('credential.') &&
+      this.options.credentialMode === 'error-response'
+    ) {
+      this.push(
+        `${JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'response',
+          id: request.id,
+          correlationId: request.correlationId,
+          error: {
+            code: 'secure_storage_unavailable',
+            message: 'secure_storage_unavailable',
+            retryable: false,
+            correlationId: request.correlationId,
+          },
+        })}\n`,
+      )
+      callback()
+      return
+    }
     this.push(
       `${JSON.stringify({
         protocolVersion: PROTOCOL_VERSION,
@@ -208,6 +253,8 @@ type ManagerHarnessOptions = {
   childError?: boolean
   sessionResult?: unknown
   sessionMode?: 'error-response'
+  credentialResult?: unknown
+  credentialMode?: 'error-response'
   credentialPrelude?: readonly unknown[]
 }
 
@@ -424,6 +471,93 @@ describe('PiRuntimeManager', () => {
         afterCursor: 'cursor-1',
       }),
     ).resolves.toMatchObject({ resetRequired: false, events: [] })
+    await manager.shutdown()
+  })
+
+  it('uses write-only credential management methods and validates redacted status results', async () => {
+    const harness = managerHarness()
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+    await manager.start()
+    const secretPayload = '{"type":"api_key","key":"manager-management-canary"}'
+    await expect(
+      manager.putCredential({
+        providerId: 'openai',
+        persistence: 'memory_only',
+        secretPayload,
+      }),
+    ).resolves.toEqual({
+      providerId: 'openai',
+      persistence: 'memory_only',
+      status: 'available',
+      kind: 'api_key',
+    })
+    await expect(manager.credentialStatus({ providerId: 'openai' })).resolves.toEqual({
+      providerId: 'openai',
+      persistence: 'persistent',
+      status: 'missing',
+    })
+    await expect(manager.deleteCredential({ providerId: 'openai' })).resolves.toEqual({
+      providerId: 'openai',
+      persistence: 'persistent',
+      status: 'missing',
+    })
+    expect(JSON.stringify(await manager.credentialStatus({ providerId: 'openai' }))).not.toContain(
+      'manager-management-canary',
+    )
+    await manager.shutdown()
+  })
+
+  it.each(['putCredential', 'credentialStatus', 'deleteCredential'] as const)(
+    'maps an invalid %s result to a stable redacted error',
+    async (method) => {
+      const harness = managerHarness({ credentialResult: null })
+      const manager = new PiRuntimeManager(
+        { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+        harness.dependencies,
+      )
+      await manager.start()
+      const call =
+        method === 'putCredential'
+          ? manager.putCredential({
+              providerId: 'openai',
+              persistence: 'persistent' as const,
+              secretPayload: '{"type":"api_key","key":"invalid-result-canary"}',
+            })
+          : method === 'credentialStatus'
+            ? manager.credentialStatus({ providerId: 'openai' })
+            : manager.deleteCredential({ providerId: 'openai' })
+      await expect(call).rejects.toEqual(
+        new PiRuntimeManagerError('provider_credential_status_invalid'),
+      )
+      await manager.shutdown()
+    },
+  )
+
+  it('preserves stable Runtime errors across every credential management method', async () => {
+    const harness = managerHarness({ credentialMode: 'error-response' })
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+    await manager.start()
+    await Promise.all([
+      expect(
+        manager.putCredential({
+          providerId: 'openai',
+          persistence: 'persistent',
+          secretPayload: '{"type":"api_key","key":"runtime-error-canary"}',
+        }),
+      ).rejects.toEqual(new PiRuntimeManagerError('secure_storage_unavailable')),
+      expect(manager.credentialStatus({ providerId: 'openai' })).rejects.toEqual(
+        new PiRuntimeManagerError('secure_storage_unavailable'),
+      ),
+      expect(manager.deleteCredential({ providerId: 'openai' })).rejects.toEqual(
+        new PiRuntimeManagerError('secure_storage_unavailable'),
+      ),
+    ])
     await manager.shutdown()
   })
 

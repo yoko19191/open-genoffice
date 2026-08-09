@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ArtifactRefSchema,
   CredentialBrokerRequestSchema,
+  CredentialManagementRequestSchema,
   EventEnvelopeSchema,
   MAX_FRAME_BYTES,
   NODE_VERSION,
@@ -20,6 +21,9 @@ import {
   parseCredentialBrokerMetadata,
   parseCredentialBrokerRequest,
   parseCredentialBrokerStatus,
+  parseCredentialProviderId,
+  parseCredentialManagementRequest,
+  parseProviderCredentialStatus,
   parseAgentSessionCommand,
   parseAgentSessionConnectReceipt,
   parseAgentSessionConnectRequest,
@@ -177,7 +181,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(15)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(18)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -484,6 +488,91 @@ describe('Runtime to Electron credential broker contract', () => {
     expect(() =>
       parseCredentialBrokerDeleteReceipt({ slot: metadata.slot, status: 'deleted' }),
     ).toThrowError('credential_broker_delete_receipt_invalid')
+  })
+})
+
+describe('Electron to Runtime credential management contract', () => {
+  const requestBase = {
+    protocolVersion: PROTOCOL_VERSION,
+    kind: 'request',
+    id: 'credential-management-1',
+    correlationId: 'credential-management-correlation-1',
+  } as const
+
+  const requests = [
+    {
+      ...requestBase,
+      method: 'credential.put',
+      params: {
+        providerId: 'openai',
+        persistence: 'persistent',
+        secretPayload: '{"type":"api_key","key":"trusted-management-canary"}',
+      },
+    },
+    {
+      ...requestBase,
+      id: 'credential-management-2',
+      method: 'credential.status',
+      params: { providerId: 'openai' },
+    },
+    {
+      ...requestBase,
+      id: 'credential-management-3',
+      method: 'credential.delete',
+      params: { providerId: 'openai' },
+    },
+  ] as const
+
+  it('uses only the existing credential methods with direction-specific exact params', () => {
+    expect(CredentialManagementRequestSchema.anyOf).toHaveLength(3)
+    for (const request of requests) {
+      expect(parseCredentialManagementRequest(request)).toEqual(request)
+      expect(parseProtocolFrame(JSON.stringify(request))).toEqual(request)
+      expect(() => parseCredentialBrokerRequest(request)).toThrowError(
+        'credential_broker_request_invalid',
+      )
+    }
+  })
+
+  it('accepts only redacted provider status projections', () => {
+    const available = {
+      providerId: 'openai',
+      status: 'available',
+      persistence: 'memory_only',
+      kind: 'api_key',
+    } as const
+    expect(parseProviderCredentialStatus(available)).toEqual(available)
+    expect(
+      parseProviderCredentialStatus({
+        providerId: 'openai',
+        status: 'secure_storage_unavailable',
+        persistence: 'persistent',
+      }),
+    ).toMatchObject({ status: 'secure_storage_unavailable' })
+    expect(() =>
+      parseProviderCredentialStatus({ ...available, secretPayload: 'must-not-cross' }),
+    ).toThrowError('provider_credential_status_invalid')
+    expect(parseCredentialProviderId('openai')).toBe('openai')
+    expect(() => parseCredentialProviderId('../other-client')).toThrowError('provider_id_invalid')
+  })
+
+  it.each([
+    ['unknown field', { ...requests[1], params: { providerId: 'openai', slot: 'secret' } }],
+    ['unsafe provider id', { ...requests[1], params: { providerId: '../other-client' } }],
+    [
+      'implicit persistence fallback',
+      {
+        ...requests[0],
+        params: {
+          providerId: 'openai',
+          secretPayload: requests[0].params.secretPayload,
+        },
+      },
+    ],
+  ])('rejects %s', (_label, request) => {
+    expect(() => parseCredentialManagementRequest(request)).toThrowError(
+      'credential_management_request_invalid',
+    )
   })
 })
 

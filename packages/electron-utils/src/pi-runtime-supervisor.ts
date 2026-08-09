@@ -5,6 +5,7 @@ import type {
   SessionPromptReceipt,
   SessionSnapshot,
   SessionSubscriptionReceipt,
+  ProviderCredentialStatus,
 } from '@genoffice/agent-runtime-protocol'
 import type {
   PiRuntimeHealth,
@@ -14,6 +15,8 @@ import type {
   SessionOpenRequest,
   SessionPromptRequest,
   SessionSubscribeRequest,
+  ProviderCredentialPutRequest,
+  ProviderCredentialProviderRequest,
 } from './pi-runtime-manager'
 
 export type SupervisedPiRuntimeManager = {
@@ -26,6 +29,9 @@ export type SupervisedPiRuntimeManager = {
   snapshotSession(input: SessionBoundRequest): Promise<SessionSnapshot>
   subscribeSession(input: SessionSubscribeRequest): Promise<SessionSubscriptionReceipt>
   onSessionEvent(listener: (event: EventEnvelope) => void): () => void
+  putCredential(input: ProviderCredentialPutRequest): Promise<ProviderCredentialStatus>
+  credentialStatus(input: ProviderCredentialProviderRequest): Promise<ProviderCredentialStatus>
+  deleteCredential(input: ProviderCredentialProviderRequest): Promise<ProviderCredentialStatus>
 }
 
 export type PiRuntimeSupervisorState =
@@ -163,6 +169,22 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async subscribeSession(input: SessionSubscribeRequest): Promise<SessionSubscriptionReceipt> {
     return (await this.readyManager()).subscribeSession(input)
+  }
+
+  async putCredential(input: ProviderCredentialPutRequest): Promise<ProviderCredentialStatus> {
+    return (await this.readyManager()).putCredential(input)
+  }
+
+  async credentialStatus(
+    input: ProviderCredentialProviderRequest,
+  ): Promise<ProviderCredentialStatus> {
+    return (await this.readyManager()).credentialStatus(input)
+  }
+
+  async deleteCredential(
+    input: ProviderCredentialProviderRequest,
+  ): Promise<ProviderCredentialStatus> {
+    return (await this.readyManager()).deleteCredential(input)
   }
 
   private async readyManager(): Promise<SupervisedPiRuntimeManager> {

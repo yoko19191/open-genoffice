@@ -16,7 +16,14 @@ import type {
 import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
 import { TABS_CHANNELS } from '../shared/tabs-api'
-import { PI_RUNTIME_CHANNELS, asPiRuntimeHealth, type PiRuntimeApi } from '../shared/pi-runtime-api'
+import {
+  PI_RUNTIME_CHANNELS,
+  asPiRuntimeHealth,
+  asProviderCredentialInput,
+  asProviderCredentialStatus,
+  asProviderId,
+  type PiRuntimeApi,
+} from '../shared/pi-runtime-api'
 
 const UI_LANGUAGES: readonly UiLanguage[] = [
   'zh',
@@ -258,6 +265,27 @@ contextBridge.exposeInMainWorld('aiOfficeTabs', tabsApi)
 const piRuntimeApi: PiRuntimeApi = {
   async health() {
     return asPiRuntimeHealth(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.health))
+  },
+  async saveProviderApiKey(input) {
+    return asProviderCredentialStatus(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.saveProviderApiKey,
+        asProviderCredentialInput(input),
+      ),
+    )
+  },
+  async providerCredentialStatus(providerId) {
+    return asProviderCredentialStatus(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.providerCredentialStatus,
+        asProviderId(providerId),
+      ),
+    )
+  },
+  async logoutProvider(providerId) {
+    return asProviderCredentialStatus(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.logoutProvider, asProviderId(providerId)),
+    )
   },
 }
 

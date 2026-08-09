@@ -1010,6 +1010,17 @@ body.vib .home {
   color: var(--text);
 }
 
+.btn-primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .btn-danger {
   background: var(--color-error);
   border: none;
@@ -1073,6 +1084,78 @@ body.vib .home {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
+}
+
+.provider-credential-modal {
+  width: min(460px, 90vw);
+}
+
+.provider-credential-provider {
+  font-weight: 600;
+}
+
+.provider-credential-status {
+  color: var(--text-muted);
+}
+
+.provider-credential-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 18px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.provider-credential-field input {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-6);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.provider-credential-field input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(35 36 37 / 10%);
+}
+
+.provider-credential-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.provider-credential-modes legend {
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.provider-credential-modes label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.provider-credential-error {
+  margin-top: 14px !important;
+  color: var(--color-error);
+}
+
+.provider-credential-actions {
+  align-items: center;
+}
+
+.provider-credential-action-spacer {
+  flex: 1;
 }
 
 /* ── Project sidebar (P1) ─────────────────────────────── */

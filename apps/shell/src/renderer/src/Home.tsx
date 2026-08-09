@@ -17,11 +17,13 @@ import type {
 import { fileCountKey, visiblePageCount } from './counts'
 import { useI18n } from './locale'
 import type { I18n, StringKey } from './locale'
+import type { PiRuntimeApi } from '../../shared/pi-runtime-api'
 
 declare global {
   interface Window {
     aiOffice: HomeApi
     aiOfficeProject?: ProjectHomeApi
+    aiOfficeAgent: PiRuntimeApi
   }
 }
 
@@ -425,6 +427,164 @@ const CHANNEL_OPTIONS = [
   { value: 'beta', labelKey: 'channelBeta' },
 ] as const
 
+const PRIMARY_MODEL_PROVIDER_ID = 'openai'
+
+function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
+  const { lang } = useI18n()
+  const zh = lang === 'zh' || lang === 'zh-TW'
+  const [status, setStatus] = useState<
+    Awaited<ReturnType<PiRuntimeApi['providerCredentialStatus']>> | undefined
+  >()
+  const [apiKey, setApiKey] = useState('')
+  const [persistence, setPersistence] = useState<'persistent' | 'memory_only'>('persistent')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      const next = await window.aiOfficeAgent.providerCredentialStatus(PRIMARY_MODEL_PROVIDER_ID)
+      setStatus(next)
+      if (next.status === 'secure_storage_unavailable') setPersistence('memory_only')
+    } catch {
+      setError('credential_status_failed')
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshStatus()
+  }, [refreshStatus])
+
+  const save = async () => {
+    if (!apiKey || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await window.aiOfficeAgent.saveProviderApiKey({
+        providerId: PRIMARY_MODEL_PROVIDER_ID,
+        persistence,
+        apiKey,
+      })
+      setStatus(next)
+      setApiKey('')
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'credential_persist_failed'
+      const code = message.includes('secure_storage_unavailable')
+        ? 'secure_storage_unavailable'
+        : 'credential_persist_failed'
+      setError(code)
+      if (code === 'secure_storage_unavailable') setPersistence('memory_only')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const logout = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setStatus(await window.aiOfficeAgent.logoutProvider(PRIMARY_MODEL_PROVIDER_ID))
+      setApiKey('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'credential_delete_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const statusText =
+    status?.status === 'available'
+      ? zh
+        ? `已配置 · ${status.persistence === 'memory_only' ? '仅本次运行' : '系统安全存储'}`
+        : `Configured · ${status.persistence === 'memory_only' ? 'this run only' : 'secure storage'}`
+      : status?.status === 'secure_storage_unavailable'
+        ? zh
+          ? '系统安全存储不可用，可显式改用仅本次运行'
+          : 'Secure storage is unavailable. You can explicitly use this run only.'
+        : zh
+          ? '尚未配置'
+          : 'Not configured'
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form
+        className="modal provider-credential-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={zh ? '模型服务商凭据' : 'Model provider credential'}
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault()
+          void save()
+        }}
+      >
+        <h3>{zh ? '模型服务商' : 'Model provider'}</h3>
+        <p className="provider-credential-provider">OpenAI API key</p>
+        <p className="provider-credential-status" role="status">
+          {statusText}
+        </p>
+        <label className="provider-credential-field">
+          <span>{zh ? 'API 密钥' : 'API key'}</span>
+          <input
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder="sk-…"
+          />
+        </label>
+        <fieldset className="provider-credential-modes">
+          <legend>{zh ? '保存方式' : 'Storage'}</legend>
+          <label>
+            <input
+              type="radio"
+              name="provider-persistence"
+              checked={persistence === 'persistent'}
+              onChange={() => setPersistence('persistent')}
+            />
+            <span>{zh ? '系统安全存储' : 'Secure system storage'}</span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="provider-persistence"
+              checked={persistence === 'memory_only'}
+              onChange={() => setPersistence('memory_only')}
+            />
+            <span>{zh ? '仅本次运行，退出即失效' : 'This run only; cleared on exit'}</span>
+          </label>
+        </fieldset>
+        {error && (
+          <p className="provider-credential-error">
+            {error === 'secure_storage_unavailable'
+              ? zh
+                ? '当前系统没有可用的安全密钥库。请选择“仅本次运行”后重试。'
+                : 'No secure credential backend is available. Choose “This run only” and retry.'
+              : zh
+                ? '凭据操作失败，请重试。'
+                : 'Credential operation failed. Please retry.'}
+          </p>
+        )}
+        <div className="modal-buttons provider-credential-actions">
+          {status?.status === 'available' && (
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={logout}>
+              {zh ? '退出服务商' : 'Sign out provider'}
+            </button>
+          )}
+          <span className="provider-credential-action-spacer" />
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            {zh ? '关闭' : 'Close'}
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={busy || !apiKey}>
+            {busy ? (zh ? '保存中…' : 'Saving…') : zh ? '保存' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 function AccountEntry({
   onStatusChange,
 }: {
@@ -461,6 +621,7 @@ function AccountEntry({
   const chanCloseTimer = useRef<number | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const [appVersion, setAppVersion] = useState('')
+  const [providerDialogOpen, setProviderDialogOpen] = useState(false)
 
   // query login state + app version once on mount
   useEffect(() => {
@@ -701,6 +862,25 @@ function AccountEntry({
             </>
           )}
           <div className="account-menu-divider" />
+          <button
+            className="account-menu-item"
+            role="menuitem"
+            onClick={() => {
+              closeMenu()
+              setProviderDialogOpen(true)
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M3 8.2h10M8 3.2v10M4.4 4.6l7.2 7.2M11.6 4.6l-7.2 7.2"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span>{lang === 'zh' || lang === 'zh-TW' ? '模型服务商' : 'Model provider'}</span>
+          </button>
+          <div className="account-menu-divider" />
           <div
             className="lang-row-wrap"
             ref={langRowRef}
@@ -921,6 +1101,9 @@ function AccountEntry({
             {urlCopied ? t('loginCopied') : t('loginCopyUrl')}
           </button>
         </div>
+      )}
+      {providerDialogOpen && (
+        <ProviderCredentialDialog onClose={() => setProviderDialogOpen(false)} />
       )}
       <button
         className="account-btn"

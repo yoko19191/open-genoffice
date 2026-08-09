@@ -55,6 +55,22 @@ function manager(overrides: Record<string, unknown> = {}) {
     snapshotSession: vi.fn(async () => snapshot),
     subscribeSession: vi.fn(async () => ({ resetRequired: false, snapshot, events: [] })),
     onSessionEvent: vi.fn(() => () => {}),
+    putCredential: vi.fn(async (input) => ({
+      providerId: input.providerId,
+      persistence: input.persistence,
+      status: 'available' as const,
+      kind: 'api_key' as const,
+    })),
+    credentialStatus: vi.fn(async (input) => ({
+      providerId: input.providerId,
+      persistence: 'persistent' as const,
+      status: 'missing' as const,
+    })),
+    deleteCredential: vi.fn(async (input) => ({
+      providerId: input.providerId,
+      persistence: 'persistent' as const,
+      status: 'missing' as const,
+    })),
     ...overrides,
   }
 }
@@ -191,6 +207,29 @@ describe('installed Pi Runtime service', () => {
       platform: 'darwin',
       parentPid: 123,
       resourceHome: '/private/resource-home',
+    })
+  })
+
+  it('forwards only typed credential management commands to the ready Runtime', async () => {
+    const fixture = service({})
+    const secretPayload = '{"type":"api_key","key":"service-management-canary"}'
+    await expect(
+      fixture.instance.putCredential({
+        providerId: 'openai',
+        persistence: 'persistent',
+        secretPayload,
+      }),
+    ).resolves.toMatchObject({ status: 'available', kind: 'api_key' })
+    await expect(
+      fixture.instance.credentialStatus({ providerId: 'openai' }),
+    ).resolves.toMatchObject({ status: 'missing' })
+    await expect(
+      fixture.instance.deleteCredential({ providerId: 'openai' }),
+    ).resolves.toMatchObject({ status: 'missing' })
+    expect(fixture.runtimeManager.putCredential).toHaveBeenCalledWith({
+      providerId: 'openai',
+      persistence: 'persistent',
+      secretPayload,
     })
   })
 
