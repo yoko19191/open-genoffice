@@ -82,21 +82,27 @@ describe('Document current Session index', () => {
       new DocumentSessionIndexError('document_session_conflict'),
     )
 
-    await expect(
-      Promise.allSettled([
-        store.advanceCurrent(documentId, secondSessionId, firstSessionId),
-        store.advanceCurrent(documentId, secondSessionId, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
-      ]),
-    ).resolves.toEqual([
+    const advances = await Promise.allSettled([
+      store.advanceCurrent(documentId, secondSessionId, firstSessionId),
+      store.advanceCurrent(documentId, secondSessionId, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+    ])
+    const fulfilled = advances.filter((result) => result.status === 'fulfilled')
+    const rejected = advances.filter((result) => result.status === 'rejected')
+    expect(fulfilled).toHaveLength(1)
+    expect(rejected).toEqual([
       expect.objectContaining({
-        status: 'fulfilled',
-        value: expect.objectContaining({ currentSessionId: firstSessionId, generation: 3 }),
-      }),
-      expect.objectContaining({
-        status: 'rejected',
         reason: new DocumentSessionIndexError('document_session_not_current'),
       }),
     ])
+    const winner = fulfilled[0]!.value
+    expect(winner).toMatchObject({ generation: 3 })
+    expect([firstSessionId, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc']).toContain(
+      winner.currentSessionId,
+    )
+    await expect(store.current(documentId)).resolves.toMatchObject({
+      currentSessionId: winner.currentSessionId,
+      generation: 3,
+    })
 
     const newRoot = await fixture('direct-current')
     await expect(
