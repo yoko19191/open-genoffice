@@ -1,5 +1,11 @@
 import eventSequence from '../fixtures/fake-provider-events.json' with { type: 'json' }
 
+export {
+  createAuthenticatedRuntimeServer,
+  type AuthenticatedRuntimeServer,
+  type AuthenticatedRuntimeServerOptions,
+} from './authenticated-server'
+
 export type FakeProviderEvent = {
   type: string
   sequence: number

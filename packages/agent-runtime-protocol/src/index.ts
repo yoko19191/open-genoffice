@@ -132,6 +132,26 @@ const GenericRequestEnvelopeSchema = Type.Object(
   { additionalProperties: false },
 )
 
+const HelloRequestEnvelopeSchema = Type.Object(
+  {
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
+    kind: Type.Literal('request'),
+    id: Type.String({ minLength: 1 }),
+    method: Type.Literal('runtime.hello'),
+    correlationId: Type.String({ minLength: 1 }),
+    params: Type.Object(
+      {
+        protocolVersion: Type.Literal(PROTOCOL_VERSION),
+        runtimeVersion: Type.Literal(RUNTIME_VERSION),
+        schemaVersion: Type.Literal(SCHEMA_VERSION),
+        token: Sha256Schema,
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+)
+
 const ArtifactRegisterRequestSchema = Type.Object(
   {
     protocolVersion: Type.Literal(PROTOCOL_VERSION),
@@ -154,6 +174,7 @@ const ArtifactRegisterRequestSchema = Type.Object(
 
 export const RequestEnvelopeSchema = Type.Union([
   GenericRequestEnvelopeSchema,
+  HelloRequestEnvelopeSchema,
   ArtifactRegisterRequestSchema,
 ])
 

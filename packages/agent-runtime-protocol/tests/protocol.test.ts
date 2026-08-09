@@ -126,7 +126,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(2)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(3)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -269,5 +269,32 @@ describe('NDJSON framing', () => {
     const incomplete = createNdjsonFrameDecoder()
     expect(incomplete.push(Uint8Array.of(0xe2))).toEqual([])
     expect(() => incomplete.end()).toThrowError('invalid_utf8')
+  })
+})
+
+describe('runtime hello authentication envelope', () => {
+  it('accepts only the exact token and three-version shape', () => {
+    const hello = {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: 'request',
+      id: 'hello-1',
+      method: 'runtime.hello',
+      correlationId: 'hello-correlation-1',
+      params: {
+        protocolVersion: PROTOCOL_VERSION,
+        runtimeVersion: RUNTIME_VERSION,
+        schemaVersion: SCHEMA_VERSION,
+        token,
+      },
+    }
+    expect(parseProtocolFrame(JSON.stringify(hello))).toEqual(hello)
+    expect(() =>
+      parseProtocolFrame(JSON.stringify({ ...hello, params: { ...hello.params, extra: true } })),
+    ).toThrowError('protocol_frame_invalid')
+    expect(() =>
+      parseProtocolFrame(
+        JSON.stringify({ ...hello, params: { ...hello.params, runtimeVersion: '1.0.1' } }),
+      ),
+    ).toThrowError('protocol_frame_invalid')
   })
 })
