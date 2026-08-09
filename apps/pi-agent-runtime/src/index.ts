@@ -50,6 +50,12 @@ export {
   type OpenAICompatibleProviderConfig,
 } from './model-catalog-service'
 export {
+  ModelSettingsError,
+  loadModelCatalogSettings,
+  saveModelSelection,
+  saveOpenAICompatibleProvider,
+} from './model-settings'
+export {
   OpenGenOfficeCredentialStore,
   OpenGenOfficeCredentialStoreError,
   type CredentialBrokerClient,

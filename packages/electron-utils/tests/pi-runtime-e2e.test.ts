@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -21,6 +23,76 @@ import {
 } from '../src'
 
 const execFileAsync = promisify(execFile)
+const localProviderId = 'local-openai-fixture'
+const localModelId = 'fixture-model'
+
+async function createOpenAICompatibleFixture() {
+  const requests: Array<{ authorization?: string; body: unknown }> = []
+  const server = createServer((request, response) => {
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', (chunk) => {
+      body += chunk
+    })
+    request.on('end', () => {
+      requests.push({
+        ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
+        body: JSON.parse(body),
+      })
+      response.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+      })
+      const completionId = `fixture-${requests.length}`
+      const chunk = (content: string, finishReason: string | null = null) =>
+        `data: ${JSON.stringify({
+          id: completionId,
+          object: 'chat.completion.chunk',
+          created: 1,
+          model: localModelId,
+          choices: [{ index: 0, delta: content ? { content } : {}, finish_reason: finishReason }],
+        })}\n\n`
+      setTimeout(() => {
+        if (response.destroyed) return
+        response.write(chunk('local model '))
+        response.write(chunk('response'))
+        response.write(chunk('', 'stop'))
+        response.end('data: [DONE]\n\n')
+      }, 200)
+    })
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address() as AddressInfo
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requests,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+}
+
+async function configureLocalModel(resourceHome: string, baseUrl: string): Promise<void> {
+  const agentDirectory = join(resourceHome, 'agent')
+  await mkdir(agentDirectory, { recursive: true })
+  await writeFile(
+    join(agentDirectory, 'settings.json'),
+    `${JSON.stringify({
+      schemaVersion: 1,
+      selectedModel: { providerId: localProviderId, modelId: localModelId },
+      models: {
+        [`${localProviderId}/${localModelId}`]: {
+          providerId: localProviderId,
+          modelId: localModelId,
+          endpoint: baseUrl,
+          capabilities: ['text-input', 'tool-use'],
+        },
+      },
+    })}\n`,
+  )
+}
 
 function createFakeCredentialBroker(rootDirectory: string) {
   return SecureStorageBroker.create({
@@ -178,6 +250,8 @@ describe('copied Pi Runtime end to end', () => {
     const root = await mkdtemp(join(tmpdir(), 'pi-runtime-e2e-'))
     const verified = await buildCopiedRuntime(root)
     const resourceHome = join(root, 'resource-home')
+    const localModel = await createOpenAICompatibleFixture()
+    await configureLocalModel(resourceHome, localModel.baseUrl)
     const credentialBroker = await createFakeCredentialBroker(resourceHome)
     const diagnostics: string[] = []
     const manager = createPiRuntimeManager({
@@ -191,6 +265,11 @@ describe('copied Pi Runtime end to end', () => {
     })
 
     const health = await manager.start()
+    await manager.putCredential({
+      providerId: localProviderId,
+      persistence: 'persistent',
+      secretPayload: '{"type":"api_key","key":"local-fixture-key"}',
+    })
     expect(health.pid).toBeGreaterThan(0)
     await expect(manager.status()).resolves.toEqual(health)
     const events: Parameters<typeof applyAgentSessionEvent>[1][] = []
@@ -218,27 +297,20 @@ describe('copied Pi Runtime end to end', () => {
     const visible = events
       .filter((event) => event.sequence > created.snapshot.lastSequence)
       .reduce(applyAgentSessionEvent, createAgentSessionProjection(created.snapshot))
-    expect(visible.messages.map((message) => message.role)).toEqual([
-      'user',
-      'assistant',
-      'assistant',
-    ])
+    expect(visible.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
     expect(visible.messages.map((message) => message.text)).toEqual([
       'project the native Pi stream through Electron main',
-      'contract ready',
-      'contract probe acknowledged',
+      'local model response',
     ])
-    expect(visible.tools).toEqual([
-      {
-        toolCallId: 'contract-tool-call',
-        toolName: 'genoffice_contract_probe',
-        state: 'completed',
-      },
-    ])
+    expect(visible.tools).toEqual([])
     expect(visible.activeRun?.state).toBe('completed')
-    expect(visible.compaction).toMatchObject({ state: 'completed' })
-    expect(visible.branch).toMatchObject({ state: 'created' })
+    expect(visible.compaction).toBeUndefined()
+    expect(visible.branch?.state).not.toBe('created')
     expect(events.at(-1)?.type).toBe('run.completed')
+    expect(localModel.requests[0]).toMatchObject({
+      authorization: 'Bearer local-fixture-key',
+      body: { model: localModelId, stream: true },
+    })
 
     const journal = (
       await readFile(
@@ -481,6 +553,7 @@ describe('copied Pi Runtime end to end', () => {
       )
     }
 
+    await localModel.close()
     await rm(root, { recursive: true, force: true })
   }, 15_000)
 
@@ -491,6 +564,8 @@ describe('copied Pi Runtime end to end', () => {
     )
     const verified = await buildCopiedRuntime(root)
     const resourceHome = join(root, 'resource-home')
+    const localModel = await createOpenAICompatibleFixture()
+    await configureLocalModel(resourceHome, localModel.baseUrl)
     const credentialBroker = await createFakeCredentialBroker(resourceHome)
     const supervisor = createPiRuntimeSupervisor({
       bundle: verified,
@@ -502,6 +577,11 @@ describe('copied Pi Runtime end to end', () => {
     })
     const coldStartedAt = Date.now()
     const firstHealth = await supervisor.start()
+    await supervisor.putCredential({
+      providerId: localProviderId,
+      persistence: 'persistent',
+      secretPayload: '{"type":"api_key","key":"local-fixture-key"}',
+    })
     expect(Date.now() - coldStartedAt).toBeLessThan(5_000)
 
     const documentId = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1'
@@ -610,6 +690,7 @@ describe('copied Pi Runtime end to end', () => {
     expect(runtimeDirectoriesAfter.filter((name) => !runtimeDirectoriesBefore.has(name))).toEqual(
       [],
     )
+    await localModel.close()
     await rm(root, { recursive: true, force: true })
   }, 30_000)
 

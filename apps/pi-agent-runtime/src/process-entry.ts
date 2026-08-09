@@ -28,11 +28,12 @@ export type RunRuntimeProcessOptions = {
 
 export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Promise<number> {
   try {
+    const resourceHome =
+      options.resourceHome ??
+      process.env.GENOFFICE_RESOURCE_HOME ??
+      join(homedir(), '.open-genoffice')
     await (options.initializeResourceHome ?? initializeAgentResourceHome)({
-      rootDirectory:
-        options.resourceHome ??
-        process.env.GENOFFICE_RESOURCE_HOME ??
-        join(homedir(), '.open-genoffice'),
+      rootDirectory: resourceHome,
       runtimeVersion: RUNTIME_VERSION,
       platform: options.platform,
     })
@@ -41,6 +42,7 @@ export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Prom
       actualParentPid: options.actualParentPid,
       instanceId: options.instanceId,
       platform: options.platform,
+      resourceHome,
     })
     await runtime.closed
     return RUNTIME_EXIT_CODES.ok

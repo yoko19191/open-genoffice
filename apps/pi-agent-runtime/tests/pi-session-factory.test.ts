@@ -2,6 +2,13 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  InMemoryCredentialStore,
+  InMemoryModelsStore,
+  fauxAssistantMessage,
+  fauxProvider,
+} from '@earendil-works/pi-ai'
+import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { createDeterministicPiSession } from '../src/pi-session-factory'
 
 const roots: string[] = []
@@ -11,6 +18,51 @@ afterEach(async () => {
 })
 
 describe('deterministic Pi Session factory', () => {
+  it('uses the shared selected ModelRuntime model without deterministic fixture post-processing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-selected-model-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const selectedProvider = fauxProvider({
+      api: 'genoffice-selected-faux',
+      provider: 'genoffice-selected-faux',
+      models: [{ id: 'selected-model', reasoning: false }],
+      tokenSize: { min: 1, max: 1 },
+      tokensPerSecond: 64,
+    })
+    selectedProvider.setResponses([fauxAssistantMessage('selected model response')])
+    modelRuntime.registerNativeProvider(selectedProvider.provider)
+    const resolveModel = vi.fn(() => selectedProvider.getModel())
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: selectedProvider.getModel(),
+      resolveModel,
+    })
+
+    await handle.prompt('use my selected model', new AbortController().signal)
+
+    expect(resolveModel).toHaveBeenCalledOnce()
+    expect(handle.session.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: 'assistant', content: expect.any(Array) }),
+      ]),
+    )
+    expect(JSON.stringify(handle.sessionManager.getEntries())).toContain('selected model response')
+    expect(JSON.stringify(handle.sessionManager.getEntries())).not.toContain(
+      'genoffice.contract-branch',
+    )
+    handle.dispose()
+  })
+
   it('skips compaction and branching after the run signal is aborted', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-factory-'))
     roots.push(root)

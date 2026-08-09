@@ -413,9 +413,16 @@ export class ModelCatalogService {
     this.providerStates.set(providerId, { state: 'needs_credentials' })
   }
 
+  configureProvider(config: OpenAICompatibleProviderConfig): void {
+    this.registerCustomProvider(config)
+  }
+
   private registerCustomProvider(config: OpenAICompatibleProviderConfig): void {
     validateCustomProvider(config)
     const baseUrl = validateEndpoint(config.baseUrl)
+    for (const key of this.explicitCapabilities.keys()) {
+      if (key.startsWith(`${config.providerId}/`)) this.explicitCapabilities.delete(key)
+    }
     this.runtime.registerProvider(config.providerId, {
       name: config.name,
       baseUrl,
@@ -434,7 +441,7 @@ export class ModelCatalogService {
         }
       }),
     })
-    this.providerIds.push(config.providerId)
+    if (!this.providerIds.includes(config.providerId)) this.providerIds.push(config.providerId)
   }
 
   private assertProvider(providerId: string): void {

@@ -47,6 +47,7 @@ export type StartRuntimeFromStdinOptions = {
   stdin: Readable
   actualParentPid: number
   instanceId: string
+  resourceHome: string
   platform?: NodeJS.Platform
   diagnostic?: (code: RuntimeDiagnosticCode) => void
 }
@@ -169,6 +170,7 @@ export async function startRuntimeFromStdin(
       bootstrap: input.record,
       actualParentPid: options.actualParentPid,
       instanceId: options.instanceId,
+      resourceHome: options.resourceHome,
       platform: options.platform,
     })
   } catch (error) {

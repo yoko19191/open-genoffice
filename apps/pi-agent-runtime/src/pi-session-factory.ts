@@ -10,6 +10,8 @@ import {
   fauxThinking,
   fauxToolCall,
   type CredentialStore,
+  type Api,
+  type Model,
 } from '@earendil-works/pi-ai'
 import {
   DefaultResourceLoader,
@@ -45,7 +47,7 @@ export type PiSessionHandle = {
   dispose: () => void
 }
 
-export type CreatePiSessionOptions = {
+type CreatePiSessionBaseOptions = {
   cwd: string
   agentDir: string
   sessionDir: string
@@ -54,6 +56,20 @@ export type CreatePiSessionOptions = {
   documentId: string
   credentials?: CredentialStore
 }
+
+export type CreatePiSessionOptions = CreatePiSessionBaseOptions &
+  (
+    | {
+        modelRuntime?: never
+        initialModel?: never
+        resolveModel?: never
+      }
+    | {
+        modelRuntime: ModelRuntime
+        initialModel: Model<Api>
+        resolveModel: () => Model<Api>
+      }
+  )
 
 const contractProbe = defineTool({
   name: 'genoffice_contract_probe',
@@ -108,20 +124,25 @@ export async function createDeterministicPiSession(
     mkdir(options.sessionDir, { recursive: true }),
   ])
 
-  const modelRuntime = await ModelRuntime.create({
-    credentials: options.credentials ?? new InMemoryCredentialStore(),
-    modelsPath: null,
-    modelsStore: new InMemoryModelsStore(),
-    allowModelNetwork: false,
-  })
-  const faux = fauxProvider({
-    api: 'genoffice-faux',
-    provider: 'genoffice-faux',
-    models: [{ id: 'genoffice-faux-1', reasoning: true }],
-    tokenSize: { min: 1, max: 1 },
-    tokensPerSecond: 32,
-  })
-  modelRuntime.registerNativeProvider(faux.provider)
+  const managedModel = options.modelRuntime !== undefined
+  const modelRuntime =
+    options.modelRuntime ??
+    (await ModelRuntime.create({
+      credentials: options.credentials ?? new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    }))
+  const fixtureProvider = managedModel
+    ? undefined
+    : fauxProvider({
+        api: 'genoffice-faux',
+        provider: 'genoffice-faux',
+        models: [{ id: 'genoffice-faux-1', reasoning: true }],
+        tokenSize: { min: 1, max: 1 },
+        tokensPerSecond: 32,
+      })
+  if (fixtureProvider) modelRuntime.registerNativeProvider(fixtureProvider.provider)
   const settingsManager = SettingsManager.inMemory({
     defaultThinkingLevel: 'medium',
     retry: { enabled: false, provider: { maxRetries: 0 } },
@@ -136,7 +157,9 @@ export async function createDeterministicPiSession(
     noPromptTemplates: true,
     noThemes: true,
     noContextFiles: true,
-    systemPrompt: 'You are the isolated GenOffice runtime contract agent.',
+    systemPrompt: managedModel
+      ? 'You are the GenOffice document assistant. Use only the capabilities provided for this session.'
+      : 'You are the isolated GenOffice runtime contract agent.',
   })
   await resourceLoader.reload()
 
@@ -166,14 +189,14 @@ export async function createDeterministicPiSession(
     cwd: options.cwd,
     agentDir: options.agentDir,
     modelRuntime,
-    model: faux.getModel(),
+    model: options.initialModel ?? fixtureProvider!.getModel(),
     thinkingLevel: 'medium',
     sessionManager,
     settingsManager,
     resourceLoader,
     noTools: 'all',
-    tools: ['genoffice_contract_probe'],
-    customTools: [contractProbe],
+    tools: managedModel ? [] : ['genoffice_contract_probe'],
+    customTools: managedModel ? [] : [contractProbe],
   })
 
   return {
@@ -181,7 +204,13 @@ export async function createDeterministicPiSession(
     sessionManager,
     subscribe: (listener) => session.subscribe(listener),
     prompt: async (text, signal) => {
-      faux.setResponses([
+      if (managedModel) {
+        if (signal.aborted) return undefined
+        await session.setModel(options.resolveModel())
+        await session.prompt(text, { expandPromptTemplates: false, source: 'rpc' })
+        return undefined
+      }
+      fixtureProvider!.setResponses([
         fauxAssistantMessage(
           [
             fauxThinking('checking contract'),
@@ -194,7 +223,7 @@ export async function createDeterministicPiSession(
       ])
       await session.prompt(text, { expandPromptTemplates: false, source: 'rpc' })
       if (signal.aborted) return undefined
-      faux.setResponses([
+      fixtureProvider!.setResponses([
         fauxAssistantMessage('contract compaction summary'),
         fauxAssistantMessage('contract compaction summary'),
       ])

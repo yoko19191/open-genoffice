@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, mkdtemp, stat } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, stat } from 'node:fs/promises'
 import { createConnection, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -38,6 +38,10 @@ function bootstrap(socketPath: string): BootstrapRecord {
     endpoint: socketPath,
     token,
   }
+}
+
+function resourceHome(instanceId: string): string {
+  return join(tmpdir(), `genoffice-runtime-resource-${instanceId}-${randomUUID()}`)
 }
 
 function request(method: string, params: unknown, id = method) {
@@ -127,6 +131,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-credential',
+      resourceHome: resourceHome('instance-credential'),
     })
     const client = await connect(socketPath)
     const reader = frameReader(client)
@@ -195,6 +200,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-credential-management',
+      resourceHome: resourceHome('instance-credential-management'),
     })
     const client = await connect(socketPath)
     const reader = frameReader(client)
@@ -250,6 +256,7 @@ describe('authenticated Runtime socket', () => {
 
   it('serves model catalog, selection, and OAuth control as redacted Runtime methods', async () => {
     const socketPath = await endpoint()
+    const modelResourceHome = resourceHome('instance-model-management')
     const catalog = {
       providers: [
         {
@@ -281,6 +288,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-model-management',
+      resourceHome: modelResourceHome,
       modelCatalog: modelCatalog as never,
     })
     const client = await connect(socketPath)
@@ -313,6 +321,11 @@ describe('authenticated Runtime socket', () => {
       expect(JSON.stringify(received)).not.toContain('write-only-oauth-response')
     }
     expect(modelCatalog.select).toHaveBeenCalledWith('conversation', 'openai-codex', 'gpt-5.4')
+    expect(
+      JSON.parse(await readFile(join(modelResourceHome, 'agent', 'settings.json'), 'utf8')),
+    ).toMatchObject({
+      selectedModel: { providerId: 'openai-codex', modelId: 'gpt-5.4' },
+    })
     expect(modelCatalog.respondOAuth).toHaveBeenCalledWith(
       oauth.operationId,
       'write-only-oauth-response',
@@ -343,6 +356,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-persistent-credential-management',
+      resourceHome: resourceHome('instance-persistent-credential-management'),
     })
     const client = await connect(socketPath)
     const reader = frameReader(client)
@@ -439,6 +453,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-1',
+      resourceHome: resourceHome('instance-1'),
     })
     if (process.platform !== 'win32') expect((await stat(socketPath)).mode & 0o777).toBe(0o600)
 
@@ -501,6 +516,7 @@ describe('authenticated Runtime socket', () => {
         bootstrap: bootstrap(socketPath),
         actualParentPid: 7,
         instanceId: 'instance-2',
+        resourceHome: resourceHome('instance-2'),
       }),
     ).rejects.toThrow('invalid_parent_pid')
     await expect(stat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -512,6 +528,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-version',
+      resourceHome: resourceHome('instance-version'),
     })
 
     for (const versions of [
@@ -541,6 +558,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-3',
+      resourceHome: resourceHome('instance-3'),
       platform: 'win32',
     })
     const first = await connect(socketPath)
@@ -565,6 +583,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-4',
+      resourceHome: resourceHome('instance-4'),
     })
 
     const malformed = await connect(socketPath)
@@ -616,6 +635,7 @@ describe('authenticated Runtime socket', () => {
       bootstrap: bootstrap(socketPath),
       actualParentPid: 4242,
       instanceId: 'instance-session',
+      resourceHome: resourceHome('instance-session'),
       sessionRegistry: registry,
     })
     const client = await connect(socketPath)

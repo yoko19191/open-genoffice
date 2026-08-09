@@ -42,6 +42,10 @@ function bootstrap(socketPath: string): BootstrapRecord {
   }
 }
 
+function resourceHome(instanceId: string): string {
+  return join(tmpdir(), `genoffice-runtime-stdin-resource-${instanceId}`)
+}
+
 function hello(): string {
   return JSON.stringify({
     protocolVersion: PROTOCOL_VERSION,
@@ -87,6 +91,7 @@ describe('Runtime inherited stdin bootstrap', () => {
       stdin,
       actualParentPid: 5150,
       instanceId: 'stdin-instance-1',
+      resourceHome: resourceHome('stdin-instance-1'),
     })
     stdin.write(line.slice(0, 31))
     stdin.write(line.slice(31))
@@ -114,6 +119,7 @@ describe('Runtime inherited stdin bootstrap', () => {
       stdin,
       actualParentPid: 5150,
       instanceId: 'stdin-instance-2',
+      resourceHome: resourceHome('stdin-instance-2'),
       diagnostic,
     })
     stdin.setEncoding('utf8')
@@ -132,6 +138,7 @@ describe('Runtime inherited stdin bootstrap', () => {
       stdin,
       actualParentPid: 5150,
       instanceId: 'stdin-instance-3',
+      resourceHome: resourceHome('stdin-instance-3'),
     })
     stdin.end()
     await expect(started).rejects.toMatchObject({
@@ -168,6 +175,7 @@ describe('Runtime inherited stdin bootstrap', () => {
       stdin,
       actualParentPid: 5150,
       instanceId: 'stdin-invalid-input',
+      resourceHome: resourceHome('stdin-invalid-input'),
       diagnostic,
     })
     write(stdin)
@@ -184,6 +192,7 @@ describe('Runtime inherited stdin bootstrap', () => {
       stdin: parentMismatchInput,
       actualParentPid: 7,
       instanceId: 'stdin-parent-mismatch',
+      resourceHome: resourceHome('stdin-parent-mismatch'),
       diagnostic: parentMismatchDiagnostic,
     })
     parentMismatchInput.write(`${JSON.stringify(bootstrap(parentMismatchPath))}\n`)
@@ -201,6 +210,7 @@ describe('Runtime inherited stdin bootstrap', () => {
       stdin: bindInput,
       actualParentPid: 5150,
       instanceId: 'stdin-bind-failure',
+      resourceHome: resourceHome('stdin-bind-failure'),
       diagnostic: bindDiagnostic,
     })
     bindInput.write(`${JSON.stringify(bootstrap(occupiedPath))}\n`)
@@ -218,6 +228,7 @@ describe('Runtime inherited stdin bootstrap', () => {
         stdin,
         actualParentPid: 5150,
         instanceId: `stdin-instance-${termination}`,
+        resourceHome: resourceHome(`stdin-instance-${termination}`),
         diagnostic,
       })
       stdin.write(

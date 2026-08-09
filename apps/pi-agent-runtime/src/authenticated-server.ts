@@ -15,7 +15,9 @@ import {
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
+import { loadModelCatalogSettings, saveModelSelection } from './model-settings'
 import { OpenGenOfficeCredentialStoreError } from './open-genoffice-credential-store'
+import { createDeterministicPiSession } from './pi-session-factory'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import { RuntimeCredentialStore } from './runtime-credential-store'
 import {
@@ -28,6 +30,7 @@ export type AuthenticatedRuntimeServerOptions = {
   bootstrap: BootstrapRecord
   actualParentPid: number
   instanceId: string
+  resourceHome: string
   platform?: NodeJS.Platform
   sessionRegistry?: SessionRegistry
   modelCatalog?: Pick<
@@ -95,23 +98,47 @@ export async function createAuthenticatedRuntimeServer(
     broker: credentialClient,
   })
 
-  const modelCatalog =
-    options.modelCatalog ??
-    new ModelCatalogService(
-      await ModelRuntime.create({
-        credentials,
-        modelsPath: null,
-        modelsStore: new InMemoryModelsStore(),
-        allowModelNetwork: false,
-      }),
-    )
+  const modelRuntime = await ModelRuntime.create({
+    credentials,
+    modelsPath: null,
+    modelsStore: new InMemoryModelsStore(),
+    allowModelNetwork: false,
+  })
+  const ownedModelCatalog = options.modelCatalog
+    ? undefined
+    : new ModelCatalogService(modelRuntime, await loadModelCatalogSettings(options.resourceHome))
+  const modelCatalog = options.modelCatalog ?? ownedModelCatalog!
+  const initialModel = modelRuntime.getProviders().flatMap((provider) => provider.getModels())[0]
+  if (!initialModel) throw new Error('model_catalog_empty')
+  let settingsWrite = Promise.resolve()
+
+  function persistModelSelection(selection: {
+    providerId: string
+    modelId: string
+  }): Promise<void> {
+    const write = settingsWrite.then(() => saveModelSelection(options.resourceHome, selection))
+    settingsWrite = write.catch(() => undefined)
+    return write
+  }
 
   const sessionRegistry =
     options.sessionRegistry ??
     createSessionRegistry({
+      dataRoot: options.resourceHome,
       instanceId: options.instanceId,
       cursorSecret: randomBytes(32),
       credentials,
+      ...(ownedModelCatalog
+        ? {
+            createPiSession: (sessionOptions) =>
+              createDeterministicPiSession({
+                ...sessionOptions,
+                modelRuntime,
+                initialModel,
+                resolveModel: () => ownedModelCatalog.selectedModel('conversation'),
+              }),
+          }
+        : {}),
     })
 
   const server = createServer((socket) => {
@@ -253,6 +280,9 @@ export async function createAuthenticatedRuntimeServer(
       }
       if (command.method === 'model.select') {
         modelCatalog.select(command.params.role, command.params.providerId, command.params.modelId)
+        if (command.params.role === 'conversation') {
+          await persistModelSelection(command.params)
+        }
         socket.write(response(request, await modelCatalog.catalog()))
         return
       }

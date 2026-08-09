@@ -145,6 +145,33 @@ describe('ModelCatalogService', () => {
     expect(JSON.stringify(runtime.registerProvider.mock.calls)).not.toContain('secret')
   })
 
+  it('reconfigures an existing custom provider without duplicating its catalog entry', async () => {
+    const runtime = fakeRuntime()
+    const service = new ModelCatalogService(runtime as never, {
+      customProviders: [
+        {
+          providerId: 'local-openai',
+          name: 'Local fixture',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          models: [{ modelId: 'old', name: 'Old', capabilities: ['text-input'] }],
+        },
+      ],
+    })
+    service.configureProvider({
+      providerId: 'local-openai',
+      name: 'Local fixture',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      models: [{ modelId: 'new', name: 'New', capabilities: ['text-input', 'reasoning'] }],
+    })
+    expect(runtime.registerProvider).toHaveBeenCalledTimes(2)
+    expect(runtime.registerProvider).toHaveBeenLastCalledWith(
+      'local-openai',
+      expect.objectContaining({
+        models: [expect.objectContaining({ id: 'new', reasoning: true })],
+      }),
+    )
+  })
+
   it.each([
     ['built-in override', { providerId: 'openai', baseUrl: 'https://example.com/v1' }],
     ['invalid provider id', { providerId: '-remote', baseUrl: 'https://example.com/v1' }],

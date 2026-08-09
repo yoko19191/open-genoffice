@@ -78,7 +78,8 @@ describe('Runtime process entry', () => {
             `resource:${options.rootDirectory}:${options.runtimeVersion}:${options.platform}`,
           )
         },
-        startRuntime: async () => {
+        startRuntime: async (options) => {
+          expect(options.resourceHome).toBe('/isolated/.open-genoffice')
           calls.push('runtime')
           return runtime
         },
