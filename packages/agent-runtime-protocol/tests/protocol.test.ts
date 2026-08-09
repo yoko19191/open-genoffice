@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ArtifactRefSchema,
+  EventEnvelopeSchema,
+  MAX_FRAME_BYTES,
   NODE_VERSION,
   PI_VERSION,
   PROTOCOL_VERSION,
+  ProtocolEnvelopeSchema,
+  RequestEnvelopeSchema,
+  ResponseEnvelopeSchema,
   RUNTIME_NAME,
   RUNTIME_VERSION,
   SCHEMA_VERSION,
+  createNdjsonFrameDecoder,
   parseBootstrapLine,
+  parseProtocolFrame,
   parseRuntimeBundleManifest,
 } from '../src'
 
@@ -104,5 +112,162 @@ describe('runtime bundle manifest contract', () => {
     expect(() => parseRuntimeBundleManifest({ ...manifest, ...override })).toThrowError(
       'runtime_bundle_invalid',
     )
+  })
+})
+
+describe('protocol TypeBox source of truth', () => {
+  const request = {
+    protocolVersion: PROTOCOL_VERSION,
+    kind: 'request',
+    id: 'request-1',
+    method: 'session.prompt',
+    correlationId: 'correlation-1',
+    params: { operationId: 'operation-1', text: 'synthetic prompt' },
+  }
+
+  it('exports JSON schemas and accepts a frozen request vector', () => {
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(2)
+    expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
+    expect(EventEnvelopeSchema.type).toBe('object')
+    expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
+    expect(ArtifactRefSchema.additionalProperties).toBe(false)
+    expect(parseProtocolFrame(JSON.stringify(request))).toEqual(request)
+  })
+
+  it('accepts exactly one response outcome and a sequenced event', () => {
+    expect(
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'response',
+          id: 'request-1',
+          correlationId: 'correlation-1',
+          result: { accepted: true },
+        }),
+      ),
+    ).toMatchObject({ kind: 'response', result: { accepted: true } })
+
+    expect(
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'response',
+          id: 'request-2',
+          correlationId: 'correlation-2',
+          error: {
+            code: 'cursor_expired',
+            message: 'cursor is outside the replay window',
+            retryable: true,
+            correlationId: 'correlation-2',
+            details: { resetRequired: true },
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: 'response', error: { code: 'cursor_expired' } })
+
+    expect(
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'event',
+          eventId: 'event-1',
+          instanceId: 'instance-1',
+          sessionId: 'session-1',
+          documentId: 'document-1',
+          runId: 'run-1',
+          sequence: 1,
+          cursor: 'opaque-cursor-1',
+          occurredAt: '2026-08-09T00:00:00.000Z',
+          type: 'message.delta',
+          payload: { text: 'synthetic delta' },
+        }),
+      ),
+    ).toMatchObject({ kind: 'event', sequence: 1 })
+  })
+
+  it.each([
+    ['unknown envelope field', { ...request, secret: 'must-not-echo' }],
+    ['unknown method', { ...request, method: 'runtime.eval' }],
+    ['wrong protocol version', { ...request, protocolVersion: '0' }],
+    [
+      'both response outcomes',
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'response',
+        id: 'request-1',
+        correlationId: 'correlation-1',
+        result: {},
+        error: {
+          code: 'internal_error',
+          message: 'redacted',
+          retryable: false,
+          correlationId: 'correlation-1',
+        },
+      },
+    ],
+    [
+      'invalid artifact ref',
+      {
+        ...request,
+        method: 'artifact.register',
+        params: {
+          artifactId: 'artifact-1',
+          mediaType: 'image/png',
+          byteLength: 10,
+          sha256: 'short',
+          path: '/private/user-file.png',
+        },
+      },
+    ],
+  ])('rejects %s with a stable redacted error', (_label, value) => {
+    expect(() => parseProtocolFrame(JSON.stringify(value))).toThrowError('protocol_frame_invalid')
+  })
+
+  it('rejects inline base64 and oversized frames without echoing content', () => {
+    const inline = JSON.stringify({
+      ...request,
+      params: { imageBase64: 'private-image-content' },
+    })
+    expect(() => parseProtocolFrame(inline)).toThrowError('inline_binary_forbidden')
+    expect(() => parseProtocolFrame('x'.repeat(MAX_FRAME_BYTES + 1))).toThrowError(
+      'frame_too_large',
+    )
+  })
+})
+
+describe('NDJSON framing', () => {
+  const frame = JSON.stringify({
+    protocolVersion: PROTOCOL_VERSION,
+    kind: 'request',
+    id: 'request-1',
+    method: 'runtime.status',
+    correlationId: 'correlation-1',
+    params: {},
+  })
+
+  it('accepts split chunks, merged frames, and empty lines', () => {
+    const decoder = createNdjsonFrameDecoder()
+    expect(decoder.push(frame.slice(0, 17))).toEqual([])
+    expect(decoder.push(new TextEncoder().encode(`${frame.slice(17)}\n\n${frame}\n`))).toHaveLength(
+      2,
+    )
+    expect(decoder.end()).toEqual([])
+  })
+
+  it('rejects an unterminated tail and a pending oversized frame', () => {
+    const unterminated = createNdjsonFrameDecoder()
+    unterminated.push(frame)
+    expect(() => unterminated.end()).toThrowError('unterminated_frame')
+
+    const oversized = createNdjsonFrameDecoder()
+    expect(() => oversized.push('x'.repeat(MAX_FRAME_BYTES + 1))).toThrowError('frame_too_large')
+  })
+
+  it('rejects invalid and incomplete UTF-8 without echoing bytes', () => {
+    expect(() => createNdjsonFrameDecoder().push(Uint8Array.of(0xff))).toThrowError('invalid_utf8')
+
+    const incomplete = createNdjsonFrameDecoder()
+    expect(incomplete.push(Uint8Array.of(0xe2))).toEqual([])
+    expect(() => incomplete.end()).toThrowError('invalid_utf8')
   })
 })
