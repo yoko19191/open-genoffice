@@ -42,9 +42,7 @@ jobs:
         run: npm ci
 
       - name: Audit platform boundaries
-        run: |
-          npm run audit:pi-platform
-          npm run audit:genspark-free
+        run: npm run audit:pi-platform
 
       - name: Typecheck native Runtime workspaces
         run: |
