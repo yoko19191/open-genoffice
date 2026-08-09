@@ -11,6 +11,7 @@ const APPROVED_VERSIONS = {
   '@modelcontextprotocol/client': '2.0.0',
   '@sinclair/typebox': '0.34.52',
   fflate: '0.8.2',
+  tar: '7.5.22',
   webdav: '5.10.0',
 }
 
@@ -24,6 +25,7 @@ const RUNTIME_DEPENDENCIES = {
   '@genoffice/agent-runtime-protocol': '*',
   '@modelcontextprotocol/client': '2.0.0',
   fflate: '0.8.2',
+  tar: '7.5.22',
 }
 
 const FORBIDDEN_DEPENDENCIES = ['@agwab/pi-workflow', 'oh-my-pi', 'pi-mcp-adapter', 'pi-mcporter']
@@ -36,10 +38,11 @@ const FORBIDDEN_SOURCE = [
   /\bAgentLoop\b/,
   /\butilityProcess\b/,
   /\bnpx\b/,
-  /\bfetch\s*\(/,
-  /node:https?/,
-  /https?:\/\//,
 ]
+
+const FORBIDDEN_IMPLICIT_NETWORK_SOURCE = [/\bfetch\s*\(/, /node:https?/, /https?:\/\//]
+
+const EXPLICIT_NETWORK_SOURCE = new Set(['apps/pi-agent-runtime/src/package-source-resolver.ts'])
 
 const SKIP_DIRECTORIES = new Set([
   '.git',
@@ -175,10 +178,15 @@ export async function auditPiPlatformBoundary(repoRootInput) {
   }
   for (const path of sourceFiles) {
     const content = await readFile(path, 'utf8')
-    if (FORBIDDEN_SOURCE.some((pattern) => pattern.test(content))) {
+    const relativePath = relative(repoRoot, path).split('\\').join('/')
+    if (
+      FORBIDDEN_SOURCE.some((pattern) => pattern.test(content)) ||
+      (!EXPLICIT_NETWORK_SOURCE.has(relativePath) &&
+        FORBIDDEN_IMPLICIT_NETWORK_SOURCE.some((pattern) => pattern.test(content)))
+    ) {
       violations.push({
         code: 'production_source_forbidden',
-        path: relative(repoRoot, path).split('\\').join('/'),
+        path: relativePath,
         message: 'New platform production source contains a forbidden runtime or network marker',
       })
     }

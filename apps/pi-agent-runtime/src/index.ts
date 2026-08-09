@@ -80,6 +80,18 @@ export {
   type SessionRecoveryPlan,
 } from './session-recovery'
 export {
+  PackageInstallCoordinator,
+  PackageSourceResolver,
+  PackageSourceResolverError,
+  type CoordinatedPackageInstallInput,
+  type GitCommandRunner,
+  type PackageInstallCoordinatorOptions,
+  type PackageSourceRequest,
+  type PackageSourceResolverErrorCode,
+  type PackageSourceResolverOptions,
+  type ResolvedPackageSource,
+} from './package-source-resolver'
+export {
   RunResourceService,
   type PackageDiagnostic,
   type PrepareRunResourcesInput,

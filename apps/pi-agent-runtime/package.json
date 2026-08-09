@@ -18,10 +18,11 @@
     "@earendil-works/pi-ai": "0.84.0",
     "@earendil-works/pi-coding-agent": "0.84.0",
     "@earendil-works/pi-tui": "0.84.0",
-    "@genoffice/agent-runtime-protocol": "*",
     "@genoffice/agent-resource": "*",
+    "@genoffice/agent-runtime-protocol": "*",
     "@modelcontextprotocol/client": "2.0.0",
-    "fflate": "0.8.2"
+    "fflate": "0.8.2",
+    "tar": "7.5.22"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
