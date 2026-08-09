@@ -3,6 +3,7 @@ node_modules
 out/
 dist/
 coverage/
+apps/pi-agent-runtime/native/windows-job-launcher/target/
 reports/
 evidence/
 release/

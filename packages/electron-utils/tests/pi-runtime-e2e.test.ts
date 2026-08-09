@@ -26,6 +26,10 @@ async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle
   const outputDirectory = join(root, 'bundle')
   await writeFile(notices, 'Runtime E2E fixture notices\n')
   const repoRoot = resolve(import.meta.dirname, '../../..')
+  const windowsJobLauncher = process.env.GENOFFICE_WINDOWS_JOB_LAUNCHER
+  if (process.platform === 'win32' && !windowsJobLauncher) {
+    throw new Error('GENOFFICE_WINDOWS_JOB_LAUNCHER is required on Windows')
+  }
   await execFileAsync(
     process.execPath,
     [
@@ -46,6 +50,7 @@ async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle
       process.platform,
       '--arch',
       process.arch,
+      ...(windowsJobLauncher ? ['--windows-job-launcher', windowsJobLauncher] : []),
     ],
     { cwd: repoRoot },
   )

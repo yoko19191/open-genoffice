@@ -16,6 +16,8 @@ export class RuntimeBundleVerificationError extends Error {
   }
 }
 
+export const WINDOWS_JOB_LAUNCHER_RELATIVE_PATH = 'node/open-genoffice-job-launcher.exe'
+
 export type RuntimeBundleTarget = {
   platform: RuntimeBundleManifest['platform']
   arch: RuntimeBundleManifest['arch']
@@ -26,6 +28,7 @@ export type VerifiedPiRuntimeBundle = Readonly<{
   root: string
   executablePath: string
   entryPath: string
+  windowsJobLauncherPath?: string
   manifest: RuntimeBundleManifest
   manifestSha256: string
 }>
@@ -79,6 +82,9 @@ function validateManifestPaths(manifest: RuntimeBundleManifest) {
     fail('runtime_bundle_launch_path_missing')
   }
   if (!paths.has('THIRD-PARTY-NOTICES.txt')) fail('runtime_bundle_notices_missing')
+  if (manifest.platform === 'win32' && !paths.has(WINDOWS_JOB_LAUNCHER_RELATIVE_PATH)) {
+    fail('runtime_bundle_windows_job_launcher_missing')
+  }
 }
 
 async function walkBundle(root: string): Promise<string[]> {
@@ -186,6 +192,11 @@ export async function verifyPiRuntimeBundle(
     root,
     executablePath: resolve(root, ...manifest.executable.split('/')),
     entryPath: resolve(root, ...manifest.entry.split('/')),
+    ...(target.platform === 'win32'
+      ? {
+          windowsJobLauncherPath: resolve(root, ...WINDOWS_JOB_LAUNCHER_RELATIVE_PATH.split('/')),
+        }
+      : {}),
     manifest: freezeManifest(manifest),
     manifestSha256: sha256(manifestBytes),
   })

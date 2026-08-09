@@ -28,6 +28,9 @@ async function fixtureBundle() {
   const root = await mkdtemp(join(tmpdir(), 'pi-runtime-bundle-'))
   const fileContents = new Map([
     ['node/open-genoffice-pi-agent-runtime', '#!/bin/sh\n'],
+    ...(process.platform === 'win32'
+      ? ([['node/open-genoffice-job-launcher.exe', 'job launcher\n']] as const)
+      : []),
     ['app/main.mjs', 'export {}\n'],
     ['THIRD-PARTY-NOTICES.txt', 'fixture notice\n'],
     ['LICENSE.node.txt', 'fixture license\n'],
@@ -285,7 +288,35 @@ describe('installed Pi Runtime bundle verifier', () => {
   })
 
   it('accepts a Windows target without POSIX modes and rejects missing Linux glibc', async () => {
+    const missingLauncher = await fixtureBundle()
+    missingLauncher.manifest.platform = 'win32'
+    delete missingLauncher.manifest.libc
+    for (const file of missingLauncher.manifest.files) delete file.mode
+    refreshTreeHash(missingLauncher.manifest)
+    await writeManifest(missingLauncher.root, missingLauncher.manifest)
+    await expect(
+      verifyPiRuntimeBundle(missingLauncher.root, {
+        platform: 'win32',
+        arch: missingLauncher.manifest.arch,
+      }),
+    ).rejects.toThrowError('runtime_bundle_windows_job_launcher_missing')
+
     const windows = await fixtureBundle()
+    if (
+      !windows.manifest.files.some((file) => file.path === 'node/open-genoffice-job-launcher.exe')
+    ) {
+      const contents = 'job launcher\n'
+      const path = 'node/open-genoffice-job-launcher.exe'
+      await writeFile(join(windows.root, path), contents)
+      windows.manifest.files.push({
+        path,
+        sha256: hash(contents),
+        size: Buffer.byteLength(contents),
+      })
+      windows.manifest.files.sort((left, right) =>
+        left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+      )
+    }
     windows.manifest.platform = 'win32'
     delete windows.manifest.libc
     for (const file of windows.manifest.files) delete file.mode

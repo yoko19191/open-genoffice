@@ -174,18 +174,22 @@ export class PiRuntimeManager {
       this.cleanupPromise = undefined
       this.endpoint = await this.dependencies.createEndpoint(this.options.platform)
       const token = this.dependencies.randomBytes(32).toString('hex')
-      const bootstrap: BootstrapRecord = {
-        kind: 'bootstrap',
-        protocolVersion: PROTOCOL_VERSION,
-        runtimeVersion: RUNTIME_VERSION,
-        schemaVersion: SCHEMA_VERSION,
-        parentPid: this.options.parentPid,
-        endpoint: this.endpoint.endpoint,
-        token,
+      const windowsJobLauncher =
+        this.options.platform === 'win32' ? this.options.bundle.windowsJobLauncherPath : undefined
+      if (this.options.platform === 'win32' && windowsJobLauncher === undefined) {
+        throw new PiRuntimeManagerError('runtime_job_launcher_missing')
       }
       this.child = this.dependencies.spawn(
-        this.options.bundle.executablePath,
-        [this.options.bundle.entryPath],
+        windowsJobLauncher ?? this.options.bundle.executablePath,
+        windowsJobLauncher
+          ? [
+              '--owner-pid',
+              String(this.options.parentPid),
+              '--',
+              this.options.bundle.executablePath,
+              this.options.bundle.entryPath,
+            ]
+          : [this.options.bundle.entryPath],
         {
           stdio: ['pipe', 'pipe', 'pipe'],
           detached: this.options.platform !== 'win32',
@@ -200,6 +204,19 @@ export class PiRuntimeManager {
             : {}),
         },
       )
+      const bootstrapParentPid = windowsJobLauncher ? this.child.pid : this.options.parentPid
+      if (!Number.isInteger(bootstrapParentPid) || bootstrapParentPid! <= 0) {
+        throw new PiRuntimeManagerError('runtime_start_failed')
+      }
+      const bootstrap: BootstrapRecord = {
+        kind: 'bootstrap',
+        protocolVersion: PROTOCOL_VERSION,
+        runtimeVersion: RUNTIME_VERSION,
+        schemaVersion: SCHEMA_VERSION,
+        parentPid: bootstrapParentPid!,
+        endpoint: this.endpoint.endpoint,
+        token,
+      }
       this.child.stdout?.resume()
       this.child.stderr?.resume()
       this.childExit = new Promise<void>((resolve) => {
@@ -250,7 +267,7 @@ export class PiRuntimeManager {
         hello === undefined ||
         !Number.isInteger(hello.pid) ||
         (hello.pid as number) <= 0 ||
-        hello.pid !== this.child.pid ||
+        (!windowsJobLauncher && hello.pid !== this.child.pid) ||
         typeof hello.instanceId !== 'string' ||
         hello.instanceId.length === 0 ||
         !Array.isArray(hello.capabilities) ||

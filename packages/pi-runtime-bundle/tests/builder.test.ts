@@ -31,6 +31,7 @@ async function inputs() {
     entryPoint: resolve(import.meta.dirname, '../../../apps/pi-agent-runtime/src/main.ts'),
     lockfile: resolve(import.meta.dirname, '../../../package-lock.json'),
     notices: noticesPath,
+    windowsJobLauncher: process.env.GENOFFICE_WINDOWS_JOB_LAUNCHER ?? process.execPath,
     ...hostTarget(),
   }
 }
@@ -45,6 +46,7 @@ describe('Pi Runtime bundle builder', () => {
       'LICENSE.node.txt',
       'THIRD-PARTY-NOTICES.txt',
       'app/main.mjs',
+      ...(process.platform === 'win32' ? ['node/open-genoffice-job-launcher.exe'] : []),
       `node/open-genoffice-pi-agent-runtime${process.platform === 'win32' ? '.exe' : ''}`,
     ])
     expect((await lstat(verified.executablePath)).isSymbolicLink()).toBe(false)
@@ -88,6 +90,21 @@ describe('Pi Runtime bundle builder', () => {
       'runtime_bundle_build_failed',
     )
     await expect(stat(buildFailure.outputDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('requires the Job Object launcher for every Windows bundle', async () => {
+    const actualPlatform = process.platform
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    try {
+      const options = (await inputs()) as import('../src/builder').PiRuntimeBundleBuildOptions
+      options.platform = 'win32'
+      delete options.windowsJobLauncher
+      await expect(buildPiRuntimeBundle(options)).rejects.toThrowError(
+        'runtime_bundle_windows_job_launcher_missing',
+      )
+    } finally {
+      Object.defineProperty(process, 'platform', { configurable: true, value: actualPlatform })
+    }
   })
 
   it('emits the frozen Windows and Linux manifest layouts', async () => {
@@ -136,6 +153,9 @@ describe('Pi Runtime bundle builder', () => {
       options.platform,
       '--arch',
       options.arch,
+      ...(options.platform === 'win32'
+        ? ['--windows-job-launcher', options.windowsJobLauncher]
+        : []),
     ]
     await expect(
       runPiRuntimeBundleBuilderCli(args, {

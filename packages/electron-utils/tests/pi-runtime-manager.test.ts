@@ -31,6 +31,7 @@ function verifiedBundle(): VerifiedPiRuntimeBundle {
     root: '/installed/pi-agent-runtime',
     executablePath: '/installed/pi-agent-runtime/node/open-genoffice-pi-agent-runtime',
     entryPath: '/installed/pi-agent-runtime/app/main.mjs',
+    windowsJobLauncherPath: '/installed/pi-agent-runtime/node/open-genoffice-job-launcher.exe',
     manifest,
     manifestSha256: 'f'.repeat(64),
   })
@@ -50,6 +51,7 @@ class FakeRuntimeSocket extends Duplex {
   _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
     const request = JSON.parse(chunk.toString('utf8').trim())
     const instanceId = 'runtime-instance-1'
+    const runtimePid = this.options.helloPid ?? 8128
     if (this.options.prelude && request.method === 'runtime.hello') {
       this.push(
         `${JSON.stringify({
@@ -90,7 +92,7 @@ class FakeRuntimeSocket extends Duplex {
     const defaultResult =
       request.method === 'runtime.hello'
         ? {
-            pid: 8128,
+            pid: runtimePid,
             instanceId,
             capabilities: [
               'runtime.status',
@@ -104,7 +106,7 @@ class FakeRuntimeSocket extends Duplex {
             ],
           }
         : request.method === 'runtime.status'
-          ? { pid: 8128, instanceId, runtimeVersion: RUNTIME_VERSION }
+          ? { pid: runtimePid, instanceId, runtimeVersion: RUNTIME_VERSION }
           : request.method === 'session.create' || request.method === 'session.open'
             ? {
                 sessionId: snapshot.sessionId,
@@ -185,6 +187,7 @@ class FakeRuntimeSocket extends Duplex {
 }
 
 type ManagerHarnessOptions = {
+  helloPid?: number
   helloResult?: unknown
   statusResult?: unknown
   statusMode?: 'hang' | 'protocol-error' | 'error-response'
@@ -332,6 +335,33 @@ describe('PiRuntimeManager', () => {
         afterCursor: 'cursor-1',
       }),
     ).resolves.toMatchObject({ resetRequired: false, events: [] })
+    await manager.shutdown()
+  })
+
+  it('starts Windows Runtime through the kill-on-close Job Object launcher', async () => {
+    const harness = managerHarness({ helloPid: 9001 })
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'win32', parentPid: 7070 },
+      harness.dependencies,
+    )
+
+    await expect(manager.start()).resolves.toMatchObject({ pid: 9001 })
+    expect(harness.spawn).toHaveBeenCalledWith(
+      '/installed/pi-agent-runtime/node/open-genoffice-job-launcher.exe',
+      [
+        '--owner-pid',
+        '7070',
+        '--',
+        '/installed/pi-agent-runtime/node/open-genoffice-pi-agent-runtime',
+        '/installed/pi-agent-runtime/app/main.mjs',
+      ],
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        detached: false,
+        windowsHide: true,
+      },
+    )
+    expect(harness.bootstrap()).toMatchObject({ parentPid: 8128 })
     await manager.shutdown()
   })
 

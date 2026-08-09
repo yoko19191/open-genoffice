@@ -25,6 +25,7 @@ import {
 } from '@genoffice/agent-runtime-protocol'
 import {
   canonicalRuntimeTreeHash,
+  WINDOWS_JOB_LAUNCHER_RELATIVE_PATH,
   verifyPiRuntimeBundle,
   type RuntimeBundleVerifierIo,
   type VerifiedPiRuntimeBundle,
@@ -51,6 +52,7 @@ export type PiRuntimeBundleBuildOptions = {
   notices: string
   platform: RuntimeBundleManifest['platform']
   arch: RuntimeBundleManifest['arch']
+  windowsJobLauncher?: string
 }
 
 function sha256(value: Buffer | string): string {
@@ -101,6 +103,9 @@ export async function buildPiRuntimeBundle(
   if (options.platform !== process.platform || options.arch !== process.arch) {
     fail('runtime_bundle_host_target_mismatch')
   }
+  if (options.platform === 'win32' && !options.windowsJobLauncher) {
+    fail('runtime_bundle_windows_job_launcher_missing')
+  }
 
   const outputDirectory = resolve(options.outputDirectory)
   if (await pathExists(outputDirectory)) fail('runtime_bundle_output_exists')
@@ -124,6 +129,13 @@ export async function buildPiRuntimeBundle(
       join(stagingDirectory, executablePath),
       constants.COPYFILE_FICLONE,
     )
+    if (options.platform === 'win32') {
+      await copyFile(
+        options.windowsJobLauncher!,
+        join(stagingDirectory, WINDOWS_JOB_LAUNCHER_RELATIVE_PATH),
+        constants.COPYFILE_FICLONE,
+      )
+    }
     if (process.platform !== 'win32') {
       const executable = join(stagingDirectory, executablePath)
       const metadata = await stat(executable)
@@ -150,7 +162,13 @@ export async function buildPiRuntimeBundle(
       copyFile(options.notices, join(stagingDirectory, 'THIRD-PARTY-NOTICES.txt')),
     ])
 
-    const paths = ['LICENSE.node.txt', 'THIRD-PARTY-NOTICES.txt', 'app/main.mjs', executablePath]
+    const paths = [
+      'LICENSE.node.txt',
+      'THIRD-PARTY-NOTICES.txt',
+      'app/main.mjs',
+      executablePath,
+      ...(options.platform === 'win32' ? [WINDOWS_JOB_LAUNCHER_RELATIVE_PATH] : []),
+    ].sort()
     const files = await Promise.all(paths.map((path) => fileRecord(stagingDirectory, path)))
     const [notices, lockfile] = await Promise.all([
       readFile(join(stagingDirectory, 'THIRD-PARTY-NOTICES.txt')),
@@ -217,6 +235,7 @@ export async function runPiRuntimeBundleBuilderCli(
     '--platform',
     '--arch',
   ]
+  if (values.get('--platform') === 'win32') required.push('--windows-job-launcher')
   if (required.some((name) => !values.has(name))) {
     io.stderr('runtime_bundle_arguments_invalid')
     return 1
@@ -232,6 +251,7 @@ export async function runPiRuntimeBundleBuilderCli(
       notices: values.get('--notices')!,
       platform: values.get('--platform') as RuntimeBundleManifest['platform'],
       arch: values.get('--arch') as RuntimeBundleManifest['arch'],
+      windowsJobLauncher: values.get('--windows-job-launcher'),
     })
     io.stdout(
       JSON.stringify({
