@@ -20,6 +20,10 @@ permissions:
   contents: read
 
 jobs:
+  windows-runtime:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/pi-runtime-windows-native.yml
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 45
