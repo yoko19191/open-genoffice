@@ -208,6 +208,43 @@ export const ProtocolEnvelopeSchema = Type.Union([
   EventEnvelopeSchema,
 ])
 
+export const OfficeToolCatalogSchema = Type.Object(
+  {
+    schemaVersion: Type.Literal(1),
+    sourceBaselineCommit: Type.String({ pattern: '^[0-9a-f]{40}$' }),
+    entries: Type.Array(
+      Type.Object(
+        {
+          app: Type.Union([
+            Type.Literal('docs'),
+            Type.Literal('pdf'),
+            Type.Literal('sheets'),
+            Type.Literal('slides'),
+          ]),
+          legacyAlias: Type.String({ pattern: '^[a-z][a-z0-9_]*$' }),
+          targetId: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+          effect: Type.Union([
+            Type.Literal('read'),
+            Type.Literal('mutation'),
+            Type.Literal('external'),
+          ]),
+          disposition: Type.Union([
+            Type.Literal('office-executor'),
+            Type.Literal('platform'),
+            Type.Literal('skill'),
+            Type.Literal('resource'),
+            Type.Literal('retired'),
+          ]),
+          sourceFile: Type.String({ pattern: '^apps/(pdf|docs|sheets|slides)/src/.+\\.ts$' }),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 63, maxItems: 63 },
+    ),
+  },
+  { additionalProperties: false },
+)
+
 const BootstrapSchema = Type.Object(
   {
     kind: Type.Literal('bootstrap'),
@@ -260,6 +297,7 @@ export type RequestEnvelope = Static<typeof RequestEnvelopeSchema>
 export type ResponseEnvelope = Static<typeof ResponseEnvelopeSchema>
 export type EventEnvelope = Static<typeof EventEnvelopeSchema>
 export type ProtocolEnvelope = Static<typeof ProtocolEnvelopeSchema>
+export type OfficeToolCatalog = Static<typeof OfficeToolCatalogSchema>
 
 export function parseBootstrapLine(line: string): BootstrapRecord {
   try {
@@ -274,6 +312,36 @@ export function parseBootstrapLine(line: string): BootstrapRecord {
 export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifest {
   if (Value.Check(RuntimeBundleManifestSchema, value)) return value
   throw new Error('runtime_bundle_invalid')
+}
+
+export function parseOfficeToolCatalog(value: unknown): OfficeToolCatalog {
+  if (Value.Check(OfficeToolCatalogSchema, value)) return value
+  throw new Error('office_tool_catalog_invalid')
+}
+
+export function canonicalizeOfficeToolCatalog(catalog: OfficeToolCatalog): string {
+  const entries = [...catalog.entries]
+    .sort(
+      (left, right) =>
+        left.app.localeCompare(right.app) || left.legacyAlias.localeCompare(right.legacyAlias),
+    )
+    .map((entry) => ({
+      app: entry.app,
+      legacyAlias: entry.legacyAlias,
+      targetId: entry.targetId,
+      effect: entry.effect,
+      disposition: entry.disposition,
+      sourceFile: entry.sourceFile,
+    }))
+  return `${JSON.stringify(
+    {
+      schemaVersion: catalog.schemaVersion,
+      sourceBaselineCommit: catalog.sourceBaselineCommit,
+      entries,
+    },
+    null,
+    2,
+  )}\n`
 }
 
 export function parseProtocolFrame(frame: string): ProtocolEnvelope {
