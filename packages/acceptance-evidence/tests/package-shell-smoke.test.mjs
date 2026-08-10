@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  packageShellLaunchArgs,
   packageShellLaunchTimeout,
   validatePackageShellSmoke,
 } from '../src/package-shell-smoke.mjs'
@@ -38,6 +39,14 @@ describe('validatePackageShellSmoke', () => {
     expect(packageShellLaunchTimeout('win32')).toBe(60_000)
     expect(packageShellLaunchTimeout('darwin')).toBe(30_000)
     expect(packageShellLaunchTimeout('linux')).toBe(30_000)
+  })
+
+  it('gives packaged Windows Chromium an isolated command-line profile for CDP startup', () => {
+    expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data')).toEqual([
+      '--user-data-dir=C:\\smoke\\user-data',
+    ])
+    expect(packageShellLaunchArgs('darwin', '/tmp/user-data')).toEqual([])
+    expect(packageShellLaunchArgs('linux', '/tmp/user-data')).toEqual(['--no-sandbox'])
   })
 
   it('summarizes a clean installed first launch without leaking paths', () => {

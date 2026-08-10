@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { _electron as electron } from 'playwright'
 import {
+  packageShellLaunchArgs,
   packageShellLaunchTimeout,
   validatePackageShellSmoke,
 } from '../packages/acceptance-evidence/src/package-shell-smoke.mjs'
@@ -58,7 +59,7 @@ let electronApp
 try {
   electronApp = await electron.launch({
     executablePath: resolve(executable),
-    args: platform === 'linux' ? ['--no-sandbox'] : [],
+    args: packageShellLaunchArgs(platform, userData),
     env: {
       ...process.env,
       HOME: cleanHome,
