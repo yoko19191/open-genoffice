@@ -301,6 +301,25 @@ describe('PiSubagentEngine', () => {
     await expect(collect(handle.events)).resolves.toEqual([{ type: 'cancelled' }])
   })
 
+  it('accepts a provider-originated cancelled terminal state without a local cancel request', async () => {
+    const resourceHome = await root('genoffice-subagent-engine-provider-cancelled-')
+    const api = {
+      runSubagent: vi.fn(async () => ({
+        runId: 'provider-run-cancelled',
+        attemptId: 'provider-attempt-cancelled',
+      })),
+      getSubagentStatus: vi.fn(async () => ({ status: 'cancelled' })),
+      getSubagentLogs: vi.fn(),
+      interruptSubagent: vi.fn(),
+      reconcileSubagentRun: vi.fn(),
+    }
+    const engine = new PiSubagentEngine({ resourceHome, api, pollIntervalMs: 1 })
+    const handle = await engine.spawn(input())
+
+    await expect(collect(handle.events)).resolves.toEqual([{ type: 'cancelled' }])
+    expect(api.interruptSubagent).not.toHaveBeenCalled()
+  })
+
   it('kills a Windows provider process tree before settling the exact attempt as cancelled', async () => {
     const resourceHome = await root('genoffice-subagent-engine-windows-')
     const statuses: Array<unknown | Error> = [
