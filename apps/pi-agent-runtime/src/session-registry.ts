@@ -867,7 +867,9 @@ export class SessionRegistry {
     await this.renewLease(record)
     await this.assertIdle(record)
     await record.eventQueue
-    const handle = await open(binding.sessionFile, 'r')
+    // Windows rejects fsync on a read-only handle. The Session file is Runtime-owned,
+    // so open it read/write only for the durability barrier without changing bytes.
+    const handle = await open(binding.sessionFile, 'r+')
     try {
       await handle.sync()
     } finally {

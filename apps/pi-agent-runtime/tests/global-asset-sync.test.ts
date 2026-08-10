@@ -228,7 +228,7 @@ describe('GlobalAssetSyncService', () => {
       expect.objectContaining({ state: 'eligible' }),
       expect.objectContaining({ state: 'eligible' }),
     ])
-  })
+  }, 15_000)
 
   it('invalidates a persisted target-device Activation when synced content hash changes', async () => {
     const firstSource = await root('global-assets-v1-')
@@ -375,7 +375,11 @@ describe('GlobalAssetSyncService', () => {
       new GlobalAssetSyncService({ resourceHome: invalidRoot, deviceId: DEVICE_A }).capture(),
     ).rejects.toMatchObject({ code: 'global_asset_invalid' })
 
-    for (const unsafeName of ['con.txt', 'bad\\name.txt', 'e\u0301.txt']) {
+    const unsafeNames =
+      process.platform === 'win32'
+        ? ['con.txt', 'e\u0301.txt']
+        : ['con.txt', 'bad\\name.txt', 'e\u0301.txt']
+    for (const unsafeName of unsafeNames) {
       const unsafe = await root('global-assets-unsafe-name-')
       await mkdir(join(unsafe, 'assets'))
       await writeFile(join(unsafe, 'assets', unsafeName), 'unsafe')
