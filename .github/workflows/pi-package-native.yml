@@ -172,7 +172,7 @@ jobs:
       - name: Exercise the exact packaged Linux Runtime process group
         if: matrix.platform == 'linux'
         env:
-          GENOFFICE_LINUX_LIFECYCLE_OUTPUT: evidence/g9/native-package/linux/lifecycle.json
+          GENOFFICE_LINUX_LIFECYCLE_OUTPUT: ${{ github.workspace }}/evidence/g9/native-package/linux/lifecycle.json
         shell: bash
         run: |
           mapfile -t runtime_manifests < <(
