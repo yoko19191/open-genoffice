@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createSlidesOfficeToolRendererHandler } from '../src/renderer/ai/office-tool-renderer-adapter'
-import type { SlidesNativeToolResult } from '../src/renderer/ai/slides-skill'
+import type { SlidesNativeToolResult } from '../src/renderer/ai/slides-native-tools'
 
 const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
 const token = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'

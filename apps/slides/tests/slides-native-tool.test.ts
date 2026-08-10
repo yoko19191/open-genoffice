@@ -4,7 +4,7 @@ import {
   buildSlidesNativeContext,
   executeSlidesNativeTool,
   type DeckAccess,
-} from '../src/renderer/ai/slides-skill'
+} from '../src/renderer/ai/slides-native-tools'
 
 const artifactId = '11111111-1111-4111-8111-111111111111'
 const artifactImage = {

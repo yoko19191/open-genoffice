@@ -3,9 +3,9 @@
  * tool-level input validation + IPC call orchestration (window.slidesApi stubbed; engine paths covered by pptx-engine tests).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createSlidesSkill, type DeckAccess } from '../src/renderer/ai/slides-skill'
+import { createSlidesSkill, type DeckAccess } from './helpers/slides-native-harness'
+import type { SlidesNativeToolCall } from '../src/renderer/ai/slides-native-tools'
 import type { RenderSlide } from '@genoffice/pptx-render'
-import type { AgentToolCall } from '../src/shared/ipc'
 
 const SLIDE = {
   widthPx: 1280,
@@ -25,12 +25,11 @@ function makeAccess() {
     },
     applyDeck: () => {},
     fitWidthPx: 1280,
-    generateFromHtml: async () => ({ ok: true, pages: 1 }),
   }
   return { access, applied }
 }
 
-const call = (name: string, input: Record<string, unknown>): AgentToolCall => ({
+const call = (name: string, input: Record<string, unknown>): SlidesNativeToolCall => ({
   id: 't',
   name,
   input,

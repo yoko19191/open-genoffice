@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { openPptx, savePptx, type TextElement } from '@genoffice/pptx-engine'
 import { buildRenderSlide, type RenderSlide } from '@genoffice/pptx-render'
 import { createDeterministicFakeProvider } from '../../pi-agent-runtime/src/fake-provider'
-import { executeSlidesNativeTool, type DeckAccess } from '../src/renderer/ai/slides-skill'
+import { executeSlidesNativeTool, type DeckAccess } from '../src/renderer/ai/slides-native-tools'
 import { createSlidePageCommitter } from '../src/main/agent-tools/page-renderer'
 import type { CommitSlidePageOp, EditParagraph, EditTextOp } from '../src/shared/ipc'
 

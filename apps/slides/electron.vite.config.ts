@@ -37,8 +37,6 @@ export default defineConfig({
         exclude: [
           '@genoffice/pptx-engine',
           '@genoffice/pptx-render',
-          '@genoffice/ai-search',
-          '@genoffice/file-parse',
           '@genoffice/electron-utils',
           'opentype.js',
         ],

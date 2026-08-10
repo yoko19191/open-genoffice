@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { RenderSlide, RenderNode, ShapeRenderNode, PlacedBox } from '@genoffice/pptx-render'
 import { runLayoutScript, type LayoutScriptElement } from '../src/renderer/ai/layout-script'
 import { auditSlideLayout } from '../src/renderer/ai/layout-audit'
-import { createSlidesSkill, type DeckAccess } from '../src/renderer/ai/slides-skill'
+import { createSlidesSkill, type DeckAccess } from './helpers/slides-native-harness'
 
 const box = (x: number, y: number, w: number, h: number, rot = 0): PlacedBox => ({
   x,
@@ -241,7 +241,7 @@ describe('execute_layout_script tool', () => {
     const skill = createSlidesSkill(access())
     const r = await skill.executeTool({
       id: '1',
-      name: 'execute_layout_script',
+      name: 'execute_slide_script',
       input: {
         slideIndex: 0,
         code: `
@@ -265,7 +265,7 @@ describe('execute_layout_script tool', () => {
     const skill = createSlidesSkill(access())
     const r = await skill.executeTool({
       id: '2',
-      name: 'execute_layout_script',
+      name: 'execute_slide_script',
       input: { slideIndex: 0, code: `setBox('t2', { x: 110, y: 120 });` },
     } as any)
     expect(r.mutated).toBe(true)
@@ -277,7 +277,7 @@ describe('execute_layout_script tool', () => {
     const skill = createSlidesSkill(access())
     const r = await skill.executeTool({
       id: '3',
-      name: 'execute_layout_script',
+      name: 'execute_slide_script',
       input: { slideIndex: 0, code: `setBox('missing', { x: 0 });` },
     } as any)
     expect((r as any).isError).toBe(true)

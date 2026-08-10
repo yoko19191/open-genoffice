@@ -18,10 +18,6 @@
     "dist:dir": "electron-vite build && electron-builder --dir"
   },
   "devDependencies": {
-    "@genoffice/agent-core": "*",
-    "@genoffice/ai-provider": "*",
-    "@genoffice/ai-search": "*",
-    "@genoffice/file-parse": "*",
     "@genoffice/i18n": "*",
     "@genoffice/pptx-engine": "*",
     "@genoffice/pptx-render": "*",

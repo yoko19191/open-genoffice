@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { RenderSlide, RenderNode, ShapeRenderNode, PlacedBox } from '@genoffice/pptx-render'
 import { runLayoutScript, type LayoutScriptElement } from '../src/renderer/ai/layout-script'
-import { createSlidesSkill, type DeckAccess } from '../src/renderer/ai/slides-skill'
+import { createSlidesSkill, type DeckAccess } from './helpers/slides-native-harness'
 
 const box = (x: number, y: number, w: number, h: number, rot = 0): PlacedBox => ({
   x,
@@ -631,11 +631,11 @@ describe('execute_slide_script tool', () => {
     expect(r.output).toContain('g1')
   })
 
-  it('legacy name execute_layout_script still works (alias), new primitives also take effect', async () => {
+  it('applies layout and style primitives through the canonical script tool', async () => {
     const skill = createSlidesSkill(access())
     const r = await skill.executeTool({
       id: '6',
-      name: 'execute_layout_script',
+      name: 'execute_slide_script',
       input: { slideIndex: 0, code: `moveBy('t1', 0, 50); setStyle('t1', { bold: true });` },
     } as any)
     expect((r as any).isError).toBeFalsy()

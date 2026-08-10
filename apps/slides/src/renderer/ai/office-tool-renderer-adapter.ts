@@ -5,7 +5,7 @@ import type {
   SlidesOfficeToolRequest,
   SlidesOfficeToolResponse,
 } from '../../shared/slides-office-tools'
-import type { SlidesNativeArtifactImage, SlidesNativeToolResult } from './slides-skill'
+import type { SlidesNativeArtifactImage, SlidesNativeToolResult } from './slides-native-tools'
 
 export interface SlidesOfficeToolRendererDependencies {
   contextVersion(): string

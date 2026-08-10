@@ -25,14 +25,6 @@ vi.mock('react-konva', () => {
 })
 
 import { AiPanel } from '../src/renderer/ai/AiPanel'
-import { AI_PROVIDERS, type AiSettings } from '../src/shared/ipc'
-
-const settings: AiSettings = {
-  provider: 'anthropic',
-  providers: Object.fromEntries(
-    AI_PROVIDERS.map((p) => [p.id, { apiKey: '', model: p.defaultModel }]),
-  ) as AiSettings['providers'],
-}
 
 function mount(element: React.ReactElement): {
   container: HTMLElement
@@ -55,14 +47,6 @@ function mount(element: React.ReactElement): {
 
 function panelProps(overrides: Record<string, unknown> = {}) {
   return {
-    slides: [],
-    current: 0,
-    selectedIds: [],
-    images: new Map<string, HTMLImageElement>(),
-    applySlide: () => {},
-    applyDeck: () => {},
-    fitWidthPx: 960,
-    settings,
     open: true,
     onExpand: () => {},
     onCollapse: () => {},
@@ -82,6 +66,15 @@ function typeInto(textarea: HTMLTextAreaElement, text: string) {
 beforeAll(() => {
   // jsdom has no scrollTo; the panel auto-scrolls its chat log
   Element.prototype.scrollTo ??= () => {}
+  ;(window as Window & { agentSession: unknown }).agentSession = {
+    documentId: async () => {
+      throw new Error('offline')
+    },
+    connect: vi.fn(),
+    command: vi.fn(),
+    disconnect: vi.fn(),
+    onEvent: () => () => {},
+  }
 })
 
 describe('AiPanel collapse (slides)', () => {
