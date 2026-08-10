@@ -6,6 +6,7 @@ import {
   parseSheetsWorkbookOperation,
   sheetsWorkbookOperationsInput,
 } from './sheets-workbook-schema'
+import { SLIDES_OFFICE_TOOL_SCHEMAS, type SlidesOfficeToolAlias } from './slides-office-tool-schema'
 
 type OfficeToolCatalogBinding = {
   app: 'docs' | 'pdf' | 'sheets' | 'slides'
@@ -24,7 +25,7 @@ export type OfficeToolDefinition = OfficeToolCatalogBinding['descriptors'][numbe
 }
 
 function definition(
-  app: 'docs' | 'pdf' | 'sheets',
+  app: 'docs' | 'pdf' | 'sheets' | 'slides',
   modelAlias: string,
   effect: 'read' | 'mutation' | 'external',
   description: string,
@@ -65,6 +66,20 @@ function sheetsDefinition(
   parameters: TObject,
 ): OfficeToolDefinition {
   return definition('sheets', modelAlias, effect, description, parameters)
+}
+
+function slidesDefinition(
+  modelAlias: SlidesOfficeToolAlias,
+  effect: 'read' | 'mutation',
+  description: string,
+): OfficeToolDefinition {
+  return definition(
+    'slides',
+    modelAlias,
+    effect,
+    description,
+    SLIDES_OFFICE_TOOL_SCHEMAS[modelAlias],
+  )
 }
 
 const emptyInput = () => Type.Object({}, { additionalProperties: false })
@@ -589,6 +604,56 @@ export const SHEETS_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
   ),
 ]
 
+export const SLIDES_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
+  slidesDefinition('get_deck_context', 'read', 'Read the current deck outline and selection.'),
+  slidesDefinition('read_slide', 'read', 'Read every current element on one slide.'),
+  slidesDefinition('set_element_text', 'mutation', 'Replace one current element text payload.'),
+  slidesDefinition('set_element_style', 'mutation', 'Update one current element text style.'),
+  slidesDefinition(
+    'set_element_transform',
+    'mutation',
+    'Move, resize or rotate one current element.',
+  ),
+  slidesDefinition(
+    'execute_slide_script',
+    'mutation',
+    'Run one restricted 25k-character slide edit script in a tool transaction.',
+  ),
+  slidesDefinition('set_element_fill', 'mutation', 'Update one current element solid fill.'),
+  slidesDefinition(
+    'set_element_stroke',
+    'mutation',
+    'Update or remove one current element stroke.',
+  ),
+  slidesDefinition(
+    'insert_image',
+    'mutation',
+    'Insert one scope-bound image ArtifactRef without renderer URL or path access.',
+  ),
+  slidesDefinition('delete_slide', 'mutation', 'Delete one current slide.'),
+  slidesDefinition('add_slide', 'mutation', 'Clone one current slide layout into a new slide.'),
+  slidesDefinition('add_text_box', 'mutation', 'Add one native text box.'),
+  slidesDefinition('add_shape', 'mutation', 'Add one native preset shape.'),
+  slidesDefinition('add_chart', 'mutation', 'Add one native editable chart with data provenance.'),
+  slidesDefinition('add_smartart', 'mutation', 'Add one editable SmartArt-style composition.'),
+  slidesDefinition('add_table', 'mutation', 'Add one native editable table.'),
+  slidesDefinition('edit_table_cell', 'mutation', 'Replace one current table cell text payload.'),
+  slidesDefinition(
+    'edit_table_structure',
+    'mutation',
+    'Insert or delete one row or column in a tool transaction.',
+  ),
+  slidesDefinition('edit_table_style', 'mutation', 'Update one current table style.'),
+  slidesDefinition('edit_chart', 'mutation', 'Update one current native chart.'),
+  slidesDefinition(
+    'set_slide_background',
+    'mutation',
+    'Set a solid background or one scope-bound image ArtifactRef.',
+  ),
+  slidesDefinition('delete_element', 'mutation', 'Delete one current top-level element.'),
+  slidesDefinition('ungroup_element', 'mutation', 'Ungroup one current group element.'),
+]
+
 function descriptorProjection(definitions: readonly OfficeToolDefinition[]) {
   return definitions.map(({ id, modelAlias, effect }) => ({ id, modelAlias, effect }))
 }
@@ -596,6 +661,7 @@ function descriptorProjection(definitions: readonly OfficeToolDefinition[]) {
 const pdfDescriptors = descriptorProjection(PDF_OFFICE_TOOL_DEFINITIONS)
 const docsDescriptors = descriptorProjection(DOCS_OFFICE_TOOL_DEFINITIONS)
 const sheetsDescriptors = descriptorProjection(SHEETS_OFFICE_TOOL_DEFINITIONS)
+const slidesDescriptors = descriptorProjection(SLIDES_OFFICE_TOOL_DEFINITIONS)
 
 export const DOCS_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
   app: 'docs',
@@ -613,6 +679,12 @@ export const SHEETS_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
   app: 'sheets',
   catalogHash: '0904d366ddf21423a9a01b0709d508c9cb74b620db11c8e2881fa0115d3d04a8',
   descriptors: sheetsDescriptors,
+}
+
+export const SLIDES_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
+  app: 'slides',
+  catalogHash: '99052ba22f6c30ef315f8f71f5f52171205526b5037b9a56206b776a21195c74',
+  descriptors: slidesDescriptors,
 }
 
 export function resolveOfficeToolDefinitions(
@@ -641,6 +713,14 @@ export function resolveOfficeToolDefinitions(
       JSON.stringify(SHEETS_OFFICE_TOOL_CATALOG_BINDING.descriptors)
   ) {
     return SHEETS_OFFICE_TOOL_DEFINITIONS
+  }
+  if (
+    binding.app === 'slides' &&
+    binding.catalogHash === SLIDES_OFFICE_TOOL_CATALOG_BINDING.catalogHash &&
+    JSON.stringify(binding.descriptors) ===
+      JSON.stringify(SLIDES_OFFICE_TOOL_CATALOG_BINDING.descriptors)
+  ) {
+    return SLIDES_OFFICE_TOOL_DEFINITIONS
   }
   throw new Error('office_tool_catalog_mismatch')
 }
@@ -674,6 +754,22 @@ export function parseSheetsOfficeToolInput(toolId: string, value: unknown): unkn
   }
 }
 
+export function parseSlidesOfficeToolInput(toolId: string, value: unknown): unknown {
+  const descriptor = SLIDES_OFFICE_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
+  if (!descriptor) throw new Error('tool_not_in_snapshot')
+  if (!Value.Check(descriptor.parameters, value)) throw new Error('invalid_tool_arguments')
+  const input = value as Record<string, unknown>
+  if (toolId === 'office:slides:set_slide_background') {
+    const hasColor = typeof input.color === 'string'
+    const hasArtifact = typeof input.artifactId === 'string'
+    if (hasColor === hasArtifact) throw new Error('invalid_tool_arguments')
+  }
+  if (toolId === 'office:slides:edit_chart' && input.series !== undefined && !input.dataSource) {
+    throw new Error('invalid_tool_arguments')
+  }
+  return value
+}
+
 export { SheetsWorkbookOperationSchema }
 
 export type OfficeToolCatalogMetadata = {
@@ -686,6 +782,18 @@ export function resolveOfficeToolCatalogMetadata(
   canonicalToolId: string,
 ): OfficeToolCatalogMetadata | undefined {
   if (!canonicalToolId.startsWith('office:')) return undefined
+  const migratedDefinition = [
+    ...PDF_OFFICE_TOOL_DEFINITIONS,
+    ...DOCS_OFFICE_TOOL_DEFINITIONS,
+    ...SHEETS_OFFICE_TOOL_DEFINITIONS,
+    ...SLIDES_OFFICE_TOOL_DEFINITIONS,
+  ].find(({ id }) => id === canonicalToolId)
+  if (migratedDefinition) {
+    return {
+      modelAlias: migratedDefinition.modelAlias,
+      effect: migratedDefinition.effect,
+    }
+  }
   const entry = catalog.entries.find(({ targetId }) => targetId === canonicalToolId)
   if (!entry) return undefined
   return {

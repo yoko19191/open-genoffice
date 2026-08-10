@@ -77,6 +77,12 @@ import type {
   OpenResult,
   SlidesApi,
 } from '../shared/ipc'
+import {
+  SLIDES_OFFICE_TOOL_CHANNELS,
+  isSlidesOfficeToolRequest,
+  isSlidesOfficeToolResponse,
+  type SlidesOfficeToolsApi,
+} from '../shared/slides-office-tools'
 
 const api: SlidesApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
@@ -331,6 +337,33 @@ const api: SlidesApi = {
 }
 
 contextBridge.exposeInMainWorld('slidesApi', api)
+
+const officeTools: SlidesOfficeToolsApi = {
+  onRequest: (handler) => {
+    const listener = (_event: IpcRendererEvent, request: unknown) => {
+      if (!isSlidesOfficeToolRequest(request)) return
+      void Promise.resolve(handler(request))
+        .then((response) => {
+          ipcRenderer.send(
+            SLIDES_OFFICE_TOOL_CHANNELS.response,
+            isSlidesOfficeToolResponse(response)
+              ? response
+              : { requestId: request.requestId, ok: false, errorCode: 'tool_failed' },
+          )
+        })
+        .catch(() => {
+          ipcRenderer.send(SLIDES_OFFICE_TOOL_CHANNELS.response, {
+            requestId: request.requestId,
+            ok: false,
+            errorCode: 'tool_failed',
+          })
+        })
+    }
+    ipcRenderer.on(SLIDES_OFFICE_TOOL_CHANNELS.request, listener)
+    return () => ipcRenderer.removeListener(SLIDES_OFFICE_TOOL_CHANNELS.request, listener)
+  },
+}
+contextBridge.exposeInMainWorld('slidesOfficeTools', officeTools)
 
 // Chat attachment bridge: method names/signatures match the window.desktop attachment subset in docs, so the renderer's files-skill is copied over wholesale
 const filesApi: DesktopFilesApi = {

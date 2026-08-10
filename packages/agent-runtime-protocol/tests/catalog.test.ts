@@ -14,9 +14,12 @@ import {
   PDF_OFFICE_TOOL_DEFINITIONS,
   SHEETS_OFFICE_TOOL_CATALOG_BINDING,
   SHEETS_OFFICE_TOOL_DEFINITIONS,
+  SLIDES_OFFICE_TOOL_CATALOG_BINDING,
+  SLIDES_OFFICE_TOOL_DEFINITIONS,
   parseDocsOfficeToolInput,
   parsePdfOfficeToolInput,
   parseSheetsOfficeToolInput,
+  parseSlidesOfficeToolInput,
   resolveOfficeToolCatalogMetadata,
   resolveOfficeToolDefinitions,
 } from '../src/office-tool-catalog'
@@ -232,6 +235,128 @@ describe('frozen four-application tool catalog', () => {
     ).toThrowError('invalid_tool_arguments')
   })
 
+  it('publishes the exact 23 Slides native executors and one deterministic binding', () => {
+    expect(SLIDES_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)).toEqual([
+      'get_deck_context',
+      'read_slide',
+      'set_element_text',
+      'set_element_style',
+      'set_element_transform',
+      'execute_slide_script',
+      'set_element_fill',
+      'set_element_stroke',
+      'insert_image',
+      'delete_slide',
+      'add_slide',
+      'add_text_box',
+      'add_shape',
+      'add_chart',
+      'add_smartart',
+      'add_table',
+      'edit_table_cell',
+      'edit_table_structure',
+      'edit_table_style',
+      'edit_chart',
+      'set_slide_background',
+      'delete_element',
+      'ungroup_element',
+    ])
+    expect(SLIDES_OFFICE_TOOL_DEFINITIONS[8]).toMatchObject({
+      id: 'office:slides:insert_image',
+      modelAlias: 'insert_image',
+      effect: 'mutation',
+    })
+    expect(SLIDES_OFFICE_TOOL_CATALOG_BINDING.catalogHash).toBe(
+      createHash('sha256')
+        .update(JSON.stringify(SLIDES_OFFICE_TOOL_CATALOG_BINDING.descriptors))
+        .digest('hex'),
+    )
+    expect(resolveOfficeToolDefinitions(SLIDES_OFFICE_TOOL_CATALOG_BINDING)).toBe(
+      SLIDES_OFFICE_TOOL_DEFINITIONS,
+    )
+  })
+
+  it('validates Slides source ids, scripts and scope-bound image inputs at the catalog boundary', () => {
+    expect(
+      parseSlidesOfficeToolInput('office:slides:set_element_transform', {
+        slideIndex: 0,
+        sourceId: 'shape-1',
+        x: 10,
+        y: 20,
+        rotationDeg: 15,
+      }),
+    ).toEqual({ slideIndex: 0, sourceId: 'shape-1', x: 10, y: 20, rotationDeg: 15 })
+    expect(
+      parseSlidesOfficeToolInput('office:slides:insert_image', {
+        slideIndex: 0,
+        artifactId: '11111111-1111-4111-8111-111111111111',
+        x: 10,
+        y: 20,
+        w: 300,
+        h: 200,
+      }),
+    ).toMatchObject({ artifactId: '11111111-1111-4111-8111-111111111111' })
+    expect(() =>
+      parseSlidesOfficeToolInput('office:slides:insert_image', {
+        slideIndex: 0,
+        artifactId: '11111111-1111-4111-8111-111111111111',
+        url: 'https://example.test/private.png',
+        x: 10,
+        y: 20,
+        w: 300,
+        h: 200,
+      }),
+    ).toThrowError('invalid_tool_arguments')
+    expect(() =>
+      parseSlidesOfficeToolInput('office:slides:execute_slide_script', {
+        slideIndex: 0,
+        code: 'x'.repeat(25_001),
+      }),
+    ).toThrowError('invalid_tool_arguments')
+    expect(
+      parseSlidesOfficeToolInput('office:slides:set_slide_background', {
+        slideIndex: -1,
+        color: '#112233',
+      }),
+    ).toMatchObject({ color: '#112233' })
+    expect(
+      parseSlidesOfficeToolInput('office:slides:set_slide_background', {
+        slideIndex: 0,
+        artifactId: '11111111-1111-4111-8111-111111111111',
+      }),
+    ).toMatchObject({ artifactId: '11111111-1111-4111-8111-111111111111' })
+    for (const background of [
+      { slideIndex: 0 },
+      {
+        slideIndex: 0,
+        color: '#112233',
+        artifactId: '11111111-1111-4111-8111-111111111111',
+      },
+    ]) {
+      expect(() =>
+        parseSlidesOfficeToolInput('office:slides:set_slide_background', background),
+      ).toThrowError('invalid_tool_arguments')
+    }
+    expect(() =>
+      parseSlidesOfficeToolInput('office:slides:edit_chart', {
+        slideIndex: 0,
+        sourceId: 'chart-1',
+        series: [{ name: 'Revenue', values: [1] }],
+      }),
+    ).toThrowError('invalid_tool_arguments')
+    expect(
+      parseSlidesOfficeToolInput('office:slides:edit_chart', {
+        slideIndex: 0,
+        sourceId: 'chart-1',
+        series: [{ name: 'Revenue', values: [1] }],
+        dataSource: 'user',
+      }),
+    ).toMatchObject({ dataSource: 'user' })
+    expect(() =>
+      parseSlidesOfficeToolInput('office:slides:execute_layout_script', {}),
+    ).toThrowError('tool_not_in_snapshot')
+  })
+
   it('resolves canonical Office effects without treating platform ids as Office tools', () => {
     expect(resolveOfficeToolCatalogMetadata('office:pdf:read_pages')).toEqual({
       modelAlias: 'read_pages',
@@ -243,6 +368,10 @@ describe('frozen four-application tool catalog', () => {
     })
     expect(resolveOfficeToolCatalogMetadata('platform:artifact:read_text')).toBeUndefined()
     expect(resolveOfficeToolCatalogMetadata('office:pdf:unknown')).toBeUndefined()
+    expect(resolveOfficeToolCatalogMetadata('office:slides:insert_image')).toEqual({
+      modelAlias: 'insert_image',
+      effect: 'mutation',
+    })
   })
 
   it('validates and canonicalizes the 63-instance migration baseline', () => {
@@ -261,7 +390,13 @@ describe('frozen four-application tool catalog', () => {
     const catalog = parseOfficeToolCatalog(catalogFixture)
     const sourceGroups = new Map<string, string[]>()
     for (const entry of catalog.entries) {
-      if (entry.app === 'docs' || entry.app === 'pdf' || entry.app === 'sheets') continue
+      if (
+        entry.app === 'docs' ||
+        entry.app === 'pdf' ||
+        entry.app === 'sheets' ||
+        entry.app === 'slides'
+      )
+        continue
       const key = `${entry.app}:${entry.sourceFile}`
       sourceGroups.set(key, [...(sourceGroups.get(key) ?? []), entry.legacyAlias])
     }
@@ -275,10 +410,15 @@ describe('frozen four-application tool catalog', () => {
       ['docs', DOCS_OFFICE_TOOL_DEFINITIONS],
       ['pdf', PDF_OFFICE_TOOL_DEFINITIONS],
       ['sheets', SHEETS_OFFICE_TOOL_DEFINITIONS],
+      ['slides', SLIDES_OFFICE_TOOL_DEFINITIONS],
     ] as const) {
       const expected = catalog.entries
         .filter((entry) => entry.app === app && entry.disposition === 'office-executor')
-        .map(({ legacyAlias }) => legacyAlias)
+        .map(({ legacyAlias, targetId }) =>
+          app === 'slides' && legacyAlias === 'insert_web_image'
+            ? targetId!.split(':').at(-1)!
+            : legacyAlias,
+        )
       expect(definitions.map(({ modelAlias }) => modelAlias).sort(), app).toEqual(expected.sort())
     }
   })

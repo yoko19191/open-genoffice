@@ -1411,6 +1411,142 @@ export function createSlidesSkill(access: DeckAccess): AgentSkill {
   }
 }
 
+export function buildSlidesNativeContext(access: DeckAccess): string {
+  return buildDeckOutline(access.getSlides(), access.getCurrent(), access.getSelectedIds())
+}
+
+export interface SlidesNativeArtifactImage {
+  base64: string
+  ext: 'png'
+  mediaType: 'image/png'
+}
+
+export interface SlidesNativeToolResult {
+  output: string
+  mutated: boolean
+  summary: string
+  isError?: boolean
+}
+
+const SLIDES_NATIVE_TOOL_ALIASES = new Set([
+  'get_deck_context',
+  'read_slide',
+  'set_element_text',
+  'set_element_style',
+  'set_element_transform',
+  'execute_slide_script',
+  'set_element_fill',
+  'set_element_stroke',
+  'insert_image',
+  'delete_slide',
+  'add_slide',
+  'add_text_box',
+  'add_shape',
+  'add_chart',
+  'add_smartart',
+  'add_table',
+  'edit_table_cell',
+  'edit_table_structure',
+  'edit_table_style',
+  'edit_chart',
+  'set_slide_background',
+  'delete_element',
+  'ungroup_element',
+])
+
+/**
+ * Pi's narrow native lane. It deliberately exposes only the frozen 23 executors and never
+ * reaches legacy cloud generation, planning, search or QC branches in this mixed legacy Skill.
+ */
+export async function executeSlidesNativeTool(
+  access: DeckAccess,
+  call: AgentToolCall,
+  signal: AbortSignal,
+  artifacts: ReadonlyMap<string, SlidesNativeArtifactImage> = new Map(),
+): Promise<SlidesNativeToolResult> {
+  if (!SLIDES_NATIVE_TOOL_ALIASES.has(call.name)) {
+    return fail(call.name, `Unknown native Slides tool: ${call.name}`)
+  }
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+
+  if (call.name === 'insert_image') {
+    const idx = Number(call.input.slideIndex)
+    const artifactId = String(call.input.artifactId ?? '')
+    const artifact = artifacts.get(artifactId)
+    if (!access.getSlides()[idx]) return fail(t('aiFailInsertImage'), 'slideIndex out of range')
+    if (!artifact) return fail(t('aiFailInsertImage'), 'artifact_invalid')
+    const inserted = await window.slidesApi.addImageBytes({
+      slideIndex: idx,
+      base64: artifact.base64,
+      ext: artifact.ext,
+      xPx: Number(call.input.x),
+      yPx: Number(call.input.y),
+      wPx: Number(call.input.w),
+      hPx: Number(call.input.h),
+      fitWidthPx: access.fitWidthPx,
+      name: `artifact-${artifactId}`,
+    })
+    if (!inserted || 'error' in inserted) return fail(t('aiFailInsertImage'), 'Insertion failed')
+    access.applySlide(idx, inserted.slide)
+    return {
+      output: `Inserted the validated image on page ${idx + 1}, element id=${inserted.sourceId}.`,
+      mutated: true,
+      summary: t('aiSumInsertImage', { n: idx + 1 }),
+    }
+  }
+
+  if (call.name === 'set_slide_background' && call.input.artifactId != null) {
+    const artifactId = String(call.input.artifactId)
+    const artifact = artifacts.get(artifactId)
+    if (!artifact) return fail(t('aiFailBackground'), 'artifact_invalid')
+    const slides = access.getSlides()
+    const requested = Number(call.input.slideIndex)
+    const indexes = requested === -1 ? slides.map((_, index) => index) : [requested]
+    if (indexes.some((index) => !slides[index])) {
+      return fail(t('aiFailBackground'), 'slideIndex out of range')
+    }
+    for (const index of indexes) {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      const slide = access.getSlides()[index]!
+      const inserted = await window.slidesApi.addImageBytes({
+        slideIndex: index,
+        base64: artifact.base64,
+        ext: artifact.ext,
+        xPx: 0,
+        yPx: 0,
+        wPx: slide.widthPx,
+        hPx: slide.heightPx,
+        fitWidthPx: access.fitWidthPx,
+        name: `background-artifact-${artifactId}`,
+      })
+      if (!inserted || 'error' in inserted) return fail(t('aiFailBackground'), 'Insertion failed')
+      const reordered = await window.slidesApi.reorderElement({
+        slideIndex: index,
+        sourceId: inserted.sourceId,
+        dir: 'back',
+      })
+      if (!reordered) return fail(t('aiFailBackground'), 'Background ordering failed')
+      access.applySlide(index, reordered)
+    }
+    return {
+      output:
+        requested === -1
+          ? `Set the validated image background on all ${indexes.length} pages.`
+          : `Set the validated image background on page ${requested + 1}.`,
+      mutated: true,
+      summary:
+        requested === -1 ? t('aiSumBackgroundAll') : t('aiSumBackground', { n: requested + 1 }),
+    }
+  }
+
+  return executeTool(
+    access,
+    call,
+    { htmlGenerated: true, webSearched: true },
+    signal,
+  ) as Promise<SlidesNativeToolResult>
+}
+
 interface SkillState {
   htmlGenerated: boolean
   /** A web_search ran in this conversation — unlocks dataSource:'search' in the figure gate */

@@ -58,6 +58,12 @@ import { ToastHost } from './components/toast'
 import { showToast } from './components/toast-bus'
 import { t, useI18n } from './i18n/locale'
 import { AiPanel } from './ai/AiPanel'
+import { createSlidesOfficeToolRendererHandler } from './ai/office-tool-renderer-adapter'
+import {
+  buildSlidesNativeContext,
+  executeSlidesNativeTool,
+  type DeckAccess,
+} from './ai/slides-skill'
 import { ChartDataDialog } from './components/ChartDataDialog'
 import type { BrushFormat } from './format-brush'
 import { isTextUndoTarget, shouldRouteUndoToDeck } from './undo-routing'
@@ -255,6 +261,14 @@ export function App() {
   const [drawKind, setDrawKind] = useState<InsertKind | null>(null)
   /** Latest-state bundle for the extracted action modules; refreshed every render (see action-context.ts). */
   const ctxRef = useRef<ActionCtx>(null as unknown as ActionCtx)
+  const officeSlidesRef = useRef(slides)
+  const officeSlidesIdentityRef = useRef(slides)
+  const officeVersionRef = useRef(0)
+  if (officeSlidesIdentityRef.current !== slides) {
+    officeSlidesIdentityRef.current = slides
+    officeSlidesRef.current = slides
+    officeVersionRef.current += 1
+  }
   const [zoom, setZoom] = useState(1)
   /** unscaled layout size of .stage-scale — its transform-scaled visual size is
    * scaleBox * zoom, which the wrapper zoom-box adopts so scrolling can reach it all */
@@ -852,7 +866,13 @@ export function App() {
   )
 
   const applySlide = useCallback((slideIndex: number, updated: RenderSlide) => {
-    setSlides((s) => s.map((sl, i) => (i === slideIndex ? updated : sl)))
+    setSlides((s) => {
+      const next = s.map((sl, i) => (i === slideIndex ? updated : sl))
+      officeSlidesRef.current = next
+      officeSlidesIdentityRef.current = next
+      officeVersionRef.current += 1
+      return next
+    })
     setDirty(true)
   }, [])
 
@@ -895,12 +915,53 @@ export function App() {
   )
 
   const applyDeck = useCallback((all: RenderSlide[], goTo?: number) => {
+    officeSlidesRef.current = all
+    officeSlidesIdentityRef.current = all
+    officeVersionRef.current += 1
     setSlides(all)
     if (goTo != null) setCurrent(goTo)
     setSelectedIds([])
     setEditing(null)
     setDirty(true)
   }, [])
+
+  useEffect(() => {
+    if (!window.slidesOfficeTools) return
+    const access: DeckAccess = {
+      getSlides: () => officeSlidesRef.current,
+      getCurrent: () => ctxRef.current.current,
+      getSelectedIds: () => ctxRef.current.selectedIds,
+      applySlide,
+      applyDeck,
+      fitWidthPx: FIT_WIDTH,
+    }
+    const handler = createSlidesOfficeToolRendererHandler({
+      contextVersion: () => `slides-edit-${officeVersionRef.current}`,
+      advanceContextVersion: () => `slides-edit-${officeVersionRef.current}`,
+      contextContent: () => buildSlidesNativeContext(access),
+      contextDetails: () => ({
+        slideCount: officeSlidesRef.current.length,
+        currentSlide: ctxRef.current.current,
+        selectedIds: [...ctxRef.current.selectedIds],
+      }),
+      beginHistoryBatch: () => window.slidesApi.beginHistoryBatch(),
+      endHistoryBatch: () => window.slidesApi.endHistoryBatch(),
+      restoreHistorySnapshot: async (snapshotId) => {
+        const restored = await window.slidesApi.aiSnapshotRestore(snapshotId)
+        if (!restored) return false
+        applyDeck(restored, Math.min(ctxRef.current.current, Math.max(0, restored.length - 1)))
+        return true
+      },
+      execute: (modelAlias, input, signal, artifacts) =>
+        executeSlidesNativeTool(
+          access,
+          { id: `office-${crypto.randomUUID()}`, name: modelAlias, input },
+          signal,
+          artifacts,
+        ),
+    })
+    return window.slidesOfficeTools.onRequest(handler)
+  }, [applyDeck, applySlide])
 
   const addSlide = useCallback(() => slideActions.addSlide(ctxRef.current), [])
   const addSlideWithLayout = useCallback(

@@ -222,6 +222,10 @@ import type {
   AnimationItem,
   ShapeKey,
 } from '../shared/ipc'
+import {
+  SLIDES_OFFICE_TOOL_CHANNELS,
+  isSlidesOfficeToolResponse,
+} from '../shared/slides-office-tools'
 
 import { tm } from './i18n-main'
 import { tiffToPng } from './tiff-decode'
@@ -247,6 +251,7 @@ import {
   type Session,
 } from './session-state'
 import { registerAiIpc, registerSlidesOnlyAiIpc } from './ai-ipc'
+import { SlidesOfficeToolRendererClient } from './agent-tools/renderer-client'
 
 /** One slide, copied from any deck open in this process, waiting to be pasted into another. */
 let slideClipboard: { bundle: SlideBundle; png?: string } | null = null
@@ -272,6 +277,13 @@ export { registerAiIpc } from './ai-ipc'
 let pendingOpenPath: string | null = null
 /** tab mode: each view queues its own path; the renderer consumes it after mounting */
 const pendingByWc = new Map<number, string>()
+const officeToolClientsByWc = new Map<number, SlidesOfficeToolRendererClient>()
+
+export function slidesOfficeToolRendererClient(
+  webContentsId: number,
+): Pick<SlidesOfficeToolRendererClient, 'request'> | undefined {
+  return officeToolClientsByWc.get(webContentsId)
+}
 /**
  * Renderer freeze watchdog: the freeze is sporadic and has never
  * reproduced under instrumentation, so when it does happen, capture the
@@ -347,6 +359,14 @@ async function handleRendererFreeze(wc: WebContents): Promise<void> {
 
 function trackSlidesWebContents(wc: WebContents): void {
   windowRefs.activeWebContents = wc
+  officeToolClientsByWc.set(
+    wc.id,
+    new SlidesOfficeToolRendererClient({
+      webContentsId: wc.id,
+      isDestroyed: () => wc.isDestroyed(),
+      send: (request) => wc.send(SLIDES_OFFICE_TOOL_CHANNELS.request, request),
+    }),
+  )
   wc.on('unresponsive', () => void handleRendererFreeze(wc))
   // The AI panel opens links via window.open; route them to the system
   // browser instead of spawning an in-app window with remote content.
@@ -361,6 +381,8 @@ function trackSlidesWebContents(wc: WebContents): void {
     if (s && !sessionDirty(s)) dropUntitledRecovery(wc.id)
     else untitledRecovery.delete(wc.id)
     sessions.delete(wc.id)
+    officeToolClientsByWc.get(wc.id)?.close()
+    officeToolClientsByWc.delete(wc.id)
     pendingByWc.delete(wc.id)
     clipboards.delete(wc.id)
     lastSlidePaste.delete(wc.id)
@@ -926,6 +948,12 @@ let ipcRegistered = false
 export function registerSlidesIpc(): void {
   if (ipcRegistered) return
   ipcRegistered = true
+
+  ipcMain.removeAllListeners(SLIDES_OFFICE_TOOL_CHANNELS.response)
+  ipcMain.on(SLIDES_OFFICE_TOOL_CHANNELS.response, (event, response: unknown) => {
+    if (!isSlidesOfficeToolResponse(response)) return
+    officeToolClientsByWc.get(event.sender.id)?.accept(event.sender.id, response)
+  })
 
   // shared with the other editor modules — last (identical) registration wins
   ipcMain.removeHandler('app:get-language')
