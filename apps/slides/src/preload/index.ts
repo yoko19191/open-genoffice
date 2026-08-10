@@ -79,6 +79,11 @@ import {
   isSlidesOfficeToolResponse,
   type SlidesOfficeToolsApi,
 } from '../shared/slides-office-tools'
+import {
+  SLIDES_AGENT_MEDIA_CHANNELS,
+  isSlidesMediaArtifact,
+  type SlidesAgentMediaApi,
+} from '../shared/agent-media-artifacts'
 
 const api: SlidesApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
@@ -304,3 +309,12 @@ const officeTools: SlidesOfficeToolsApi = {
 contextBridge.exposeInMainWorld('slidesOfficeTools', officeTools)
 
 contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))
+const agentMediaArtifacts: SlidesAgentMediaApi = {
+  pick: async () => {
+    const result: unknown = await ipcRenderer.invoke(SLIDES_AGENT_MEDIA_CHANNELS.pick)
+    if (result === null || isSlidesMediaArtifact(result)) return result
+    throw new Error('artifact_invalid')
+  },
+  openModelSettings: () => ipcRenderer.invoke(SLIDES_AGENT_MEDIA_CHANNELS.openModelSettings),
+}
+contextBridge.exposeInMainWorld('agentMediaArtifacts', agentMediaArtifacts)

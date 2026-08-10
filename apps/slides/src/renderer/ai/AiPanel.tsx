@@ -7,10 +7,14 @@ import {
   Markdown,
   type AgentSessionProjection,
 } from '@genoffice/ui'
+import type { SlidesMediaArtifact } from '../../shared/agent-media-artifacts'
 import { useI18n } from '../i18n/locale'
 import sendEnterOn from '../assets/send-enter-on.png'
 import sendEnterOff from '../assets/send-enter-off.png'
 import sendStop from '../assets/send-stop.png'
+import attachIcon from '../assets/attach-icon.png'
+import audioIcon from '../assets/file-voice.png'
+import videoIcon from '../assets/file-video.png'
 
 function isBusy(projection: AgentSessionProjection | undefined): boolean {
   const state = projection?.activeRun?.state
@@ -32,6 +36,7 @@ export function AiPanel({
   const [prompt, setPrompt] = useState('')
   const [projection, setProjection] = useState<AgentSessionProjection>()
   const [connectionError, setConnectionError] = useState<string>()
+  const [artifacts, setArtifacts] = useState<SlidesMediaArtifact[]>([])
   const chatRef = useRef<HTMLDivElement>(null)
   const presetNonceRef = useRef<number | undefined>(undefined)
   const controllerRef = useRef<AgentSessionController | null>(null)
@@ -61,9 +66,12 @@ export function AiPanel({
     if (!instruction || busy) return
     setPrompt('')
     setConnectionError(undefined)
-    void controller.prompt(instruction).catch((error: unknown) => {
-      setConnectionError(error instanceof Error ? error.message : 'agent_prompt_failed')
-    })
+    void controller
+      .prompt(instruction, artifacts)
+      .then(() => setArtifacts([]))
+      .catch((error: unknown) => {
+        setConnectionError(error instanceof Error ? error.message : 'agent_prompt_failed')
+      })
   }
 
   useEffect(() => {
@@ -77,6 +85,19 @@ export function AiPanel({
     void controller.abort().catch((error: unknown) => {
       setConnectionError(error instanceof Error ? error.message : 'agent_abort_failed')
     })
+  }
+
+  const pickMedia = (): void => {
+    if (busy || artifacts.length >= 16) return
+    setConnectionError(undefined)
+    void window.agentMediaArtifacts
+      .pick()
+      .then((artifact) => {
+        if (artifact) setArtifacts((current) => [...current, artifact].slice(0, 16))
+      })
+      .catch((error: unknown) => {
+        setConnectionError(error instanceof Error ? error.message : 'artifact_invalid')
+      })
   }
 
   const rollbackRun = (): void => {
@@ -147,12 +168,31 @@ export function AiPanel({
         {(projection?.tools.length ?? 0) > 0 && (
           <div className="ai-work-group" data-testid="office-tool-status">
             {projection!.tools.map((tool) => (
-              <div key={tool.toolCallId} className="ai-step-row">
-                <span className={`ai-step-icon ${tool.state}`} aria-hidden>
-                  ·
-                </span>
-                <span className="ai-step-title">{tool.toolName}</span>
-                <span className="ai-step-desc">{tool.state}</span>
+              <div key={tool.toolCallId}>
+                <div className="ai-step-row">
+                  <span className={`ai-step-icon ${tool.state}`} aria-hidden>
+                    ·
+                  </span>
+                  <span className="ai-step-title">{tool.toolName}</span>
+                  <span className="ai-step-desc">{tool.state}</span>
+                </div>
+                {tool.details?.kind === 'media_analysis' && (
+                  <div className="ai-step-row" data-testid="media-analysis-status">
+                    <span className="ai-step-title">
+                      {tool.details.providerId} / {tool.details.modelId}
+                    </span>
+                    <span className="ai-step-desc">{tool.details.state}</span>
+                    {tool.details.action === 'change_model' && (
+                      <button
+                        type="button"
+                        className="ai-header-btn"
+                        onClick={() => void window.agentMediaArtifacts.openModelSettings()}
+                      >
+                        Change model
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -239,6 +279,48 @@ export function AiPanel({
           sendIconEnabled={<img src={sendEnterOn} alt="" aria-hidden />}
           sendIconDisabled={<img src={sendEnterOff} alt="" aria-hidden />}
           stopIcon={<img src={sendStop} alt="" aria-hidden />}
+          header={
+            artifacts.length > 0 ? (
+              <div className="ai-attachments" data-testid="agent-media-attachments">
+                {artifacts.map((artifact) => (
+                  <span className="ai-attachment-chip" key={artifact.artifactId}>
+                    <img
+                      src={artifact.mediaType === 'audio/wav' ? audioIcon : videoIcon}
+                      width={16}
+                      height={16}
+                      alt=""
+                      aria-hidden
+                    />
+                    {artifact.displayName}
+                    <button
+                      type="button"
+                      className="ai-attachment-remove"
+                      title={t('aiRemoveAttachment')}
+                      onClick={() =>
+                        setArtifacts((current) =>
+                          current.filter(({ artifactId }) => artifactId !== artifact.artifactId),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : undefined
+          }
+          footerStart={
+            <button
+              type="button"
+              className="ai-attach-btn"
+              title={t('aiAttachTitle')}
+              aria-label={t('aiAttachTitle')}
+              disabled={busy || artifacts.length >= 16}
+              onClick={pickMedia}
+            >
+              <img src={attachIcon} alt="" aria-hidden />
+            </button>
+          }
           onChange={setPrompt}
           onSend={() => send(prompt)}
           onStop={stop}

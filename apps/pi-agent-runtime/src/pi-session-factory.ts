@@ -30,9 +30,14 @@ import {
   resolveOfficeToolDefinitions,
   type OfficeToolDefinition,
 } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
-import { PLATFORM_TOOL_DEFINITIONS } from '@genoffice/agent-runtime-protocol/platform-tool-catalog'
+import {
+  MEDIA_ANALYSIS_TOOL_DEFINITION,
+  PLATFORM_TOOL_DEFINITIONS,
+  type PlatformToolDetails,
+} from '@genoffice/agent-runtime-protocol/platform-tool-catalog'
 import type { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
 import type { PlatformToolService } from './platform-tool-service'
+import { ModelMediaProviderError, type ModelMediaProvider } from './model-media-provider'
 import type {
   CodexImageGenerateInput,
   CodexImageGenerateResult,
@@ -83,6 +88,7 @@ type CreatePiSessionBaseOptions = {
     signal: AbortSignal,
   ) => Promise<CodexImageGenerateResult>
   platformTools?: Pick<PlatformToolService, 'execute'>
+  mediaProvider?: Pick<ModelMediaProvider, 'analyze'>
   credentials?: CredentialStore
   spawnSubagent?: (
     request: SpawnSubagentRequest,
@@ -225,6 +231,7 @@ export async function createDeterministicPiSession(
   let nextOfficeToolOrder = 0
   let latestOfficeContextVersion: string | undefined
   let latestFormInventoryVersion: string | undefined
+  let currentArtifacts = new Map<string, ArtifactRef>()
   const resourceLoader = new ControlledResourceLoader({
     cwd: options.cwd,
     agentDir: options.agentDir,
@@ -463,6 +470,81 @@ export async function createDeterministicPiSession(
         }),
       )
     : []
+  const mediaTool =
+    managedModel && options.mediaProvider
+      ? defineTool<
+          typeof MEDIA_ANALYSIS_TOOL_DEFINITION.parameters,
+          { platformTool: PlatformToolDetails }
+        >({
+          name: MEDIA_ANALYSIS_TOOL_DEFINITION.modelAlias,
+          label: MEDIA_ANALYSIS_TOOL_DEFINITION.label,
+          description: MEDIA_ANALYSIS_TOOL_DEFINITION.description,
+          promptSnippet: MEDIA_ANALYSIS_TOOL_DEFINITION.description,
+          parameters: MEDIA_ANALYSIS_TOOL_DEFINITION.parameters,
+          executionMode: 'sequential',
+          async execute(_toolCallId, input, signal) {
+            if (!extensionExecution) throw new Error('media_parent_context_required')
+            if (!extensionExecution.snapshot.toolIds.includes(MEDIA_ANALYSIS_TOOL_DEFINITION.id)) {
+              throw new Error('media_analysis_not_authorized')
+            }
+            const artifact = currentArtifacts.get(input.artifactId)
+            if (!artifact) throw new Error('artifact_invalid')
+            const model = options.resolveModelMetadata!()
+            const operationId = randomUUID()
+            try {
+              const result = await options.mediaProvider!.analyze(
+                {
+                  operationId,
+                  documentId: options.documentId,
+                  runId: extensionExecution.runId,
+                  artifact,
+                  requirements: input.requirements,
+                  model,
+                },
+                signal ?? new AbortController().signal,
+              )
+              return {
+                content: [{ type: 'text' as const, text: result.text }],
+                details: {
+                  platformTool: {
+                    kind: 'media_analysis' as const,
+                    state: 'completed' as const,
+                    ...result.details,
+                  },
+                },
+              }
+            } catch (error) {
+              if (
+                error instanceof ModelMediaProviderError &&
+                error.code === 'media_capability_unsupported' &&
+                error.details
+              ) {
+                return {
+                  content: [
+                    {
+                      type: 'text' as const,
+                      text: 'Media analysis is disabled for the selected model. Change the model to one with a supported media capability.',
+                    },
+                  ],
+                  details: {
+                    platformTool: {
+                      toolId: MEDIA_ANALYSIS_TOOL_DEFINITION.id,
+                      kind: 'media_analysis' as const,
+                      state: 'disabled' as const,
+                      operationId,
+                      providerId: error.details.providerId,
+                      modelId: error.details.modelId,
+                      sourceArtifactId: artifact.artifactId,
+                      action: error.details.action,
+                    },
+                  },
+                }
+              }
+              throw error
+            }
+          },
+        })
+      : undefined
   const officeTools = officeToolDefinitions.map((definition) =>
     defineTool({
       name: definition.modelAlias,
@@ -569,9 +651,14 @@ export async function createDeterministicPiSession(
     resourceLoader,
     ...(managedModel ? {} : { noTools: 'all' as const, tools: ['genoffice_contract_probe'] }),
     customTools: managedModel
-      ? [resourceReadTool, subagentTool, imageTool, ...platformTools, ...officeTools].filter(
-          (tool): tool is NonNullable<typeof tool> => tool !== undefined,
-        )
+      ? [
+          resourceReadTool,
+          subagentTool,
+          imageTool,
+          mediaTool,
+          ...platformTools,
+          ...officeTools,
+        ].filter((tool): tool is NonNullable<typeof tool> => tool !== undefined)
       : [contractProbe],
   })
   if (managedModel) session.setActiveToolsByName([])
@@ -597,6 +684,7 @@ export async function createDeterministicPiSession(
             ...(options.spawnSubagent ? ['platform:subagent:spawn'] : []),
             ...(options.generateImage ? ['platform:image:generate'] : []),
             ...(options.platformTools ? PLATFORM_TOOL_DEFINITIONS.map(({ id }) => id) : []),
+            ...(options.mediaProvider ? [MEDIA_ANALYSIS_TOOL_DEFINITION.id] : []),
             ...officeToolDefinitions.map(({ id }) => id),
           ],
           reservedToolAliases: [
@@ -604,6 +692,7 @@ export async function createDeterministicPiSession(
             ...(options.platformTools
               ? PLATFORM_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
               : []),
+            ...(options.mediaProvider ? [MEDIA_ANALYSIS_TOOL_DEFINITION.modelAlias] : []),
             ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ],
         })
@@ -618,6 +707,9 @@ export async function createDeterministicPiSession(
           ...(context.projectRoot ? { projectRoot: context.projectRoot } : {}),
           runId: context.runId,
         }
+        currentArtifacts = new Map(
+          (context.artifacts ?? []).map((artifact) => [artifact.artifactId, artifact]),
+        )
         resourceReadBoundary!.configure({
           snapshot: prepared.snapshot,
           skillRoots: prepared.skillPaths,
@@ -631,6 +723,7 @@ export async function createDeterministicPiSession(
           ...(options.platformTools
             ? PLATFORM_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
             : []),
+          ...(options.mediaProvider ? [MEDIA_ANALYSIS_TOOL_DEFINITION.modelAlias] : []),
           ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ...prepared.extensionTools.map(({ name }) => name),
           ...prepared.mcpTools.map(({ modelAlias }) => modelAlias),
@@ -648,6 +741,7 @@ export async function createDeterministicPiSession(
         } finally {
           options.runResources.releaseRun(context.runId)
           extensionExecution = undefined
+          currentArtifacts = new Map()
         }
       }
       fixtureProvider!.setResponses([

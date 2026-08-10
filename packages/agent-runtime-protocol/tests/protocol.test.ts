@@ -294,7 +294,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(55)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(57)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)

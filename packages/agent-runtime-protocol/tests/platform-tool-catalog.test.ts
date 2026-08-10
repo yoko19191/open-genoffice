@@ -100,4 +100,37 @@ describe('frozen platform tool catalog', () => {
       }),
     ).toThrowError('invalid_platform_tool_details')
   })
+
+  it('validates completed and disabled media analysis projections as distinct states', () => {
+    const shared = {
+      toolId: 'platform:analyze_media',
+      kind: 'media_analysis',
+      operationId: '11111111-1111-4111-8111-111111111111',
+      providerId: 'selected-provider',
+      modelId: 'selected-model',
+      sourceArtifactId: '22222222-2222-4222-8222-222222222222',
+    }
+    expect(
+      parsePlatformToolDetails({
+        ...shared,
+        state: 'completed',
+        inputMode: 'frames',
+        usageRecorded: true,
+      }),
+    ).toMatchObject({ state: 'completed', inputMode: 'frames' })
+    expect(
+      parsePlatformToolDetails({ ...shared, state: 'disabled', action: 'change_model' }),
+    ).toMatchObject({ state: 'disabled', action: 'change_model' })
+    for (const invalid of [
+      { ...shared, state: 'completed', action: 'change_model' },
+      { ...shared, state: 'disabled', inputMode: 'frames', action: 'change_model' },
+      { ...shared, state: 'disabled' },
+    ]) {
+      expect(() => parsePlatformToolDetails(invalid)).toThrowError('invalid_platform_tool_details')
+    }
+    expect(resolvePlatformToolDefinition('platform:analyze_media')).toMatchObject({
+      modelAlias: 'analyze_media',
+      effect: 'external',
+    })
+  })
 })

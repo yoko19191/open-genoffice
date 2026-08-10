@@ -49,6 +49,19 @@ export {
   type MineruOcrStatus,
 } from './mineru-ocr-service'
 export {
+  MediaPreparationService,
+  MediaPreparationServiceError,
+  type MediaArtifactRef,
+  type MediaFrame,
+  type MediaFrameExtractor,
+  type MediaPreparationArtifactStore,
+  type MediaPreparationRequest,
+  type MediaPreparationServiceErrorCode,
+  type MediaPreparationServiceOptions,
+  type OpenedMediaArtifact,
+  type PreparedMedia,
+} from './media-preparation-service'
+export {
   PiRuntimeManager,
   PiRuntimeManagerError,
   createPrivateRuntimeEndpoint,

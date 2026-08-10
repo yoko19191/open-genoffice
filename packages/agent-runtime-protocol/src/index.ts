@@ -171,6 +171,11 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('mutation_outcome_unknown'),
   Type.Literal('abort_incomplete'),
   Type.Literal('artifact_invalid'),
+  Type.Literal('media_aborted'),
+  Type.Literal('media_malformed'),
+  Type.Literal('media_oversize'),
+  Type.Literal('media_strategy_unsupported'),
+  Type.Literal('media_frame_extractor_unavailable'),
   Type.Literal('runtime_unavailable'),
   Type.Literal('internal_error'),
   Type.Literal('secure_storage_unavailable'),
@@ -888,6 +893,28 @@ const OfficeToolAbortRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const MediaPrepareRequestSchema = sessionRequestEnvelope(
+  'media.prepare',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      documentId: DocumentIdSchema,
+      runId: EntityIdSchema,
+      artifact: ArtifactRefSchema,
+      strategy: Type.Union([Type.Literal('image'), Type.Literal('native'), Type.Literal('frames')]),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const MediaPrepareAbortRequestSchema = sessionRequestEnvelope(
+  'media.prepare.abort',
+  Type.Object(
+    { operationId: OperationIdSchema, documentId: DocumentIdSchema },
+    { additionalProperties: false },
+  ),
+)
+
 const CredentialWriteParamsSchema = Type.Object(
   {
     slot: CredentialSlotSchema,
@@ -1159,6 +1186,8 @@ export const RequestEnvelopeSchema = Type.Union([
   ArtifactRegisterRequestSchema,
   OfficeToolInvokeRequestSchema,
   OfficeToolAbortRequestSchema,
+  MediaPrepareRequestSchema,
+  MediaPrepareAbortRequestSchema,
   CredentialPutRequestSchema,
   CredentialGetRequestSchema,
   CredentialStatusRequestSchema,
@@ -1362,6 +1391,37 @@ export const OfficeToolReceiptSchema = Type.Object(
         mutationGrantId: Type.Optional(EntityIdSchema),
       },
       { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+)
+
+const PreparedMediaArtifactSchema = Type.Composite([
+  ArtifactRefSchema,
+  Type.Object(
+    {
+      mediaType: Type.Union([
+        Type.Literal('image/png'),
+        Type.Literal('audio/wav'),
+        Type.Literal('video/mp4'),
+      ]),
+    },
+    { additionalProperties: false },
+  ),
+])
+
+export const PreparedMediaReceiptSchema = Type.Object(
+  {
+    operationId: OperationIdSchema,
+    inputKind: Type.Union([Type.Literal('image'), Type.Literal('audio'), Type.Literal('video')]),
+    strategy: Type.Union([Type.Literal('image'), Type.Literal('native'), Type.Literal('frames')]),
+    durationMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 2 * 60 * 60 * 1_000 })),
+    artifacts: Type.Array(PreparedMediaArtifactSchema, { minItems: 1, maxItems: 12 }),
+    timestampsMs: Type.Optional(
+      Type.Array(Type.Integer({ minimum: 0, maximum: 2 * 60 * 60 * 1_000 }), {
+        minItems: 1,
+        maxItems: 12,
+      }),
     ),
   },
   { additionalProperties: false },
@@ -1602,6 +1662,15 @@ export type OfficeToolAbortRequest = Extract<
   Static<typeof OfficeToolAbortRequestSchema>,
   { method: 'office.tool.abort' }
 >['params']
+export type MediaPreparationRequest = Extract<
+  Static<typeof MediaPrepareRequestSchema>,
+  { method: 'media.prepare' }
+>['params']
+export type MediaPreparationAbortRequest = Extract<
+  Static<typeof MediaPrepareAbortRequestSchema>,
+  { method: 'media.prepare.abort' }
+>['params']
+export type PreparedMediaReceipt = Static<typeof PreparedMediaReceiptSchema>
 export type OfficeToolCatalogBinding = Static<typeof OfficeToolCatalogBindingSchema>
 export type SessionMessageProjection = Static<typeof SessionMessageProjectionSchema>
 export type SubagentRunProjection = Static<typeof SubagentRunProjectionSchema>
@@ -1767,6 +1836,45 @@ export function parseOfficeToolCatalogBinding(value: unknown): OfficeToolCatalog
 export function parseOfficeToolReceipt(value: unknown): OfficeToolReceipt {
   if (Value.Check(OfficeToolReceiptSchema, value)) return value
   throw new Error('office_tool_receipt_invalid')
+}
+
+export function parseMediaPreparationRequest(value: unknown): MediaPreparationRequest {
+  if (Value.Check(MediaPrepareRequestSchema.properties.params, value)) return value
+  throw new Error('media_preparation_request_invalid')
+}
+
+export function parsePreparedMediaReceipt(value: unknown): PreparedMediaReceipt {
+  if (!Value.Check(PreparedMediaReceiptSchema, value)) {
+    throw new Error('prepared_media_receipt_invalid')
+  }
+  if (
+    (value.strategy === 'image' &&
+      (value.inputKind !== 'image' ||
+        value.artifacts.length !== 1 ||
+        value.artifacts[0]?.mediaType !== 'image/png' ||
+        value.durationMs !== undefined ||
+        value.timestampsMs !== undefined)) ||
+    (value.strategy === 'native' &&
+      (value.inputKind === 'image' ||
+        value.artifacts.length !== 1 ||
+        value.durationMs === undefined ||
+        value.timestampsMs !== undefined ||
+        (value.inputKind === 'audio' && value.artifacts[0]?.mediaType !== 'audio/wav') ||
+        (value.inputKind === 'video' && value.artifacts[0]?.mediaType !== 'video/mp4'))) ||
+    (value.strategy === 'frames' &&
+      (value.inputKind !== 'video' ||
+        value.durationMs === undefined ||
+        value.artifacts.some(({ mediaType }) => mediaType !== 'image/png') ||
+        value.timestampsMs?.length !== value.artifacts.length ||
+        value.timestampsMs.some(
+          (timestamp, index) =>
+            timestamp > value.durationMs! ||
+            (index === 0 ? false : timestamp <= value.timestampsMs![index - 1]!),
+        )))
+  ) {
+    throw new Error('prepared_media_receipt_invalid')
+  }
+  return value
 }
 
 export function parseSessionSnapshot(value: unknown): SessionSnapshot {

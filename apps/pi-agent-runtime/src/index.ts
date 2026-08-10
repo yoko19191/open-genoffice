@@ -172,6 +172,11 @@ export {
   type RuntimeOfficeToolHostClientOptions,
 } from './runtime-office-tool-host-client'
 export {
+  RuntimeMediaPreparationClient,
+  RuntimeMediaPreparationClientError,
+  type RuntimeMediaPreparationClientOptions,
+} from './runtime-media-preparation-client'
+export {
   CodexOAuthImageProvider,
   CodexOAuthImageProviderError,
   type CodexImageGenerateInput,
@@ -189,6 +194,21 @@ export {
   type PlatformToolServiceErrorCode,
   type PlatformToolServiceOptions,
 } from './platform-tool-service'
+export {
+  ModelMediaProvider,
+  ModelMediaProviderError,
+  type MediaModelMetadata,
+  type ModelMediaAnalysisInput,
+  type ModelMediaAnalysisResult,
+  type ModelMediaClient,
+  type ModelMediaClientResult,
+  type ModelMediaDisabledDetails,
+  type ModelMediaPrepare,
+  type ModelMediaProviderErrorCode,
+  type ModelMediaProviderOptions,
+  type PreparedMediaInput,
+} from './model-media-provider'
+export { PiModelMediaClient, type PiModelMediaClientOptions } from './pi-model-media-client'
 export {
   planSessionRecovery,
   type RecoveredMutationOutcome,

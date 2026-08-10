@@ -34,7 +34,7 @@ import menuPdfIcon2x from './assets/menu-pdf@2x.png?asset'
 import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@genoffice/i18n'
-import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
+import { RUNTIME_VERSION, type ArtifactRef } from '@genoffice/agent-runtime-protocol'
 import {
   DOCS_OFFICE_TOOL_CATALOG_BINDING,
   PDF_OFFICE_TOOL_CATALOG_BINDING,
@@ -62,6 +62,8 @@ import {
   installAgentSessionIpc,
   MineruOcrService,
   MineruOcrServiceError,
+  MediaPreparationService,
+  MediaPreparationServiceError,
   SecureStorageBroker,
   safeExternalUrl,
 } from '@genoffice/electron-utils'
@@ -133,6 +135,12 @@ import {
   slidesOfficeToolRendererClient,
 } from '../../../slides/src/main/slides-main'
 import { SlidesOfficeToolHost } from '../../../slides/src/main/agent-tools/slides-office-tool-host'
+import {
+  SLIDES_AGENT_MEDIA_CHANNELS,
+  type SlidesMediaArtifact,
+} from '../../../slides/src/shared/agent-media-artifacts'
+import { importMediaArtifact } from './media-artifact-importer'
+import { ElectronVideoFrameExtractor } from './electron-video-frame-extractor'
 import {
   configurePdfRuntime,
   flushPdfSave,
@@ -266,6 +274,19 @@ const authorizedTextArtifacts = new Map<
   string,
   { documentId: string; artifact: DocsTextArtifact }
 >()
+const authorizedMediaArtifacts = new Map<
+  string,
+  { documentId: string; artifact: SlidesMediaArtifact }
+>()
+const mediaPreparationService = new MediaPreparationService({
+  artifactStore: scopedArtifactStore,
+  frameExtractor: new ElectronVideoFrameExtractor(),
+  randomUUID,
+})
+const activeMediaPreparations = new Map<
+  string,
+  { documentId: string; controller: AbortController }
+>()
 const piRuntimeService = createInstalledPiRuntimeService({
   bundleRoot: PI_RUNTIME_ROOT,
   platform: process.platform,
@@ -305,6 +326,47 @@ const piRuntimeService = createInstalledPiRuntimeService({
         return slidesOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
       }
       return pdfOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+    },
+  },
+  mediaPreparationHost: {
+    prepare: async (request, parentSignal) => {
+      if (activeMediaPreparations.has(request.operationId)) {
+        throw new MediaPreparationServiceError('media_malformed')
+      }
+      if (
+        request.artifact.mediaType !== 'image/png' &&
+        request.artifact.mediaType !== 'audio/wav' &&
+        request.artifact.mediaType !== 'video/mp4'
+      ) {
+        throw new MediaPreparationServiceError('media_strategy_unsupported')
+      }
+      const controller = new AbortController()
+      const abort = () => controller.abort()
+      parentSignal.addEventListener('abort', abort, { once: true })
+      activeMediaPreparations.set(request.operationId, {
+        documentId: request.documentId,
+        controller,
+      })
+      try {
+        return await mediaPreparationService.prepare(
+          {
+            ...request,
+            artifact: request.artifact as ArtifactRef & {
+              mediaType: 'image/png' | 'audio/wav' | 'video/mp4'
+            },
+          },
+          controller.signal,
+        )
+      } finally {
+        parentSignal.removeEventListener('abort', abort)
+        activeMediaPreparations.delete(request.operationId)
+      }
+    },
+    abort: async ({ operationId, documentId }) => {
+      const active = activeMediaPreparations.get(operationId)
+      if (!active || active.documentId !== documentId) return false
+      active.controller.abort()
+      return true
     },
   },
 })
@@ -1200,7 +1262,9 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
   },
   validateArtifacts: (_webContentsId, documentId, artifacts) =>
     artifacts.every((artifact) => {
-      const authorized = authorizedTextArtifacts.get(artifact.artifactId)
+      const authorized =
+        authorizedTextArtifacts.get(artifact.artifactId) ??
+        authorizedMediaArtifacts.get(artifact.artifactId)
       return (
         authorized?.documentId === documentId &&
         JSON.stringify(authorized.artifact) === JSON.stringify(artifact)
@@ -1247,6 +1311,46 @@ function registerAgentArtifactIpc(): void {
     })
     authorizedTextArtifacts.set(artifact.artifactId, { documentId, artifact })
     return artifact
+  })
+  ipcMain.handle(SLIDES_AGENT_MEDIA_CHANNELS.pick, async (event) => {
+    const documentId = tabManager ? await tabManager.agentDocumentIdFor(event.sender.id) : undefined
+    if (
+      !documentId ||
+      tabManager?.agentDocumentKindFor(event.sender.id) !== 'slides' ||
+      !tabManager.authorizeAgentDocument(event.sender.id, documentId)
+    ) {
+      throw new Error('document_access_denied')
+    }
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? shellWindow ?? undefined
+    const picked = await showOpenDialogWithMemory(dialog, owner, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择音频或视频附件'
+          : 'Select audio or video attachment',
+      properties: ['openFile'],
+      filters: [{ name: 'Media', extensions: ['wav', 'mp4'] }],
+    })
+    const path = picked.canceled ? undefined : picked.filePaths[0]
+    if (!path) return null
+    const artifact = await importMediaArtifact({
+      path,
+      documentId,
+      artifactStore: scopedArtifactStore,
+      randomUUID,
+    })
+    authorizedMediaArtifacts.set(artifact.artifactId, { documentId, artifact })
+    return artifact
+  })
+  ipcMain.handle(SLIDES_AGENT_MEDIA_CHANNELS.openModelSettings, async (event) => {
+    const documentId = tabManager ? await tabManager.agentDocumentIdFor(event.sender.id) : undefined
+    if (
+      !documentId ||
+      tabManager?.agentDocumentKindFor(event.sender.id) !== 'slides' ||
+      !tabManager.authorizeAgentDocument(event.sender.id, documentId)
+    ) {
+      throw new Error('document_access_denied')
+    }
+    tabManager.activateTab('home')
   })
 }
 

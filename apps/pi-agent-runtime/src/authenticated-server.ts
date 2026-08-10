@@ -20,6 +20,7 @@ import { resolveOfficeToolCatalogMetadata } from '@genoffice/agent-runtime-proto
 import { resolvePlatformToolDefinition } from '@genoffice/agent-runtime-protocol/platform-tool-catalog'
 import {
   PackageLockError,
+  ProviderOperationStore,
   ScopedArtifactStore,
   initializeAgentResourceHome,
   type BuiltInResource,
@@ -37,8 +38,11 @@ import { createDeterministicPiSession } from './pi-session-factory'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import { RuntimeCredentialStore } from './runtime-credential-store'
 import { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
+import { RuntimeMediaPreparationClient } from './runtime-media-preparation-client'
 import { CodexOAuthImageProvider } from './codex-oauth-image-provider'
 import { PlatformToolService } from './platform-tool-service'
+import { ModelMediaProvider } from './model-media-provider'
+import { PiModelMediaClient } from './pi-model-media-client'
 import { PackageSourceResolverError } from './package-source-resolver'
 import { RunResourceService, RunResourceServiceError } from './run-resource-service'
 import { PiSubagentEngine } from './pi-subagent-engine'
@@ -78,6 +82,7 @@ export type AuthenticatedRuntimeServer = {
   shutdown: () => Promise<void>
   credentials: CredentialStore
   officeTools?: RuntimeOfficeToolHostClient
+  mediaPreparation?: RuntimeMediaPreparationClient
 }
 
 export async function resolveInstalledBuiltInResources(
@@ -167,6 +172,12 @@ export async function createAuthenticatedRuntimeServer(
       authenticatedSocket.write(`${JSON.stringify(request)}\n`)
     },
   })
+  const mediaPreparation = new RuntimeMediaPreparationClient({
+    send: (request) => {
+      if (!authenticatedSocket) throw new Error('runtime_connection_closed')
+      authenticatedSocket.write(`${JSON.stringify(request)}\n`)
+    },
+  })
 
   const modelRuntime = await ModelRuntime.create({
     credentials,
@@ -178,11 +189,21 @@ export async function createAuthenticatedRuntimeServer(
     rootDirectory: options.resourceHome,
     modelRuntime,
   })
+  const artifactStore = new ScopedArtifactStore({
+    rootDirectory: join(options.resourceHome, 'assets', 'artifacts'),
+  })
   const platformTools = new PlatformToolService({
-    artifactStore: new ScopedArtifactStore({
-      rootDirectory: join(options.resourceHome, 'assets', 'artifacts'),
-    }),
+    artifactStore,
     credentials,
+  })
+  const mediaProvider = new ModelMediaProvider({
+    operationStore: new ProviderOperationStore({ rootDirectory: options.resourceHome }),
+    prepare: (input, signal) => mediaPreparation.prepare(input, signal),
+    client: new PiModelMediaClient({
+      modelRuntime,
+      resolveModel: (providerId, modelId) => modelRuntime.getModel(providerId, modelId),
+      artifactStore,
+    }),
   })
   const ownedModelCatalog = options.modelCatalog
     ? undefined
@@ -291,6 +312,7 @@ export async function createAuthenticatedRuntimeServer(
                 officeToolHost: officeTools,
                 generateImage: (input, signal) => imageProvider.generate(input, signal),
                 platformTools,
+                mediaProvider,
                 spawnSubagent: (request, signal) => sessionRegistry.spawnSubagent(request, signal),
               }),
           }
@@ -392,7 +414,11 @@ export async function createAuthenticatedRuntimeServer(
         }
         if (frame.kind === 'response') {
           const response = frame as ResponseEnvelope
-          if (!credentialClient.handleResponse(response) && !officeTools.handleResponse(response)) {
+          if (
+            !credentialClient.handleResponse(response) &&
+            !officeTools.handleResponse(response) &&
+            !mediaPreparation.handleResponse(response)
+          ) {
             socket.destroy()
           }
           continue
@@ -410,6 +436,7 @@ export async function createAuthenticatedRuntimeServer(
         authenticatedSocket = undefined
         credentialClient.close('runtime_connection_closed')
         officeTools.close('runtime_connection_closed')
+        mediaPreparation.close('runtime_connection_closed')
       }
     })
   })
@@ -418,6 +445,7 @@ export async function createAuthenticatedRuntimeServer(
     if (closeStarted) return closed
     closeStarted = true
     credentialClient.close('runtime_connection_closed')
+    mediaPreparation.close('runtime_connection_closed')
     void Promise.allSettled([sessionRegistry.shutdown(), runResources.shutdown()]).finally(() => {
       unsubscribeSlidesQcGrants()
       ownedSubagentCoordinator?.close()
@@ -877,7 +905,7 @@ export async function createAuthenticatedRuntimeServer(
     await chmod(options.bootstrap.endpoint, 0o600)
   }
 
-  return { closed, shutdown: beginShutdown, credentials, officeTools }
+  return { closed, shutdown: beginShutdown, credentials, officeTools, mediaPreparation }
 }
 
 export function resolveSubagentToolDescriptor(

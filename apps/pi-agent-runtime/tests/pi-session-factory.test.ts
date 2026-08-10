@@ -18,6 +18,7 @@ import {
   initializeAgentResourceHome,
 } from '@genoffice/agent-resource'
 import { createDeterministicPiSession } from '../src/pi-session-factory'
+import { ModelMediaProviderError } from '../src/model-media-provider'
 import { RunResourceService } from '../src/run-resource-service'
 import { OpenGenOfficeMcpConfigResolver } from '../src/mcp-config-resolver'
 import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
@@ -193,6 +194,167 @@ describe('deterministic Pi Session factory', () => {
     expect(persisted).not.toContain('base64')
     expect(persisted).toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
     expect(persisted).toContain('f'.repeat(64))
+    handle.dispose()
+  })
+
+  it('analyzes only a media ArtifactRef attached to the current run and records provenance', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-media-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-media-faux',
+      provider: 'genoffice-media-faux',
+      models: [{ id: 'media-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    const artifact = {
+      artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      mediaType: 'video/mp4' as const,
+      byteLength: 24,
+      sha256: 'f'.repeat(64),
+      displayName: 'clip.mp4',
+    }
+    provider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'analyze_media',
+            { artifactId: artifact.artifactId, requirements: 'Find the key scene.' },
+            { id: 'media-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('Media analyzed'),
+    ])
+    const analyze = vi.fn(async (input) => ({
+      text: 'The key scene is visible.',
+      details: {
+        operationId: input.operationId,
+        providerId: 'genoffice-media-faux',
+        modelId: 'media-model',
+        toolId: 'platform:analyze_media' as const,
+        inputMode: 'frames' as const,
+        sourceArtifactId: artifact.artifactId,
+        usageRecorded: true,
+      },
+    }))
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-media-faux',
+        modelId: 'media-model',
+        capabilities: ['text-input', 'image-input', 'tool-use'],
+      }),
+      runResources: new RunResourceService({
+        resourceHome: root,
+        deviceId: '33333333-3333-4333-8333-333333333333',
+      }),
+      mediaProvider: { analyze },
+    })
+    await handle.prompt('analyze the attached video', new AbortController().signal, {
+      runId: '44444444-4444-4444-8444-444444444444',
+      artifacts: [artifact],
+    })
+    expect(handle.session.getActiveToolNames()).toEqual(['analyze_media'])
+    expect(analyze).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: '22222222-2222-4222-8222-222222222222',
+        runId: '44444444-4444-4444-8444-444444444444',
+        artifact,
+        requirements: 'Find the key scene.',
+        model: expect.objectContaining({
+          providerId: 'genoffice-media-faux',
+          modelId: 'media-model',
+        }),
+      }),
+      expect.any(AbortSignal),
+    )
+    expect(JSON.stringify(handle.sessionManager.getEntries())).toContain('platform:analyze_media')
+    handle.dispose()
+  })
+
+  it('returns disabled/change-model details when the selected model lacks media capability', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-media-disabled-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-media-disabled-faux',
+      provider: 'genoffice-media-disabled-faux',
+      models: [{ id: 'text-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    const artifact = {
+      artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      mediaType: 'audio/wav' as const,
+      byteLength: 44,
+      sha256: 'f'.repeat(64),
+    }
+    provider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'analyze_media',
+            { artifactId: artifact.artifactId, requirements: 'Summarize.' },
+            { id: 'media-disabled-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('Model change required'),
+    ])
+    const analyze = vi.fn().mockRejectedValue(
+      new ModelMediaProviderError('media_capability_unsupported', {
+        state: 'disabled',
+        action: 'change_model',
+        providerId: 'genoffice-media-disabled-faux',
+        modelId: 'text-model',
+      }),
+    )
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-media-disabled-faux',
+        modelId: 'text-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources: new RunResourceService({
+        resourceHome: root,
+        deviceId: '33333333-3333-4333-8333-333333333333',
+      }),
+      mediaProvider: { analyze },
+    })
+    await handle.prompt('analyze audio', new AbortController().signal, {
+      runId: '44444444-4444-4444-8444-444444444444',
+      artifacts: [artifact],
+    })
+    const entries = JSON.stringify(handle.sessionManager.getEntries())
+    expect(entries).toContain('change_model')
+    expect(entries).toContain('disabled')
     handle.dispose()
   })
 

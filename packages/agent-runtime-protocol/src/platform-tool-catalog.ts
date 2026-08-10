@@ -2,13 +2,36 @@ import { Type, type Static, type TObject } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 
 export type PlatformToolDefinition = {
-  id: 'platform:web_search' | 'platform:image_search' | 'platform:artifact:read_text'
-  modelAlias: 'web_search' | 'image_search' | 'read_attachment'
+  id:
+    | 'platform:web_search'
+    | 'platform:image_search'
+    | 'platform:artifact:read_text'
+    | 'platform:analyze_media'
+  modelAlias: 'web_search' | 'image_search' | 'read_attachment' | 'analyze_media'
   effect: 'read' | 'external'
   label: string
   description: string
   parameters: TObject
 }
+
+export const MEDIA_ANALYSIS_TOOL_DEFINITION = {
+  id: 'platform:analyze_media',
+  modelAlias: 'analyze_media',
+  effect: 'external',
+  label: 'analyze media',
+  description:
+    'Analyze one attached image, audio, or video ArtifactRef with the currently selected model only. Unsupported inputs stay disabled; writing the result requires a separate Office mutation tool.',
+  parameters: Type.Object(
+    {
+      artifactId: Type.String({
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      }),
+      requirements: Type.String({ minLength: 1, maxLength: 16_000 }),
+    },
+    { additionalProperties: false },
+  ),
+} as const satisfies PlatformToolDefinition
 
 const uuid = () =>
   Type.String({
@@ -117,6 +140,28 @@ export const PlatformToolDetailsSchema = Type.Union([
     },
     { additionalProperties: false },
   ),
+  Type.Object(
+    {
+      toolId: Type.Literal('platform:analyze_media'),
+      kind: Type.Literal('media_analysis'),
+      state: Type.Union([Type.Literal('completed'), Type.Literal('disabled')]),
+      providerId: Type.String({ minLength: 1, maxLength: 128 }),
+      modelId: Type.String({ minLength: 1, maxLength: 256 }),
+      sourceArtifactId: uuid(),
+      inputMode: Type.Optional(
+        Type.Union([
+          Type.Literal('image'),
+          Type.Literal('frames'),
+          Type.Literal('native-audio'),
+          Type.Literal('native-video'),
+        ]),
+      ),
+      operationId: Type.Optional(uuid()),
+      usageRecorded: Type.Optional(Type.Boolean()),
+      action: Type.Optional(Type.Literal('change_model')),
+    },
+    { additionalProperties: false },
+  ),
 ])
 
 export type PlatformToolDetails = Static<typeof PlatformToolDetailsSchema>
@@ -125,17 +170,35 @@ export function parsePlatformToolDetails(value: unknown): PlatformToolDetails {
   if (!Value.Check(PlatformToolDetailsSchema, value)) {
     throw new Error('invalid_platform_tool_details')
   }
-  return structuredClone(value) as PlatformToolDetails
+  const details = value as PlatformToolDetails
+  if (details.kind === 'media_analysis') {
+    const validCompleted =
+      details.state === 'completed' &&
+      details.operationId !== undefined &&
+      details.inputMode !== undefined &&
+      details.usageRecorded !== undefined &&
+      details.action === undefined
+    const validDisabled =
+      details.state === 'disabled' &&
+      details.operationId !== undefined &&
+      details.action === 'change_model' &&
+      details.inputMode === undefined &&
+      details.usageRecorded === undefined
+    if (!validCompleted && !validDisabled) throw new Error('invalid_platform_tool_details')
+  }
+  return structuredClone(details)
 }
 
 export function resolvePlatformToolDefinition(
   canonicalToolId: string,
 ): PlatformToolDefinition | undefined {
-  return PLATFORM_TOOL_DEFINITIONS.find(({ id }) => id === canonicalToolId)
+  return [...PLATFORM_TOOL_DEFINITIONS, MEDIA_ANALYSIS_TOOL_DEFINITION].find(
+    ({ id }) => id === canonicalToolId,
+  )
 }
 
 export function parsePlatformToolInput(toolId: string, value: unknown): unknown {
-  const definition = resolvePlatformToolDefinition(toolId)
+  const definition = PLATFORM_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
   if (!definition) throw new Error('tool_not_in_snapshot')
   if (Value.Check(definition.parameters, value)) return value
   throw new Error('invalid_tool_arguments')

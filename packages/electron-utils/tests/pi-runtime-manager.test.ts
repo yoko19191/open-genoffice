@@ -90,6 +90,11 @@ class FakeRuntimeSocket extends Duplex {
         this.push(`${JSON.stringify(officeRequest)}\n`)
       }
     }
+    if (this.options.mediaPrelude && request.method === 'runtime.hello') {
+      for (const mediaRequest of this.options.mediaPrelude) {
+        this.push(`${JSON.stringify(mediaRequest)}\n`)
+      }
+    }
     if (request.method === 'runtime.status' && this.options.statusMode === 'hang') {
       callback()
       return
@@ -517,6 +522,7 @@ type ManagerHarnessOptions = {
   credentialMode?: 'error-response'
   credentialPrelude?: readonly unknown[]
   officePrelude?: readonly unknown[]
+  mediaPrelude?: readonly unknown[]
   modelResult?: unknown
   modelMode?: 'error-response'
   resourceResult?: unknown
@@ -731,6 +737,123 @@ describe('PiRuntimeManager', () => {
       id: 'office-tool-abort-1',
       result: { aborted: true },
     })
+    await manager.shutdown()
+  })
+
+  it('dispatches validated media prepare and Stop requests to the main-process host', async () => {
+    const operationId = '11111111-1111-4111-8111-111111111111'
+    const documentId = '22222222-2222-4222-8222-222222222222'
+    const artifact = {
+      artifactId: '33333333-3333-4333-8333-333333333333',
+      mediaType: 'video/mp4' as const,
+      byteLength: 24,
+      sha256: 'a'.repeat(64),
+    }
+    const params = { operationId, documentId, runId: 'run-1', artifact, strategy: 'frames' }
+    const mediaPrelude = [
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'media-prepare-1',
+        method: 'media.prepare',
+        correlationId: 'media-prepare-correlation-1',
+        params,
+      },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'media-abort-1',
+        method: 'media.prepare.abort',
+        correlationId: 'media-abort-correlation-1',
+        params: { operationId, documentId },
+      },
+    ]
+    const mediaPreparationHost = {
+      prepare: vi.fn(async () => ({
+        operationId,
+        inputKind: 'video' as const,
+        strategy: 'frames' as const,
+        durationMs: 2_000,
+        artifacts: [{ ...artifact, mediaType: 'image/png' as const }],
+        timestampsMs: [500],
+      })),
+      abort: vi.fn(async () => true),
+    }
+    const harness = managerHarness({ mediaPrelude })
+    const manager = new PiRuntimeManager(
+      {
+        bundle: verifiedBundle(),
+        platform: 'darwin',
+        parentPid: 7070,
+        mediaPreparationHost,
+      },
+      harness.dependencies,
+    )
+
+    await manager.start()
+    await vi.waitFor(() => expect(harness.socket().hostResponses).toHaveLength(2))
+    expect(mediaPreparationHost.prepare).toHaveBeenCalledWith(params, expect.any(AbortSignal))
+    expect(mediaPreparationHost.abort).toHaveBeenCalledWith({ operationId, documentId })
+    expect(harness.socket().hostResponses).toEqual([
+      expect.objectContaining({
+        id: 'media-prepare-1',
+        result: expect.objectContaining({ strategy: 'frames' }),
+      }),
+      expect.objectContaining({ id: 'media-abort-1', result: { aborted: true } }),
+    ])
+    await manager.shutdown()
+  })
+
+  it('fails closed when the media preparation host is unavailable', async () => {
+    const operationId = '11111111-1111-4111-8111-111111111111'
+    const documentId = '22222222-2222-4222-8222-222222222222'
+    const mediaPrelude = [
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'media-prepare-missing',
+        method: 'media.prepare',
+        correlationId: 'media-prepare-missing-correlation',
+        params: {
+          operationId,
+          documentId,
+          runId: 'run-1',
+          artifact: {
+            artifactId: '33333333-3333-4333-8333-333333333333',
+            mediaType: 'video/mp4',
+            byteLength: 24,
+            sha256: 'a'.repeat(64),
+          },
+          strategy: 'native',
+        },
+      },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'media-abort-missing',
+        method: 'media.prepare.abort',
+        correlationId: 'media-abort-missing-correlation',
+        params: { operationId, documentId },
+      },
+    ]
+    const harness = managerHarness({ mediaPrelude })
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      harness.dependencies,
+    )
+
+    await manager.start()
+    await vi.waitFor(() => expect(harness.socket().hostResponses).toHaveLength(2))
+    expect(harness.socket().hostResponses).toEqual([
+      expect.objectContaining({
+        id: 'media-prepare-missing',
+        error: expect.objectContaining({ code: 'executor_unavailable' }),
+      }),
+      expect.objectContaining({
+        id: 'media-abort-missing',
+        error: expect.objectContaining({ code: 'executor_unavailable' }),
+      }),
+    ])
     await manager.shutdown()
   })
 

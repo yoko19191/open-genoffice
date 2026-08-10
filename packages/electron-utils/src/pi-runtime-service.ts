@@ -70,6 +70,7 @@ export type PiRuntimeServiceOptions = {
   beforeStart?: () => Promise<void>
   credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
   officeToolHost?: PiRuntimeManagerOptions['officeToolHost']
+  mediaPreparationHost?: PiRuntimeManagerOptions['mediaPreparationHost']
 }
 
 type OwnedPiRuntimeManager = Pick<
@@ -136,6 +137,7 @@ export type PiRuntimeServiceDependencies = {
     resourceHome?: string
     credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
     officeToolHost?: PiRuntimeManagerOptions['officeToolHost']
+    mediaPreparationHost?: PiRuntimeManagerOptions['mediaPreparationHost']
   }) => OwnedPiRuntimeManager
 }
 
@@ -399,6 +401,9 @@ export class PiRuntimeService {
       ...(this.options.resourceHome ? { resourceHome: this.options.resourceHome } : {}),
       ...(this.options.credentialBroker ? { credentialBroker: this.options.credentialBroker } : {}),
       ...(this.options.officeToolHost ? { officeToolHost: this.options.officeToolHost } : {}),
+      ...(this.options.mediaPreparationHost
+        ? { mediaPreparationHost: this.options.mediaPreparationHost }
+        : {}),
     })
     try {
       await this.manager.start()
@@ -444,6 +449,9 @@ export function createInstalledPiRuntimeService(
         ...(managerOptions.officeToolHost === undefined
           ? {}
           : { officeToolHost: managerOptions.officeToolHost }),
+        ...(managerOptions.mediaPreparationHost === undefined
+          ? {}
+          : { mediaPreparationHost: managerOptions.mediaPreparationHost }),
         ...(startupTimeoutMs === undefined ? {} : { startupTimeoutMs }),
       }),
   })

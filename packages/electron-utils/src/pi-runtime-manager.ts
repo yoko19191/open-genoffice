@@ -10,9 +10,11 @@ import {
   parseCredentialBrokerRequest,
   parseModelCatalogProjection,
   parseMcpCatalogProjection,
+  parseMediaPreparationRequest,
   parseOAuthOperationProjection,
   parseOfficeToolInvocation,
   parseOfficeToolReceipt,
+  parsePreparedMediaReceipt,
   parsePackageCatalogProjection,
   parseProviderCredentialStatus,
   parseResourceCatalogProjection,
@@ -31,6 +33,8 @@ import {
   type EventEnvelope,
   type ModelCatalogProjection,
   type McpCatalogProjection,
+  type MediaPreparationAbortRequest,
+  type MediaPreparationRequest,
   type ModelManagementRequest,
   type MutationGrantManagementRequest,
   type OfficeToolCatalogBinding,
@@ -40,6 +44,7 @@ import {
   type OfficeToolInvocation,
   type OfficeToolReceipt,
   type PackageCatalogProjection,
+  type PreparedMediaReceipt,
   type ProtocolEnvelope,
   type ResourceCatalogProjection,
   type ResourceManagementRequest,
@@ -119,6 +124,10 @@ export type PiRuntimeManagerOptions = {
   officeToolHost?: {
     invoke(input: OfficeToolInvocation): Promise<OfficeToolReceipt>
     abort?(input: OfficeToolAbortRequest): Promise<boolean>
+  }
+  mediaPreparationHost?: {
+    prepare(input: MediaPreparationRequest, signal: AbortSignal): Promise<PreparedMediaReceipt>
+    abort(input: MediaPreparationAbortRequest): Promise<boolean>
   }
 }
 
@@ -362,6 +371,15 @@ const OFFICE_TOOL_HOST_ERROR_CODES = new Set([
   'mutation_outcome_unknown',
   'tool_timeout',
   'unsupported_office_feature',
+])
+
+const MEDIA_PREPARATION_ERROR_CODES = new Set([
+  'artifact_invalid',
+  'media_aborted',
+  'media_malformed',
+  'media_oversize',
+  'media_strategy_unsupported',
+  'media_frame_extractor_unavailable',
 ])
 
 function hostResponse(request: RequestEnvelope, result: unknown): string {
@@ -656,7 +674,68 @@ export class PiRuntimeManager {
       await this.handleOfficeToolAbortRequest(socket, frame)
       return
     }
+    if (frame.method === 'media.prepare') {
+      await this.handleMediaPreparationRequest(socket, frame)
+      return
+    }
+    if (frame.method === 'media.prepare.abort') {
+      await this.handleMediaPreparationAbortRequest(socket, frame)
+      return
+    }
     await this.handleCredentialRequest(socket, frame)
+  }
+
+  private async handleMediaPreparationRequest(
+    socket: PiRuntimeSocket,
+    frame: Extract<RequestEnvelope, { method: 'media.prepare' }>,
+  ) {
+    const host = this.options.mediaPreparationHost
+    if (!host) {
+      socket.write(hostErrorResponse(frame, 'executor_unavailable'))
+      return
+    }
+    let input: MediaPreparationRequest
+    try {
+      input = parseMediaPreparationRequest(frame.params)
+    } catch {
+      socket.write(hostErrorResponse(frame, 'invalid_request'))
+      return
+    }
+    const controller = new AbortController()
+    try {
+      socket.write(
+        hostResponse(
+          frame,
+          parsePreparedMediaReceipt(await host.prepare(input, controller.signal)),
+        ),
+      )
+    } catch (error) {
+      const code = (error as { code?: unknown }).code
+      socket.write(
+        hostErrorResponse(
+          frame,
+          typeof code === 'string' && MEDIA_PREPARATION_ERROR_CODES.has(code)
+            ? code
+            : 'internal_error',
+        ),
+      )
+    }
+  }
+
+  private async handleMediaPreparationAbortRequest(
+    socket: PiRuntimeSocket,
+    frame: Extract<RequestEnvelope, { method: 'media.prepare.abort' }>,
+  ) {
+    const host = this.options.mediaPreparationHost
+    if (!host) {
+      socket.write(hostErrorResponse(frame, 'executor_unavailable'))
+      return
+    }
+    try {
+      socket.write(hostResponse(frame, { aborted: await host.abort(frame.params) }))
+    } catch {
+      socket.write(hostErrorResponse(frame, 'internal_error'))
+    }
   }
 
   private async handleOfficeToolAbortRequest(

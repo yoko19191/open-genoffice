@@ -132,6 +132,7 @@ export {
   ScopedArtifactStore,
   ScopedArtifactStoreError,
   type OpenedScopedImage,
+  type OpenedScopedMedia,
   type ScopedArtifactRef,
   type ScopedArtifactStoreErrorCode,
   type ScopedArtifactStoreOptions,

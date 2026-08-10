@@ -9,6 +9,7 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 const MAX_IMAGE_DIMENSION = 16_384
 const MAX_TEXT_BYTES = 10 * 1024 * 1024
+const MAX_MEDIA_BYTES = 100 * 1024 * 1024
 const TEXT_PAGE_CHARACTERS = 24_000
 
 export type ScopedArtifactStoreErrorCode =
@@ -26,7 +27,7 @@ export class ScopedArtifactStoreError extends Error {
 
 export type ScopedArtifactRef = {
   artifactId: string
-  mediaType: 'image/png' | 'text/plain'
+  mediaType: 'image/png' | 'text/plain' | 'audio/wav' | 'video/mp4'
   byteLength: number
   sha256: string
   displayName?: string
@@ -45,6 +46,11 @@ export type ScopedTextPage = {
   offset: number
   nextOffset?: number
   totalCharacters: number
+}
+
+export type OpenedScopedMedia = {
+  artifact: ScopedArtifactRef & { mediaType: 'audio/wav' | 'video/mp4' }
+  bytes: Buffer
 }
 
 export type ScopedArtifactStoreOptions = {
@@ -81,6 +87,19 @@ type ReadTextInput = Pick<RegisterTextInput, 'artifactId' | 'documentId' | 'runI
   offset?: number
 }
 
+type RegisterMediaBase = {
+  artifactId: string
+  documentId: string
+  bytes: Uint8Array
+  mediaType: 'audio/wav' | 'video/mp4'
+  displayName?: string
+}
+
+type RegisterMediaInput = RegisterMediaBase &
+  ({ scope: 'document'; runId?: never } | { scope?: 'run'; runId: string })
+
+type OpenMediaInput = Pick<RegisterMediaInput, 'artifactId' | 'documentId' | 'runId'>
+
 type ArtifactMetadata = Omit<ScopedArtifactRef, 'mediaType'> & {
   schemaVersion: 1
   mediaType: 'image/png'
@@ -94,6 +113,15 @@ type ArtifactMetadata = Omit<ScopedArtifactRef, 'mediaType'> & {
 type TextArtifactMetadata = Omit<ScopedArtifactRef, 'mediaType'> & {
   schemaVersion: 1
   mediaType: 'text/plain'
+  documentId: string
+  scope: 'document' | 'run'
+  runId?: string
+  createdAt: string
+}
+
+type MediaArtifactMetadata = Omit<ScopedArtifactRef, 'mediaType'> & {
+  schemaVersion: 1
+  mediaType: 'audio/wav' | 'video/mp4'
   documentId: string
   scope: 'document' | 'run'
   runId?: string
@@ -227,6 +255,54 @@ function textMetadataFrom(value: unknown): TextArtifactMetadata {
   return record as TextArtifactMetadata
 }
 
+function mediaMetadataFrom(value: unknown): MediaArtifactMetadata {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw invalid()
+  const record = value as Record<string, unknown>
+  const expectedKeys = [
+    'artifactId',
+    'byteLength',
+    'createdAt',
+    'documentId',
+    'mediaType',
+    'scope',
+    'schemaVersion',
+    'sha256',
+    ...(record.scope === 'run' ? ['runId'] : []),
+    ...(record.displayName === undefined ? [] : ['displayName']),
+  ].sort()
+  if (Object.keys(record).sort().join('\0') !== expectedKeys.join('\0')) throw invalid()
+  validateIdentity(record.artifactId)
+  if (!isUuid(record.documentId)) throw new ScopedArtifactStoreError('artifact_scope_invalid')
+  if (record.scope !== 'document' && record.scope !== 'run') throw invalid()
+  if (record.scope === 'run') validateScope(record.documentId, record.runId)
+  validateDisplayName(record.displayName)
+  if (
+    record.schemaVersion !== 1 ||
+    (record.mediaType !== 'audio/wav' && record.mediaType !== 'video/mp4') ||
+    !Number.isSafeInteger(record.byteLength) ||
+    (record.byteLength as number) < 1 ||
+    (record.byteLength as number) > MAX_MEDIA_BYTES ||
+    typeof record.sha256 !== 'string' ||
+    !SHA256_PATTERN.test(record.sha256) ||
+    typeof record.createdAt !== 'string' ||
+    !Number.isFinite(Date.parse(record.createdAt))
+  ) {
+    throw invalid()
+  }
+  return record as MediaArtifactMetadata
+}
+
+function inspectMedia(bytes: Buffer, mediaType: RegisterMediaBase['mediaType']): void {
+  if (bytes.length < 12 || bytes.length > MAX_MEDIA_BYTES) throw invalid()
+  if (mediaType === 'audio/wav') {
+    if (bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WAVE') {
+      throw invalid()
+    }
+    return
+  }
+  if (bytes.length < 24 || bytes.toString('ascii', 4, 8) !== 'ftyp') throw invalid()
+}
+
 async function requireRegularFile(path: string): Promise<void> {
   const stats = await lstat(path)
   if (!stats.isFile() || stats.isSymbolicLink()) throw invalid()
@@ -255,6 +331,10 @@ export class ScopedArtifactStore {
 
   private textPath(artifactId: string): string {
     return join(this.rootDirectory, `${artifactId}.txt`)
+  }
+
+  private mediaPath(artifactId: string, mediaType: RegisterMediaBase['mediaType']): string {
+    return join(this.rootDirectory, `${artifactId}.${mediaType === 'audio/wav' ? 'wav' : 'mp4'}`)
   }
 
   async registerText(
@@ -444,6 +524,101 @@ export class ScopedArtifactStore {
         ...(metadata.displayName === undefined ? {} : { displayName: metadata.displayName }),
       }
       return { artifact, bytes, ...dimensions }
+    } catch (error) {
+      if (error instanceof ScopedArtifactStoreError) throw error
+      throw invalid()
+    }
+  }
+
+  async discardImage(input: OpenImageInput): Promise<void> {
+    await this.openImage(input)
+    try {
+      await Promise.all([
+        unlink(this.artifactPath(input.artifactId)),
+        unlink(this.metadataPath(input.artifactId)),
+      ])
+    } catch {
+      throw invalid()
+    }
+  }
+
+  async registerMedia(
+    input: RegisterMediaInput,
+  ): Promise<ScopedArtifactRef & { mediaType: 'audio/wav' | 'video/mp4' }> {
+    validateIdentity(input.artifactId)
+    const scope = input.scope ?? 'run'
+    if (!isUuid(input.documentId)) throw new ScopedArtifactStoreError('artifact_scope_invalid')
+    if (scope === 'run') validateScope(input.documentId, input.runId)
+    validateDisplayName(input.displayName)
+    if (input.mediaType !== 'audio/wav' && input.mediaType !== 'video/mp4') throw invalid()
+    const bytes = Buffer.from(input.bytes)
+    inspectMedia(bytes, input.mediaType)
+    const mediaPath = this.mediaPath(input.artifactId, input.mediaType)
+    const metadataPath = this.metadataPath(input.artifactId)
+    for (const path of [mediaPath, metadataPath]) {
+      try {
+        await lstat(path)
+        throw new ScopedArtifactStoreError('artifact_exists')
+      } catch (error) {
+        if (error instanceof ScopedArtifactStoreError) throw error
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw invalid()
+      }
+    }
+    const artifact = {
+      artifactId: input.artifactId,
+      mediaType: input.mediaType,
+      byteLength: bytes.length,
+      sha256: sha256(bytes),
+      ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
+    }
+    const metadata: MediaArtifactMetadata = {
+      schemaVersion: 1,
+      ...artifact,
+      documentId: input.documentId,
+      scope,
+      ...(scope === 'run' ? { runId: input.runId } : {}),
+      createdAt: this.now(),
+    }
+    try {
+      await atomicWriteFile(mediaPath, bytes, this.atomicWriteOptions)
+      await atomicWriteJson(metadataPath, metadata, this.atomicWriteOptions)
+      return artifact
+    } catch {
+      await Promise.allSettled([unlink(mediaPath), unlink(metadataPath)])
+      throw invalid()
+    }
+  }
+
+  async openMedia(input: OpenMediaInput): Promise<OpenedScopedMedia> {
+    validateIdentity(input.artifactId)
+    validateScope(input.documentId, input.runId)
+    try {
+      const metadataPath = this.metadataPath(input.artifactId)
+      await requireRegularFile(metadataPath)
+      const rawMetadata = await readFile(metadataPath, 'utf8')
+      const metadata = mediaMetadataFrom(JSON.parse(rawMetadata) as unknown)
+      if (
+        metadata.artifactId !== input.artifactId ||
+        metadata.documentId !== input.documentId ||
+        (metadata.scope === 'run' && metadata.runId !== input.runId)
+      ) {
+        throw new ScopedArtifactStoreError('artifact_scope_invalid')
+      }
+      const mediaPath = this.mediaPath(input.artifactId, metadata.mediaType)
+      await requireRegularFile(mediaPath)
+      const bytes = await readFile(mediaPath)
+      inspectMedia(bytes, metadata.mediaType)
+      if (metadata.byteLength !== bytes.length || metadata.sha256 !== sha256(bytes)) throw invalid()
+      return {
+        artifact: {
+          artifactId: metadata.artifactId,
+          mediaType: metadata.mediaType,
+          byteLength: metadata.byteLength,
+          sha256: metadata.sha256,
+          ...(metadata.displayName === undefined ? {} : { displayName: metadata.displayName }),
+        },
+        bytes,
+      }
     } catch (error) {
       if (error instanceof ScopedArtifactStoreError) throw error
       throw invalid()

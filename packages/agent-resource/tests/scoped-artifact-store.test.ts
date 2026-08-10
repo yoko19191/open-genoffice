@@ -9,6 +9,11 @@ const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
   'base64',
 )
+const WAV = Buffer.from(
+  '524946462400000057415645666d74201000000001000100401f0000803e0000020010006461746100000000',
+  'hex',
+)
+const MP4 = Buffer.from('000000186674797069736f6d0000000069736f6d6d703432', 'hex')
 const ARTIFACT_ID = '11111111-1111-4111-8111-111111111111'
 const DOCUMENT_ID = '22222222-2222-4222-8222-222222222222'
 const RUN_ID = '33333333-3333-4333-8333-333333333333'
@@ -263,6 +268,30 @@ describe('ScopedArtifactStore', () => {
     expect(JSON.stringify(opened)).not.toContain(store.artifactPath(ARTIFACT_ID))
   })
 
+  it('discards only a scope-verified run image', async () => {
+    const { store } = await createStore()
+    await store.registerImage({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      bytes: PNG,
+      mediaType: 'image/png',
+      width: 1,
+      height: 1,
+    })
+    await expect(
+      store.discardImage({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: '44444444-4444-4444-8444-444444444444',
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_scope_invalid' })
+    await store.discardImage({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID })
+    await expect(
+      store.openImage({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+  })
+
   it.each([
     [{ artifactId: 'bad', documentId: DOCUMENT_ID, runId: RUN_ID }, 'artifact_invalid'],
     [{ artifactId: ARTIFACT_ID, documentId: 'bad', runId: RUN_ID }, 'artifact_scope_invalid'],
@@ -428,5 +457,90 @@ describe('ScopedArtifactStore', () => {
     await expect(readFile(store.artifactPath(ARTIFACT_ID))).rejects.toMatchObject({
       code: 'ENOENT',
     })
+  })
+
+  it('registers document-scoped WAV media and opens it from any run in the document', async () => {
+    const { store } = await createStore()
+    const artifact = await store.registerMedia({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      scope: 'document',
+      bytes: WAV,
+      mediaType: 'audio/wav',
+      displayName: 'clip.wav',
+    })
+
+    await expect(
+      store.openMedia({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID }),
+    ).resolves.toEqual({ artifact, bytes: WAV })
+    await expect(
+      store.openMedia({
+        artifactId: ARTIFACT_ID,
+        documentId: '44444444-4444-4444-8444-444444444444',
+        runId: RUN_ID,
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_scope_invalid' })
+  })
+
+  it('keeps run-scoped MP4 media bound to one run and detects tampering', async () => {
+    const { root, store } = await createStore()
+    const artifact = await store.registerMedia({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      bytes: MP4,
+      mediaType: 'video/mp4',
+    })
+    expect(
+      await store.openMedia({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID }),
+    ).toEqual({ artifact, bytes: MP4 })
+    await expect(
+      store.openMedia({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: '44444444-4444-4444-8444-444444444444',
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_scope_invalid' })
+
+    await writeFile(join(root, `${ARTIFACT_ID}.mp4`), Buffer.concat([MP4, Buffer.from('changed')]))
+    await expect(
+      store.openMedia({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+  })
+
+  it('rejects malformed media registration, duplicate identities and partial writes', async () => {
+    const { store } = await createStore()
+    const valid = {
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      bytes: WAV,
+      mediaType: 'audio/wav' as const,
+      displayName: 'clip.wav',
+    }
+    for (const input of [
+      { ...valid, artifactId: 'bad' },
+      { ...valid, documentId: 'bad' },
+      { ...valid, runId: 'bad' },
+      { ...valid, bytes: Buffer.from('bad') },
+      { ...valid, mediaType: 'video/mp4' as 'audio/wav' },
+      { ...valid, displayName: '../clip.wav' },
+    ]) {
+      await expect(store.registerMedia(input)).rejects.toMatchObject({
+        code: expect.stringMatching(/^artifact_/),
+      })
+    }
+    await store.registerMedia(valid)
+    await expect(store.registerMedia(valid)).rejects.toMatchObject({ code: 'artifact_exists' })
+
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-failing-media-store-'))
+    roots.push(root)
+    const failing = new ScopedArtifactStore({
+      rootDirectory: root,
+      atomicWriteOptions: { failAt: 'after_rename' },
+    })
+    await expect(
+      failing.registerMedia({ ...valid, artifactId: '55555555-5555-4555-8555-555555555555' }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
   })
 })

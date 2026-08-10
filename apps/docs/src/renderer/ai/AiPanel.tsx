@@ -415,18 +415,25 @@ function PlatformToolDetails({
       </div>
     )
   }
+  if (details.kind === 'image_search') {
+    return (
+      <div className="ai-tool-details" data-testid="image_search-details">
+        {details.images.map((item) => (
+          <a
+            key={item.artifactId}
+            href={item.sourceUrl || undefined}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {item.title}
+          </a>
+        ))}
+      </div>
+    )
+  }
   return (
-    <div className="ai-tool-details" data-testid="image_search-details">
-      {details.images.map((item) => (
-        <a
-          key={item.artifactId}
-          href={item.sourceUrl || undefined}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {item.title}
-        </a>
-      ))}
+    <div className="ai-tool-details" data-testid="media-analysis-details">
+      {details.providerId} / {details.modelId} · {details.state}
     </div>
   )
 }
