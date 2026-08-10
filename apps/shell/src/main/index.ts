@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
 import {
   copyFileSync,
   cpSync,
@@ -166,6 +167,11 @@ import { installModelManagementIpc } from './model-management-ipc'
 import { McpOAuthLoopback } from './mcp-oauth-loopback'
 import { installMineruOcrIpc } from './mineru-ocr-ipc'
 import { LegacyCleanupStartup } from './legacy-cleanup-startup'
+import { resolveAgentResourceHome, resolveShellUserDataPath } from './user-data-path'
+import {
+  installChromiumPackageNetworkAudit,
+  packageNetworkAuditEnabled,
+} from './package-network-audit'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -179,16 +185,30 @@ import { LegacyCleanupStartup } from './legacy-cleanup-startup'
 // ANY unpacked run (`npm run shell`, `npm run dev`, `npx electron .`) must not
 // share the installed app's userData or single-instance lock — otherwise a dev
 // run silently quits and forwards its argv to the running installed GenOffice.
-// GENOFFICE_USER_DATA: test drivers point this at a scratch dir so an
-// automated instance can run alongside the dev instance (separate lock).
-if (!app.isPackaged)
-  app.setPath(
-    'userData',
-    process.env.GENOFFICE_USER_DATA ?? join(app.getPath('appData'), 'GenOffice Dev'),
+// GENOFFICE_USER_DATA lets package smoke tests use an explicit scratch profile.
+const shellUserDataPath = resolveShellUserDataPath({
+  isPackaged: app.isPackaged,
+  appData: app.getPath('appData'),
+  override: process.env.GENOFFICE_USER_DATA,
+})
+if (shellUserDataPath) app.setPath('userData', shellUserDataPath)
+const packageNetworkAudit = {
+  isPackaged: app.isPackaged,
+  enabled: process.env.GENOFFICE_PACKAGE_NETWORK_AUDIT,
+  reportPath: process.env.GENOFFICE_NETWORK_REPORT,
+  surface: process.env.GENOFFICE_NETWORK_SURFACE,
+}
+const packageNetworkAuditConfig = packageNetworkAuditEnabled(packageNetworkAudit)
+  ? packageNetworkAudit
+  : undefined
+if (packageNetworkAuditConfig) {
+  createRequire(__filename)(
+    join(process.resourcesPath, 'diagnostics', 'package-network-recorder.cjs'),
   )
+}
 
 // The product rename from "AI Office" to GenOffice changed the userData path; migrate old user data once
-if (app.isPackaged) {
+if (app.isPackaged && !packageNetworkAuditConfig) {
   const oldDir = join(app.getPath('appData'), 'AI Office')
   const newDir = app.getPath('userData')
   const newEmpty = !existsSync(newDir) || readdirSync(newDir).length === 0
@@ -218,11 +238,17 @@ const SIDECAR_BIN = app.isPackaged
 const PI_RUNTIME_ROOT = app.isPackaged
   ? join(process.resourcesPath, 'pi-runtime')
   : (process.env.GENOFFICE_PI_RUNTIME_BUNDLE ?? join(process.resourcesPath, 'pi-runtime'))
-const AGENT_RESOURCE_HOME = join(app.getPath('home'), '.open-genoffice')
+const AGENT_RESOURCE_HOME = resolveAgentResourceHome({
+  home: app.getPath('home'),
+  packageAudit: packageNetworkAuditConfig !== undefined,
+  auditOverride: process.env.GENOFFICE_PACKAGE_AGENT_RESOURCE_HOME,
+})
 const legacyCleanupStartup = new LegacyCleanupStartup({
   resourceHome: AGENT_RESOURCE_HOME,
   userData: app.getPath('userData'),
-  legacyHome: join(app.getPath('home'), '.genoffice'),
+  legacyHome: packageNetworkAuditConfig
+    ? join(dirname(AGENT_RESOURCE_HOME), '.genoffice')
+    : join(app.getPath('home'), '.genoffice'),
   platform: process.platform,
   runtimeVersion: RUNTIME_VERSION,
   audit: (record) => {
@@ -2573,6 +2599,13 @@ app.whenReady().then(() => {
     return
   }
 
+  if (packageNetworkAuditConfig) {
+    installChromiumPackageNetworkAudit(
+      session.defaultSession.webRequest,
+      packageNetworkAuditConfig.reportPath,
+      packageNetworkAuditConfig.surface,
+    )
+  }
   proxyBootstrap = installMainProcessProxy()
   app.setAccessibilitySupportEnabled(true)
   // Settle the shared uiLang from saved settings BEFORE any tab renderer can

@@ -28,6 +28,7 @@
     "audit:pi-platform": "node tools/audit-pi-platform.mjs",
     "verify:pi-runtime-bundle": "node tools/verify-pi-runtime-bundle.mjs",
     "verify:packaged-pi-platform": "node tools/verify-packaged-pi-platform.mjs",
+    "smoke:packaged-shell": "node tools/smoke-packaged-shell.mjs",
     "audit:retired-vendor": "node tools/audit-retired-vendor.mjs --mode baseline",
     "audit:retired-vendor:zero": "node tools/audit-retired-vendor.mjs --mode zero",
     "lint": "eslint .",

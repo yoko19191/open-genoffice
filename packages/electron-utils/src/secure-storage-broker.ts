@@ -141,9 +141,9 @@ export class SecureStorageBroker {
 
   get(slot: string): Promise<{ metadata: CredentialMetadata; secretPayload: string } | undefined> {
     return this.withSlot(slot, async () => {
-      await this.requirePersistentStorage()
       const metadata = (await this.readIndex()).entries.find((entry) => entry.slot === slot)
       if (!metadata) return undefined
+      await this.requirePersistentStorage()
 
       let decrypted: Awaited<ReturnType<SafeStorageAdapter['decryptStringAsync']>>
       try {
@@ -169,15 +169,20 @@ export class SecureStorageBroker {
 
   status(slot: string): Promise<CredentialStatus> {
     return this.withSlot(slot, async () => {
+      const metadata = (await this.readIndex()).entries.find((entry) => entry.slot === slot)
+      if (!metadata) {
+        if (this.platform === 'linux') {
+          const backend = this.safeStorage.getSelectedStorageBackend()
+          if (backend === 'basic_text' || backend === 'unknown') {
+            return { slot, status: 'secure_storage_unavailable' }
+          }
+        }
+        return { slot, status: 'missing' }
+      }
       if (!(await this.persistentStorageAvailable())) {
         return { slot, status: 'secure_storage_unavailable' }
       }
-      return (
-        (await this.readIndex()).entries.find((entry) => entry.slot === slot) ?? {
-          slot,
-          status: 'missing',
-        }
-      )
+      return metadata
     })
   }
 

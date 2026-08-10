@@ -173,11 +173,31 @@ describe('Electron main SecureStorageBroker', () => {
     ).rejects.toEqual(new SecureStorageBrokerError('secure_storage_unavailable'))
     await expect(broker.status(SLOT)).resolves.toEqual({
       slot: SLOT,
-      status: 'secure_storage_unavailable',
+      status: backend.backend === 'gnome_libsecret' ? 'missing' : 'secure_storage_unavailable',
     })
     await expect(
       access(join(rootDirectory, 'state/secure-store/index.json')),
     ).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('does not initialize asynchronous system encryption for a read-only status check', async () => {
+    const rootDirectory = await mkdtemp(join(tmpdir(), 'secure-storage-broker-status-'))
+    let asynchronousChecks = 0
+    const storage = fakeSafeStorage()
+    storage.adapter.isAsyncEncryptionAvailable = async () => {
+      asynchronousChecks += 1
+      return true
+    }
+    const broker = await SecureStorageBroker.create({
+      rootDirectory,
+      runtimeVersion: '1.0.0',
+      platform: 'darwin',
+      safeStorage: storage.adapter,
+    })
+
+    await expect(broker.status(SLOT)).resolves.toEqual({ slot: SLOT, status: 'missing' })
+    await expect(broker.get(SLOT)).resolves.toBeUndefined()
+    expect(asynchronousChecks).toBe(0)
   })
 
   it('uses generation CAS, serialized slots, and atomic old-or-new crash recovery', async () => {

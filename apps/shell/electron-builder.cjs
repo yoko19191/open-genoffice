@@ -140,6 +140,10 @@ const config = {
       from: 'build/pi-runtime',
       to: 'pi-runtime',
     },
+    {
+      from: '../../tools/package-network-recorder.cjs',
+      to: 'diagnostics/package-network-recorder.cjs',
+    },
   ],
   // `mimeType` is read only by the Linux target, where it becomes the
   // desktop entry's MimeType= list; associations without it are dropped

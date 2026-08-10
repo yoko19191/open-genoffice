@@ -15,6 +15,7 @@ on:
       - 'tools/generate-sbom.mjs'
       - 'tools/hash-release-artifacts.mjs'
       - 'tools/package-network-recorder.cjs'
+      - 'tools/smoke-packaged-shell.mjs'
       - 'tools/verify-packaged-pi-platform.mjs'
       - 'package-lock.json'
       - 'package.json'
@@ -155,6 +156,26 @@ jobs:
             --arch ${{ matrix.arch }} \
             --output evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
 
+      - name: Launch installed shell with a clean home and no network
+        shell: bash
+        run: |
+          case '${{ matrix.platform }}' in
+            darwin) executable='apps/shell/package-smoke/GenOffice.app/Contents/MacOS/GenOffice' ;;
+            win32) executable='apps/shell/release/win-unpacked/GenOffice.exe' ;;
+            linux) executable='apps/shell/package-smoke/squashfs-root/AppRun' ;;
+          esac
+          smoke=(
+            npm run smoke:packaged-shell --
+            --executable "$executable"
+            --platform ${{ matrix.platform }}
+            --output evidence/g9/native-package/${{ matrix.evidence-platform }}/first-launch.json
+          )
+          if [ '${{ matrix.platform }}' = 'linux' ]; then
+            xvfb-run -a "${smoke[@]}"
+          else
+            "${smoke[@]}"
+          fi
+
       - name: Hash the exact unsigned release artifact set
         run: >-
           node tools/hash-release-artifacts.mjs
@@ -167,9 +188,11 @@ jobs:
           npm run acceptance:evidence --
           --acceptance AR-003,AR-009,AR-010,GX-001,GX-002,GX-003,GX-004,PK-001,PK-002,OTC-009
           --fixture packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
+          --fixture shell=evidence/g9/native-package/${{ matrix.evidence-platform }}/first-launch.json
           --fixture artifacts=evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json
           --fixture retiredVendorFree=evidence/g9/native-package/${{ matrix.evidence-platform }}/retired-vendor-free.json
           --suite packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
+          --suite shell=evidence/g9/native-package/${{ matrix.evidence-platform }}/first-launch.json
           --command unsigned-native-package-${{ matrix.evidence-platform }}
           --protocol 1
           --runtime 1.0.0
