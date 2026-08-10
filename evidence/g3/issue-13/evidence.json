@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "commit": "6f726e49626e06f1b0d491dcc8caf3324f7109bf",
+  "acceptanceIds": [
+    "DS-008",
+    "DS-010",
+    "SY-002",
+    "SY-004",
+    "SY-008"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "syncSchema": "3bcc5a6ef0e14d86b32e649456c80ebd0dce5ec9bd121b5bd495d7a59af3fa55",
+    "s3Adapter": "8d4d160ff8622acb83c3cc8fab3005eab755d839b3233f029563eb1854106d78",
+    "sharedProvider": "8bd1e84bf9a706182aee1727f211a316a0a7b1e1b10dd0b3ab19bda22c8cb3c1"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run test:coverage -w @genoffice/project-store (97.72/97.59/100/97.43)",
+    "GENOFFICE_TEST_MINIO_* npm exec --workspace @genoffice/project-store -- vitest run tests/minio-sync.integration.test.ts",
+    "npm run lint",
+    "npm run format:check",
+    "npm run licenses",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "projectStore",
+      "status": "passed",
+      "report": "evidence/g3/issue-13/reports/projectStore.json"
+    },
+    {
+      "suite": "minio",
+      "status": "passed",
+      "report": "evidence/g3/issue-13/reports/minio.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

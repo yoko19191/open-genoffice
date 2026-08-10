@@ -1,0 +1,52 @@
+{
+  "numTotalTestSuites": 2,
+  "numPassedTestSuites": 2,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 1,
+  "numPassedTests": 1,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786370531191,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "MinIO Project repository contract"
+          ],
+          "fullName": "MinIO Project repository contract shares canonical revisions across upload, incremental restore, CAS conflict and tombstone",
+          "status": "passed",
+          "title": "shares canonical revisions across upload, incremental restore, CAS conflict and tombstone",
+          "duration": 348.452625,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786370531380,
+      "endTime": 1786370531728.4526,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/project-store/tests/minio-sync.integration.test.ts"
+    }
+  ]
+}
