@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "commit": "77a944f362dbd0710d832a360b34213573d643e3",
+  "acceptanceIds": [
+    "DS-005",
+    "DS-010",
+    "DS-012",
+    "SY-006",
+    "SY-007"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "globalAsset": "32bc30392d327ddf8ae2bdf2c49cf549ae1d0cdd09af0c25e26add497dbd91a4",
+    "globalNamespace": "b04cab06a61bcba983b9a0dcf938d263e6b3cdc2431640e3b9e2535d64e9cb49",
+    "providerContract": "32dcb5b93c1daa9786007f99c04d3782291ec02770501615cd108ae11a048be5"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run test -w @genoffice/pi-agent-runtime (333 passed; 96.73/95.13/97.57/97.54; global-asset-sync 97.54/96.05/100/98.14)",
+    "npm run test:coverage -w @genoffice/project-store (157 passed, 1 skipped; 97.37/96.47/99.34/97.75)",
+    "npm run build:all",
+    "npm run lint (0 errors, 10 pre-existing warnings)",
+    "npm run format:check",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g3/issue-16/reports/runtime.json"
+    },
+    {
+      "suite": "projectStore",
+      "status": "passed",
+      "report": "evidence/g3/issue-16/reports/projectStore.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
