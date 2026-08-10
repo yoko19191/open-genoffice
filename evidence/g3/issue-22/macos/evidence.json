@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "commit": "68eeb5689a2cb6dd301bd5bcf43cb6fbc40fe3b0",
+  "acceptanceIds": [
+    "SA-001",
+    "SA-002",
+    "SA-003",
+    "SA-004",
+    "SS-007"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "headlessPi": "c2039734d1bd416b353d6ac7063ce40f4b19661591afde03b98ec2433cc6ded7"
+  },
+  "fixtureSources": {
+    "headlessPi": "apps/pi-agent-runtime/fixtures/pi-headless-fixture"
+  },
+  "reportHashes": {
+    "runtime": "83728f9f30b8a2f0120bc2dfcb969065820eb60a5229e50884fe7ca7375c1eb4"
+  },
+  "commands": [
+    "native-subagent-macos"
+  ],
+  "results": [
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g3/issue-22/macos/reports/runtime.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

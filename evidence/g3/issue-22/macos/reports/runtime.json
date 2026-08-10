@@ -1,0 +1,1024 @@
+{
+  "numTotalTestSuites": 10,
+  "numPassedTestSuites": 10,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 79,
+  "numPassedTests": 79,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786383517442,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine runs the official public API through a hermetic headless Pi process",
+          "status": "passed",
+          "title": "runs the official public API through a hermetic headless Pi process",
+          "duration": 1674.32625,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine cancels the official headless process tree without leaving a grandchild",
+          "status": "passed",
+          "title": "cancels the official headless process tree without leaving a grandchild",
+          "duration": 847.8432079999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine uses the fixed public headless API with an agentless, product-owned workspace and no ambient Pi resources",
+          "status": "passed",
+          "title": "uses the fixed public headless API with an agentless, product-owned workspace and no ambient Pi resources",
+          "duration": 7.880999999999858,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine interrupts the exact provider attempt and maps cancellation without raw signals",
+          "status": "passed",
+          "title": "interrupts the exact provider attempt and maps cancellation without raw signals",
+          "duration": 4.157083999999941,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine accepts a provider-originated cancelled terminal state without a local cancel request",
+          "status": "passed",
+          "title": "accepts a provider-originated cancelled terminal state without a local cancel request",
+          "duration": 4.0121250000001965,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine kills a Windows provider process tree before settling the exact attempt as cancelled",
+          "status": "passed",
+          "title": "kills a Windows provider process tree before settling the exact attempt as cancelled",
+          "duration": 3.7339170000000195,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine keeps provider interruption authoritative when native Windows tree cleanup is unavailable",
+          "status": "passed",
+          "title": "keeps provider interruption authoritative when native Windows tree cleanup is unavailable",
+          "duration": 8.361582999999882,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine finishes Windows tree cleanup before upstream interruption can orphan descendants",
+          "status": "passed",
+          "title": "finishes Windows tree cleanup before upstream interruption can orphan descendants",
+          "duration": 1.7371250000001055,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine maps reconcile committed-result to completed without returning upstream records",
+          "status": "passed",
+          "title": "maps reconcile committed-result to completed without returning upstream records",
+          "duration": 1.303124999999909,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine maps reconcile already-terminal to failed without returning upstream records",
+          "status": "passed",
+          "title": "maps reconcile already-terminal to failed without returning upstream records",
+          "duration": 0.5207499999996799,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine maps reconcile marked-stale to resumable without returning upstream records",
+          "status": "passed",
+          "title": "maps reconcile marked-stale to resumable without returning upstream records",
+          "duration": 0.5505419999999503,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine maps reconcile marked-cancelled to cancelled without returning upstream records",
+          "status": "passed",
+          "title": "maps reconcile marked-cancelled to cancelled without returning upstream records",
+          "duration": 0.47437500000023647,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine maps reconcile not-found to unknown without returning upstream records",
+          "status": "passed",
+          "title": "maps reconcile not-found to unknown without returning upstream records",
+          "duration": 0.37287500000002183,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine bounds result text and treats malformed usage and provider exceptions as stable failures",
+          "status": "passed",
+          "title": "bounds result text and treats malformed usage and provider exceptions as stable failures",
+          "duration": 1.8020419999998012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine rejects malformed provider references and bounded child context before watching",
+          "status": "passed",
+          "title": "rejects malformed provider references and bounded child context before watching",
+          "duration": 2.755290999999943,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine maps aborted, throwing, malformed and completed watch states to bounded public events",
+          "status": "passed",
+          "title": "maps aborted, throwing, malformed and completed watch states to bounded public events",
+          "duration": 2.8767499999999018,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiSubagentEngine"
+          ],
+          "fullName": "PiSubagentEngine fails closed across malformed reconcile status and unavailable provider status",
+          "status": "passed",
+          "title": "fails closed across malformed reconcile status and unavailable provider status",
+          "duration": 1.1777910000000702,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383518986,
+      "endTime": 1786383521550.1777,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pi-agent-runtime/tests/pi-subagent-engine.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Runtime process entry"
+          ],
+          "fullName": "Runtime process entry maps orderly parent EOF to exit 0 and removes the endpoint",
+          "status": "passed",
+          "title": "maps orderly parent EOF to exit 0 and removes the endpoint",
+          "duration": 41.56620799999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Runtime process entry"
+          ],
+          "fullName": "Runtime process entry initializes the explicit Resource Home before starting the private server",
+          "status": "passed",
+          "title": "initializes the explicit Resource Home before starting the private server",
+          "duration": 0.7310840000000098,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Runtime process entry"
+          ],
+          "fullName": "Runtime process entry writes only the stable diagnostic code for known and unknown failures",
+          "status": "passed",
+          "title": "writes only the stable diagnostic code for known and unknown failures",
+          "duration": 0.755333999999948,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383523140,
+      "endTime": 1786383523183.7554,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pi-agent-runtime/tests/process-entry.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry persists one exact Office catalog binding and rejects open-time drift",
+          "status": "passed",
+          "title": "persists one exact Office catalog binding and rejects open-time drift",
+          "duration": 65.49775,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry projects Mutation Grants and routes exact issue and document revocation through the Session",
+          "status": "passed",
+          "title": "projects Mutation Grants and routes exact issue and document revocation through the Session",
+          "duration": 19.35137500000019,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry journals a safe pending question and accepts only the bound main-signed answer",
+          "status": "passed",
+          "title": "journals a safe pending question and accepts only the bound main-signed answer",
+          "duration": 14.016833000000133,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry journals safe Subagent projections, resumes one attempt, and attaches parent Stop",
+          "status": "passed",
+          "title": "journals safe Subagent projections, resumes one attempt, and attaches parent Stop",
+          "duration": 75.5269159999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry routes the trusted Slides QC profile through its coordinator and attaches parent Stop",
+          "status": "passed",
+          "title": "routes the trusted Slides QC profile through its coordinator and attaches parent Stop",
+          "duration": 76.5585000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry projects an authorization revocation as capability_revoked instead of provider failure",
+          "status": "passed",
+          "title": "projects an authorization revocation as capability_revoked instead of provider failure",
+          "duration": 20.42883299999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry cancels one registered execution tree, drops late events, and accepts the next prompt",
+          "status": "passed",
+          "title": "cancels one registered execution tree, drops late events, and accepts the next prompt",
+          "duration": 24.279333000000406,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry fails abort closed when a document mutation outcome is unknown",
+          "status": "passed",
+          "title": "fails abort closed when a document mutation outcome is unknown",
+          "duration": 18.43462499999987,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry reports an incomplete non-mutation abort without marking the document uncertain",
+          "status": "passed",
+          "title": "reports an incomplete non-mutation abort without marking the document uncertain",
+          "duration": 18.42083300000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry rejects an unknown run and aborts an active execution tree during Runtime shutdown",
+          "status": "passed",
+          "title": "rejects an unknown run and aborts an active execution tree during Runtime shutdown",
+          "duration": 18.859375,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry creates one real Pi AgentSession and projects its native stream in journal order",
+          "status": "passed",
+          "title": "creates one real Pi AgentSession and projects its native stream in journal order",
+          "duration": 853.7524159999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry forks one document into an independent Pi Session and navigates only its branch DAG",
+          "status": "passed",
+          "title": "forks one document into an independent Pi Session and navigates only its branch DAG",
+          "duration": 902.5489579999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry returns the first receipt for an identical operation and rejects payload drift",
+          "status": "passed",
+          "title": "returns the first receipt for an identical operation and rejects payload drift",
+          "duration": 17.329208000000108,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry fails closed on a different document before opening or changing the Pi transcript",
+          "status": "passed",
+          "title": "fails closed on a different document before opening or changing the Pi transcript",
+          "duration": 869.2700000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry opens the persisted Pi JSONL and returns replay events after a valid cursor",
+          "status": "passed",
+          "title": "opens the persisted Pi JSONL and returns replay events after a valid cursor",
+          "duration": 38.445832999999766,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry repairs only crash-torn JSONL tails before reopening and appending",
+          "status": "passed",
+          "title": "repairs only crash-torn JSONL tails before reopening and appending",
+          "duration": 47.81287500000053,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry returns session_in_use to a second Runtime and releases the writer lease on shutdown",
+          "status": "passed",
+          "title": "returns session_in_use to a second Runtime and releases the writer lease on shutdown",
+          "duration": 34.979458000000704,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry single-flights concurrent opens inside one Runtime while retaining one writer lease",
+          "status": "passed",
+          "title": "single-flights concurrent opens inside one Runtime while retaining one writer lease",
+          "duration": 23.540541999999732,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry heartbeats an owned Session before TTL so another Runtime cannot take it over",
+          "status": "passed",
+          "title": "heartbeats an owned Session before TTL so another Runtime cannot take it over",
+          "duration": 280.6462080000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry takes over an expired lease and makes the old Runtime fail closed without deleting the new lease",
+          "status": "passed",
+          "title": "takes over an expired lease and makes the old Runtime fail closed without deleting the new lease",
+          "duration": 35.54316600000038,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry interrupts a crashed run once, marks an uncertain mutation, and accepts a new prompt",
+          "status": "passed",
+          "title": "interrupts a crashed run once, marks an uncertain mutation, and accepts a new prompt",
+          "duration": 95.49129200000061,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry covers reset cursors, missing sessions, busy runs, and provider failures without duplicating work",
+          "status": "passed",
+          "title": "covers reset cursors, missing sessions, busy runs, and provider failures without duplicating work",
+          "duration": 19.82929200000035,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry projects failure/progress event branches and only exposes render-safe transcript fields",
+          "status": "passed",
+          "title": "projects failure/progress event branches and only exposes render-safe transcript fields",
+          "duration": 23.901166999999987,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry rejects invalid bindings and cursors before opening Pi state",
+          "status": "passed",
+          "title": "rejects invalid bindings and cursors before opening Pi state",
+          "duration": 16.699916999999914,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during factory",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during factory",
+          "duration": 8.804374999999709,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during attach",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during attach",
+          "duration": 7.585374999999658,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during append",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during append",
+          "duration": 6.522750000000087,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during binding",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during binding",
+          "duration": 9.154749999999694,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry recovers a fully renamed binding after an injected post-commit crash",
+          "status": "passed",
+          "title": "recovers a fully renamed binding after an injected post-commit crash",
+          "duration": 15.814959000000272,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry rejects cursors signed for another instance, session, signature, or sequence",
+          "status": "passed",
+          "title": "rejects cursors signed for another instance, session, signature, or sequence",
+          "duration": 44.84191699999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry expires cursors outside the bounded replay window without reopening the run",
+          "status": "passed",
+          "title": "expires cursors outside the bounded replay window without reopening the run",
+          "duration": 856.8437080000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383520907,
+      "endTime": 1786383525468.8438,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pi-agent-runtime/tests/session-registry.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator uses fixed defaults, validates every request binding, and enforces authorization branches",
+          "status": "passed",
+          "title": "uses fixed defaults, validates every request binding, and enforces authorization branches",
+          "duration": 54.75841600000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator rechecks the current tool effect instead of trusting the frozen tool id alone",
+          "status": "passed",
+          "title": "rechecks the current tool effect instead of trusting the frozen tool id alone",
+          "duration": 19.358999999999924,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator enforces the wall-time budget through the live execution timer",
+          "status": "passed",
+          "title": "enforces the wall-time budget through the live execution timer",
+          "duration": 32.61129200000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator projects waiting, assistant and authorized tool events without raw provider bodies",
+          "status": "passed",
+          "title": "projects waiting, assistant and authorized tool events without raw provider bodies",
+          "duration": 30.20095900000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator normalizes spawn and stream failures, including incomplete and unauthorized tool streams",
+          "status": "passed",
+          "title": "normalizes spawn and stream failures, including incomplete and unauthorized tool streams",
+          "duration": 59.99433399999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator reconciles every provider outcome and a run missing its provider reference",
+          "status": "passed",
+          "title": "reconciles every provider outcome and a run missing its provider reference",
+          "duration": 149.57887499999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator contains stale-stream and registry-state races without overwriting terminal truth",
+          "status": "passed",
+          "title": "contains stale-stream and registry-state races without overwriting terminal truth",
+          "duration": 48.44854099999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator ignores model tools and compiles an independent read-only child context from the parent snapshot",
+          "status": "passed",
+          "title": "ignores model tools and compiles an independent read-only child context from the parent snapshot",
+          "duration": 15.20595900000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator persists two-level lineage and rejects direct mutation authorization even if requested",
+          "status": "passed",
+          "title": "persists two-level lineage and rejects direct mutation authorization even if requested",
+          "duration": 44.64662499999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator records grantable parent mutations and requires an exact active Grant before authorization",
+          "status": "passed",
+          "title": "records grantable parent mutations and requires an exact active Grant before authorization",
+          "duration": 12.329165999999987,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator creates a trusted named Slides QC actor with one read tool and one grantable mutation",
+          "status": "passed",
+          "title": "creates a trusted named Slides QC actor with one read tool and one grantable mutation",
+          "duration": 14.980457999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator rejects forged named profiles and cancels an active local QC run child-first",
+          "status": "passed",
+          "title": "rejects forged named profiles and cancels an active local QC run child-first",
+          "duration": 16.205999999999904,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator validates named QC lineage, exact tools, terminal ownership, and missing grant actors",
+          "status": "passed",
+          "title": "validates named QC lineage, exact tools, terminal ownership, and missing grant actors",
+          "duration": 18.488792000000103,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator keeps mutations forbidden when the Runtime has no Mutation Grant authority",
+          "status": "passed",
+          "title": "keeps mutations forbidden when the Runtime has no Mutation Grant authority",
+          "duration": 11.028999999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator cancels descendants child-first and leaves siblings and the parent session usable",
+          "status": "passed",
+          "title": "cancels descendants child-first and leaves siblings and the parent session usable",
+          "duration": 37.24174999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator enforces usage budget in execution by cancelling the whole root tree",
+          "status": "passed",
+          "title": "enforces usage budget in execution by cancelling the whole root tree",
+          "duration": 71.80162499999983,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator reconciles crash state, resumes with a new attempt, and never resumes a confirmed result",
+          "status": "passed",
+          "title": "reconciles crash state, resumes with a new attempt, and never resumes a confirmed result",
+          "duration": 22.866207999999915,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator maps provider failures to stable codes without exposing raw event bodies",
+          "status": "passed",
+          "title": "maps provider failures to stable codes without exposing raw event bodies",
+          "duration": 11.178125000000136,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentCoordinator"
+          ],
+          "fullName": "SubagentCoordinator rejects cross-document nesting and malformed roles before dispatch",
+          "status": "passed",
+          "title": "rejects cross-document nesting and malformed roles before dispatch",
+          "duration": 12.145291999999927,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383518153,
+      "endTime": 1786383518836.1453,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pi-agent-runtime/tests/subagent-coordinator.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry covers lifecycle transitions, wall time, cumulative attempts and event unsubscription",
+          "status": "passed",
+          "title": "covers lifecycle transitions, wall time, cumulative attempts and event unsubscription",
+          "duration": 72.30362500000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry rejects invalid creation, state, persistence and lineage variants fail closed",
+          "status": "passed",
+          "title": "rejects invalid creation, state, persistence and lineage variants fail closed",
+          "duration": 23.074415999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry persists authoritative lineage, attempts, budget and a renderer-safe tree",
+          "status": "passed",
+          "title": "persists authoritative lineage, attempts, budget and a renderer-safe tree",
+          "duration": 29.800250000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry enforces depth, total children and concurrency against the shared root budget",
+          "status": "passed",
+          "title": "enforces depth, total children and concurrency against the shared root budget",
+          "duration": 23.045249999999953,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry terminates execution when the shared tokens budget is exceeded",
+          "status": "passed",
+          "title": "terminates execution when the shared tokens budget is exceeded",
+          "duration": 14.362874999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry terminates execution when the shared cost budget is exceeded",
+          "status": "passed",
+          "title": "terminates execution when the shared cost budget is exceeded",
+          "duration": 12.771208000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry terminates execution when the shared tools budget is exceeded",
+          "status": "passed",
+          "title": "terminates execution when the shared tools budget is exceeded",
+          "duration": 25.494583000000034,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry marks stale active work resumable or failed and resumes with a new product attempt",
+          "status": "passed",
+          "title": "marks stale active work resumable or failed and resumes with a new product attempt",
+          "duration": 31.026250000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "SubagentRunRegistry"
+          ],
+          "fullName": "SubagentRunRegistry fails closed on malformed or unknown registry files and exposes fixed defaults",
+          "status": "passed",
+          "title": "fails closed on malformed or unknown registry files and exposes fixed defaults",
+          "duration": 3.948249999999973,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383521736,
+      "endTime": 1786383521971.9482,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pi-agent-runtime/tests/subagent-run-registry.test.ts"
+    }
+  ]
+}

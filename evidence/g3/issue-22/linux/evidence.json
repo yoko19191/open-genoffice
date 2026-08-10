@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "commit": "68eeb5689a2cb6dd301bd5bcf43cb6fbc40fe3b0",
+  "acceptanceIds": [
+    "SA-001",
+    "SA-002",
+    "SA-003",
+    "SA-004",
+    "SS-007"
+  ],
+  "platform": "linux",
+  "arch": "x64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "headlessPi": "c2039734d1bd416b353d6ac7063ce40f4b19661591afde03b98ec2433cc6ded7"
+  },
+  "fixtureSources": {
+    "headlessPi": "apps/pi-agent-runtime/fixtures/pi-headless-fixture"
+  },
+  "reportHashes": {
+    "runtime": "e54676835acabada107faa9992b87c125e5a50f932473444a268a1b2725ab223"
+  },
+  "commands": [
+    "native-subagent-linux"
+  ],
+  "results": [
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g3/issue-22/linux/reports/runtime.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
