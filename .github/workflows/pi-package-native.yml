@@ -180,7 +180,7 @@ jobs:
               -path '*/resources/pi-runtime/manifest.json' -type f -print
           )
           test "${#runtime_manifests[@]}" -eq 1
-          export GENOFFICE_PACKAGED_RUNTIME_ROOT="${runtime_manifests[0]%/manifest.json}"
+          export GENOFFICE_PACKAGED_RUNTIME_ROOT="$(realpath "${runtime_manifests[0]%/manifest.json}")"
           npm run test -w @genoffice/electron-utils -- \
             --coverage.enabled=false \
             tests/pi-runtime-e2e.test.ts \

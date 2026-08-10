@@ -367,23 +367,26 @@ describe('installed Pi Runtime bundle verifier', () => {
     }
   })
 
-  it('rejects a non-executable Linux Runtime entry even when its manifest matches', async () => {
-    const actualPlatform = process.platform
-    Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' })
-    try {
-      const { root, manifest } = await fixtureBundle()
-      const entry = manifest.files.find((file) => file.path === manifest.entry)!
-      entry.mode = '0644'
-      refreshTreeHash(manifest)
-      await chmod(join(root, manifest.entry), 0o644)
-      await writeManifest(root, manifest)
-      await expect(
-        verifyPiRuntimeBundle(root, { platform: 'linux', arch: manifest.arch }),
-      ).rejects.toEqual(new RuntimeBundleVerificationError('runtime_bundle_entry_mode_invalid'))
-    } finally {
-      Object.defineProperty(process, 'platform', { configurable: true, value: actualPlatform })
-    }
-  })
+  it.skipIf(process.platform === 'win32')(
+    'rejects a non-executable Linux Runtime entry even when its manifest matches',
+    async () => {
+      const actualPlatform = process.platform
+      Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' })
+      try {
+        const { root, manifest } = await fixtureBundle()
+        const entry = manifest.files.find((file) => file.path === manifest.entry)!
+        entry.mode = '0644'
+        refreshTreeHash(manifest)
+        await chmod(join(root, manifest.entry), 0o644)
+        await writeManifest(root, manifest)
+        await expect(
+          verifyPiRuntimeBundle(root, { platform: 'linux', arch: manifest.arch }),
+        ).rejects.toEqual(new RuntimeBundleVerificationError('runtime_bundle_entry_mode_invalid'))
+      } finally {
+        Object.defineProperty(process, 'platform', { configurable: true, value: actualPlatform })
+      }
+    },
+  )
 
   it('accepts a Windows target without POSIX modes and rejects missing Linux glibc', async () => {
     const missingLauncher = await fixtureBundle()
