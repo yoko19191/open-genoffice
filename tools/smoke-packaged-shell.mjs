@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -160,9 +160,20 @@ async function launchShell(env) {
       await browser.close().catch(() => undefined)
     },
     forceClose: async () => {
-      if (child.exitCode === null) child.kill()
-      await Promise.race([exited, delay(5_000)])
-      await browser.close().catch(() => undefined)
+      if (child.exitCode === null) {
+        if (process.platform === 'win32' && child.pid) {
+          spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+            stdio: 'ignore',
+            timeout: 5_000,
+            windowsHide: true,
+          })
+        } else {
+          child.kill('SIGKILL')
+        }
+      }
+      child.unref()
+      void browser.close().catch(() => undefined)
+      await Promise.race([exited, delay(2_000)])
     },
   }
 }
