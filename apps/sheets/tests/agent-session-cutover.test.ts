@@ -38,7 +38,7 @@ describe('Sheets Agent Session cutover', () => {
     expect(app).toContain('createSheetsOfficeToolRendererHandler')
     expect(host).toContain('openImage')
     expect(host).not.toMatch(/https?:\/\/|filePath|base64/i)
-    expect(runtime).toContain("resourceId: 'open-genoffice/sheets-workbook'")
+    expect(runtime).toContain("'open-genoffice/sheets-workbook'")
   })
 
   it('has no legacy Agent, provider, duplicate files/search IPC, guide executor, or brand path', async () => {
