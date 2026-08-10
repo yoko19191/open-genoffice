@@ -11,9 +11,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@sinclair/typebox": "0.34.52",
     "@aws-sdk/client-s3": "3.1106.0",
     "webdav": "5.10.0"
   },

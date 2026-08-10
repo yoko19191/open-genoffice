@@ -23,6 +23,7 @@ describe('G0 dependency pins', () => {
     })
     expect(projectStore.dependencies).toEqual({
       '@aws-sdk/client-s3': '3.1106.0',
+      '@sinclair/typebox': '0.34.52',
       webdav: '5.10.0',
     })
   })
@@ -38,6 +39,7 @@ describe('G0 dependency pins', () => {
       '@agwab/pi-subagent': '0.4.8',
       webdav: '5.10.0',
       '@aws-sdk/client-s3': '3.1106.0',
+      '@sinclair/typebox': '0.34.52',
       fflate: '0.8.2',
     }
 
