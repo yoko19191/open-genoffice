@@ -2,7 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { createAgentSessionPreloadApi } from '@genoffice/electron-utils/agent-session-preload'
 import type { Lang } from '@genoffice/i18n'
 import { PDF_CHANNELS } from '../shared/ipc'
-import type { PdfApi } from '../shared/ipc'
+import {
+  isPdfOfficeToolRequest,
+  isPdfOfficeToolResponse,
+  type PdfApi,
+  type PdfOfficeToolsApi,
+} from '../shared/ipc'
 
 const api: PdfApi = {
   consumePending: () => ipcRenderer.invoke(PDF_CHANNELS.consumePending),
@@ -37,5 +42,32 @@ const api: PdfApi = {
   },
 }
 
+const officeTools: PdfOfficeToolsApi = {
+  onRequest: (handler) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: unknown) => {
+      if (!isPdfOfficeToolRequest(request)) return
+      void Promise.resolve(handler(request))
+        .then((response) => {
+          ipcRenderer.send(
+            PDF_CHANNELS.officeToolResponse,
+            isPdfOfficeToolResponse(response)
+              ? response
+              : { requestId: request.requestId, ok: false, errorCode: 'tool_failed' },
+          )
+        })
+        .catch(() => {
+          ipcRenderer.send(PDF_CHANNELS.officeToolResponse, {
+            requestId: request.requestId,
+            ok: false,
+            errorCode: 'tool_failed',
+          })
+        })
+    }
+    ipcRenderer.on(PDF_CHANNELS.officeToolRequest, listener)
+    return () => ipcRenderer.removeListener(PDF_CHANNELS.officeToolRequest, listener)
+  },
+}
+
 contextBridge.exposeInMainWorld('pdfApi', api)
+contextBridge.exposeInMainWorld('pdfOfficeTools', officeTools)
 contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))

@@ -319,6 +319,9 @@ describe('Agent document authorization', () => {
     await expect(
       manager.authorizeAgentDocument(docs.webContents.id, firstDocumentId),
     ).resolves.toBe(true)
+    expect(manager.agentWebContentsFor(firstDocumentId, 'docs')).toBe(docs.webContents)
+    expect(manager.agentWebContentsFor(firstDocumentId, 'pdf')).toBeUndefined()
+    expect(manager.agentWebContentsFor(secondDocumentId)).toBeUndefined()
     await expect(
       manager.authorizeAgentDocument(docs.webContents.id, secondDocumentId),
     ).resolves.toBe(false)

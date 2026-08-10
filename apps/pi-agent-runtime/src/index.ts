@@ -143,6 +143,11 @@ export {
   type RuntimeCredentialBrokerClientOptions,
 } from './runtime-credential-broker-client'
 export {
+  RuntimeOfficeToolHostClient,
+  RuntimeOfficeToolHostClientError,
+  type RuntimeOfficeToolHostClientOptions,
+} from './runtime-office-tool-host-client'
+export {
   planSessionRecovery,
   type RecoveredMutationOutcome,
   type RecoveredTool,

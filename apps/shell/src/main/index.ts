@@ -137,7 +137,9 @@ import {
   requestPdfClose,
   requestPdfSaveAs,
   setPdfSaveAsInFlight,
+  pdfOfficeToolRendererClient,
 } from '../../../pdf/src/main/pdf-main'
+import { PdfOfficeToolHost } from '../../../pdf/src/main/agent-tools/pdf-office-tool-host'
 import type { AccountLoginEvent, RecentEntry, RecentPage, RenameResult } from '../shared/home-api'
 import { HOME_CHANNELS } from '../shared/home-api'
 import type { TabKind } from '../shared/tabs-api'
@@ -238,6 +240,7 @@ const mineruOcrService = new MineruOcrService({
   platform: process.platform,
   credentialBroker,
 })
+const pdfOfficeToolHost = { current: undefined as PdfOfficeToolHost | undefined }
 const piRuntimeService = createInstalledPiRuntimeService({
   bundleRoot: PI_RUNTIME_ROOT,
   platform: process.platform,
@@ -245,6 +248,17 @@ const piRuntimeService = createInstalledPiRuntimeService({
   parentPid: process.pid,
   resourceHome: AGENT_RESOURCE_HOME,
   credentialBroker,
+  officeToolHost: {
+    invoke: (request) => {
+      if (pdfOfficeToolHost.current) return pdfOfficeToolHost.current.invoke(request)
+      return Promise.reject(
+        Object.assign(new Error('executor_unavailable'), {
+          code: 'executor_unavailable',
+        }),
+      )
+    },
+    abort: (request) => pdfOfficeToolHost.current?.abort(request) ?? Promise.resolve(false),
+  },
 })
 
 configureDocsRuntime({
@@ -1116,6 +1130,8 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
   authorize: (webContentsId, documentId) =>
     tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
   randomUUID,
+  rollbackRun: (documentId, runId) =>
+    pdfOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false),
   resolveOfficeToolCatalog: (webContentsId) =>
     tabManager?.agentDocumentKindFor(webContentsId) === 'pdf'
       ? PDF_OFFICE_TOOL_CATALOG_BINDING
@@ -1134,6 +1150,32 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
     advanceCurrent: (documentId, expectedSessionId, sessionId) =>
       documentSessionIndexStore.advanceCurrent(documentId, expectedSessionId, sessionId),
   },
+})
+
+const pdfToolIds = new Set(PDF_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
+pdfOfficeToolHost.current = new PdfOfficeToolHost({
+  resolveRenderer: (documentId) => {
+    const contents = tabManager?.agentWebContentsFor(documentId, 'pdf')
+    return contents ? pdfOfficeToolRendererClient(contents.id) : undefined
+  },
+  validateBinding: async (request) => {
+    const contents = tabManager?.agentWebContentsFor(request.documentId, 'pdf')
+    return contents
+      ? (tabManager?.authorizeAgentDocument(contents.id, request.documentId) ?? false)
+      : false
+  },
+  validatePermissionSnapshot: async (request) =>
+    request.permissionSnapshot.toolIds.length > 0 &&
+    request.permissionSnapshot.toolIds.every((toolId) => pdfToolIds.has(toolId)),
+  authorizeMutationGrant: async (request) =>
+    request.actor.type === 'subagent' &&
+    request.mutationGrantId !== undefined &&
+    agentSessionBroker.authorizeMutationGrant({
+      grantId: request.mutationGrantId,
+      subagentRunId: request.actor.subagentRunId,
+      documentId: request.documentId,
+      toolId: request.toolId,
+    }),
 })
 
 /**

@@ -100,6 +100,14 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
     })
   }
 
+  const rollbackRun = (): void => {
+    if (busy || !projection?.rollbackRunId) return
+    setConnectionError(undefined)
+    void controller.rollbackLastRun().catch((error: unknown) => {
+      setConnectionError(error instanceof Error ? error.message : 'office_rollback_failed')
+    })
+  }
+
   const resumeSubagent = (runId: string): void => {
     setConnectionError(undefined)
     void controller.resumeSubagent(runId).catch((error: unknown) => {
@@ -242,6 +250,16 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
             onDeny={(requestId) => decideMutationGrant('deny', requestId)}
             onRevoke={(grantId) => decideMutationGrant('revoke', grantId)}
           />
+        )}
+        {projection?.rollbackRunId && !busy && (
+          <button
+            type="button"
+            className="ai-quick-btn"
+            data-testid="office-run-rollback"
+            onClick={rollbackRun}
+          >
+            ↶ {t('undo')} · {projection.rollbackRunId}
+          </button>
         )}
         {errorCode && <div className="ai-msg ai-msg-assistant ai-msg-error">{errorCode}</div>}
         {busy && <AiTypingIndicator label={typingLabel} />}

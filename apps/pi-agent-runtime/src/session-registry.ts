@@ -1127,10 +1127,29 @@ export class SessionRegistry {
       return
     }
     if (event.type === 'tool_execution_end') {
+      const resultDetails = (event.result as { details?: unknown } | undefined)?.details
+      const officeTool =
+        resultDetails && typeof resultDetails === 'object'
+          ? (resultDetails as { officeTool?: unknown }).officeTool
+          : undefined
+      const mutationOutcome =
+        officeTool && typeof officeTool === 'object'
+          ? (officeTool as { mutationOutcome?: unknown }).mutationOutcome
+          : undefined
       void this.appendEvent(
         record,
         event.isError ? 'tool.failed' : 'tool.completed',
-        { toolCallId: event.toolCallId, toolName: event.toolName, ok: !event.isError },
+        {
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          ok: !event.isError,
+          ...(mutationOutcome === 'not_started' ||
+          mutationOutcome === 'committed' ||
+          mutationOutcome === 'rolled_back' ||
+          mutationOutcome === 'unknown'
+            ? { mutationOutcome }
+            : {}),
+        },
         runId,
       )
       return

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import catalogFixture from '../fixtures/office-tool-catalog-baseline.json' with { type: 'json' }
 import {
@@ -53,6 +54,11 @@ describe('frozen four-application tool catalog', () => {
         expect.objectContaining({ modelAlias: 'get_outline' }),
       ],
     })
+    expect(PDF_OFFICE_TOOL_CATALOG_BINDING.catalogHash).toBe(
+      createHash('sha256')
+        .update(JSON.stringify(PDF_OFFICE_TOOL_CATALOG_BINDING.descriptors))
+        .digest('hex'),
+    )
     expect(parseOfficeToolCatalogBinding(PDF_OFFICE_TOOL_CATALOG_BINDING)).toEqual(
       PDF_OFFICE_TOOL_CATALOG_BINDING,
     )
@@ -120,7 +126,7 @@ describe('frozen four-application tool catalog', () => {
     )
   })
 
-  it('matches every current renderer registration without omissions', async () => {
+  it('matches every current product registration without omissions', async () => {
     const catalog = parseOfficeToolCatalog(catalogFixture)
     const sourceGroups = new Map<string, string[]>()
     for (const entry of catalog.entries) {
@@ -131,7 +137,10 @@ describe('frozen four-application tool catalog', () => {
     const discovered: string[] = []
     for (const [key, expected] of sourceGroups) {
       const [app, sourceFile] = key.split(':', 2)
-      const actual = await registrations(sourceFile)
+      const actual =
+        app === 'pdf'
+          ? PDF_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
+          : await registrations(sourceFile)
       expect(actual.sort(), key).toEqual(expected.sort())
       discovered.push(...actual.map((alias) => `${app}:${alias}`))
     }

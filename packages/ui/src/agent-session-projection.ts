@@ -44,6 +44,7 @@ export type AgentSessionProjection = {
     runId: string
     state: 'queued' | 'running' | 'cancelling' | 'completed' | 'failed' | 'aborted' | 'interrupted'
   }
+  rollbackRunId?: string
   lastSequence: number
   cursor: string
   recentEventIds: string[]
@@ -168,6 +169,10 @@ export function applyAgentSessionEvent(
     const index = next.subagents.findIndex((candidate) => candidate.runId === nextSubagent.runId)
     if (index === -1) next.subagents.push(nextSubagent)
     else next.subagents[index] = nextSubagent
+  }
+
+  if (event.type === 'tool.completed' && payloadString(event, 'mutationOutcome') === 'committed') {
+    if (event.runId) next.rollbackRunId = event.runId
   }
 
   const nextGrant = mutationGrantProjection(event)

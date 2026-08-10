@@ -11,6 +11,8 @@ import {
   parseModelCatalogProjection,
   parseMcpCatalogProjection,
   parseOAuthOperationProjection,
+  parseOfficeToolInvocation,
+  parseOfficeToolReceipt,
   parsePackageCatalogProjection,
   parseProviderCredentialStatus,
   parseResourceCatalogProjection,
@@ -33,6 +35,9 @@ import {
   type OfficeToolCatalogBinding,
   type ModelSelectionRole,
   type OAuthOperationProjection,
+  type OfficeToolAbortRequest,
+  type OfficeToolInvocation,
+  type OfficeToolReceipt,
   type PackageCatalogProjection,
   type ProtocolEnvelope,
   type ResourceCatalogProjection,
@@ -110,6 +115,10 @@ export type PiRuntimeManagerOptions = {
   diagnostic?: (code: string) => void
   onCrash?: () => void
   credentialBroker?: Pick<SecureStorageBroker, 'put' | 'rotate' | 'get' | 'status' | 'delete'>
+  officeToolHost?: {
+    invoke(input: OfficeToolInvocation): Promise<OfficeToolReceipt>
+    abort?(input: OfficeToolAbortRequest): Promise<boolean>
+  }
 }
 
 export type SessionCreateRequest = {
@@ -118,9 +127,10 @@ export type SessionCreateRequest = {
   officeToolCatalog?: OfficeToolCatalogBinding
 }
 export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
-export type SessionPromptRequest = SessionOpenRequest & { text: string; projectRoot?: string }
-export type SessionAbortRequest = SessionOpenRequest & { runId: string }
-export type SessionSubagentResumeRequest = SessionOpenRequest & { runId: string }
+type SessionOperationRequest = Omit<SessionOpenRequest, 'officeToolCatalog'>
+export type SessionPromptRequest = SessionOperationRequest & { text: string; projectRoot?: string }
+export type SessionAbortRequest = SessionOperationRequest & { runId: string }
+export type SessionSubagentResumeRequest = SessionOperationRequest & { runId: string }
 export type SessionMutationGrantIssueRequest = Extract<
   MutationGrantManagementRequest,
   { method: 'session.mutation-grant.issue' }
@@ -137,8 +147,8 @@ export type SessionMutationGrantRevokeDocumentRequest = Extract<
   MutationGrantManagementRequest,
   { method: 'session.mutation-grant.revoke-document' }
 >['params']
-export type SessionForkRequest = SessionOpenRequest
-export type SessionNavigateRequest = SessionOpenRequest & { targetEntryId: string }
+export type SessionForkRequest = SessionOperationRequest
+export type SessionNavigateRequest = SessionOperationRequest & { targetEntryId: string }
 export type SessionBoundRequest = { sessionId: string; documentId: string }
 export type SessionSubscribeRequest = SessionBoundRequest & { afterCursor?: string }
 export type ProviderCredentialPutRequest = Extract<
@@ -332,6 +342,21 @@ const CREDENTIAL_BROKER_ERROR_CODES = new Set([
   'credential_index_invalid',
   'credential_persist_failed',
   'credential_decrypt_failed',
+])
+
+const OFFICE_TOOL_HOST_ERROR_CODES = new Set([
+  'document_mismatch',
+  'tool_not_in_snapshot',
+  'permission_denied',
+  'duplicate_operation_mismatch',
+  'invalid_tool_arguments',
+  'stale_context',
+  'mutation_grant_required',
+  'read_only_document',
+  'executor_unavailable',
+  'mutation_outcome_unknown',
+  'tool_timeout',
+  'unsupported_office_feature',
 ])
 
 function hostResponse(request: RequestEnvelope, result: unknown): string {
@@ -598,7 +623,7 @@ export class PiRuntimeManager {
       }
       for (const frame of frames) {
         if (frame.kind === 'request') {
-          void this.handleCredentialRequest(socket, frame)
+          void this.handleHostRequest(socket, frame)
           continue
         }
         if (frame.kind === 'event') {
@@ -615,6 +640,62 @@ export class PiRuntimeManager {
     })
     socket.once('close', () => this.rejectPending('runtime_connection_closed'))
     socket.once('error', () => this.rejectPending('runtime_connection_error'))
+  }
+
+  private async handleHostRequest(socket: PiRuntimeSocket, frame: RequestEnvelope) {
+    if (frame.method === 'office.tool.invoke') {
+      await this.handleOfficeToolRequest(socket, frame)
+      return
+    }
+    if (frame.method === 'office.tool.abort') {
+      await this.handleOfficeToolAbortRequest(socket, frame)
+      return
+    }
+    await this.handleCredentialRequest(socket, frame)
+  }
+
+  private async handleOfficeToolAbortRequest(
+    socket: PiRuntimeSocket,
+    frame: Extract<RequestEnvelope, { method: 'office.tool.abort' }>,
+  ) {
+    const abort = this.options.officeToolHost?.abort
+    if (!abort) {
+      socket.write(hostErrorResponse(frame, 'executor_unavailable'))
+      return
+    }
+    try {
+      socket.write(hostResponse(frame, { aborted: await abort(frame.params) }))
+    } catch {
+      socket.write(hostErrorResponse(frame, 'internal_error'))
+    }
+  }
+
+  private async handleOfficeToolRequest(socket: PiRuntimeSocket, frame: RequestEnvelope) {
+    let invocation: OfficeToolInvocation
+    try {
+      invocation = parseOfficeToolInvocation(frame.params)
+    } catch {
+      socket.write(hostErrorResponse(frame, 'invalid_request'))
+      return
+    }
+    const host = this.options.officeToolHost
+    if (!host) {
+      socket.write(hostErrorResponse(frame, 'executor_unavailable'))
+      return
+    }
+    try {
+      socket.write(hostResponse(frame, parseOfficeToolReceipt(await host.invoke(invocation))))
+    } catch (error) {
+      const code = (error as { code?: unknown }).code
+      socket.write(
+        hostErrorResponse(
+          frame,
+          typeof code === 'string' && OFFICE_TOOL_HOST_ERROR_CODES.has(code)
+            ? code
+            : 'internal_error',
+        ),
+      )
+    }
   }
 
   private async handleCredentialRequest(socket: PiRuntimeSocket, frame: RequestEnvelope) {

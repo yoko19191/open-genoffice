@@ -12,7 +12,7 @@ import {
   showSaveDialogWithMemory,
 } from '@genoffice/electron-utils'
 import { createI18n, getUiLang } from '@genoffice/i18n'
-import { PDF_CHANNELS } from '../shared/ipc'
+import { PDF_CHANNELS, isPdfOfficeToolResponse } from '../shared/ipc'
 import type {
   ExportImagesRequest,
   ExportImagesResult,
@@ -24,6 +24,7 @@ import type {
   SavePdfResult,
 } from '../shared/ipc'
 import { extractPagesBytes, insertPdfBytes, savePdfToPath } from './save-pdf'
+import { PdfOfficeToolRendererClient } from './agent-tools/renderer-client'
 
 const tDlg = createI18n({
   zh: {
@@ -273,6 +274,13 @@ const closeSaveWaiters = new Map<number, (ok: boolean) => void>()
 const saveAsWaiters = new Map<number, (ok: boolean) => void>()
 /** Save As destination granted per view (main-process dialog pick); the save handler refuses any other non-source target */
 const saveAsTargetByWc = new Map<number, string>()
+const officeToolClientsByWc = new Map<number, PdfOfficeToolRendererClient>()
+
+export function pdfOfficeToolRendererClient(
+  webContentsId: number,
+): Pick<PdfOfficeToolRendererClient, 'request'> | undefined {
+  return officeToolClientsByWc.get(webContentsId)
+}
 
 export function pdfIsDirty(webContentsId: number): boolean {
   return dirtyByWc.has(webContentsId)
@@ -501,6 +509,11 @@ function registerPdfIpc(): void {
     waiter?.(ok === true)
   })
 
+  ipcMain.on(PDF_CHANNELS.officeToolResponse, (event, response: unknown) => {
+    if (!isPdfOfficeToolResponse(response)) return
+    officeToolClientsByWc.get(event.sender.id)?.accept(event.sender.id, response)
+  })
+
   // Language channel shared with other modules; removeHandler tolerates duplicate registration
   ipcMain.removeHandler(PDF_CHANNELS.getLanguage)
   ipcMain.handle(PDF_CHANNELS.getLanguage, () => getUiLang())
@@ -508,6 +521,14 @@ function registerPdfIpc(): void {
 
 function grantAndTrack(wc: WebContents, openPath?: string | null): void {
   const wcId = wc.id
+  officeToolClientsByWc.set(
+    wcId,
+    new PdfOfficeToolRendererClient({
+      webContentsId: wcId,
+      isDestroyed: () => wc.isDestroyed(),
+      send: (request) => wc.send(PDF_CHANNELS.officeToolRequest, request),
+    }),
+  )
   if (openPath && existsSync(openPath)) {
     openPathByWc.set(wcId, openPath)
     allowedByWc.set(wcId, new Set([openPath]))
@@ -527,6 +548,8 @@ function grantAndTrack(wc: WebContents, openPath?: string | null): void {
     closeSaveWaiters.delete(wcId)
     saveAsWaiters.get(wcId)?.(false)
     saveAsWaiters.delete(wcId)
+    officeToolClientsByWc.get(wcId)?.close()
+    officeToolClientsByWc.delete(wcId)
   })
 }
 

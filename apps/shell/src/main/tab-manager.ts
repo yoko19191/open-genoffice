@@ -313,6 +313,17 @@ export class TabManager {
     }
   }
 
+  agentWebContentsFor(
+    documentId: string,
+    kind?: Exclude<TabKind, 'home'>,
+  ): WebContents | undefined {
+    const owner = this.agentDocumentOwners.get(documentId)
+    if (owner === undefined) return undefined
+    const tab = this.tabs.find((item) => item.view?.webContents.id === owner)
+    if (!tab?.view || (kind !== undefined && tab.kind !== kind)) return undefined
+    return tab.view.webContents
+  }
+
   /** a file was renamed on disk (rename from the Home list) — sync any open tab's title/path;
    *  returns the affected views so callers can notify the embedded editors */
   renameTabFile(

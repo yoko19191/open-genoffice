@@ -49,6 +49,7 @@ export type PrepareRunResourcesInput = {
   projectRoot?: string
   model: RunModelMetadata
   toolIds: readonly string[]
+  reservedToolAliases?: readonly string[]
 }
 
 export type PreparedRunResources = {
@@ -207,6 +208,9 @@ export class RunResourceService {
       aliasOwners.set(alias, owners)
     }
     addAlias('read', 'platform/resource-read')
+    for (const alias of input.reservedToolAliases ?? []) {
+      addAlias(alias, `reserved:${alias}`)
+    }
     for (const tool of packageSelection.extensionTools) {
       addAlias(tool.name, `package:${tool.namespace}/${tool.packageId}`)
     }

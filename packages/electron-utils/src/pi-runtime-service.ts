@@ -68,6 +68,7 @@ export type PiRuntimeServiceOptions = {
   parentPid: number
   resourceHome?: string
   credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
+  officeToolHost?: PiRuntimeManagerOptions['officeToolHost']
 }
 
 type OwnedPiRuntimeManager = Pick<
@@ -133,6 +134,7 @@ export type PiRuntimeServiceDependencies = {
     parentPid: number
     resourceHome?: string
     credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
+    officeToolHost?: PiRuntimeManagerOptions['officeToolHost']
   }) => OwnedPiRuntimeManager
 }
 
@@ -388,6 +390,7 @@ export class PiRuntimeService {
       parentPid: this.options.parentPid,
       ...(this.options.resourceHome ? { resourceHome: this.options.resourceHome } : {}),
       ...(this.options.credentialBroker ? { credentialBroker: this.options.credentialBroker } : {}),
+      ...(this.options.officeToolHost ? { officeToolHost: this.options.officeToolHost } : {}),
     })
     try {
       await this.manager.start()
@@ -430,6 +433,9 @@ export function createInstalledPiRuntimeService(
         ...(managerOptions.credentialBroker === undefined
           ? {}
           : { credentialBroker: managerOptions.credentialBroker }),
+        ...(managerOptions.officeToolHost === undefined
+          ? {}
+          : { officeToolHost: managerOptions.officeToolHost }),
         ...(startupTimeoutMs === undefined ? {} : { startupTimeoutMs }),
       }),
   })

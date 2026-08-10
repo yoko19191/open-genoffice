@@ -12,6 +12,7 @@ export type OfficeMutationOutcome = NonNullable<OfficeToolReceipt['mutationOutco
 
 export type OfficeToolDescriptor =
   | { id: string; effect: 'read'; mutationBoundary: 'none' }
+  | { id: string; effect: 'external'; mutationBoundary: 'none' }
   | { id: string; effect: 'mutation'; mutationBoundary: 'snapshot' | 'atomic' }
 
 export type OfficeMutationBoundary = { kind: 'snapshot'; snapshotId: string } | { kind: 'atomic' }
@@ -29,6 +30,11 @@ export type OfficeToolBrokerDependencies = {
     descriptor: Extract<OfficeToolDescriptor, { effect: 'mutation' }>,
   ): Promise<boolean>
   captureSnapshot(request: OfficeToolInvocation): Promise<{ kind: 'snapshot'; snapshotId: string }>
+  restoreSnapshot(input: {
+    documentId: string
+    parentRunId: string
+    boundary: OfficeMutationBoundary
+  }): Promise<void>
   execute(
     request: OfficeToolInvocation,
     descriptor: OfficeToolDescriptor,
@@ -36,7 +42,9 @@ export type OfficeToolBrokerDependencies = {
   ): Promise<{
     output: string
     details?: unknown
+    contextVersionAfter?: string
     mutationOutcome?: OfficeMutationOutcome
+    errorCode?: OfficeToolReceipt['errorCode']
   }>
 }
 
@@ -71,10 +79,22 @@ function requestHash(request: OfficeToolInvocation): string {
 export class OfficeToolBroker {
   private readonly operations = new Map<string, OperationEntry>()
   private readonly documentTails = new Map<string, Promise<void>>()
-  private readonly mutationBoundaries = new Map<string, Promise<OfficeMutationBoundary>>()
+  private readonly mutationBoundaries = new Map<string, OfficeMutationBoundary>()
   private readonly blockedDocuments = new Set<string>()
 
   constructor(private readonly dependencies: OfficeToolBrokerDependencies) {}
+
+  rollback(documentId: string, parentRunId: string): Promise<boolean> {
+    return this.enqueueMutation(documentId, async () => {
+      const key = this.boundaryKey(documentId, parentRunId)
+      const boundary = this.mutationBoundaries.get(key)
+      if (!boundary) return false
+      await this.dependencies.restoreSnapshot({ documentId, parentRunId, boundary })
+      this.mutationBoundaries.delete(key)
+      this.blockedDocuments.delete(documentId)
+      return true
+    })
+  }
 
   invoke(request: OfficeToolInvocation): Promise<OfficeToolReceipt> {
     const hash = requestHash(request)
@@ -94,10 +114,10 @@ export class OfficeToolBroker {
     return result
   }
 
-  private enqueueMutation(
+  private enqueueMutation<Result>(
     documentId: string,
-    execute: () => Promise<OfficeToolReceipt>,
-  ): Promise<OfficeToolReceipt> {
+    execute: () => Promise<Result>,
+  ): Promise<Result> {
     const previous = this.documentTails.get(documentId) ?? Promise.resolve()
     const result = previous.then(execute)
     const tail = result.then(
@@ -145,13 +165,24 @@ export class OfficeToolBroker {
 
     try {
       const executed = await this.dependencies.execute(request, descriptor, boundary)
-      if (descriptor.effect === 'read') {
-        return this.receipt(request, { status: 'completed', ...executed })
+      if (descriptor.effect !== 'mutation') {
+        const { mutationOutcome: _mutationOutcome, ...readResult } = executed
+        return this.receipt(request, {
+          status: readResult.errorCode ? 'failed' : 'completed',
+          ...readResult,
+        })
       }
       const mutationOutcome = executed.mutationOutcome ?? 'unknown'
+      if (
+        !executed.errorCode &&
+        mutationOutcome === 'committed' &&
+        descriptor.mutationBoundary === 'snapshot'
+      ) {
+        this.mutationBoundaries.set(this.boundaryKeyForRequest(request), boundary!)
+      }
       if (mutationOutcome === 'unknown') this.blockedDocuments.add(request.documentId)
       return this.receipt(request, {
-        status: mutationOutcome === 'unknown' ? 'failed' : 'completed',
+        status: mutationOutcome === 'unknown' || executed.errorCode ? 'failed' : 'completed',
         ...executed,
         mutationOutcome,
         ...(mutationOutcome === 'unknown' ? { errorCode: 'mutation_outcome_unknown' } : {}),
@@ -209,17 +240,19 @@ export class OfficeToolBroker {
   }
 
   private snapshotBoundary(request: OfficeToolInvocation): Promise<OfficeMutationBoundary> {
+    const key = this.boundaryKeyForRequest(request)
+    const existing = this.mutationBoundaries.get(key)
+    return existing ? Promise.resolve(existing) : this.dependencies.captureSnapshot(request)
+  }
+
+  private boundaryKeyForRequest(request: OfficeToolInvocation): string {
     const parentRunId =
       request.actor.type === 'subagent' ? request.actor.parentRunId : request.runId
-    const key = `${request.documentId}:${parentRunId}`
-    const existing = this.mutationBoundaries.get(key)
-    if (existing) return existing
-    const created = this.dependencies.captureSnapshot(request)
-    this.mutationBoundaries.set(key, created)
-    void created.catch(() => {
-      if (this.mutationBoundaries.get(key) === created) this.mutationBoundaries.delete(key)
-    })
-    return created
+    return this.boundaryKey(request.documentId, parentRunId)
+  }
+
+  private boundaryKey(documentId: string, parentRunId: string): string {
+    return `${documentId}:${parentRunId}`
   }
 
   private receipt(

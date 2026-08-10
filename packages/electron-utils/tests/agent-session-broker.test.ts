@@ -156,16 +156,19 @@ function harness() {
   let now = new Date('2026-08-10T00:00:00.000Z')
   const authorize = vi.fn(async () => true)
   const resolveProjectRoot = vi.fn(async () => undefined as string | undefined)
+  const rollbackRun = vi.fn(async () => true)
   const broker = new AgentSessionBroker(transport, {
     authorize,
     resolveProjectRoot,
     randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
     now: () => now,
     replayWindowSize: 4,
+    rollbackRun,
   })
   return {
     authorize,
     resolveProjectRoot,
+    rollbackRun,
     broker,
     transport,
     emit: (value: EventEnvelope) => listener(value),
@@ -184,6 +187,49 @@ function harness() {
 }
 
 describe('Electron main Agent Session broker', () => {
+  it('rolls back an exact document run only after a trusted user gesture', async () => {
+    const fixture = harness()
+    await fixture.broker.connect(1, { documentId, sessionId }, () => {})
+    const command = {
+      type: 'rollbackRun' as const,
+      operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      sessionId,
+      documentId,
+      runId: 'run-1',
+    }
+    await expect(fixture.broker.command(1, command)).rejects.toThrowError(
+      'trusted_user_gesture_required',
+    )
+    fixture.broker.recordTrustedUserGesture(1, { type: 'mouseUp' })
+    await expect(fixture.broker.command(1, command)).resolves.toEqual({
+      documentId,
+      runId: 'run-1',
+      rolledBack: true,
+    })
+    expect(fixture.rollbackRun).toHaveBeenCalledWith(documentId, 'run-1')
+    await fixture.broker.close()
+  })
+
+  it('fails closed when no product rollback host is installed', async () => {
+    const fixture = harness()
+    const broker = new AgentSessionBroker(fixture.transport, {
+      authorize: async () => true,
+      randomUUID: () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    })
+    await broker.connect(1, { documentId, sessionId }, () => {})
+    broker.recordTrustedUserGesture(1, { type: 'mouseUp' })
+    await expect(
+      broker.command(1, {
+        type: 'rollbackRun',
+        operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        sessionId,
+        documentId,
+        runId: 'run-1',
+      }),
+    ).rejects.toThrowError('office_rollback_unavailable')
+    await broker.close()
+  })
+
   it('issues a precise Mutation Grant only after a one-time real main-process user gesture', async () => {
     const fixture = harness()
     await fixture.broker.connect(1, { documentId, sessionId }, () => {})
@@ -221,6 +267,39 @@ describe('Electron main Agent Session broker', () => {
         status: 'active',
       },
     })
+    expect(
+      fixture.broker.authorizeMutationGrant({
+        grantId: '00000004-0000-4000-8000-000000000000',
+        subagentRunId: command.subagentRunId,
+        documentId,
+        toolId: command.exactToolIds[0]!,
+      }),
+    ).toBe(true)
+    expect(
+      fixture.broker.authorizeMutationGrant({
+        grantId: '00000004-0000-4000-8000-000000000000',
+        subagentRunId: command.subagentRunId,
+        documentId,
+        toolId: 'office:docs:other',
+      }),
+    ).toBe(false)
+    fixture.advance(5 * 60 * 1_000)
+    expect(
+      fixture.broker.authorizeMutationGrant({
+        grantId: '00000004-0000-4000-8000-000000000000',
+        subagentRunId: command.subagentRunId,
+        documentId,
+        toolId: command.exactToolIds[0]!,
+      }),
+    ).toBe(false)
+    expect(
+      fixture.broker.authorizeMutationGrant({
+        grantId: '00000004-0000-4000-8000-000000000000',
+        subagentRunId: command.subagentRunId,
+        documentId,
+        toolId: command.exactToolIds[0]!,
+      }),
+    ).toBe(false)
     await expect(fixture.broker.command(1, command)).rejects.toThrowError(
       'trusted_user_gesture_required',
     )

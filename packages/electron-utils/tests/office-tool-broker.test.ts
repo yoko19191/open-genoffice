@@ -6,6 +6,7 @@ import {
   type OfficeMutationOutcome,
   type OfficeToolDescriptor,
   type OfficeToolInvocation,
+  type OfficeToolReceipt,
 } from '../src'
 
 const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
@@ -59,6 +60,14 @@ function harness() {
       'office:docs:read',
       { id: 'office:docs:read', effect: 'read' as const, mutationBoundary: 'none' as const },
     ],
+    [
+      'office:docs:view',
+      { id: 'office:docs:view', effect: 'external' as const, mutationBoundary: 'none' as const },
+    ],
+    [
+      'office:docs:mismatched-descriptor',
+      { id: 'office:docs:other', effect: 'read' as const, mutationBoundary: 'none' as const },
+    ],
   ])
   const validateBinding = vi.fn(async () => true)
   const validatePermissionSnapshot = vi.fn(async () => true)
@@ -68,12 +77,19 @@ function harness() {
     kind: 'snapshot' as const,
     snapshotId: `rollback-${request.runId}`,
   }))
+  const restoreSnapshot = vi.fn(async () => undefined)
   const execute = vi.fn(
     async (
       request: OfficeToolInvocation,
       _descriptor: OfficeToolDescriptor,
       _boundary?: OfficeMutationBoundary,
-    ): Promise<{ output: string; mutationOutcome?: OfficeMutationOutcome }> => ({
+    ): Promise<{
+      output: string
+      details?: unknown
+      contextVersionAfter?: string
+      mutationOutcome?: OfficeMutationOutcome
+      errorCode?: OfficeToolReceipt['errorCode']
+    }> => ({
       output: request.toolCallId,
       mutationOutcome: 'committed',
     }),
@@ -86,6 +102,7 @@ function harness() {
     authorizeMutationGrant,
     captureSnapshot,
     execute,
+    restoreSnapshot,
   })
   return {
     authorizeActor,
@@ -93,6 +110,7 @@ function harness() {
     broker,
     captureSnapshot,
     execute,
+    restoreSnapshot,
     validateBinding,
     validatePermissionSnapshot,
   }
@@ -171,6 +189,47 @@ describe('Electron main OfficeToolBroker', () => {
     expect(fixture.captureSnapshot).not.toHaveBeenCalled()
   })
 
+  it('runs an authorized external view effect without a mutation boundary', async () => {
+    const fixture = harness()
+    const receipt = await fixture.broker.invoke(
+      invocation('view-1', {
+        toolId: 'office:docs:view',
+        permissionSnapshot: {
+          snapshotId: 'snapshot-view',
+          createdForRunId: 'run-1',
+          permissionVersion: 'permission-1',
+          toolIds: ['office:docs:view'],
+        },
+      }),
+    )
+    expect(receipt).toMatchObject({ status: 'completed' })
+    expect(receipt).not.toHaveProperty('mutationOutcome')
+    expect(fixture.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ toolId: 'office:docs:view' }),
+      expect.objectContaining({ effect: 'external' }),
+      undefined,
+    )
+    expect(fixture.captureSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('preserves a stable external-effect failure without inventing mutation state', async () => {
+    const fixture = harness()
+    fixture.execute.mockResolvedValueOnce({ output: '', errorCode: 'tool_failed' })
+    await expect(
+      fixture.broker.invoke(
+        invocation('view-failed', {
+          toolId: 'office:docs:view',
+          permissionSnapshot: {
+            snapshotId: 'snapshot-view-failed',
+            createdForRunId: 'run-1',
+            permissionVersion: 'permission-1',
+            toolIds: ['office:docs:view'],
+          },
+        }),
+      ),
+    ).resolves.toMatchObject({ status: 'failed', errorCode: 'tool_failed' })
+  })
+
   it('returns the original receipt for a deterministic retry and rejects payload drift', async () => {
     const fixture = harness()
     const request = invocation('same-operation')
@@ -197,6 +256,16 @@ describe('Electron main OfficeToolBroker', () => {
       errorCode: 'mutation_outcome_unknown',
     })
     expect(fixture.execute).toHaveBeenCalledOnce()
+  })
+
+  it('treats an omitted mutation outcome as unknown and blocks the document', async () => {
+    const fixture = harness()
+    fixture.execute.mockResolvedValueOnce({ output: '' })
+    await expect(fixture.broker.invoke(invocation('missing-outcome'))).resolves.toMatchObject({
+      status: 'failed',
+      mutationOutcome: 'unknown',
+      errorCode: 'mutation_outcome_unknown',
+    })
   })
 
   it('marks a thrown mutation executor as unknown and does not replay it', async () => {
@@ -233,6 +302,23 @@ describe('Electron main OfficeToolBroker', () => {
         invocation('read-failed', { toolId: 'office:docs:read', toolOrder: 1 }),
       ),
     ).resolves.toMatchObject({ status: 'failed', errorCode: 'tool_failed' })
+  })
+
+  it('preserves stable executor errors and context versions in the receipt', async () => {
+    const fixture = harness()
+    fixture.execute.mockResolvedValueOnce({
+      output: '',
+      contextVersionAfter: 'pdf-edit-7',
+      mutationOutcome: 'not_started',
+      errorCode: 'stale_context',
+    })
+    await expect(fixture.broker.invoke(invocation('stale-write'))).resolves.toMatchObject({
+      status: 'failed',
+      output: '',
+      contextVersionAfter: 'pdf-edit-7',
+      mutationOutcome: 'not_started',
+      errorCode: 'stale_context',
+    })
   })
 
   it('uses a snapshot or executor atomic boundary before mutation execution', async () => {
@@ -339,6 +425,39 @@ describe('Electron main OfficeToolBroker', () => {
     expect(fixture.execute.mock.calls[0]?.[2]).toBe(fixture.execute.mock.calls[1]?.[2])
   })
 
+  it('registers only the first committed mutation as the run rollback point', async () => {
+    const fixture = harness()
+    fixture.execute
+      .mockResolvedValueOnce({ output: '', mutationOutcome: 'not_started' })
+      .mockResolvedValueOnce({ output: '', mutationOutcome: 'rolled_back' })
+      .mockResolvedValueOnce({ output: '', mutationOutcome: 'committed' })
+      .mockResolvedValueOnce({ output: '', mutationOutcome: 'committed' })
+
+    await fixture.broker.invoke(invocation('not-started'))
+    await fixture.broker.invoke(invocation('rolled-back'))
+    await fixture.broker.invoke(invocation('committed'))
+    await fixture.broker.invoke(invocation('same-run-later'))
+
+    expect(fixture.captureSnapshot).toHaveBeenCalledTimes(3)
+    expect(fixture.execute.mock.calls[0]?.[2]).not.toBe(fixture.execute.mock.calls[1]?.[2])
+    expect(fixture.execute.mock.calls[1]?.[2]).not.toBe(fixture.execute.mock.calls[2]?.[2])
+    expect(fixture.execute.mock.calls[2]?.[2]).toBe(fixture.execute.mock.calls[3]?.[2])
+  })
+
+  it('restores and consumes the committed rollback point for the whole parent run', async () => {
+    const fixture = harness()
+    await fixture.broker.invoke(invocation('committed-before-rollback'))
+
+    await expect(fixture.broker.rollback(documentId, 'run-1')).resolves.toBe(true)
+    await expect(fixture.broker.rollback(documentId, 'run-1')).resolves.toBe(false)
+    expect(fixture.restoreSnapshot).toHaveBeenCalledOnce()
+    expect(fixture.restoreSnapshot).toHaveBeenCalledWith({
+      documentId,
+      parentRunId: 'run-1',
+      boundary: expect.objectContaining({ kind: 'snapshot' }),
+    })
+  })
+
   it.each([
     ['document_mismatch', 'validateBinding'],
     ['permission_denied', 'validatePermissionSnapshot'],
@@ -365,6 +484,19 @@ describe('Electron main OfficeToolBroker', () => {
             createdForRunId: 'run-1',
             permissionVersion: 'permission-1',
             toolIds: [],
+          },
+        }),
+      ),
+    ).rejects.toEqual(new OfficeToolBrokerError('tool_not_in_snapshot'))
+    await expect(
+      fixture.broker.invoke(
+        invocation('mismatched-descriptor', {
+          toolId: 'office:docs:mismatched-descriptor',
+          permissionSnapshot: {
+            snapshotId: 'snapshot-mismatched-descriptor',
+            createdForRunId: 'run-1',
+            permissionVersion: 'permission-1',
+            toolIds: ['office:docs:mismatched-descriptor'],
           },
         }),
       ),

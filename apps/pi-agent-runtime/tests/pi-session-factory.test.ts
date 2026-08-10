@@ -20,6 +20,7 @@ import {
 import { createDeterministicPiSession } from '../src/pi-session-factory'
 import { RunResourceService } from '../src/run-resource-service'
 import { OpenGenOfficeMcpConfigResolver } from '../src/mcp-config-resolver'
+import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 
 const roots: string[] = []
 const mcpFixture = fileURLToPath(new URL('../fixtures/mcp-stdio-server.mjs', import.meta.url))
@@ -29,6 +30,165 @@ afterEach(async () => {
 })
 
 describe('deterministic Pi Session factory', () => {
+  it('exposes the bound PDF catalog as Pi proxies with run capability provenance', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-office-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-office-faux',
+      provider: 'genoffice-office-faux',
+      models: [{ id: 'office-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    await expect(
+      createDeterministicPiSession({
+        cwd: join(root, 'missing-host-cwd'),
+        agentDir: join(root, 'missing-host-agent'),
+        sessionDir: join(root, 'missing-host-sessions'),
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+        modelRuntime,
+        initialModel: provider.getModel(),
+        resolveModel: () => provider.getModel(),
+        resolveModelMetadata: () => ({
+          providerId: 'genoffice-office-faux',
+          modelId: 'office-model',
+          capabilities: ['text-input', 'tool-use'],
+        }),
+        runResources: new RunResourceService({
+          resourceHome: root,
+          deviceId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        }),
+      }),
+    ).rejects.toThrow('office_tool_host_required')
+    provider.setResponses([
+      fauxAssistantMessage([fauxToolCall('read_pages', { start: 1 }, { id: 'pdf-read-call' })], {
+        stopReason: 'toolUse',
+      }),
+      fauxAssistantMessage([fauxToolCall('delete_page', { page: 3 }, { id: 'pdf-delete-call' })], {
+        stopReason: 'toolUse',
+      }),
+      fauxAssistantMessage('PDF tools completed'),
+    ])
+    const invokeOfficeTool = vi.fn(async (input) => ({
+      operationId: input.operationId,
+      toolCallId: input.toolCallId,
+      toolId: input.toolId,
+      status: input.toolId.endsWith('fill_form_field')
+        ? ('failed' as const)
+        : ('completed' as const),
+      output: input.toolId.endsWith('read_pages') ? '[Page 1]\nhello' : 'Deleted page 3',
+      ...(input.toolId.endsWith('fill_form_field')
+        ? {}
+        : {
+            contextVersionAfter: input.toolId.endsWith('read_pages')
+              ? 'pdf-context-7'
+              : 'pdf-context-8',
+          }),
+      ...(input.toolId.endsWith('delete_page') ? { mutationOutcome: 'committed' as const } : {}),
+      provenance: {
+        actorId: input.actor.actorId,
+        runId: input.runId,
+        documentId: input.documentId,
+      },
+    }))
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+      officeToolHost: { invoke: invokeOfficeTool },
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-office-faux',
+        modelId: 'office-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources: new RunResourceService({
+        resourceHome: root,
+        deviceId: '33333333-3333-4333-8333-333333333333',
+      }),
+    })
+    await handle.prompt('read and edit PDF', new AbortController().signal, {
+      runId: 'office-run-1',
+    })
+
+    expect(handle.session.getActiveToolNames()).toEqual(
+      PDF_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ modelAlias }) => modelAlias),
+    )
+    expect(invokeOfficeTool).toHaveBeenCalledTimes(2)
+    expect(invokeOfficeTool.mock.calls.map(([input]) => input)).toEqual([
+      expect.objectContaining({
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        documentId: '22222222-2222-4222-8222-222222222222',
+        runId: 'office-run-1',
+        toolCallId: 'pdf-read-call',
+        toolId: 'office:pdf:read_pages',
+        toolOrder: 0,
+        actor: expect.objectContaining({ type: 'parent' }),
+        input: { start: 1 },
+        permissionSnapshot: expect.objectContaining({
+          createdForRunId: 'office-run-1',
+          toolIds: PDF_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id).sort(),
+        }),
+      }),
+      expect.objectContaining({
+        toolCallId: 'pdf-delete-call',
+        toolId: 'office:pdf:delete_page',
+        toolOrder: 1,
+        contextVersion: 'pdf-context-7',
+        input: { page: 3 },
+      }),
+    ])
+    const entries = JSON.stringify(handle.sessionManager.getEntries())
+    expect(entries).toContain('[Page 1]\\nhello')
+    expect(entries).toContain('Deleted page 3')
+    expect(entries).toContain('committed')
+
+    invokeOfficeTool.mockClear()
+    provider.setResponses([
+      fauxAssistantMessage([fauxToolCall('list_form_fields', {}, { id: 'pdf-list-fields-call' })], {
+        stopReason: 'toolUse',
+      }),
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'fill_form_field',
+            { name: 'customer', value: 'Ada' },
+            { id: 'pdf-fill-field-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('PDF form completed'),
+    ])
+    await handle.prompt('list and fill PDF form', new AbortController().signal, {
+      runId: 'office-run-2',
+    })
+    expect(invokeOfficeTool.mock.calls.map(([input]) => input)).toEqual([
+      expect.objectContaining({
+        toolId: 'office:pdf:list_form_fields',
+        toolOrder: 0,
+      }),
+      expect.objectContaining({
+        toolId: 'office:pdf:fill_form_field',
+        toolOrder: 1,
+        contextVersion: 'pdf-context-8',
+      }),
+    ])
+    handle.dispose()
+  })
+
   it('exposes one product-owned Subagent tool with implicit parent authority', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-subagent-'))
     roots.push(root)

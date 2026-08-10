@@ -29,6 +29,7 @@ import { OpenGenOfficeCredentialStoreError } from './open-genoffice-credential-s
 import { createDeterministicPiSession } from './pi-session-factory'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import { RuntimeCredentialStore } from './runtime-credential-store'
+import { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
 import { PackageSourceResolverError } from './package-source-resolver'
 import { RunResourceService, RunResourceServiceError } from './run-resource-service'
 import { PiSubagentEngine } from './pi-subagent-engine'
@@ -65,6 +66,7 @@ export type AuthenticatedRuntimeServer = {
   closed: Promise<void>
   shutdown: () => Promise<void>
   credentials: CredentialStore
+  officeTools?: RuntimeOfficeToolHostClient
 }
 
 function response(request: RequestEnvelope, result: unknown): string {
@@ -124,6 +126,12 @@ export async function createAuthenticatedRuntimeServer(
   })
   const credentials = new RuntimeCredentialStore({
     broker: credentialClient,
+  })
+  const officeTools = new RuntimeOfficeToolHostClient({
+    send: (request) => {
+      if (!authenticatedSocket) throw new Error('runtime_connection_closed')
+      authenticatedSocket.write(`${JSON.stringify(request)}\n`)
+    },
   })
 
   const modelRuntime = await ModelRuntime.create({
@@ -212,6 +220,7 @@ export async function createAuthenticatedRuntimeServer(
                 resolveModel: () => ownedModelCatalog.selectedModel('conversation'),
                 resolveModelMetadata: () => ownedModelCatalog.selectedModelMetadata('conversation'),
                 runResources,
+                officeToolHost: officeTools,
                 spawnSubagent: (request) => sessionRegistry.spawnSubagent(request),
               }),
           }
@@ -312,7 +321,10 @@ export async function createAuthenticatedRuntimeServer(
           continue
         }
         if (frame.kind === 'response') {
-          if (!credentialClient.handleResponse(frame as ResponseEnvelope)) socket.destroy()
+          const response = frame as ResponseEnvelope
+          if (!credentialClient.handleResponse(response) && !officeTools.handleResponse(response)) {
+            socket.destroy()
+          }
           continue
         }
         if (frame.kind !== 'request') {
@@ -327,6 +339,7 @@ export async function createAuthenticatedRuntimeServer(
       if (authenticatedSocket === socket) {
         authenticatedSocket = undefined
         credentialClient.close('runtime_connection_closed')
+        officeTools.close('runtime_connection_closed')
       }
     })
   })
@@ -792,7 +805,7 @@ export async function createAuthenticatedRuntimeServer(
     await chmod(options.bootstrap.endpoint, 0o600)
   }
 
-  return { closed, shutdown: beginShutdown, credentials }
+  return { closed, shutdown: beginShutdown, credentials, officeTools }
 }
 
 export function resolveSubagentToolDescriptor(

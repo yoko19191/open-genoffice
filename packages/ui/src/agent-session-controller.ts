@@ -8,6 +8,7 @@ import type {
   SessionPromptReceipt,
   SessionSubagentResumeReceipt,
   SessionMutationGrantReceipt,
+  OfficeRollbackReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import {
   applyAgentSessionEvent,
@@ -25,6 +26,7 @@ export interface AgentSessionClient {
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
     | SessionMutationGrantReceipt
+    | OfficeRollbackReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
   >
@@ -192,6 +194,24 @@ export class AgentSessionController {
       documentId: projection.documentId,
       grantId,
     })) as SessionMutationGrantReceipt
+  }
+
+  async rollbackLastRun(): Promise<OfficeRollbackReceipt> {
+    const projection = this.requireProjection()
+    const runId = projection.rollbackRunId
+    if (!runId) throw new Error('office_rollback_unavailable')
+    const receipt = (await this.client.command({
+      type: 'rollbackRun',
+      operationId: this.randomUUID(),
+      sessionId: projection.sessionId,
+      documentId: projection.documentId,
+      runId,
+    })) as OfficeRollbackReceipt
+    if (receipt.rolledBack) {
+      this.projection = { ...projection, rollbackRunId: undefined }
+      this.emit()
+    }
+    return receipt
   }
 
   disconnect(): void {

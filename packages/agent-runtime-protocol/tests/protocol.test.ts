@@ -48,6 +48,7 @@ import {
   parseOAuthOperationProjection,
   parseOfficeToolInvocation,
   parseOfficeToolReceipt,
+  parseOfficeRollbackReceipt,
   parseProtocolFrame,
   parseRuntimeBundleManifest,
   parseRuntimeHealthProjection,
@@ -287,7 +288,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(54)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(55)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -376,26 +377,29 @@ describe('protocol TypeBox source of truth', () => {
     ).toMatchObject({ method, params })
   })
 
-  it.each(['session.create', 'session.open'])('binds %s to an exact Office catalog snapshot', (method) => {
-    const params = {
-      operationId,
-      documentId,
-      ...(method === 'session.open' ? { sessionId } : {}),
-      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
-    }
-    expect(
-      parseProtocolFrame(
-        JSON.stringify({
-          protocolVersion: PROTOCOL_VERSION,
-          kind: 'request',
-          id: `${method}-office`,
-          method,
-          correlationId: `${method}-correlation`,
-          params,
-        }),
-      ),
-    ).toMatchObject({ method, params: { officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING } })
-  })
+  it.each(['session.create', 'session.open'])(
+    'binds %s to an exact Office catalog snapshot',
+    (method) => {
+      const params = {
+        operationId,
+        documentId,
+        ...(method === 'session.open' ? { sessionId } : {}),
+        officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+      }
+      expect(
+        parseProtocolFrame(
+          JSON.stringify({
+            protocolVersion: PROTOCOL_VERSION,
+            kind: 'request',
+            id: `${method}-office`,
+            method,
+            correlationId: `${method}-correlation`,
+            params,
+          }),
+        ),
+      ).toMatchObject({ method, params: { officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING } })
+    },
+  )
 
   it.each([
     ['missing operation id', { ...request, params: { ...request.params, operationId: undefined } }],
@@ -1638,6 +1642,7 @@ describe('Runtime to Electron Office Tool contract', () => {
     toolCallId: 'tool-call-1',
     toolId: 'office:docs:insert_content',
     toolOrder: 2,
+    contextVersion: 'pdf-context-7',
     actor: { type: 'parent', actorId: 'parent-1', sessionId },
     permissionSnapshot: {
       snapshotId: 'snapshot-1',
@@ -1669,10 +1674,39 @@ describe('Runtime to Electron Office Tool contract', () => {
         toolId: 'office:docs:insert_content',
         status: 'completed',
         output: 'inserted',
+        contextVersionAfter: 'pdf-context-8',
         mutationOutcome: 'committed',
         provenance: { actorId: 'parent-1', runId: 'run-1', documentId },
       }),
-    ).toMatchObject({ status: 'completed', mutationOutcome: 'committed' })
+    ).toMatchObject({
+      status: 'completed',
+      contextVersionAfter: 'pdf-context-8',
+      mutationOutcome: 'committed',
+    })
+    expect(
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'request',
+          id: 'office-abort-1',
+          method: 'office.tool.abort',
+          correlationId: 'office-abort-correlation-1',
+          params: { operationId, documentId },
+        }),
+      ),
+    ).toMatchObject({ method: 'office.tool.abort', params: { operationId, documentId } })
+    expect(() =>
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'request',
+          id: 'office-abort-invalid',
+          method: 'office.tool.abort',
+          correlationId: 'office-abort-correlation-invalid',
+          params: { operationId, documentId, signal: 'forbidden' },
+        }),
+      ),
+    ).toThrowError('protocol_frame_invalid')
   })
 
   it.each([
@@ -1705,5 +1739,27 @@ describe('Runtime to Electron Office Tool contract', () => {
         provenance: { actorId: 'parent-1', runId: 'run-1', documentId },
       }),
     ).toThrowError('office_tool_receipt_invalid')
+  })
+})
+
+describe('Office run rollback renderer contract', () => {
+  it('accepts an exact rollback command and receipt', () => {
+    expect(
+      parseAgentSessionCommand({
+        type: 'rollbackRun',
+        operationId,
+        sessionId,
+        documentId,
+        runId: 'run-1',
+      }),
+    ).toMatchObject({ type: 'rollbackRun', runId: 'run-1' })
+    expect(parseOfficeRollbackReceipt({ documentId, runId: 'run-1', rolledBack: true })).toEqual({
+      documentId,
+      runId: 'run-1',
+      rolledBack: true,
+    })
+    expect(() =>
+      parseOfficeRollbackReceipt({ documentId, runId: 'run-1', rolledBack: true, snapshot: {} }),
+    ).toThrowError('office_rollback_receipt_invalid')
   })
 })

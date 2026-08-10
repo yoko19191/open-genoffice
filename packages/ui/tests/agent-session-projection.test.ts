@@ -132,7 +132,11 @@ describe('shared AI Panel Session projection', () => {
       event(10, 'tool.requested', { toolCallId: 'tool-1', toolName: 'contract_probe' }),
       event(11, 'tool.started', { toolCallId: 'tool-1', toolName: 'contract_probe' }),
       event(12, 'tool.progress', { toolCallId: 'tool-1' }),
-      event(13, 'tool.completed', { toolCallId: 'tool-1', toolName: 'contract_probe' }),
+      event(13, 'tool.completed', {
+        toolCallId: 'tool-1',
+        toolName: 'contract_probe',
+        mutationOutcome: 'committed',
+      }),
       event(14, 'message.completed', { messageId: 'assistant-1' }),
       event(15, 'compaction.started'),
       event(16, 'compaction.completed', { tokensBefore: 42, estimatedTokensAfter: 12 }),
@@ -149,6 +153,7 @@ describe('shared AI Panel Session projection', () => {
       { toolCallId: 'tool-1', toolName: 'contract_probe', state: 'completed' },
     ])
     expect(projection.activeRun).toEqual({ runId: 'run-1', state: 'completed' })
+    expect(projection.rollbackRunId).toBe('run-1')
     expect(projection.compaction).toEqual({
       state: 'completed',
       tokensBefore: 42,

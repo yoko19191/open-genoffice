@@ -6,6 +6,8 @@ import { GlobalWorkerOptions, TextLayer, getDocument } from 'pdfjs-dist/legacy/b
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { AgentMark, AiPanel } from './ai/AiPanel'
+import { executePdfTool } from './ai/tools'
+import { createPdfOfficeToolRendererHandler } from './ai/office-tool-renderer-adapter'
 import {
   MARKUP_COLORS,
   geomDispSize,
@@ -39,6 +41,7 @@ import type {
   FormValueInput,
   MarkupType,
   MetadataInput,
+  PdfOfficeEditSnapshot,
   StampInput,
 } from '../shared/ipc'
 
@@ -792,6 +795,31 @@ export default function App() {
     null,
   )
   const searchJumpRef = useRef<{ matches: SearchMatch[]; cur: number } | null>(null)
+  const pdfOfficeVersionRef = useRef(0)
+  const pdfDeletionGenerationRef = useRef(0)
+  const officeEditStateRef = useRef<EditSnapshot>({
+    markups,
+    drawings,
+    stampCfg,
+    formEdits,
+    rotations,
+    deleted,
+    order,
+    metadata,
+  })
+  officeEditStateRef.current = {
+    markups,
+    drawings,
+    stampCfg,
+    formEdits,
+    rotations,
+    deleted,
+    order,
+    metadata,
+  }
+
+  const currentPdfOfficeVersion = () => `pdf-edit-${pdfOfficeVersionRef.current}`
+  const advancePdfOfficeVersion = () => `pdf-edit-${++pdfOfficeVersionRef.current}`
 
   /** Visible pages (with unsaved reorder, deleted pages hidden): position → original page index */
   const visList = useMemo(() => {
@@ -865,6 +893,8 @@ export default function App() {
     setDeleteToast(false)
     setUndoStack([])
     setRedoStack([])
+    pdfOfficeVersionRef.current += 1
+    pdfDeletionGenerationRef.current += 1
     void loaded.getOutline().then(
       (o) => setOutline(o && o.length > 0 ? (o as OutlineNode[]) : null),
       () => setOutline(null),
@@ -1033,6 +1063,7 @@ export default function App() {
   })
 
   const pushUndo = (coalesceKey?: string) => {
+    advancePdfOfficeVersion()
     if (coalesceKey && coalesceKeyRef.current === coalesceKey) return
     coalesceKeyRef.current = coalesceKey ?? null
     setUndoStack((prev) => [...prev.slice(-49), snapshot()])
@@ -1040,6 +1071,8 @@ export default function App() {
   }
 
   const applySnapshot = (s: EditSnapshot) => {
+    advancePdfOfficeVersion()
+    pdfDeletionGenerationRef.current += 1
     setMarkups(s.markups)
     setDrawings(s.drawings)
     setStampCfg(s.stampCfg)
@@ -1407,10 +1440,167 @@ export default function App() {
   const deletePage = (origIdx: number) => {
     if (pageCount <= 1 || readOnly) return
     pushUndo()
+    pdfDeletionGenerationRef.current += 1
     setDeleted((prev) => new Set(prev).add(origIdx))
     setMarkups((prev) => prev.filter((m) => m.pageIndex !== origIdx))
     setDrawings((prev) => prev.filter((d) => d.input.pageIndex !== origIdx))
   }
+
+  useEffect(() => {
+    const handler = createPdfOfficeToolRendererHandler({
+      contextVersion: currentPdfOfficeVersion,
+      advanceContextVersion: advancePdfOfficeVersion,
+      contextDetails: () => ({
+        fileName,
+        originalPageCount: sizes.length,
+        currentOriginalPage: (visList[currentPage - 1] ?? 0) + 1,
+        readOnly,
+        hasOutline: Boolean(outline?.length),
+        deletionGeneration: pdfDeletionGenerationRef.current,
+      }),
+      captureSnapshot: (): PdfOfficeEditSnapshot => {
+        const state = officeEditStateRef.current
+        return {
+          markups: state.markups.map((markup) => ({ ...markup })),
+          drawings: state.drawings.map((drawing) => ({ ...drawing, input: { ...drawing.input } })),
+          stampCfg: state.stampCfg,
+          formEdits: [...state.formEdits.values()],
+          rotations: [...state.rotations],
+          deleted: [...state.deleted],
+          order: state.order ? [...state.order] : null,
+          metadata: state.metadata ? { ...state.metadata } : null,
+        }
+      },
+      restoreSnapshot: (serialized) => {
+        const restored: EditSnapshot = {
+          markups: serialized.markups,
+          drawings: serialized.drawings,
+          stampCfg: serialized.stampCfg as StampConfig | null,
+          formEdits: new Map(serialized.formEdits.map((value) => [value.name, value])),
+          rotations: new Map(serialized.rotations),
+          deleted: new Set(serialized.deleted),
+          order: serialized.order,
+          metadata: serialized.metadata,
+        }
+        officeEditStateRef.current = restored
+        pdfDeletionGenerationRef.current += 1
+        setMarkups(restored.markups)
+        setDrawings(restored.drawings)
+        setStampCfg(restored.stampCfg)
+        setFormEdits(restored.formEdits)
+        setRotations(restored.rotations)
+        setDeleted(restored.deleted)
+        setOrder(restored.order)
+        setMetadata(restored.metadata)
+        setSelected(null)
+      },
+      execute: async (modelAlias, input, signal) => {
+        let undoRecorded = false
+        const recordUndo = () => {
+          if (undoRecorded) return
+          undoRecorded = true
+          setUndoStack((previous) => [...previous.slice(-49), officeEditStateRef.current])
+          setRedoStack([])
+          coalesceKeyRef.current = null
+        }
+        const gotoOriginalPage = (originalPage: number) => {
+          const visibleIndex = visList.indexOf(originalPage - 1)
+          if (visibleIndex < 0) return false
+          scrollToPage(visibleIndex + 1)
+          return true
+        }
+        return executePdfTool(
+          {
+            doc: () => doc,
+            fileName: () => fileName,
+            pageCount: () => sizes.length,
+            currentPage: () => (visList[currentPage - 1] ?? 0) + 1,
+            readOnly: () => readOnly,
+            outline: () => outline,
+            searchIndex: getSearchIndex,
+            isDeleted: (originalIndex) => deleted.has(originalIndex),
+            gotoPage: gotoOriginalPage,
+            addMarkup: (type, originalIndex, rects) => {
+              recordUndo()
+              const added: LocalMarkup = {
+                id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+                pageIndex: originalIndex,
+                type,
+                color: MARKUP_COLORS[type],
+                quads: rects.map(([x1, y1, x2, y2]) => [x1, y2, x2, y2, x1, y1, x2, y1]),
+              }
+              const next = [...officeEditStateRef.current.markups, added]
+              officeEditStateRef.current = { ...officeEditStateRef.current, markups: next }
+              setMarkups(next)
+            },
+            formEdits: () => officeEditStateRef.current.formEdits,
+            applyFormEdit: (value) => {
+              recordUndo()
+              const next = new Map(officeEditStateRef.current.formEdits).set(value.name, value)
+              officeEditStateRef.current = { ...officeEditStateRef.current, formEdits: next }
+              setFormEdits(next)
+            },
+            rotatePage: (originalIndex, direction) => {
+              recordUndo()
+              const nextRotations = new Map(officeEditStateRef.current.rotations)
+              const nextRotation = ((nextRotations.get(originalIndex) ?? 0) + direction + 360) % 360
+              if (nextRotation === 0) nextRotations.delete(originalIndex)
+              else nextRotations.set(originalIndex, nextRotation)
+              const nextDrawings = officeEditStateRef.current.drawings.map((drawing) => {
+                if (drawing.input.kind !== 'image' || drawing.input.pageIndex !== originalIndex) {
+                  return drawing
+                }
+                const [x1, y1, x2, y2] = drawing.input.rect
+                const cx = (x1 + x2) / 2
+                const cy = (y1 + y2) / 2
+                const halfWidth = (x2 - x1) / 2
+                const halfHeight = (y2 - y1) / 2
+                return {
+                  ...drawing,
+                  input: {
+                    ...drawing.input,
+                    rect: [cx - halfHeight, cy - halfWidth, cx + halfHeight, cy + halfWidth],
+                  },
+                } satisfies LocalDrawing
+              })
+              officeEditStateRef.current = {
+                ...officeEditStateRef.current,
+                rotations: nextRotations,
+                drawings: nextDrawings,
+              }
+              setRotations(nextRotations)
+              setDrawings(nextDrawings)
+            },
+            deletePage: (originalIndex) => {
+              if (sizes.length - officeEditStateRef.current.deleted.size <= 1) return false
+              recordUndo()
+              const nextDeleted = new Set(officeEditStateRef.current.deleted).add(originalIndex)
+              const nextMarkups = officeEditStateRef.current.markups.filter(
+                (markup) => markup.pageIndex !== originalIndex,
+              )
+              const nextDrawings = officeEditStateRef.current.drawings.filter(
+                (drawing) => drawing.input.pageIndex !== originalIndex,
+              )
+              pdfDeletionGenerationRef.current += 1
+              officeEditStateRef.current = {
+                ...officeEditStateRef.current,
+                deleted: nextDeleted,
+                markups: nextMarkups,
+                drawings: nextDrawings,
+              }
+              setDeleted(nextDeleted)
+              setMarkups(nextMarkups)
+              setDrawings(nextDrawings)
+              return true
+            },
+          },
+          { name: modelAlias, input },
+          signal,
+        )
+      },
+    })
+    return window.pdfOfficeTools.onRequest(handler)
+  })
 
   // ── Drawing annotations ──
 

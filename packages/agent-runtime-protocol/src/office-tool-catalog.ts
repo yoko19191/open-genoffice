@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { Type, type TSchema } from '@sinclair/typebox'
+import { Type, type TObject } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 import catalog from '../fixtures/office-tool-catalog-baseline.json' with { type: 'json' }
 
@@ -16,14 +15,14 @@ type OfficeToolCatalogBinding = {
 export type OfficeToolDefinition = OfficeToolCatalogBinding['descriptors'][number] & {
   label: string
   description: string
-  parameters: TSchema
+  parameters: TObject
 }
 
 function definition(
   modelAlias: string,
   effect: 'read' | 'mutation' | 'external',
   description: string,
-  parameters: TSchema,
+  parameters: TObject,
 ): OfficeToolDefinition {
   return {
     id: `office:pdf:${modelAlias}`,
@@ -61,12 +60,7 @@ export const PDF_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
       { additionalProperties: false },
     ),
   ),
-  definition(
-    'goto_page',
-    'external',
-    'Scroll the user view to an original PDF page.',
-    pageInput(),
-  ),
+  definition('goto_page', 'external', 'Scroll the user view to an original PDF page.', pageInput()),
   definition(
     'markup_text',
     'mutation',
@@ -129,15 +123,11 @@ function descriptorProjection(definitions: readonly OfficeToolDefinition[]) {
   return definitions.map(({ id, modelAlias, effect }) => ({ id, modelAlias, effect }))
 }
 
-function catalogHash(descriptors: OfficeToolCatalogBinding['descriptors']): string {
-  return createHash('sha256').update(JSON.stringify(descriptors)).digest('hex')
-}
-
 const pdfDescriptors = descriptorProjection(PDF_OFFICE_TOOL_DEFINITIONS)
 
 export const PDF_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
   app: 'pdf',
-  catalogHash: catalogHash(pdfDescriptors),
+  catalogHash: 'c7df023595cbfa4780424841dd03f18cc21156c534fb24fc6e6b225571956e82',
   descriptors: pdfDescriptors,
 }
 

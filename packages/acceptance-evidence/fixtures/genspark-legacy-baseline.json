@@ -149,8 +149,8 @@
     },
     {
       "file": "apps/shell/src/main/index.ts",
-      "totalOccurrences": 87,
-      "fingerprint": "afbd0f323f3b7ac16e9afe80606cf8c68dabe321dd7a1b6e4603fc57b1bbfb18"
+      "totalOccurrences": 9,
+      "fingerprint": "20c1432c84c684eb71d04bdaea90a32ac4c3f50f2c96322f2ce977e8b2569b57"
     },
     {
       "file": "apps/shell/src/main/tab-manager.ts",

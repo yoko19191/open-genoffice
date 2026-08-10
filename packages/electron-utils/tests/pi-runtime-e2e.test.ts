@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it, vi } from 'vitest'
 import { RUNTIME_VERSION, parseProtocolFrame } from '@genoffice/agent-runtime-protocol'
+import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import { verifyPiRuntimeBundle, type VerifiedPiRuntimeBundle } from '@genoffice/pi-runtime-bundle'
 import {
   applyAgentSessionEvent,
@@ -26,7 +27,7 @@ const execFileAsync = promisify(execFile)
 const localProviderId = 'local-openai-fixture'
 const localModelId = 'fixture-model'
 
-async function createOpenAICompatibleFixture() {
+async function createOpenAICompatibleFixture(options: { officeTools?: boolean } = {}) {
   const requests: Array<{ authorization?: string; body: unknown }> = []
   const server = createServer((request, response) => {
     let body = ''
@@ -55,6 +56,39 @@ async function createOpenAICompatibleFixture() {
         })}\n\n`
       setTimeout(() => {
         if (response.destroyed) return
+        if (options.officeTools && requests.length <= 2) {
+          const tool =
+            requests.length === 1
+              ? { id: 'office-read-call', name: 'read_pages', arguments: '{"start":1}' }
+              : { id: 'office-delete-call', name: 'delete_page', arguments: '{"page":3}' }
+          response.write(
+            `data: ${JSON.stringify({
+              id: completionId,
+              object: 'chat.completion.chunk',
+              created: 1,
+              model: localModelId,
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: tool.id,
+                        type: 'function',
+                        function: { name: tool.name, arguments: tool.arguments },
+                      },
+                    ],
+                  },
+                  finish_reason: null,
+                },
+              ],
+            })}\n\n`,
+          )
+          response.write(chunk('', 'tool_calls'))
+          response.end('data: [DONE]\n\n')
+          return
+        }
         response.write(chunk('local model '))
         response.write(chunk('response'))
         response.write(chunk('', 'stop'))
@@ -574,6 +608,97 @@ describe('copied Pi Runtime end to end', () => {
       )
     }
 
+    await localModel.close()
+    await rm(root, { recursive: true, force: true })
+  }, 15_000)
+
+  it('runs a copied Runtime Office read and mutation through the main-process host', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pi-runtime-office-e2e-'))
+    const verified = await buildCopiedRuntime(root)
+    const resourceHome = join(root, 'resource-home')
+    const localModel = await createOpenAICompatibleFixture({ officeTools: true })
+    await configureLocalModel(resourceHome, localModel.baseUrl)
+    const credentialBroker = await createFakeCredentialBroker(resourceHome)
+    const officeToolHost = {
+      invoke: vi.fn(async (input) => ({
+        operationId: input.operationId,
+        toolCallId: input.toolCallId,
+        toolId: input.toolId,
+        status: 'completed' as const,
+        output: input.toolId.endsWith('read_pages') ? '[Page 1]\ncontract' : 'Deleted page 3',
+        contextVersionAfter: input.toolId.endsWith('read_pages')
+          ? 'pdf-context-1'
+          : 'pdf-context-2',
+        ...(input.toolId.endsWith('delete_page') ? { mutationOutcome: 'committed' as const } : {}),
+        provenance: {
+          actorId: input.actor.actorId,
+          runId: input.runId,
+          documentId: input.documentId,
+        },
+      })),
+      abort: vi.fn(async () => true),
+    }
+    const manager = createPiRuntimeManager({
+      bundle: verified,
+      platform: process.platform,
+      parentPid: process.pid,
+      resourceHome,
+      startupTimeoutMs: 5_000,
+      credentialBroker,
+      officeToolHost,
+    })
+    await manager.start()
+    await manager.putCredential({
+      providerId: localProviderId,
+      persistence: 'persistent',
+      secretPayload: '{"type":"api_key","key":"local-office-fixture-key"}',
+    })
+    const documentId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    const created = await manager.createSession({
+      operationId: randomUUID(),
+      documentId,
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    const events: Parameters<typeof applyAgentSessionEvent>[1][] = []
+    let resolveTerminal!: () => void
+    const terminal = new Promise<void>((resolve) => {
+      resolveTerminal = resolve
+    })
+    const unsubscribe = manager.onSessionEvent((event) => {
+      if (event.sessionId !== created.sessionId) return
+      events.push(event)
+      if (event.type === 'run.completed' || event.type === 'run.failed') resolveTerminal()
+    })
+    await manager.promptSession({
+      operationId: randomUUID(),
+      sessionId: created.sessionId,
+      documentId,
+      text: 'read and delete the requested PDF page',
+    })
+    await terminal
+    expect(events.at(-1)?.type).toBe('run.completed')
+    expect(officeToolHost.invoke).toHaveBeenCalledTimes(2)
+    expect(officeToolHost.invoke.mock.calls[0]?.[0]).toMatchObject({
+      toolId: 'office:pdf:read_pages',
+      toolOrder: 0,
+    })
+    expect(officeToolHost.invoke.mock.calls[1]?.[0]).toMatchObject({
+      toolId: 'office:pdf:delete_page',
+      toolOrder: 1,
+      contextVersion: 'pdf-context-1',
+    })
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'tool.completed' &&
+          typeof event.payload === 'object' &&
+          event.payload !== null &&
+          (event.payload as { mutationOutcome?: unknown }).mutationOutcome === 'committed',
+      ),
+    ).toBe(true)
+    expect(JSON.stringify(localModel.requests[0]?.body)).toContain('read_pages')
+    unsubscribe()
+    await manager.shutdown()
     await localModel.close()
     await rm(root, { recursive: true, force: true })
   }, 15_000)

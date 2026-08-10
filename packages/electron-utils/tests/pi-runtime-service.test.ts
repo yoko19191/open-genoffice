@@ -218,6 +218,7 @@ function service(options: {
   runtimeManager?: ReturnType<typeof manager>
   resourceHome?: string
   credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
+  officeToolHost?: PiRuntimeManagerOptions['officeToolHost']
 }) {
   const runtimeManager = options.runtimeManager ?? manager()
   const createManager = vi.fn(() => runtimeManager)
@@ -232,6 +233,7 @@ function service(options: {
         parentPid: 123,
         ...(options.resourceHome ? { resourceHome: options.resourceHome } : {}),
         ...(options.credentialBroker ? { credentialBroker: options.credentialBroker } : {}),
+        ...(options.officeToolHost ? { officeToolHost: options.officeToolHost } : {}),
       },
       {
         verifyBundle: options.verify ?? (async () => verified),
@@ -561,6 +563,18 @@ describe('installed Pi Runtime service', () => {
       platform: 'darwin',
       parentPid: 123,
       credentialBroker,
+    })
+  })
+
+  it('passes the main-process Office Tool host only to the owned Runtime manager', async () => {
+    const officeToolHost = { invoke: vi.fn() }
+    const fixture = service({ officeToolHost })
+    await fixture.instance.initialize()
+    expect(fixture.createManager).toHaveBeenCalledWith({
+      bundle: verified,
+      platform: 'darwin',
+      parentPid: 123,
+      officeToolHost,
     })
   })
 

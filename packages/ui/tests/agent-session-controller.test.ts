@@ -57,6 +57,9 @@ function fixture(connect = vi.fn(async () => receipt())) {
       if (command.type === 'resumeSubagent') {
         return { runId: command.runId, attempt: 2, acceptedCursor: 'cursor-4' }
       }
+      if (command.type === 'rollbackRun') {
+        return { documentId, runId: command.runId, rolledBack: true }
+      }
       if (
         command.type === 'grantMutation' ||
         command.type === 'denyMutation' ||
@@ -94,6 +97,34 @@ function fixture(connect = vi.fn(async () => receipt())) {
 }
 
 describe('AgentSessionController', () => {
+  it('rolls back only the latest committed Office run and clears the one-click action', async () => {
+    const test = fixture()
+    const controller = new AgentSessionController(test.client, { randomUUID: () => operationId })
+    await controller.connect()
+    await expect(controller.rollbackLastRun()).rejects.toThrowError('office_rollback_unavailable')
+    test.emit({
+      ...event(2, 'tool.completed'),
+      payload: {
+        toolCallId: 'office-call-1',
+        toolName: 'delete_page',
+        mutationOutcome: 'committed',
+      },
+    })
+    await expect(controller.rollbackLastRun()).resolves.toEqual({
+      documentId,
+      runId,
+      rolledBack: true,
+    })
+    expect(test.commands.at(-1)).toEqual({
+      type: 'rollbackRun',
+      operationId,
+      sessionId,
+      documentId,
+      runId,
+    })
+    expect(controller.snapshot()?.rollbackRunId).toBeUndefined()
+  })
+
   it('subscribes before connect and folds events arriving during the snapshot handshake once', async () => {
     let resolveConnect!: (value: AgentSessionConnectReceipt) => void
     const connect = vi.fn(

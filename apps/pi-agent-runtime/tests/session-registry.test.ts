@@ -1457,8 +1457,31 @@ describe('document-bound Pi Session registry', () => {
           type: 'tool_execution_end',
           toolCallId: 'tool-1',
           toolName: 'probe',
-          result: {},
+          result: {
+            details: {
+              officeTool: {
+                operationId: 'office-operation-1',
+                toolId: 'office:pdf:delete_page',
+                status: 'completed',
+                mutationOutcome: 'committed',
+              },
+            },
+          },
           isError: true,
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'tool-details-string',
+          toolName: 'probe',
+          result: { details: 'renderer-private' },
+          isError: false,
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'tool-outcome-forged',
+          toolName: 'probe',
+          result: { details: { officeTool: { mutationOutcome: 'forged' } } },
+          isError: false,
         })
         emit({
           type: 'compaction_start',
@@ -1536,7 +1559,8 @@ describe('document-bound Pi Session registry', () => {
       { id: 'user-entry', role: 'user', text: 'plain user text' },
       { id: 'assistant-entry', role: 'assistant', text: '' },
     ])
-    expect((await registry.readJournal(created.sessionId)).map((event) => event.type)).toEqual(
+    const journal = await registry.readJournal(created.sessionId)
+    expect(journal.map((event) => event.type)).toEqual(
       expect.arrayContaining([
         'tool.progress',
         'tool.failed',
@@ -1545,6 +1569,9 @@ describe('document-bound Pi Session registry', () => {
         'run.aborted',
       ]),
     )
+    expect(journal.find((event) => event.type === 'tool.failed')?.payload).toMatchObject({
+      mutationOutcome: 'committed',
+    })
     await registry.shutdown()
   })
 

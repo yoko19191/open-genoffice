@@ -3,23 +3,16 @@ import type { OutlineNode } from '../OutlinePanel'
 import type { SearchIndex } from '../search'
 import { searchInIndex } from '../search'
 import type { FormValueInput, MarkupType } from '../../shared/ipc'
+import type { PdfOfficeToolErrorCode } from '../../shared/ipc'
 import { t } from '../i18n/locale'
 
 type AgentToolCall = { name: string; input: Record<string, unknown> }
-type AgentToolDef = {
-  name: string
-  description: string
-  inputSchema: {
-    type: 'object'
-    properties: Record<string, unknown>
-    required?: string[]
-  }
-}
-type ToolExecution = {
+export type ToolExecution = {
   output: string
   summary: string
   isError?: boolean
   mutated?: boolean
+  errorCode?: PdfOfficeToolErrorCode
 }
 
 /** Text cap per read_pages fed back to the model (the payload is resent in full each turn, so volume must be limited) */
@@ -45,124 +38,19 @@ export interface PdfAiDeps {
   deletePage(origIdx: number): boolean
 }
 
-export const AGENT_TOOLS: AgentToolDef[] = [
-  {
-    name: 'read_pages',
-    description:
-      'Read the text content of a page range (with [Page N] markers). Read the relevant pages before answering questions; at most 10 pages per call, over-long output is truncated.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        start: { type: 'integer', description: 'Start page number (1-based)' },
-        end: {
-          type: 'integer',
-          description: 'End page number (inclusive); if omitted, only the start page is read',
-        },
-      },
-      required: ['start'],
-    },
-  },
-  {
-    name: 'search_text',
-    description:
-      'Search the full text for a string; returns the page number and a context excerpt for each hit. Prefer this when locating which page something is on.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Text to search for (case-insensitive)' },
-      },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'goto_page',
-    description: 'Scroll the reading view to the given page so the user can see it.',
-    inputSchema: {
-      type: 'object',
-      properties: { page: { type: 'integer', description: 'Page number (1-based)' } },
-      required: ['page'],
-    },
-  },
-  {
-    name: 'markup_text',
-    description:
-      'Add a markup (highlight/underline/strikeout) to a text passage on the given page. text must be a verbatim fragment that actually exists on that page (confirm with read_pages or search_text first); by default only the first occurrence is marked, all=true marks every occurrence on that page.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        page: { type: 'integer', description: 'Page number (1-based)' },
-        text: { type: 'string', description: 'Verbatim text fragment from the page' },
-        type: {
-          type: 'string',
-          enum: ['highlight', 'underline', 'strikeout'],
-          description: 'Markup type',
-        },
-        all: {
-          type: 'boolean',
-          description: 'Whether to mark every occurrence on the page; defaults to false',
-        },
-      },
-      required: ['page', 'text', 'type'],
-    },
-  },
-  {
-    name: 'list_form_fields',
-    description:
-      'List all form fields in the document (name/type/current value/options/page). Must be called before filling forms to learn the fields.',
-    inputSchema: { type: 'object', properties: {} },
-  },
-  {
-    name: 'fill_form_field',
-    description:
-      'Fill in one form field. For text/choice/radio fields pass value (radio: the exportValue; choice: an option exportValue); for checkboxes pass checked.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'Field name (from list_form_fields)' },
-        value: { type: 'string', description: 'Value for text/choice/radio fields' },
-        checked: { type: 'boolean', description: 'Checked state for checkboxes' },
-      },
-      required: ['name'],
-    },
-  },
-  {
-    name: 'rotate_page',
-    description: 'Rotate the given page 90 degrees clockwise or counterclockwise.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        page: { type: 'integer', description: 'Page number (1-based)' },
-        direction: {
-          type: 'string',
-          enum: ['left', 'right'],
-          description: 'left = counterclockwise, right = clockwise',
-        },
-      },
-      required: ['page', 'direction'],
-    },
-  },
-  {
-    name: 'delete_page',
-    description: 'Delete the given page (takes effect on save; the user can undo before saving).',
-    inputSchema: {
-      type: 'object',
-      properties: { page: { type: 'integer', description: 'Page number (1-based)' } },
-      required: ['page'],
-    },
-  },
-  {
-    name: 'get_outline',
-    description:
-      'Read the document outline (bookmarks) tree, including entry titles. Returns empty if the document has no outline.',
-    inputSchema: { type: 'object', properties: {} },
-  },
-]
-
 const READONLY_OUTPUT =
   'The document is encrypted and read-only; it cannot be modified. Inform the user.'
 
-function err(output: string, summary: string): ToolExecution {
-  return { output, isError: true, summary }
+function err(
+  output: string,
+  summary: string,
+  errorCode: PdfOfficeToolErrorCode = 'invalid_tool_arguments',
+): ToolExecution {
+  return { output, isError: true, summary, errorCode }
+}
+
+function aborted(summary: string): ToolExecution {
+  return err('Operation aborted', summary, 'tool_failed')
 }
 
 /** Validate a 1-based page number; returns the original page index or an error */
@@ -177,9 +65,18 @@ function resolvePage(deps: PdfAiDeps, raw: unknown): { origIdx: number } | { bad
   return { origIdx: page - 1 }
 }
 
-async function readPages(deps: PdfAiDeps, input: Record<string, unknown>): Promise<ToolExecution> {
+async function readPages(
+  deps: PdfAiDeps,
+  input: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ToolExecution> {
   const doc = deps.doc()
-  if (!doc) return err('Document not ready', t('aiToolReadPages', { start: '?', end: '?' }))
+  if (!doc)
+    return err(
+      'Document not ready',
+      t('aiToolReadPages', { start: '?', end: '?' }),
+      'executor_unavailable',
+    )
   const start = Number(input.start)
   const end = Math.min(Number(input.end ?? start), start + 9)
   const summary = t('aiToolReadPages', { start, end })
@@ -188,8 +85,10 @@ async function readPages(deps: PdfAiDeps, input: Record<string, unknown>): Promi
   }
   let out = ''
   for (let n = start; n <= Math.min(end, doc.numPages); n++) {
+    if (signal?.aborted) return aborted(summary)
     const page = await doc.getPage(n)
     const content = await page.getTextContent()
+    if (signal?.aborted) return aborted(summary)
     let text = ''
     for (const item of content.items) {
       if ('str' in item) {
@@ -210,12 +109,18 @@ async function readPages(deps: PdfAiDeps, input: Record<string, unknown>): Promi
   }
 }
 
-async function searchText(deps: PdfAiDeps, input: Record<string, unknown>): Promise<ToolExecution> {
+async function searchText(
+  deps: PdfAiDeps,
+  input: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ToolExecution> {
   const query = String(input.query ?? '').trim()
   if (!query) return err('query must not be empty', t('aiToolSearch', { query: '', count: 0 }))
   const indexPromise = deps.searchIndex()
-  if (!indexPromise) return err('Document not ready', t('aiToolSearch', { query, count: 0 }))
+  if (!indexPromise)
+    return err('Document not ready', t('aiToolSearch', { query, count: 0 }), 'executor_unavailable')
   const index = await indexPromise
+  if (signal?.aborted) return aborted(t('aiToolSearch', { query, count: 0 }))
   const matches = searchInIndex(index, query)
   const lines: string[] = []
   for (const m of matches.slice(0, 40)) {
@@ -232,10 +137,14 @@ async function searchText(deps: PdfAiDeps, input: Record<string, unknown>): Prom
   }
 }
 
-async function markupText(deps: PdfAiDeps, input: Record<string, unknown>): Promise<ToolExecution> {
+async function markupText(
+  deps: PdfAiDeps,
+  input: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ToolExecution> {
   const type = String(input.type) as MarkupType
   const summary = t('aiToolMarkup', { page: Number(input.page) })
-  if (deps.readOnly()) return err(READONLY_OUTPUT, summary)
+  if (deps.readOnly()) return err(READONLY_OUTPUT, summary, 'read_only_document')
   if (!['highlight', 'underline', 'strikeout'].includes(type))
     return err(`Invalid type: ${type}`, summary)
   const r = resolvePage(deps, input.page)
@@ -243,8 +152,9 @@ async function markupText(deps: PdfAiDeps, input: Record<string, unknown>): Prom
   const text = String(input.text ?? '').trim()
   if (!text) return err('text must not be empty', summary)
   const indexPromise = deps.searchIndex()
-  if (!indexPromise) return err('Document not ready', summary)
+  if (!indexPromise) return err('Document not ready', summary, 'executor_unavailable')
   const index = await indexPromise
+  if (signal?.aborted) return aborted(summary)
   const onPage = searchInIndex(index, text).filter((m) => m.pageIndex === r.origIdx)
   if (onPage.length === 0) {
     return err(
@@ -311,10 +221,12 @@ async function collectFields(
   return fields
 }
 
-async function listFormFields(deps: PdfAiDeps): Promise<ToolExecution> {
+async function listFormFields(deps: PdfAiDeps, signal?: AbortSignal): Promise<ToolExecution> {
   const doc = deps.doc()
-  if (!doc) return err('Document not ready', t('aiToolFields', { count: 0 }))
+  if (!doc)
+    return err('Document not ready', t('aiToolFields', { count: 0 }), 'executor_unavailable')
   const fields = await collectFields(doc)
+  if (signal?.aborted) return aborted(t('aiToolFields', { count: 0 }))
   const edits = deps.formEdits()
   const lines = [...fields].map(([name, f]) => {
     const edit = edits.get(name)
@@ -335,13 +247,15 @@ async function listFormFields(deps: PdfAiDeps): Promise<ToolExecution> {
 async function fillFormField(
   deps: PdfAiDeps,
   input: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<ToolExecution> {
   const name = String(input.name ?? '')
   const summary = t('aiToolFill', { name })
-  if (deps.readOnly()) return err(READONLY_OUTPUT, summary)
+  if (deps.readOnly()) return err(READONLY_OUTPUT, summary, 'read_only_document')
   const doc = deps.doc()
   if (!doc || !name) return err('Document not ready or name is empty', summary)
   const fields = await collectFields(doc)
+  if (signal?.aborted) return aborted(summary)
   const field = fields.get(name)
   if (!field)
     return err(`No field named "${name}"; use list_form_fields to see the fields`, summary)
@@ -365,13 +279,18 @@ async function fillFormField(
   return { output: `Filled ${name} (unsaved; the user saves with ⌘S)`, mutated: true, summary }
 }
 
-export async function executePdfTool(deps: PdfAiDeps, call: AgentToolCall): Promise<ToolExecution> {
+export async function executePdfTool(
+  deps: PdfAiDeps,
+  call: AgentToolCall,
+  signal?: AbortSignal,
+): Promise<ToolExecution> {
   const input = call.input
+  if (signal?.aborted) return aborted(call.name)
   switch (call.name) {
     case 'read_pages':
-      return readPages(deps, input)
+      return readPages(deps, input, signal)
     case 'search_text':
-      return searchText(deps, input)
+      return searchText(deps, input, signal)
     case 'goto_page': {
       const summary = t('aiToolGoto', { page: Number(input.page) })
       const r = resolvePage(deps, input.page)
@@ -380,14 +299,14 @@ export async function executePdfTool(deps: PdfAiDeps, call: AgentToolCall): Prom
       return { output: `Jumped to page ${r.origIdx + 1}`, summary }
     }
     case 'markup_text':
-      return markupText(deps, input)
+      return markupText(deps, input, signal)
     case 'list_form_fields':
-      return listFormFields(deps)
+      return listFormFields(deps, signal)
     case 'fill_form_field':
-      return fillFormField(deps, input)
+      return fillFormField(deps, input, signal)
     case 'rotate_page': {
       const summary = t('aiToolRotate', { page: Number(input.page) })
-      if (deps.readOnly()) return err(READONLY_OUTPUT, summary)
+      if (deps.readOnly()) return err(READONLY_OUTPUT, summary, 'read_only_document')
       const r = resolvePage(deps, input.page)
       if ('bad' in r) return err(r.bad, summary)
       deps.rotatePage(r.origIdx, input.direction === 'left' ? -90 : 90)
@@ -396,7 +315,7 @@ export async function executePdfTool(deps: PdfAiDeps, call: AgentToolCall): Prom
     }
     case 'delete_page': {
       const summary = t('aiToolDelete', { page: Number(input.page) })
-      if (deps.readOnly()) return err(READONLY_OUTPUT, summary)
+      if (deps.readOnly()) return err(READONLY_OUTPUT, summary, 'read_only_document')
       const r = resolvePage(deps, input.page)
       if ('bad' in r) return err(r.bad, summary)
       if (!deps.deletePage(r.origIdx)) return err('At least one page must remain', summary)
@@ -422,6 +341,6 @@ export async function executePdfTool(deps: PdfAiDeps, call: AgentToolCall): Prom
       }
     }
     default:
-      return err(`Unknown tool: ${call.name}`, call.name)
+      return err(`Unknown tool: ${call.name}`, call.name, 'unsupported_office_feature')
   }
 }

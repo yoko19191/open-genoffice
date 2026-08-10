@@ -1,4 +1,5 @@
 import { mkdir, open, readFile, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import {
   InMemoryCredentialStore,
@@ -25,6 +26,11 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import type { CapabilitySnapshot } from '@genoffice/agent-resource'
 import type { OfficeToolCatalogBinding } from '@genoffice/agent-runtime-protocol'
+import {
+  resolveOfficeToolDefinitions,
+  type OfficeToolDefinition,
+} from '@genoffice/agent-runtime-protocol/office-tool-catalog'
+import type { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
 import type { RunResourceService, RunModelMetadata } from './run-resource-service'
 import { ControlledResourceLoader } from './controlled-resource-loader'
 import { ResourceReadBoundary } from './resource-read-boundary'
@@ -65,6 +71,7 @@ type CreatePiSessionBaseOptions = {
   sessionFile?: string
   documentId: string
   officeToolCatalog?: OfficeToolCatalogBinding
+  officeToolHost?: Pick<RuntimeOfficeToolHostClient, 'invoke'>
   credentials?: CredentialStore
   spawnSubagent?: (request: SpawnSubagentRequest) => Promise<SubagentRunProjection>
 }
@@ -139,6 +146,12 @@ export async function createDeterministicPiSession(
   ])
 
   const managedModel = options.modelRuntime !== undefined
+  const officeToolDefinitions: readonly OfficeToolDefinition[] = options.officeToolCatalog
+    ? resolveOfficeToolDefinitions(options.officeToolCatalog)
+    : []
+  if (managedModel && officeToolDefinitions.length > 0 && !options.officeToolHost) {
+    throw new Error('office_tool_host_required')
+  }
   const modelRuntime =
     options.modelRuntime ??
     (await ModelRuntime.create({
@@ -164,6 +177,9 @@ export async function createDeterministicPiSession(
   })
   let extensionExecution:
     { snapshot: CapabilitySnapshot; projectRoot?: string; runId: string } | undefined
+  let nextOfficeToolOrder = 0
+  let latestOfficeContextVersion: string | undefined
+  let latestFormInventoryVersion: string | undefined
   const resourceLoader = new ControlledResourceLoader({
     cwd: options.cwd,
     agentDir: options.agentDir,
@@ -304,6 +320,74 @@ export async function createDeterministicPiSession(
           },
         })
       : undefined
+  const officeTools = officeToolDefinitions.map((definition) =>
+    defineTool({
+      name: definition.modelAlias,
+      label: definition.label,
+      description: definition.description,
+      promptSnippet: definition.description,
+      parameters: definition.parameters,
+      executionMode: definition.effect === 'read' ? 'parallel' : 'sequential',
+      async execute(toolCallId, input, signal) {
+        if (!extensionExecution) throw new Error('office_tool_run_context_required')
+        const toolOrder = nextOfficeToolOrder++
+        const contextVersion =
+          definition.modelAlias === 'fill_form_field'
+            ? latestFormInventoryVersion
+            : definition.effect === 'read'
+              ? undefined
+              : latestOfficeContextVersion
+        const operationId = randomUUID()
+        const receipt = await options.officeToolHost!.invoke(
+          {
+            operationId,
+            sessionId: options.sessionId,
+            documentId: options.documentId,
+            runId: extensionExecution.runId,
+            toolCallId,
+            toolId: definition.id,
+            toolOrder,
+            ...(contextVersion ? { contextVersion } : {}),
+            actor: {
+              type: 'parent',
+              actorId: options.sessionId,
+              sessionId: options.sessionId,
+            },
+            permissionSnapshot: {
+              snapshotId: extensionExecution.snapshot.snapshotId,
+              createdForRunId: extensionExecution.snapshot.createdForRunId,
+              permissionVersion: extensionExecution.snapshot.permissionVersion,
+              toolIds: [...extensionExecution.snapshot.toolIds].filter((id) =>
+                id.startsWith('office:'),
+              ),
+            },
+            input,
+          },
+          signal,
+        )
+        if (receipt.status === 'completed' && receipt.contextVersionAfter) {
+          latestOfficeContextVersion = receipt.contextVersionAfter
+          if (definition.modelAlias === 'list_form_fields') {
+            latestFormInventoryVersion = receipt.contextVersionAfter
+          }
+        }
+        return {
+          content: [{ type: 'text' as const, text: receipt.output }],
+          details: {
+            ...(typeof receipt.details === 'object' && receipt.details !== null
+              ? receipt.details
+              : {}),
+            officeTool: {
+              operationId: receipt.operationId,
+              toolId: receipt.toolId,
+              status: receipt.status,
+              ...(receipt.mutationOutcome ? { mutationOutcome: receipt.mutationOutcome } : {}),
+            },
+          },
+        }
+      },
+    }),
+  )
 
   let sessionManager: SessionManager
   if (options.sessionFile) {
@@ -339,7 +423,7 @@ export async function createDeterministicPiSession(
     resourceLoader,
     ...(managedModel ? {} : { noTools: 'all' as const, tools: ['genoffice_contract_probe'] }),
     customTools: managedModel
-      ? [resourceReadTool, subagentTool].filter(
+      ? [resourceReadTool, subagentTool, ...officeTools].filter(
           (tool): tool is NonNullable<typeof tool> => tool !== undefined,
         )
       : [contractProbe],
@@ -355,6 +439,9 @@ export async function createDeterministicPiSession(
         if (signal.aborted) return undefined
         if (!context) throw new Error('run_context_required')
         const model = options.resolveModel()
+        nextOfficeToolOrder = 0
+        latestOfficeContextVersion = undefined
+        latestFormInventoryVersion = undefined
         const prepared = await options.runResources.prepare({
           runId: context.runId,
           ...(context.projectRoot ? { projectRoot: context.projectRoot } : {}),
@@ -362,7 +449,9 @@ export async function createDeterministicPiSession(
           toolIds: [
             'platform:resource:read',
             ...(options.spawnSubagent ? ['platform:subagent:spawn'] : []),
+            ...officeToolDefinitions.map(({ id }) => id),
           ],
+          reservedToolAliases: officeToolDefinitions.map(({ modelAlias }) => modelAlias),
         })
         resourceLoader.configure({
           skillPaths: prepared.skillPaths,
@@ -384,6 +473,7 @@ export async function createDeterministicPiSession(
         session.setActiveToolsByName([
           ...(prepared.skillPaths.length > 0 ? ['read'] : []),
           ...(options.spawnSubagent ? ['subagent'] : []),
+          ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ...prepared.extensionTools.map(({ name }) => name),
           ...prepared.mcpTools.map(({ modelAlias }) => modelAlias),
         ])

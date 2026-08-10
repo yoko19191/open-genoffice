@@ -258,6 +258,64 @@ describe('authenticated Runtime socket', () => {
     await runtime.closed
   })
 
+  it('carries Runtime-initiated Office Tool invocations over the authenticated socket', async () => {
+    const socketPath = await endpoint()
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-office-tool',
+      resourceHome: resourceHome('instance-office-tool'),
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+
+    const invocation = {
+      operationId: '11111111-1111-4111-8111-111111111111',
+      sessionId: '22222222-2222-4222-8222-222222222222',
+      documentId: '33333333-3333-4333-8333-333333333333',
+      runId: 'run-1',
+      toolCallId: 'tool-call-1',
+      toolId: 'office:pdf:read_pages',
+      toolOrder: 0,
+      actor: {
+        type: 'parent' as const,
+        actorId: '22222222-2222-4222-8222-222222222222',
+        sessionId: '22222222-2222-4222-8222-222222222222',
+      },
+      permissionSnapshot: {
+        snapshotId: 'snapshot-1',
+        createdForRunId: 'run-1',
+        permissionVersion: 'permission-1',
+        toolIds: ['office:pdf:read_pages'],
+      },
+      input: { start: 1 },
+    }
+    const pending = runtime.officeTools!.invoke(invocation)
+    const officeRequest = await reader.next(
+      (frame) => frame.kind === 'request' && frame.method === 'office.tool.invoke',
+    )
+    expect(officeRequest).toMatchObject({ params: invocation })
+    client.write(
+      `${resultResponse(officeRequest, {
+        operationId: invocation.operationId,
+        toolCallId: invocation.toolCallId,
+        toolId: invocation.toolId,
+        status: 'completed',
+        output: '[Page 1]\\nhello',
+        provenance: {
+          actorId: invocation.actor.actorId,
+          runId: invocation.runId,
+          documentId: invocation.documentId,
+        },
+      })}\n`,
+    )
+    await expect(pending).resolves.toMatchObject({ status: 'completed' })
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
   it('accepts write-only credential management while keeping status responses redacted', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({

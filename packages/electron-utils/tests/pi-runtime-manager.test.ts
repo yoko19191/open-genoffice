@@ -85,6 +85,11 @@ class FakeRuntimeSocket extends Duplex {
         this.push(`${JSON.stringify(credentialRequest)}\n`)
       }
     }
+    if (this.options.officePrelude && request.method === 'runtime.hello') {
+      for (const officeRequest of this.options.officePrelude) {
+        this.push(`${JSON.stringify(officeRequest)}\n`)
+      }
+    }
     if (request.method === 'runtime.status' && this.options.statusMode === 'hang') {
       callback()
       return
@@ -511,6 +516,7 @@ type ManagerHarnessOptions = {
   credentialResult?: unknown
   credentialMode?: 'error-response'
   credentialPrelude?: readonly unknown[]
+  officePrelude?: readonly unknown[]
   modelResult?: unknown
   modelMode?: 'error-response'
   resourceResult?: unknown
@@ -640,6 +646,91 @@ describe('PiRuntimeManager', () => {
       }),
       expect.objectContaining({ id: 'credential-put-1', result: metadata }),
     ])
+    await manager.shutdown()
+  })
+
+  it('dispatches one validated Runtime Office Tool request to the main-process host', async () => {
+    const invocation = {
+      operationId: '11111111-1111-4111-8111-111111111111',
+      sessionId: '22222222-2222-4222-8222-222222222222',
+      documentId: '33333333-3333-4333-8333-333333333333',
+      runId: 'run-1',
+      toolCallId: 'tool-call-1',
+      toolId: 'office:pdf:read_pages',
+      toolOrder: 0,
+      actor: {
+        type: 'parent',
+        actorId: '22222222-2222-4222-8222-222222222222',
+        sessionId: '22222222-2222-4222-8222-222222222222',
+      },
+      permissionSnapshot: {
+        snapshotId: 'snapshot-1',
+        createdForRunId: 'run-1',
+        permissionVersion: 'permission-1',
+        toolIds: ['office:pdf:read_pages'],
+      },
+      input: { start: 1 },
+    }
+    const officePrelude = [
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'office-tool-request-1',
+        method: 'office.tool.invoke',
+        correlationId: 'office-tool-correlation-1',
+        params: invocation,
+      },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        kind: 'request',
+        id: 'office-tool-abort-1',
+        method: 'office.tool.abort',
+        correlationId: 'office-tool-abort-correlation-1',
+        params: { operationId: invocation.operationId, documentId: invocation.documentId },
+      },
+    ]
+    const officeToolHost = {
+      invoke: vi.fn(async () => ({
+        operationId: invocation.operationId,
+        toolCallId: invocation.toolCallId,
+        toolId: invocation.toolId,
+        status: 'completed' as const,
+        output: '[Page 1]\nhello',
+        provenance: {
+          actorId: invocation.actor.actorId,
+          runId: invocation.runId,
+          documentId: invocation.documentId,
+        },
+      })),
+      abort: vi.fn(async () => true),
+    }
+    const harness = managerHarness({ officePrelude })
+    const manager = new PiRuntimeManager(
+      {
+        bundle: verifiedBundle(),
+        platform: 'darwin',
+        parentPid: 7070,
+        officeToolHost,
+      },
+      harness.dependencies,
+    )
+
+    await manager.start()
+    await vi.waitFor(() => expect(harness.socket().hostResponses).toHaveLength(2))
+    expect(officeToolHost.invoke).toHaveBeenCalledWith(invocation)
+    expect(officeToolHost.abort).toHaveBeenCalledWith({
+      operationId: invocation.operationId,
+      documentId: invocation.documentId,
+    })
+    expect(harness.socket().hostResponses[0]).toMatchObject({
+      id: 'office-tool-request-1',
+      correlationId: 'office-tool-correlation-1',
+      result: expect.objectContaining({ toolId: invocation.toolId, status: 'completed' }),
+    })
+    expect(harness.socket().hostResponses[1]).toMatchObject({
+      id: 'office-tool-abort-1',
+      result: { aborted: true },
+    })
     await manager.shutdown()
   })
 

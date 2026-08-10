@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@genoffice/agent-runtime-protocol": "*",
     "@genoffice/electron-utils": "*",
     "@genoffice/i18n": "*",
     "@genoffice/ui": "*",

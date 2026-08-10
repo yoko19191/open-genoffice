@@ -9,6 +9,7 @@ import {
   parseSessionPromptReceipt,
   parseSessionSubagentResumeReceipt,
   parseSessionMutationGrantReceipt,
+  parseOfficeRollbackReceipt,
   type AgentSessionCommand,
   type AgentSessionConnectReceipt,
   type AgentSessionConnectRequest,
@@ -19,6 +20,7 @@ import {
   type SessionNavigateReceipt,
   type SessionSubagentResumeReceipt,
   type SessionMutationGrantReceipt,
+  type OfficeRollbackReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import type { AgentSessionBroker } from './agent-session-broker'
 
@@ -70,6 +72,7 @@ export interface AgentSessionPreloadApi {
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
     | SessionMutationGrantReceipt
+    | OfficeRollbackReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
   >
@@ -160,6 +163,7 @@ export function createAgentSessionPreloadApi(
       ) {
         return parseSessionMutationGrantReceipt(receipt)
       }
+      if (validated.type === 'rollbackRun') return parseOfficeRollbackReceipt(receipt)
       if (validated.type === 'fork') return parseSessionForkReceipt(receipt)
       return parseSessionNavigateReceipt(receipt)
     },

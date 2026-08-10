@@ -13,6 +13,7 @@ import type {
   SessionSubscriptionReceipt,
   MutationGrantReceipt,
   OfficeToolCatalogBinding,
+  OfficeRollbackReceipt,
 } from '@genoffice/agent-runtime-protocol'
 
 export type AgentSessionTransport = {
@@ -112,6 +113,7 @@ export type AgentSessionBrokerOptions<ClientId> = {
   now?: () => Date
   mutationGrantTtlMs?: number
   trustedGestureTtlMs?: number
+  rollbackRun?: (documentId: string, runId: string) => Promise<boolean>
 }
 
 type SessionStream = {
@@ -147,6 +149,7 @@ export class AgentSessionBroker<ClientId = number> {
     ClientId,
     { userActionId: string; expiresAt: number }
   >()
+  private readonly activeMutationGrants = new Map<string, MutationGrantReceipt>()
 
   constructor(
     private readonly transport: AgentSessionTransport,
@@ -241,6 +244,7 @@ export class AgentSessionBroker<ClientId = number> {
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
     | SessionMutationGrantReceipt
+    | OfficeRollbackReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
   > {
@@ -285,22 +289,25 @@ export class AgentSessionBroker<ClientId = number> {
     if (command.type === 'grantMutation') {
       const userActionId = this.consumeTrustedUserGesture(clientId)
       const issuedAt = this.now()
-      return this.transport.issueMutationGrant({
+      const receipt: MutationGrantReceipt = {
+        grantId: this.options.randomUUID(),
+        subagentRunId: command.subagentRunId,
+        documentId: command.documentId,
+        exactToolIds: [...command.exactToolIds],
+        issuedByUserActionId: userActionId,
+        issuedAt: issuedAt.toISOString(),
+        expiresAt: new Date(issuedAt.getTime() + this.mutationGrantTtlMs).toISOString(),
+        status: 'active',
+      }
+      const result = await this.transport.issueMutationGrant({
         operationId: command.operationId,
         sessionId: command.sessionId,
         documentId: command.documentId,
         requestId: command.requestId,
-        receipt: {
-          grantId: this.options.randomUUID(),
-          subagentRunId: command.subagentRunId,
-          documentId: command.documentId,
-          exactToolIds: [...command.exactToolIds],
-          issuedByUserActionId: userActionId,
-          issuedAt: issuedAt.toISOString(),
-          expiresAt: new Date(issuedAt.getTime() + this.mutationGrantTtlMs).toISOString(),
-          status: 'active',
-        },
+        receipt,
       })
+      if (result.grant.status === 'active') this.activeMutationGrants.set(receipt.grantId, receipt)
+      return result
     }
     if (command.type === 'denyMutation') {
       return this.transport.denyMutationGrant({
@@ -312,13 +319,24 @@ export class AgentSessionBroker<ClientId = number> {
       })
     }
     if (command.type === 'revokeMutation') {
-      return this.transport.revokeMutationGrant({
+      const result = await this.transport.revokeMutationGrant({
         operationId: command.operationId,
         sessionId: command.sessionId,
         documentId: command.documentId,
         grantId: command.grantId,
         userActionId: this.consumeTrustedUserGesture(clientId),
       })
+      this.activeMutationGrants.delete(command.grantId)
+      return result
+    }
+    if (command.type === 'rollbackRun') {
+      this.consumeTrustedUserGesture(clientId)
+      if (!this.options.rollbackRun) throw new Error('office_rollback_unavailable')
+      return {
+        documentId: command.documentId,
+        runId: command.runId,
+        rolledBack: await this.options.rollbackRun(command.documentId, command.runId),
+      }
     }
     if (command.type === 'navigate') {
       const receipt = await this.transport.navigateSession({
@@ -355,6 +373,7 @@ export class AgentSessionBroker<ClientId = number> {
     this.connections.delete(clientId)
     this.trustedGestures.delete(clientId)
     if (connection) {
+      this.deleteDocumentMutationGrants(connection.documentId)
       void this.transport
         .revokeDocumentMutationGrants({
           operationId: this.options.randomUUID(),
@@ -369,6 +388,7 @@ export class AgentSessionBroker<ClientId = number> {
     const connections = [...this.connections.values()]
     this.connections.clear()
     this.trustedGestures.clear()
+    this.activeMutationGrants.clear()
     await Promise.allSettled(
       connections.map((connection) =>
         this.transport.revokeDocumentMutationGrants({
@@ -382,6 +402,32 @@ export class AgentSessionBroker<ClientId = number> {
     await this.listenPromise
     this.unsubscribe?.()
     this.unsubscribe = undefined
+  }
+
+  authorizeMutationGrant(input: {
+    grantId: string
+    subagentRunId: string
+    documentId: string
+    toolId: string
+  }): boolean {
+    const grant = this.activeMutationGrants.get(input.grantId)
+    if (!grant) return false
+    if (new Date(grant.expiresAt).getTime() <= this.now().getTime()) {
+      this.activeMutationGrants.delete(input.grantId)
+      return false
+    }
+    return (
+      grant.status === 'active' &&
+      grant.subagentRunId === input.subagentRunId &&
+      grant.documentId === input.documentId &&
+      grant.exactToolIds.includes(input.toolId)
+    )
+  }
+
+  private deleteDocumentMutationGrants(documentId: string): void {
+    for (const [grantId, grant] of this.activeMutationGrants) {
+      if (grant.documentId === documentId) this.activeMutationGrants.delete(grantId)
+    }
   }
 
   private consumeTrustedUserGesture(clientId: ClientId): string {
