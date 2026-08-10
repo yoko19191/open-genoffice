@@ -82,6 +82,8 @@ describe('Pi Runtime bundle builder', () => {
       'built-in/skills/open-genoffice-sheets-workbook/references/structure.md',
       'built-in/skills/open-genoffice-sheets-workbook/references/table.md',
       'built-in/skills/open-genoffice-sheets-workbook/references/writing.md',
+      'built-in/skills/open-genoffice-slides-authoring/SKILL.md',
+      'built-in/skills/open-genoffice-slides-authoring/agents/openai.yaml',
       ...(process.platform === 'win32' ? ['native/win32-x64/win32-console-mode.node'] : []),
       ...(process.platform === 'win32' ? ['node/open-genoffice-job-launcher.exe'] : []),
       `node/open-genoffice-pi-agent-runtime${process.platform === 'win32' ? '.exe' : ''}`,
@@ -104,6 +106,12 @@ describe('Pi Runtime bundle builder', () => {
         'utf8',
       ),
     ).toContain('propose_operations')
+    expect(
+      await readFile(
+        join(options.outputDirectory, 'built-in/skills/open-genoffice-slides-authoring/SKILL.md'),
+        'utf8',
+      ),
+    ).toContain('commit_slide_page')
     expect(verified.capabilitySmokeEntryPath).toBe(
       join(options.outputDirectory, 'self-test/native-capability-smoke.mjs'),
     )

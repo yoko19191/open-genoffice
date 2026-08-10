@@ -171,6 +171,35 @@ describe('Slides main Office Tool host', () => {
     expect(JSON.stringify(execute)).not.toMatch(/https?:|\/Users\//i)
   })
 
+  it('opens nested SlidePageSpec ArtifactRefs once and forwards verified metadata', async () => {
+    const fixture = harness()
+    await expect(
+      fixture.host.invoke(
+        invocation(
+          'page-image',
+          'office:slides:commit_slide_page',
+          {
+            mode: 'append',
+            spec: {
+              version: 1,
+              title: '图文页',
+              canvas: { widthPx: 1280, heightPx: 720 },
+              background: { artifactId },
+              elements: [{ id: 'hero', kind: 'image', artifactId, x: 0, y: 0, w: 1280, h: 720 }],
+            },
+          },
+          { contextVersion: 'slides-edit-1' },
+        ),
+      ),
+    ).resolves.toMatchObject({ status: 'completed', mutationOutcome: 'committed' })
+    expect(fixture.openImage).toHaveBeenCalledTimes(1)
+    expect(fixture.openImage).toHaveBeenCalledWith({ artifactId, documentId, runId: 'run-1' })
+    const execute = fixture.request.mock.calls.find(([input]) => input.kind === 'execute')?.[0]
+    expect(execute).toMatchObject({
+      images: [{ artifactId, mediaType: 'image/png', width: 1, height: 1, sha256: 'a'.repeat(64) }],
+    })
+  })
+
   it('fails closed on malformed arguments and invalid scoped artifacts', async () => {
     const malformed = harness()
     await expect(

@@ -154,6 +154,7 @@ import type {
   AddCommentOp,
   AddElementOp,
   AddImageBytesOp,
+  CommitSlidePageOp,
   AddInkOp,
   AddMediaBytesOp,
   AddBlankSlideOp,
@@ -252,6 +253,7 @@ import {
 } from './session-state'
 import { registerAiIpc, registerSlidesOnlyAiIpc } from './ai-ipc'
 import { SlidesOfficeToolRendererClient } from './agent-tools/renderer-client'
+import { createSlidePageCommitter } from './agent-tools/page-renderer'
 
 /** One slide, copied from any deck open in this process, waiting to be pasted into another. */
 let slideClipboard: { bundle: SlideBundle; png?: string } | null = null
@@ -2751,6 +2753,51 @@ export function registerSlidesIpc(): void {
     session.fitWidthPx = op.fitWidthPx
     const rebuilt = rebuildSlide(session, op.slideIndex)
     return rebuilt ? { slide: rebuilt, sourceId: el.id } : null
+  })
+
+  ipcMain.handle('slides:commit-slide-page', async (e, op: CommitSlidePageOp) => {
+    const current = sessions.get(e.sender.id)
+    if (!current) return null
+    try {
+      const artifacts = new Map(
+        op.images.map((image) => [
+          image.artifactId,
+          {
+            artifactId: image.artifactId,
+            bytes: new Uint8Array(Buffer.from(image.base64, 'base64')),
+            mediaType: image.mediaType,
+            width: image.width,
+            height: image.height,
+            sha256: image.sha256,
+          },
+        ]),
+      )
+      const committed = await createSlidePageCommitter().commit({
+        opened: current.opened,
+        mode: op.mode,
+        ...(op.index === undefined ? {} : { index: op.index }),
+        spec: op.spec,
+        artifacts,
+      })
+      const slides = buildAllRenderSlides(committed.opened, op.fitWidthPx)
+      pushHistory(current)
+      current.opened = committed.opened
+      current.fitWidthPx = op.fitWidthPx
+      return { slides, index: committed.slideIndex, auditIssues: committed.auditIssues }
+    } catch (error) {
+      const code = error instanceof Error ? error.message : ''
+      return {
+        error: [
+          'artifact_invalid',
+          'invalid_tool_arguments',
+          'slide_page_render_failed',
+          'slide_page_audit_failed',
+          'slide_page_merge_failed',
+        ].includes(code)
+          ? code
+          : 'slide_page_commit_failed',
+      }
+    }
   })
 
   // Show a dialog to pick video/audio and embed it. Video poster frame prefers the system thumbnail (QuickLook), falling back to a solid color on failure.

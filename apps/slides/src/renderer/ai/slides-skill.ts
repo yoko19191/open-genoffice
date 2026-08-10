@@ -6,7 +6,13 @@ import type {
   RenderSlide,
   ShapeRenderNode,
 } from '@genoffice/pptx-render'
-import type { AddSmartArtOp, AgentToolCall, AgentToolDef, EditParagraph } from '../../shared/ipc'
+import type {
+  AddSmartArtOp,
+  AgentToolCall,
+  AgentToolDef,
+  CommitSlidePageOp,
+  EditParagraph,
+} from '../../shared/ipc'
 import { auditSlideLayout, formatAudit } from './layout-audit'
 import { runLayoutScript, type LayoutScriptElement, type SlideStylePatch } from './layout-script'
 import { t } from '../i18n/locale'
@@ -1419,6 +1425,9 @@ export interface SlidesNativeArtifactImage {
   base64: string
   ext: 'png'
   mediaType: 'image/png'
+  width: number
+  height: number
+  sha256: string
 }
 
 export interface SlidesNativeToolResult {
@@ -1452,11 +1461,12 @@ const SLIDES_NATIVE_TOOL_ALIASES = new Set([
   'set_slide_background',
   'delete_element',
   'ungroup_element',
+  'commit_slide_page',
 ])
 
 /**
- * Pi's narrow native lane. It deliberately exposes only the frozen 23 executors and never
- * reaches legacy cloud generation, planning, search or QC branches in this mixed legacy Skill.
+ * Pi's narrow lane exposes the frozen 23 native executors plus the main-owned page commit.
+ * It never reaches legacy cloud generation, planning, search or QC branches in this mixed Skill.
  */
 export async function executeSlidesNativeTool(
   access: DeckAccess,
@@ -1468,6 +1478,44 @@ export async function executeSlidesNativeTool(
     return fail(call.name, `Unknown native Slides tool: ${call.name}`)
   }
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+
+  if (call.name === 'commit_slide_page') {
+    const spec = call.input.spec as CommitSlidePageOp['spec']
+    const ids = new Set<string>()
+    if (spec && 'artifactId' in spec.background) ids.add(spec.background.artifactId)
+    for (const element of spec?.elements ?? []) {
+      if (element.kind === 'image') ids.add(element.artifactId)
+    }
+    const images: CommitSlidePageOp['images'] = []
+    for (const artifactId of ids) {
+      const artifact = artifacts.get(artifactId)
+      if (!artifact) return fail('Slide page commit failed', 'artifact_invalid')
+      images.push({
+        artifactId,
+        base64: artifact.base64,
+        mediaType: artifact.mediaType,
+        width: artifact.width,
+        height: artifact.height,
+        sha256: artifact.sha256,
+      })
+    }
+    const committed = await window.slidesApi.commitSlidePage({
+      mode: call.input.mode as CommitSlidePageOp['mode'],
+      ...(call.input.index === undefined ? {} : { index: Number(call.input.index) }),
+      spec,
+      fitWidthPx: access.fitWidthPx,
+      images,
+    })
+    if (!committed || 'error' in committed) {
+      return fail('Slide page commit failed', committed?.error ?? 'slide_page_commit_failed')
+    }
+    access.applyDeck(committed.slides, committed.index)
+    return {
+      output: `Committed audited page ${committed.index + 1} (${committed.slides.length} pages total).`,
+      mutated: true,
+      summary: `Committed page ${committed.index + 1}`,
+    }
+  }
 
   if (call.name === 'insert_image') {
     const idx = Number(call.input.slideIndex)

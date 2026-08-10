@@ -9,6 +9,7 @@
  */
 import type { RenderSlide } from '@genoffice/pptx-render'
 import type { SlideComment, SectionInfo } from '@genoffice/pptx-engine'
+import type { SlidePageSpec } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import type {
   AiSettings,
   AiStreamChunk,
@@ -797,6 +798,30 @@ export interface AddImageBytesOp {
   name?: string
 }
 
+export interface CommitSlidePageImage {
+  artifactId: string
+  base64: string
+  mediaType: 'image/png'
+  width: number
+  height: number
+  sha256: string
+}
+
+/** Commit one already-validated SlidePageSpec through the main-owned local renderer. */
+export interface CommitSlidePageOp {
+  mode: 'append' | 'insert' | 'replace'
+  index?: number
+  spec: SlidePageSpec
+  fitWidthPx: number
+  images: CommitSlidePageImage[]
+}
+
+export interface CommitSlidePageResult {
+  slides: RenderSlide[]
+  index: number
+  auditIssues: string[]
+}
+
 /** Insert renderer-recorded media bytes (screen-recording webm etc.). */
 export interface AddMediaBytesOp {
   slideIndex: number
@@ -1139,6 +1164,9 @@ export interface SlidesApi {
   ) => Promise<
     { slide: RenderSlide; sourceId: string } | { error: 'unsupported'; ext: string } | null
   >
+  commitSlidePage: (
+    op: CommitSlidePageOp,
+  ) => Promise<CommitSlidePageResult | { error: string } | null>
   /** Show the system dialog to pick a video/audio file and embed it into the current page */
   insertMedia: (
     slideIndex: number,

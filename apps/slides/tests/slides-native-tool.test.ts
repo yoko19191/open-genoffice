@@ -7,6 +7,14 @@ import {
 } from '../src/renderer/ai/slides-skill'
 
 const artifactId = '11111111-1111-4111-8111-111111111111'
+const artifactImage = {
+  base64: 'iVBORw==',
+  ext: 'png' as const,
+  mediaType: 'image/png' as const,
+  width: 1,
+  height: 1,
+  sha256: 'a'.repeat(64),
+}
 
 function slide(index: number): RenderSlide {
   return {
@@ -50,6 +58,11 @@ describe('Slides Pi native tool lane', () => {
       })),
       reorderElement: vi.fn(async (input: { slideIndex: number }) => slide(input.slideIndex)),
       editBackground: vi.fn(async () => [slide(0)]),
+      commitSlidePage: vi.fn(async () => ({
+        slides: [slide(0), slide(1)],
+        index: 1,
+        auditIssues: [],
+      })),
     }
   })
 
@@ -87,9 +100,7 @@ describe('Slides Pi native tool lane', () => {
 
   it('inserts only a renderer-validated ArtifactRef payload', async () => {
     const { access, applySlide } = harness()
-    const artifacts = new Map([
-      [artifactId, { base64: 'iVBORw==', ext: 'png' as const, mediaType: 'image/png' as const }],
-    ])
+    const artifacts = new Map([[artifactId, artifactImage]])
     await expect(
       executeSlidesNativeTool(
         access,
@@ -134,9 +145,7 @@ describe('Slides Pi native tool lane', () => {
 
   it('creates an image background for one or all slides and sends it behind content', async () => {
     const { access, applySlide } = harness(2)
-    const artifacts = new Map([
-      [artifactId, { base64: 'iVBORw==', ext: 'png' as const, mediaType: 'image/png' as const }],
-    ])
+    const artifacts = new Map([[artifactId, artifactImage]])
     await expect(
       executeSlidesNativeTool(
         access,
@@ -195,11 +204,82 @@ describe('Slides Pi native tool lane', () => {
     expect(applyDeck).toHaveBeenCalledOnce()
   })
 
+  it('commits one audited SlidePageSpec with only its scoped ArtifactRefs', async () => {
+    const { access, applyDeck } = harness()
+    const spec = {
+      version: 1 as const,
+      title: '图文页',
+      canvas: { widthPx: 1280 as const, heightPx: 720 as const },
+      background: { color: '#FFFFFF' },
+      elements: [
+        {
+          id: 'hero',
+          kind: 'image' as const,
+          artifactId,
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 720,
+        },
+      ],
+    }
+    await expect(
+      executeSlidesNativeTool(
+        access,
+        { id: 'page', name: 'commit_slide_page', input: { mode: 'append', spec } },
+        new AbortController().signal,
+        new Map([[artifactId, artifactImage]]),
+      ),
+    ).resolves.toMatchObject({ mutated: true, output: expect.stringMatching(/page 2/) })
+    expect(window.slidesApi.commitSlidePage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'append',
+        fitWidthPx: 1280,
+        images: [expect.objectContaining({ artifactId, width: 1, height: 1 })],
+      }),
+    )
+    expect(applyDeck).toHaveBeenCalledWith(expect.any(Array), 1)
+
+    await expect(
+      executeSlidesNativeTool(
+        access,
+        { id: 'missing-page', name: 'commit_slide_page', input: { mode: 'append', spec } },
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({ isError: true, output: 'artifact_invalid' })
+  })
+
+  it('reports an atomic main-process page commit failure without applying a deck', async () => {
+    const { access, applyDeck } = harness()
+    vi.mocked(window.slidesApi.commitSlidePage).mockResolvedValueOnce({
+      error: 'slide_page_audit_failed',
+    })
+    await expect(
+      executeSlidesNativeTool(
+        access,
+        {
+          id: 'page-failed',
+          name: 'commit_slide_page',
+          input: {
+            mode: 'append',
+            spec: {
+              version: 1,
+              title: '失败页',
+              canvas: { widthPx: 1280, heightPx: 720 },
+              background: { color: '#FFFFFF' },
+              elements: [],
+            },
+          },
+        },
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({ isError: true, output: 'slide_page_audit_failed' })
+    expect(applyDeck).not.toHaveBeenCalled()
+  })
+
   it('reports main-process image insertion and ordering failures', async () => {
     const { access } = harness()
-    const artifacts = new Map([
-      [artifactId, { base64: 'iVBORw==', ext: 'png' as const, mediaType: 'image/png' as const }],
-    ])
+    const artifacts = new Map([[artifactId, artifactImage]])
     vi.mocked(window.slidesApi.addImageBytes).mockResolvedValueOnce(null)
     await expect(
       executeSlidesNativeTool(

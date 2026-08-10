@@ -52,8 +52,22 @@ function parentRunId(request: OfficeToolInvocation): string {
 
 function artifactIds(input: unknown): string[] {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return []
-  const artifactId = (input as { artifactId?: unknown }).artifactId
-  return typeof artifactId === 'string' ? [artifactId] : []
+  const record = input as {
+    artifactId?: unknown
+    spec?: {
+      background?: { artifactId?: unknown }
+      elements?: Array<{ artifactId?: unknown }>
+    }
+  }
+  const ids = new Set<string>()
+  if (typeof record.artifactId === 'string') ids.add(record.artifactId)
+  if (typeof record.spec?.background?.artifactId === 'string') {
+    ids.add(record.spec.background.artifactId)
+  }
+  for (const element of record.spec?.elements ?? []) {
+    if (typeof element.artifactId === 'string') ids.add(element.artifactId)
+  }
+  return [...ids]
 }
 
 export class SlidesOfficeToolHost {

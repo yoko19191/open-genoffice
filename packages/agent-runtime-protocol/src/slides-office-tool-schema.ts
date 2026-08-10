@@ -1,4 +1,5 @@
 import { Type, type TObject } from '@sinclair/typebox'
+import { SlidePageCommitInputSchema } from './slide-page-spec-schema'
 
 const slideIndex = (allowAll = false) =>
   Type.Integer({ minimum: allowAll ? -1 : 0, maximum: 100_000 })
@@ -241,6 +242,7 @@ export const SLIDES_OFFICE_TOOL_SCHEMAS = {
   ),
   delete_element: Type.Object(targetFields(), { additionalProperties: false }),
   ungroup_element: Type.Object(targetFields(), { additionalProperties: false }),
+  commit_slide_page: SlidePageCommitInputSchema,
 } as const satisfies Record<string, TObject>
 
 export type SlidesOfficeToolAlias = keyof typeof SLIDES_OFFICE_TOOL_SCHEMAS

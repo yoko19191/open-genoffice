@@ -44,7 +44,14 @@ function artifactImages(
   return new Map(
     (images ?? []).map((image) => [
       image.artifactId,
-      { base64: base64(image.bytes), ext: 'png' as const, mediaType: image.mediaType },
+      {
+        base64: base64(image.bytes),
+        ext: 'png' as const,
+        mediaType: image.mediaType,
+        width: image.width,
+        height: image.height,
+        sha256: image.sha256,
+      },
     ]),
   )
 }

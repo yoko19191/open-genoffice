@@ -82,25 +82,23 @@ export async function resolveInstalledBuiltInResources(
   runtimeEntry: string | undefined,
 ): Promise<readonly BuiltInResource[]> {
   if (!runtimeEntry) return []
-  const sheetsSkillPath = resolve(
-    dirname(runtimeEntry),
-    '..',
-    'built-in',
-    'skills',
-    'open-genoffice-sheets-workbook',
+  const skills = [
+    ['open-genoffice/sheets-workbook', 'open-genoffice-sheets-workbook'],
+    ['open-genoffice/slides-authoring', 'open-genoffice-slides-authoring'],
+  ] as const
+  const root = resolve(dirname(runtimeEntry), '..', 'built-in', 'skills')
+  const installed = await Promise.all(
+    skills.map(async ([resourceId, directory]) => {
+      const path = join(root, directory)
+      const present = await stat(join(path, 'SKILL.md'))
+        .then((metadata) => metadata.isFile())
+        .catch(() => false)
+      return present ? ({ resourceId, kind: 'skill', path } satisfies BuiltInResource) : undefined
+    }),
   )
-  const installed = await stat(join(sheetsSkillPath, 'SKILL.md'))
-    .then((metadata) => metadata.isFile())
-    .catch(() => false)
-  return installed
-    ? [
-        {
-          resourceId: 'open-genoffice/sheets-workbook',
-          kind: 'skill',
-          path: sheetsSkillPath,
-        },
-      ]
-    : []
+  return installed.filter(
+    (resource): resource is NonNullable<(typeof installed)[number]> => resource !== undefined,
+  )
 }
 
 function response(request: RequestEnvelope, result: unknown): string {

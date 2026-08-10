@@ -7,6 +7,13 @@ import {
   sheetsWorkbookOperationsInput,
 } from './sheets-workbook-schema'
 import { SLIDES_OFFICE_TOOL_SCHEMAS, type SlidesOfficeToolAlias } from './slides-office-tool-schema'
+import {
+  parseSlidePageCommitInput,
+  parseSlidePageSpec,
+  type SlidePageCommitInput,
+  type SlidePageElement,
+  type SlidePageSpec,
+} from './slide-page-spec-schema'
 
 type OfficeToolCatalogBinding = {
   app: 'docs' | 'pdf' | 'sheets' | 'slides'
@@ -652,6 +659,11 @@ export const SLIDES_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
   ),
   slidesDefinition('delete_element', 'mutation', 'Delete one current top-level element.'),
   slidesDefinition('ungroup_element', 'mutation', 'Ungroup one current group element.'),
+  slidesDefinition(
+    'commit_slide_page',
+    'mutation',
+    'Validate, render, reopen, audit and atomically append, insert or replace one editable page.',
+  ),
 ]
 
 function descriptorProjection(definitions: readonly OfficeToolDefinition[]) {
@@ -683,7 +695,7 @@ export const SHEETS_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
 
 export const SLIDES_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
   app: 'slides',
-  catalogHash: '99052ba22f6c30ef315f8f71f5f52171205526b5037b9a56206b776a21195c74',
+  catalogHash: 'f97ef27d662ffd344c604b5aa427697f5b6a9fffd6e2a8dc8d9abbd4c07cfb2b',
   descriptors: slidesDescriptors,
 }
 
@@ -758,6 +770,7 @@ export function parseSlidesOfficeToolInput(toolId: string, value: unknown): unkn
   const descriptor = SLIDES_OFFICE_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
   if (!descriptor) throw new Error('tool_not_in_snapshot')
   if (!Value.Check(descriptor.parameters, value)) throw new Error('invalid_tool_arguments')
+  if (toolId === 'office:slides:commit_slide_page') return parseSlidePageCommitInput(value)
   const input = value as Record<string, unknown>
   if (toolId === 'office:slides:set_slide_background') {
     const hasColor = typeof input.color === 'string'
@@ -771,6 +784,8 @@ export function parseSlidesOfficeToolInput(toolId: string, value: unknown): unkn
 }
 
 export { SheetsWorkbookOperationSchema }
+export { parseSlidePageSpec }
+export type { SlidePageCommitInput, SlidePageElement, SlidePageSpec }
 
 export type OfficeToolCatalogMetadata = {
   modelAlias: string

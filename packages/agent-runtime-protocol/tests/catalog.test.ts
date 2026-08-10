@@ -235,32 +235,39 @@ describe('frozen four-application tool catalog', () => {
     ).toThrowError('invalid_tool_arguments')
   })
 
-  it('publishes the exact 23 Slides native executors and one deterministic binding', () => {
-    expect(SLIDES_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)).toEqual([
-      'get_deck_context',
-      'read_slide',
-      'set_element_text',
-      'set_element_style',
-      'set_element_transform',
-      'execute_slide_script',
-      'set_element_fill',
-      'set_element_stroke',
-      'insert_image',
-      'delete_slide',
-      'add_slide',
-      'add_text_box',
-      'add_shape',
-      'add_chart',
-      'add_smartart',
-      'add_table',
-      'edit_table_cell',
-      'edit_table_structure',
-      'edit_table_style',
-      'edit_chart',
-      'set_slide_background',
-      'delete_element',
-      'ungroup_element',
-    ])
+  it('publishes the exact 23 Slides native executors, page commit and one deterministic binding', () => {
+    expect(SLIDES_OFFICE_TOOL_DEFINITIONS.slice(0, 23).map(({ modelAlias }) => modelAlias)).toEqual(
+      [
+        'get_deck_context',
+        'read_slide',
+        'set_element_text',
+        'set_element_style',
+        'set_element_transform',
+        'execute_slide_script',
+        'set_element_fill',
+        'set_element_stroke',
+        'insert_image',
+        'delete_slide',
+        'add_slide',
+        'add_text_box',
+        'add_shape',
+        'add_chart',
+        'add_smartart',
+        'add_table',
+        'edit_table_cell',
+        'edit_table_structure',
+        'edit_table_style',
+        'edit_chart',
+        'set_slide_background',
+        'delete_element',
+        'ungroup_element',
+      ],
+    )
+    expect(SLIDES_OFFICE_TOOL_DEFINITIONS.at(-1)).toMatchObject({
+      id: 'office:slides:commit_slide_page',
+      modelAlias: 'commit_slide_page',
+      effect: 'mutation',
+    })
     expect(SLIDES_OFFICE_TOOL_DEFINITIONS[8]).toMatchObject({
       id: 'office:slides:insert_image',
       modelAlias: 'insert_image',
@@ -372,6 +379,10 @@ describe('frozen four-application tool catalog', () => {
       modelAlias: 'insert_image',
       effect: 'mutation',
     })
+    expect(resolveOfficeToolCatalogMetadata('office:slides:commit_slide_page')).toEqual({
+      modelAlias: 'commit_slide_page',
+      effect: 'mutation',
+    })
   })
 
   it('validates and canonicalizes the 63-instance migration baseline', () => {
@@ -419,7 +430,13 @@ describe('frozen four-application tool catalog', () => {
             ? targetId!.split(':').at(-1)!
             : legacyAlias,
         )
-      expect(definitions.map(({ modelAlias }) => modelAlias).sort(), app).toEqual(expected.sort())
+      const migratedDefinitions =
+        app === 'slides'
+          ? definitions.filter(({ modelAlias }) => modelAlias !== 'commit_slide_page')
+          : definitions
+      expect(migratedDefinitions.map(({ modelAlias }) => modelAlias).sort(), app).toEqual(
+        expected.sort(),
+      )
     }
   })
 

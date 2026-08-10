@@ -31,7 +31,7 @@ const token = 'a'.repeat(64)
 const mcpFixture = fileURLToPath(new URL('../fixtures/mcp-stdio-server.mjs', import.meta.url))
 
 describe('installed Runtime resources', () => {
-  it('discovers only a bundled Sheets Skill file next to the Runtime entry', async () => {
+  it('discovers only installed bundled Skill files next to the Runtime entry', async () => {
     await expect(resolveInstalledBuiltInResources(undefined)).resolves.toEqual([])
 
     const root = await mkdtemp(join(tmpdir(), 'genoffice-installed-resources-'))
@@ -49,6 +49,28 @@ describe('installed Runtime resources', () => {
         resourceId: 'open-genoffice/sheets-workbook',
         kind: 'skill',
         path: join(root, 'built-in', 'skills', 'open-genoffice-sheets-workbook'),
+      },
+    ])
+
+    const slidesSkillPath = join(
+      root,
+      'built-in',
+      'skills',
+      'open-genoffice-slides-authoring',
+      'SKILL.md',
+    )
+    await mkdir(join(slidesSkillPath, '..'), { recursive: true })
+    await writeFile(slidesSkillPath, '---\nname: open-genoffice-slides-authoring\n---\n')
+    await expect(resolveInstalledBuiltInResources(runtimeEntry)).resolves.toEqual([
+      {
+        resourceId: 'open-genoffice/sheets-workbook',
+        kind: 'skill',
+        path: join(root, 'built-in', 'skills', 'open-genoffice-sheets-workbook'),
+      },
+      {
+        resourceId: 'open-genoffice/slides-authoring',
+        kind: 'skill',
+        path: join(root, 'built-in', 'skills', 'open-genoffice-slides-authoring'),
       },
     ])
   })

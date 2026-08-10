@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "title": "图文数据页",
+  "canvas": { "widthPx": 1280, "heightPx": 720 },
+  "background": { "artifactId": "11111111-1111-4111-8111-111111111111" },
+  "elements": [
+    {
+      "id": "chart",
+      "kind": "chart",
+      "chartType": "bar",
+      "x": 80,
+      "y": 60,
+      "w": 500,
+      "h": 240,
+      "categories": ["A", "B"],
+      "series": [{ "name": "收入", "values": [10, 12] }],
+      "dataSource": "document"
+    },
+    {
+      "id": "table",
+      "kind": "table",
+      "x": 700,
+      "y": 60,
+      "w": 500,
+      "h": 240,
+      "rows": [
+        ["指标", "数值"],
+        ["收入", "12"]
+      ]
+    },
+    {
+      "id": "flow",
+      "kind": "smartart",
+      "layout": "process",
+      "x": 240,
+      "y": 430,
+      "w": 800,
+      "h": 160,
+      "items": ["输入", "分析", "结论"]
+    }
+  ]
+}

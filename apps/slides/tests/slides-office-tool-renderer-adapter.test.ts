@@ -186,6 +186,9 @@ describe('Slides Office Tool renderer adapter', () => {
       base64: 'iVBORw==',
       ext: 'png',
       mediaType: 'image/png',
+      width: 1,
+      height: 1,
+      sha256: 'a'.repeat(64),
     })
   })
 

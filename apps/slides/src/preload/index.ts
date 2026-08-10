@@ -6,6 +6,7 @@ import type {
   AddChartOp,
   AddElementOp,
   AddImageBytesOp,
+  CommitSlidePageOp,
   AddInkOp,
   AddMediaBytesOp,
   AddSmartArtOp,
@@ -196,6 +197,7 @@ const api: SlidesApi = {
   addChart: (op: AddChartOp) => ipcRenderer.invoke('slides:add-chart', op),
   addSmartArt: (op: AddSmartArtOp) => ipcRenderer.invoke('slides:add-smartart', op),
   addImageBytes: (op: AddImageBytesOp) => ipcRenderer.invoke('slides:add-image-bytes', op),
+  commitSlidePage: (op: CommitSlidePageOp) => ipcRenderer.invoke('slides:commit-slide-page', op),
   insertMedia: (slideIndex: number, kind: 'video' | 'audio', fitWidthPx: number) =>
     ipcRenderer.invoke('slides:insert-media', slideIndex, kind, fitWidthPx),
   addMediaBytes: (op: AddMediaBytesOp) => ipcRenderer.invoke('slides:add-media-bytes', op),
