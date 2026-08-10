@@ -152,6 +152,13 @@ describe('acceptance evidence summary', () => {
       },
     ],
     [
+      'missing fixture',
+      'summary_fixture_missing',
+      async (root) => {
+        await rm(join(root, 'inputs', 'only', 'fixture.json'))
+      },
+    ],
+    [
       'missing report',
       'summary_report_missing',
       async (root) => {

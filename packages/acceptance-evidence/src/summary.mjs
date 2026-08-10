@@ -173,13 +173,22 @@ export async function collectAcceptanceSummary(options) {
 
     for (const [name, source] of Object.entries(fixtureSources)) {
       if (!(name in fixtureHashes)) throw new Error('summary_manifest_invalid')
-      const fixture = await readJson(repoRoot, source, 'summary_fixture_missing')
+      const fixture = inside(repoRoot, source)
+      let content
       try {
-        assertRedacted(fixture.content)
+        content = await readFile(fixture.absolute)
+      } catch (error) {
+        if (error?.code === 'ENOENT') {
+          throw new Error('summary_fixture_missing', { cause: error })
+        }
+        throw error
+      }
+      try {
+        assertRedacted(content.toString('utf8'))
       } catch {
         throw new Error('summary_redaction_failed')
       }
-      if (sha256(fixture.content) !== fixtureHashes[name]) throw new Error('summary_fixture_drift')
+      if (sha256(content) !== fixtureHashes[name]) throw new Error('summary_fixture_drift')
     }
 
     const manifestDirectory = `${dirname(input.file.relative)}/reports/`
