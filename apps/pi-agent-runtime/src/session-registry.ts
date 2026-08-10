@@ -9,10 +9,12 @@ import type {
   EventEnvelope,
   MutationGrantProjection,
   MutationGrantReceipt,
+  OfficeToolCatalogBinding,
   SessionMessageProjection,
   SessionSnapshot,
   SubagentRunProjection as RendererSubagentRunProjection,
 } from '@genoffice/agent-runtime-protocol'
+import { resolveOfficeToolDefinitions } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import {
   CapabilitySnapshotError,
   SessionLeaseError,
@@ -41,9 +43,14 @@ type Binding = {
   documentId: string
   sessionFile: string
   parentSessionId?: string
+  officeToolCatalog?: OfficeToolCatalogBinding
 }
 
-type CreateInput = { operationId: string; documentId: string }
+type CreateInput = {
+  operationId: string
+  documentId: string
+  officeToolCatalog?: OfficeToolCatalogBinding
+}
 type OpenInput = CreateInput & { sessionId: string }
 type PromptInput = OpenInput & { text: string; projectRoot?: string }
 type AbortInput = OpenInput & { runId: string }
@@ -164,7 +171,8 @@ export class RuntimeSessionError extends Error {
       | 'document_mismatch'
       | 'duplicate_operation_mismatch'
       | 'invalid_state'
-      | 'branch_not_found',
+      | 'branch_not_found'
+      | 'office_tool_catalog_mismatch',
   ) {
     super(code)
     this.name = 'RuntimeSessionError'
@@ -296,6 +304,7 @@ export class SessionRegistry {
 
   async create(input: CreateInput): Promise<CreateReceipt> {
     return this.idempotent('session.create', input, async () => {
+      this.assertOfficeToolCatalog(input.officeToolCatalog)
       await this.ensureRoots()
       const sessionId = this.randomUUID()
       const lease = await this.acquireLease(sessionId)
@@ -307,6 +316,7 @@ export class SessionRegistry {
           sessionDir: this.sessionDirectory(input.documentId),
           sessionId,
           documentId: input.documentId,
+          ...(input.officeToolCatalog ? { officeToolCatalog: input.officeToolCatalog } : {}),
         })
       } catch (error) {
         await lease.release()
@@ -323,6 +333,7 @@ export class SessionRegistry {
         sessionId,
         documentId: input.documentId,
         sessionFile,
+        ...(input.officeToolCatalog ? { officeToolCatalog: input.officeToolCatalog } : {}),
       }
       let record: SessionRecord
       try {
@@ -351,6 +362,7 @@ export class SessionRegistry {
 
   async open(input: OpenInput): Promise<OpenReceipt> {
     const binding = await this.readBoundBinding(input)
+    this.assertOfficeToolCatalogMatch(binding.officeToolCatalog, input.officeToolCatalog)
     return this.idempotent('session.open', input, async () => {
       const record = await this.loadRecord(binding)
       const snapshot = this.snapshotFor(record)
@@ -387,6 +399,9 @@ export class SessionRegistry {
           sessionId,
           sessionFile: forked.sessionFile,
           documentId: input.documentId,
+          ...(parentBinding.officeToolCatalog
+            ? { officeToolCatalog: parentBinding.officeToolCatalog }
+            : {}),
         })
       } catch (error) {
         await lease.release()
@@ -398,6 +413,9 @@ export class SessionRegistry {
         documentId: input.documentId,
         sessionFile: forked.sessionFile,
         parentSessionId: parentBinding.sessionId,
+        ...(parentBinding.officeToolCatalog
+          ? { officeToolCatalog: parentBinding.officeToolCatalog }
+          : {}),
       }
       let record: SessionRecord
       try {
@@ -870,7 +888,8 @@ export class SessionRegistry {
         typeof (value as Binding).sessionFile === 'string' &&
         ((value as Binding).parentSessionId === undefined ||
           (typeof (value as Binding).parentSessionId === 'string' &&
-            (value as Binding).parentSessionId !== sessionId))
+            (value as Binding).parentSessionId !== sessionId)) &&
+        this.isOfficeToolCatalogValid((value as Binding).officeToolCatalog)
       ) {
         return value as Binding
       }
@@ -913,6 +932,7 @@ export class SessionRegistry {
         sessionId: binding.sessionId,
         sessionFile: binding.sessionFile,
         documentId: binding.documentId,
+        ...(binding.officeToolCatalog ? { officeToolCatalog: binding.officeToolCatalog } : {}),
       })
     } catch (error) {
       await lease.release()
@@ -932,6 +952,32 @@ export class SessionRegistry {
     } catch (error) {
       await this.disposeRecord(record)
       throw error
+    }
+  }
+
+  private isOfficeToolCatalogValid(binding: OfficeToolCatalogBinding | undefined): boolean {
+    if (!binding) return true
+    try {
+      resolveOfficeToolDefinitions(binding)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private assertOfficeToolCatalog(binding: OfficeToolCatalogBinding | undefined): void {
+    if (!this.isOfficeToolCatalogValid(binding)) {
+      throw new RuntimeSessionError('office_tool_catalog_mismatch')
+    }
+  }
+
+  private assertOfficeToolCatalogMatch(
+    persisted: OfficeToolCatalogBinding | undefined,
+    requested: OfficeToolCatalogBinding | undefined,
+  ): void {
+    this.assertOfficeToolCatalog(requested)
+    if (JSON.stringify(persisted) !== JSON.stringify(requested)) {
+      throw new RuntimeSessionError('office_tool_catalog_mismatch')
     }
   }
 

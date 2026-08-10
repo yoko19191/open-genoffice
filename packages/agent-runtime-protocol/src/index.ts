@@ -303,6 +303,34 @@ const OfficeToolIdSchema = Type.String({
   maxLength: 256,
 })
 
+export const OfficeToolCatalogBindingSchema = Type.Object(
+  {
+    app: Type.Union([
+      Type.Literal('docs'),
+      Type.Literal('pdf'),
+      Type.Literal('sheets'),
+      Type.Literal('slides'),
+    ]),
+    catalogHash: Sha256Schema,
+    descriptors: Type.Array(
+      Type.Object(
+        {
+          id: OfficeToolIdSchema,
+          modelAlias: Type.String({ pattern: '^[a-z][a-z0-9_]*$', maxLength: 128 }),
+          effect: Type.Union([
+            Type.Literal('read'),
+            Type.Literal('mutation'),
+            Type.Literal('external'),
+          ]),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, maxItems: 64 },
+    ),
+  },
+  { additionalProperties: false },
+)
+
 const OfficeToolActorSchema = Type.Union([
   Type.Object(
     {
@@ -550,6 +578,7 @@ const SessionCreateRequestSchema = sessionRequestEnvelope(
     {
       operationId: OperationIdSchema,
       documentId: DocumentIdSchema,
+      officeToolCatalog: Type.Optional(OfficeToolCatalogBindingSchema),
     },
     { additionalProperties: false },
   ),
@@ -910,6 +939,7 @@ const SessionOpenRequestSchema = sessionRequestEnvelope(
       operationId: OperationIdSchema,
       sessionId: SessionIdSchema,
       documentId: DocumentIdSchema,
+      officeToolCatalog: Type.Optional(OfficeToolCatalogBindingSchema),
     },
     { additionalProperties: false },
   ),
@@ -1518,6 +1548,7 @@ export type RuntimeBundleManifest = Static<typeof RuntimeBundleManifestSchema>
 export type ArtifactRef = Static<typeof ArtifactRefSchema>
 export type OfficeToolInvocation = Static<typeof OfficeToolInvocationSchema>
 export type OfficeToolReceipt = Static<typeof OfficeToolReceiptSchema>
+export type OfficeToolCatalogBinding = Static<typeof OfficeToolCatalogBindingSchema>
 export type SessionMessageProjection = Static<typeof SessionMessageProjectionSchema>
 export type SubagentRunProjection = Static<typeof SubagentRunProjectionSchema>
 export type MutationGrantProjection = Static<typeof MutationGrantProjectionSchema>
@@ -1671,6 +1702,11 @@ export function parseSessionNavigateReceipt(value: unknown): SessionNavigateRece
 export function parseOfficeToolInvocation(value: unknown): OfficeToolInvocation {
   if (Value.Check(OfficeToolInvocationSchema, value)) return value
   throw new Error('office_tool_invocation_invalid')
+}
+
+export function parseOfficeToolCatalogBinding(value: unknown): OfficeToolCatalogBinding {
+  if (Value.Check(OfficeToolCatalogBindingSchema, value)) return value
+  throw new Error('office_tool_catalog_binding_invalid')
 }
 
 export function parseOfficeToolReceipt(value: unknown): OfficeToolReceipt {

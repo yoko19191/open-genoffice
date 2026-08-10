@@ -61,6 +61,7 @@ import {
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
 } from '../src'
+import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '../src/office-tool-catalog'
 
 const token = 'a'.repeat(64)
 const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
@@ -373,6 +374,27 @@ describe('protocol TypeBox source of truth', () => {
         }),
       ),
     ).toMatchObject({ method, params })
+  })
+
+  it.each(['session.create', 'session.open'])('binds %s to an exact Office catalog snapshot', (method) => {
+    const params = {
+      operationId,
+      documentId,
+      ...(method === 'session.open' ? { sessionId } : {}),
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    }
+    expect(
+      parseProtocolFrame(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'request',
+          id: `${method}-office`,
+          method,
+          correlationId: `${method}-correlation`,
+          params,
+        }),
+      ),
+    ).toMatchObject({ method, params: { officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING } })
   })
 
   it.each([

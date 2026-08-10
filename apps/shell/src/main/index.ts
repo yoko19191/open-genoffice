@@ -35,6 +35,7 @@ import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@genoffice/i18n'
 import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
+import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import {
   DocumentBindingStore,
   DocumentSessionIndexStore,
@@ -1115,6 +1116,10 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
   authorize: (webContentsId, documentId) =>
     tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
   randomUUID,
+  resolveOfficeToolCatalog: (webContentsId) =>
+    tabManager?.agentDocumentKindFor(webContentsId) === 'pdf'
+      ? PDF_OFFICE_TOOL_CATALOG_BINDING
+      : undefined,
   resolveProjectRoot: async (documentId) => {
     const binding = await documentBindingStore.get(documentId)
     return binding.state === 'bound' && binding.canonicalPath

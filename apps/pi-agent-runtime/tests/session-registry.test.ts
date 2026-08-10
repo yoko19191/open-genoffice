@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { MutationGrantProjection } from '@genoffice/agent-runtime-protocol'
+import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import { CapabilitySnapshotError, createCapabilitySnapshot } from '@genoffice/agent-resource'
 import { RuntimeSessionError, createSessionRegistry } from '../src'
 import type {
@@ -84,6 +85,65 @@ function fakePiSession(options: {
 }
 
 describe('document-bound Pi Session registry', () => {
+  it('persists one exact Office catalog binding and rejects open-time drift', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-office-catalog-'))
+    roots.push(dataRoot)
+    const firstFake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    const createPiSession = vi.fn(async () => firstFake.handle as never)
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-office-catalog-1',
+      cursorSecret: Buffer.alloc(32, 47),
+      randomUUID: () => '11111111-1111-4111-8111-111111111111',
+      createPiSession,
+    })
+    const created = await first.create({
+      operationId,
+      documentId,
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    expect(createPiSession).toHaveBeenCalledWith(
+      expect.objectContaining({ officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING }),
+    )
+    expect((await first.listBindings())[0]).toMatchObject({
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    await first.shutdown()
+
+    const secondFake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    const reopenPiSession = vi.fn(async () => secondFake.handle as never)
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-office-catalog-2',
+      cursorSecret: Buffer.alloc(32, 48),
+      createPiSession: reopenPiSession,
+    })
+    await expect(
+      second.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+        officeToolCatalog: {
+          ...PDF_OFFICE_TOOL_CATALOG_BINDING,
+          catalogHash: '0'.repeat(64),
+        },
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('office_tool_catalog_mismatch'))
+    expect(reopenPiSession).not.toHaveBeenCalled()
+    await expect(
+      second.open({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId: created.sessionId,
+        documentId,
+        officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+      }),
+    ).resolves.toMatchObject({ sessionId: created.sessionId, documentId })
+    expect(reopenPiSession).toHaveBeenCalledWith(
+      expect.objectContaining({ officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING }),
+    )
+    await second.shutdown()
+  })
+
   it('projects Mutation Grants and routes exact issue and document revocation through the Session', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-mutation-grant-'))
     roots.push(dataRoot)
@@ -683,6 +743,7 @@ describe('document-bound Pi Session registry', () => {
     const created = await registry.create({
       operationId,
       documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
     })
     const prompted = await registry.prompt({
       operationId: '22222222-2222-4222-8222-222222222222',
@@ -745,6 +806,7 @@ describe('document-bound Pi Session registry', () => {
     expect(transcript).toContain('"type":"session"')
     expect(transcript).toContain('exercise the native Pi stream')
     expect(transcript).toContain('genoffice.document-binding')
+    expect(transcript).toContain(PDF_OFFICE_TOOL_CATALOG_BINDING.catalogHash)
     expect(transcript).toContain('"type":"compaction"')
     expect(transcript).toContain('genoffice.contract-branch')
     expect(binding.sessionFile).toContain(
@@ -757,7 +819,11 @@ describe('document-bound Pi Session registry', () => {
 
   it('forks one document into an independent Pi Session and navigates only its branch DAG', async () => {
     const { dataRoot, registry } = await harness()
-    const created = await registry.create({ operationId, documentId })
+    const created = await registry.create({
+      operationId,
+      documentId,
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
     await registry.prompt({
       operationId: '22222222-2222-4222-8222-222222222222',
       sessionId: created.sessionId,
@@ -777,6 +843,9 @@ describe('document-bound Pi Session registry', () => {
       documentId,
       snapshot: { branch: { parentSessionId: created.sessionId } },
     })
+    expect(
+      (await registry.listBindings()).find(({ sessionId }) => sessionId === forked.sessionId),
+    ).toMatchObject({ officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING })
     expect(forked.sessionId).not.toBe(created.sessionId)
     expect(forked.snapshot.branch?.nodes).toHaveLength(parentBeforeFork.branch!.nodes.length + 1)
     const forkBinding = (await registry.listBindings()).find(
@@ -823,6 +892,7 @@ describe('document-bound Pi Session registry', () => {
         operationId: '66666666-6666-4666-8666-666666666666',
         sessionId: forked.sessionId,
         documentId,
+        officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
       }),
     ).rejects.toEqual(new RuntimeSessionError('session_in_use'))
     await secondRuntime.shutdown()

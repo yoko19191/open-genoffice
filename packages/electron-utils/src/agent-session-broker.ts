@@ -12,17 +12,20 @@ import type {
   SessionMutationGrantReceipt,
   SessionSubscriptionReceipt,
   MutationGrantReceipt,
+  OfficeToolCatalogBinding,
 } from '@genoffice/agent-runtime-protocol'
 
 export type AgentSessionTransport = {
   createSession(input: {
     operationId: string
     documentId: string
+    officeToolCatalog?: OfficeToolCatalogBinding
   }): Promise<SessionConnectionReceipt>
   openSession(input: {
     operationId: string
     sessionId: string
     documentId: string
+    officeToolCatalog?: OfficeToolCatalogBinding
   }): Promise<SessionConnectionReceipt>
   subscribeSession(input: {
     sessionId: string
@@ -92,6 +95,10 @@ export type AgentSessionBrokerOptions<ClientId> = {
   authorize(clientId: ClientId, documentId: string): boolean | Promise<boolean>
   randomUUID: () => string
   resolveProjectRoot?: (documentId: string) => Promise<string | undefined>
+  resolveOfficeToolCatalog?: (
+    clientId: ClientId,
+    documentId: string,
+  ) => OfficeToolCatalogBinding | undefined | Promise<OfficeToolCatalogBinding | undefined>
   replayWindowSize?: number
   currentSessions?: {
     resolveCurrent(documentId: string, create: () => Promise<string>): Promise<string>
@@ -173,7 +180,7 @@ export class AgentSessionBroker<ClientId = number> {
 
     await this.ensureListening()
     this.disconnect(clientId)
-    const opened = await this.openCurrentSession(request)
+    const opened = await this.openCurrentSession(clientId, request)
     this.assertBinding(opened, opened.sessionId, request.documentId)
 
     const subscription = await this.transport.subscribeSession({
@@ -396,20 +403,27 @@ export class AgentSessionBroker<ClientId = number> {
   }
 
   private async openCurrentSession(
+    clientId: ClientId,
     request: AgentSessionConnectRequest,
   ): Promise<SessionConnectionReceipt> {
+    const officeToolCatalog = await this.options.resolveOfficeToolCatalog?.(
+      clientId,
+      request.documentId,
+    )
     if (request.sessionId) {
       await this.options.currentSessions?.assertCurrent(request.documentId, request.sessionId)
       return this.transport.openSession({
         operationId: this.options.randomUUID(),
         sessionId: request.sessionId,
         documentId: request.documentId,
+        ...(officeToolCatalog ? { officeToolCatalog } : {}),
       })
     }
     if (!this.options.currentSessions) {
       return this.transport.createSession({
         operationId: this.options.randomUUID(),
         documentId: request.documentId,
+        ...(officeToolCatalog ? { officeToolCatalog } : {}),
       })
     }
     let created: SessionConnectionReceipt | undefined
@@ -430,6 +444,7 @@ export class AgentSessionBroker<ClientId = number> {
         operationId: this.options.randomUUID(),
         sessionId,
         documentId: request.documentId,
+        ...(officeToolCatalog ? { officeToolCatalog } : {}),
       }))
     )
   }

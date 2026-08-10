@@ -313,6 +313,9 @@ describe('Agent document authorization', () => {
     const sheets = lastCreatedView(createSheetsView)
 
     await expect(manager.agentDocumentIdFor(docs.webContents.id)).resolves.toBe(firstDocumentId)
+    expect(manager.agentDocumentKindFor(docs.webContents.id)).toBe('docs')
+    expect(manager.agentDocumentKindFor(sheets.webContents.id)).toBe('sheets')
+    expect(manager.agentDocumentKindFor(999)).toBeUndefined()
     await expect(
       manager.authorizeAgentDocument(docs.webContents.id, firstDocumentId),
     ).resolves.toBe(true)

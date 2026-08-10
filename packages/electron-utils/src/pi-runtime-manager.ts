@@ -30,6 +30,7 @@ import {
   type McpCatalogProjection,
   type ModelManagementRequest,
   type MutationGrantManagementRequest,
+  type OfficeToolCatalogBinding,
   type ModelSelectionRole,
   type OAuthOperationProjection,
   type PackageCatalogProjection,
@@ -111,7 +112,11 @@ export type PiRuntimeManagerOptions = {
   credentialBroker?: Pick<SecureStorageBroker, 'put' | 'rotate' | 'get' | 'status' | 'delete'>
 }
 
-export type SessionCreateRequest = { operationId: string; documentId: string }
+export type SessionCreateRequest = {
+  operationId: string
+  documentId: string
+  officeToolCatalog?: OfficeToolCatalogBinding
+}
 export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
 export type SessionPromptRequest = SessionOpenRequest & { text: string; projectRoot?: string }
 export type SessionAbortRequest = SessionOpenRequest & { runId: string }

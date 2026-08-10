@@ -296,6 +296,11 @@ export class TabManager {
     return (await tab.agentDocument).documentId
   }
 
+  agentDocumentKindFor(webContentsId: number): Exclude<TabKind, 'home'> | undefined {
+    const kind = this.tabs.find((item) => item.view?.webContents.id === webContentsId)?.kind
+    return kind === 'home' ? undefined : kind
+  }
+
   async authorizeAgentDocument(webContentsId: number, documentId: string): Promise<boolean> {
     try {
       if ((await this.agentDocumentIdFor(webContentsId)) !== documentId) return false

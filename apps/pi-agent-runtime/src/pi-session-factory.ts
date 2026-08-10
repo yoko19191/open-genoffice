@@ -24,6 +24,7 @@ import {
   type AgentSessionEvent,
 } from '@earendil-works/pi-coding-agent'
 import type { CapabilitySnapshot } from '@genoffice/agent-resource'
+import type { OfficeToolCatalogBinding } from '@genoffice/agent-runtime-protocol'
 import type { RunResourceService, RunModelMetadata } from './run-resource-service'
 import { ControlledResourceLoader } from './controlled-resource-loader'
 import { ResourceReadBoundary } from './resource-read-boundary'
@@ -63,6 +64,7 @@ type CreatePiSessionBaseOptions = {
   sessionId: string
   sessionFile?: string
   documentId: string
+  officeToolCatalog?: OfficeToolCatalogBinding
   credentials?: CredentialStore
   spawnSubagent?: (request: SpawnSubagentRequest) => Promise<SubagentRunProjection>
 }
@@ -323,6 +325,7 @@ export async function createDeterministicPiSession(
     sessionManager = SessionManager.open(canonicalSessionFile, options.sessionDir, options.cwd)
     sessionManager.appendCustomEntry('genoffice.document-binding', {
       documentId: options.documentId,
+      ...(options.officeToolCatalog ? { officeToolCatalog: options.officeToolCatalog } : {}),
     })
   }
   const { session } = await createAgentSession({

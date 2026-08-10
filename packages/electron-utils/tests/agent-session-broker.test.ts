@@ -5,6 +5,7 @@ import type {
   SessionSnapshot,
   SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
+import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import { AgentSessionBroker } from '../src'
 
 const sessionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -470,6 +471,32 @@ describe('Electron main Agent Session broker', () => {
     fixture.authorize.mockResolvedValueOnce(false)
     await expect(fixture.broker.command(1, command)).rejects.toThrowError('document_access_denied')
     await fixture.broker.close()
+  })
+
+  it('attaches the Electron-owned Office catalog to create and open', async () => {
+    const fixture = harness()
+    const resolveOfficeToolCatalog = vi.fn(async () => PDF_OFFICE_TOOL_CATALOG_BINDING)
+    const broker = new AgentSessionBroker(fixture.transport, {
+      authorize: async () => true,
+      randomUUID: () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      resolveOfficeToolCatalog,
+    })
+    await broker.connect(1, { documentId }, () => {})
+    expect(fixture.transport.createSession).toHaveBeenCalledWith({
+      operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      documentId,
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    broker.disconnect(1)
+    await broker.connect(2, { documentId, sessionId }, () => {})
+    expect(fixture.transport.openSession).toHaveBeenCalledWith({
+      operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      sessionId,
+      documentId,
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    expect(resolveOfficeToolCatalog).toHaveBeenCalledTimes(2)
+    await broker.close()
   })
 
   it('atomically advances the current Session after fork and keeps navigate in that tree', async () => {
