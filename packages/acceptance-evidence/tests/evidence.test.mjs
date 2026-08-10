@@ -7,6 +7,7 @@ import {
   normalizeEvidencePlatform,
   parseAcceptanceEvidenceArgs,
   runAcceptanceEvidenceCli,
+  validateReceiptArtifact,
 } from '../../../tools/collect-acceptance-evidence.mjs'
 
 async function createInputs(report = { success: true, numFailedTests: 0, numFailedTestSuites: 0 }) {
@@ -21,7 +22,37 @@ async function createInputs(report = { success: true, numFailedTests: 0, numFail
   return { repoRoot, reportPath, fixturePath, outputPath }
 }
 
+const receipt = {
+  operationId: '11111111-1111-4111-8111-111111111111',
+  toolCallId: '22222222-2222-4222-8222-222222222222',
+  toolId: 'office:docs:apply_commands',
+  status: 'completed',
+  output: '',
+  contextVersionAfter: 'context-2',
+  mutationOutcome: 'committed',
+  provenance: {
+    actorId: '33333333-3333-4333-8333-333333333333',
+    runId: '44444444-4444-4444-8444-444444444444',
+    documentId: 'document-1',
+  },
+}
+
 describe('acceptance evidence workspace', () => {
+  it('keeps one complete non-unknown receipt for every Office application', async () => {
+    const receipts = validateReceiptArtifact(
+      JSON.parse(
+        await readFile(new URL('../fixtures/office-tool-receipts.json', import.meta.url), 'utf8'),
+      ),
+    )
+    expect(receipts.map((item) => item.toolId.split(':')[1]).sort()).toEqual([
+      'docs',
+      'pdf',
+      'sheets',
+      'slides',
+    ])
+    expect(receipts.every((item) => item.mutationOutcome !== 'unknown')).toBe(true)
+  })
+
   it('derives passed results and fixture hashes from verified files', async () => {
     const input = await createInputs()
     const evidence = await collectAcceptanceEvidence({
@@ -50,6 +81,8 @@ describe('acceptance evidence workspace', () => {
       runtimeVersion: '1.0.0',
       catalogHashes: { pdf: 'f'.repeat(64) },
       redactionCheck: 'passed',
+      fixtureSources: { fakeProvider: 'fixtures/fake-provider.json' },
+      reportHashes: { 'pi-agent-runtime': expect.stringMatching(/^[0-9a-f]{64}$/) },
       results: [
         {
           suite: 'pi-agent-runtime',
@@ -168,6 +201,62 @@ describe('acceptance evidence workspace', () => {
     ).rejects.toThrow('evidence_suite_name_invalid')
   })
 
+  it('copies validated receipt artifacts and rejects malformed receipt evidence', async () => {
+    const input = await createInputs()
+    const receiptPath = join(input.repoRoot, 'fixtures', 'receipts.json')
+    await writeFile(receiptPath, JSON.stringify([receipt]))
+    const evidence = await collectAcceptanceEvidence({
+      repoRoot: input.repoRoot,
+      outputPath: input.outputPath,
+      commit: 'e'.repeat(40),
+      acceptanceIds: ['OT-002'],
+      platform: 'linux',
+      arch: 'x64',
+      fixtures: { fakeProvider: input.fixturePath },
+      receipts: { docs: receiptPath },
+      commands: ['synthetic-test'],
+      suites: [{ suite: 'runtime', report: input.reportPath }],
+    })
+    expect(evidence.receipts).toEqual([
+      {
+        name: 'docs',
+        path: 'evidence/receipts/docs.json',
+        sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        count: 1,
+      },
+    ])
+
+    await writeFile(receiptPath, '[]')
+    await expect(
+      collectAcceptanceEvidence({
+        repoRoot: input.repoRoot,
+        outputPath: input.outputPath,
+        commit: 'e'.repeat(40),
+        acceptanceIds: ['OT-002'],
+        platform: 'linux',
+        arch: 'x64',
+        fixtures: {},
+        receipts: { docs: receiptPath },
+        commands: ['synthetic-test'],
+        suites: [{ suite: 'runtime', report: input.reportPath }],
+      }),
+    ).rejects.toThrow('evidence_receipt_invalid')
+    await expect(
+      collectAcceptanceEvidence({
+        repoRoot: input.repoRoot,
+        outputPath: input.outputPath,
+        commit: 'e'.repeat(40),
+        acceptanceIds: ['OT-002'],
+        platform: 'linux',
+        arch: 'x64',
+        fixtures: {},
+        receipts: { '../docs': receiptPath },
+        commands: ['synthetic-test'],
+        suites: [{ suite: 'runtime', report: input.reportPath }],
+      }),
+    ).rejects.toThrow('evidence_receipt_name_invalid')
+  })
+
   it('parses repeatable CLI inputs without accepting a manual status', () => {
     expect(
       parseAcceptanceEvidenceArgs([
@@ -175,6 +264,8 @@ describe('acceptance evidence workspace', () => {
         'AR-001,QA-001',
         '--fixture',
         'fake=fixtures/fake.json',
+        '--receipt',
+        'docs=fixtures/receipts.json',
         '--catalog',
         `pdf=${'f'.repeat(64)}`,
         '--suite',
@@ -191,6 +282,7 @@ describe('acceptance evidence workspace', () => {
     ).toMatchObject({
       acceptanceIds: ['AR-001', 'QA-001'],
       fixtures: { fake: 'fixtures/fake.json' },
+      receipts: { docs: 'fixtures/receipts.json' },
       catalogHashes: { pdf: 'f'.repeat(64) },
       suites: [{ suite: 'runtime', report: 'reports/runtime.json' }],
       commands: ['npm test'],

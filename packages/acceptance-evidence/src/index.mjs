@@ -13,7 +13,7 @@ const SENSITIVE_PATTERNS = [
   /https?:\/\/\S+/i,
 ]
 
-function inside(repoRoot, inputPath) {
+export function inside(repoRoot, inputPath) {
   const absolute = isAbsolute(inputPath) ? resolve(inputPath) : resolve(repoRoot, inputPath)
   const rel = relative(repoRoot, absolute)
   if (rel === '' || rel.startsWith('..')) {
@@ -22,14 +22,43 @@ function inside(repoRoot, inputPath) {
   return { absolute, relative: rel.split('\\').join('/') }
 }
 
-function assertRedacted(content) {
+export function assertRedacted(content) {
   if (SENSITIVE_PATTERNS.some((pattern) => pattern.test(content))) {
     throw new Error('redaction_failed')
   }
 }
 
-function sha256(content) {
+export function sha256(content) {
   return createHash('sha256').update(content).digest('hex')
+}
+
+function validText(value) {
+  return typeof value === 'string' && value.length > 0
+}
+
+export function validateReceiptArtifact(value) {
+  if (!Array.isArray(value) || value.length === 0) throw new Error('evidence_receipt_invalid')
+  for (const receipt of value) {
+    if (
+      !receipt ||
+      typeof receipt !== 'object' ||
+      !validText(receipt.operationId) ||
+      !validText(receipt.toolCallId) ||
+      !validText(receipt.toolId) ||
+      !['completed', 'failed'].includes(receipt.status) ||
+      typeof receipt.output !== 'string' ||
+      !validText(receipt.contextVersionAfter) ||
+      !['not_started', 'committed', 'rolled_back', 'unknown'].includes(receipt.mutationOutcome) ||
+      !receipt.provenance ||
+      typeof receipt.provenance !== 'object' ||
+      !validText(receipt.provenance.actorId) ||
+      !validText(receipt.provenance.runId) ||
+      !validText(receipt.provenance.documentId)
+    ) {
+      throw new Error('evidence_receipt_invalid')
+    }
+  }
+  return value
 }
 
 function assertMetadata(options) {
@@ -54,15 +83,18 @@ export async function collectAcceptanceEvidence(options) {
   const repoRoot = resolve(options.repoRoot)
   const output = inside(repoRoot, options.outputPath)
   const fixtureHashes = {}
+  const fixtureSources = {}
 
   for (const [name, fixturePath] of Object.entries(options.fixtures)) {
     const file = inside(repoRoot, fixturePath)
     const content = await readFile(file.absolute)
     assertRedacted(content.toString('utf8'))
     fixtureHashes[name] = sha256(content)
+    fixtureSources[name] = file.relative
   }
 
   const results = []
+  const reportHashes = {}
   for (const suite of options.suites) {
     if (!/^[A-Za-z0-9._-]+$/.test(suite.suite)) throw new Error('evidence_suite_name_invalid')
     const file = inside(repoRoot, suite.report)
@@ -79,11 +111,32 @@ export async function collectAcceptanceEvidence(options) {
     }
     const sanitizedReport = resolve(dirname(output.absolute), 'reports', `${suite.suite}.json`)
     await mkdir(dirname(sanitizedReport), { recursive: true })
-    await writeFile(sanitizedReport, `${JSON.stringify(report, null, 2)}\n`)
+    const reportContent = `${JSON.stringify(report, null, 2)}\n`
+    await writeFile(sanitizedReport, reportContent)
+    reportHashes[suite.suite] = sha256(reportContent)
     results.push({
       suite: suite.suite,
       status: 'passed',
       report: relative(repoRoot, sanitizedReport).split('\\').join('/'),
+    })
+  }
+
+  const receipts = []
+  for (const [name, receiptPath] of Object.entries(options.receipts ?? {})) {
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) throw new Error('evidence_receipt_name_invalid')
+    const file = inside(repoRoot, receiptPath)
+    const content = await readFile(file.absolute, 'utf8')
+    assertRedacted(content)
+    const parsed = validateReceiptArtifact(JSON.parse(content))
+    const receiptContent = `${JSON.stringify(parsed, null, 2)}\n`
+    const copiedReceipt = resolve(dirname(output.absolute), 'receipts', `${name}.json`)
+    await mkdir(dirname(copiedReceipt), { recursive: true })
+    await writeFile(copiedReceipt, receiptContent)
+    receipts.push({
+      name,
+      path: relative(repoRoot, copiedReceipt).split('\\').join('/'),
+      sha256: sha256(receiptContent),
+      count: parsed.length,
     })
   }
 
@@ -99,6 +152,9 @@ export async function collectAcceptanceEvidence(options) {
       ? { catalogHashes: options.catalogHashes }
       : {}),
     fixtureHashes,
+    fixtureSources,
+    reportHashes,
+    ...(receipts.length > 0 ? { receipts } : {}),
     commands: options.commands,
     results,
     redactionCheck: 'passed',
@@ -122,6 +178,7 @@ export function parseAcceptanceEvidenceArgs(argv) {
     acceptanceIds: [],
     catalogHashes: {},
     fixtures: {},
+    receipts: {},
     suites: [],
     commands: [],
   }
@@ -138,6 +195,9 @@ export function parseAcceptanceEvidenceArgs(argv) {
     } else if (flag === '--fixture') {
       const [name, path] = assignment(value)
       parsed.fixtures[name] = path
+    } else if (flag === '--receipt') {
+      const [name, path] = assignment(value)
+      parsed.receipts[name] = path
     } else if (flag === '--suite') {
       const [suite, report] = assignment(value)
       parsed.suites.push({ suite, report })
