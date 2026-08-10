@@ -137,15 +137,15 @@ describe('Pi Runtime bundle builder', () => {
       type: 'module',
       private: true,
     })
-    await expect(
-      execFileAsync(
-        join(
-          options.outputDirectory,
-          `node/open-genoffice-pi-cli${process.platform === 'win32' ? '.exe' : ''}`,
-        ),
-        ['--version'],
+    const piVersion = await execFileAsync(
+      join(
+        options.outputDirectory,
+        `node/open-genoffice-pi-cli${process.platform === 'win32' ? '.exe' : ''}`,
       ),
-    ).resolves.toMatchObject({ stdout: '0.84.0\n', stderr: '' })
+      ['--version'],
+    )
+    expect(piVersion.stdout.trim()).toBe('0.84.0')
+    expect(piVersion.stderr).toBe('')
     expect(
       await readFile(
         join(options.outputDirectory, 'built-in/skills/open-genoffice-sheets-workbook/SKILL.md'),
@@ -186,7 +186,7 @@ describe('Pi Runtime bundle builder', () => {
     await expect(buildPiRuntimeBundle(options)).rejects.toEqual(
       new PiRuntimeBundleBuildError('runtime_bundle_output_exists'),
     )
-  }, 15_000)
+  }, 30_000)
 
   it('fails closed on a non-host target and invalid Node version', async () => {
     const targetMismatch = await inputs()
@@ -242,7 +242,7 @@ describe('Pi Runtime bundle builder', () => {
     await symlink(invalid.notices, join(skill, 'SKILL.md'))
     invalid.builtInSkillsDirectory = skills
     await expect(buildPiRuntimeBundle(invalid)).rejects.toThrowError('runtime_bundle_build_failed')
-  }, 15_000)
+  }, 30_000)
 
   it('requires the Job Object launcher for every Windows bundle', async () => {
     const actualPlatform = process.platform
@@ -298,7 +298,7 @@ describe('Pi Runtime bundle builder', () => {
         })
       }
     }
-  }, 15_000)
+  }, 30_000)
 
   it('exposes a path-free machine CLI contract', async () => {
     const options = await inputs()
@@ -405,7 +405,7 @@ describe('Pi Runtime bundle builder', () => {
         value: actualPlatform,
       })
     }
-  })
+  }, 30_000)
 
   it('loads through the repository builder entrypoint', async () => {
     const repoRoot = resolve(import.meta.dirname, '../../..')

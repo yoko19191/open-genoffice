@@ -110,7 +110,7 @@ export function officialNodeArchiveSha256(archive: Buffer): string {
 }
 
 export async function officialNodeVersion(executable: string): Promise<string> {
-  return (await execFileAsync(executable, ['--version'])).stdout
+  return `${(await execFileAsync(executable, ['--version'])).stdout.trim()}\n`
 }
 
 const PRODUCTION_DEPENDENCIES: AcquireOfficialNodeDistributionDependencies = Object.freeze({
