@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "commit": "7bf260e9246076966b50334b23879496f49a1c8a",
+  "acceptanceIds": [
+    "AR-003",
+    "AR-004",
+    "OT-001",
+    "OT-002",
+    "OT-003",
+    "OT-004",
+    "OT-005",
+    "OTC-001",
+    "OTC-002",
+    "OTC-005",
+    "RS-002",
+    "RS-004"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "catalogHashes": {
+    "sheets": "0904d366ddf21423a9a01b0709d508c9cb74b620db11c8e2881fa0115d3d04a8"
+  },
+  "fixtureHashes": {
+    "fakeProvider": "a90f5f074074d07e91dc044c8e2bb893a19b7bd2f1d0f32f2f68dbaf51ebb05f",
+    "officeCatalog": "1244db204e7c6b4da94efbd4412d054924fce587f9ee0115e1e4b18a5e8150b6"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run gate -w @genoffice/sheets",
+    "npm run build -w @genoffice/sheets",
+    "npm run build -w @genoffice/shell",
+    "npm run lint",
+    "npm run audit:pi-platform",
+    "npm run audit:genspark-free"
+  ],
+  "results": [
+    {
+      "suite": "evidence",
+      "status": "passed",
+      "report": "evidence/g4/issue-31/reports/evidence.json"
+    },
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g4/issue-31/reports/protocol.json"
+    },
+    {
+      "suite": "bundle",
+      "status": "passed",
+      "report": "evidence/g4/issue-31/reports/bundle.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g4/issue-31/reports/runtime.json"
+    },
+    {
+      "suite": "ui",
+      "status": "passed",
+      "report": "evidence/g4/issue-31/reports/ui.json"
+    },
+    {
+      "suite": "sheets",
+      "status": "passed",
+      "report": "evidence/g4/issue-31/reports/sheets.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g4/issue-31/reports/shell.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
