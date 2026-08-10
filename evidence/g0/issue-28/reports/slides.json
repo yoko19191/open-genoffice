@@ -1,0 +1,4519 @@
+{
+  "numTotalTestSuites": 112,
+  "numPassedTestSuites": 112,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 347,
+  "numPassedTests": 347,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786379982876,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides Agent Session cutover"
+          ],
+          "fullName": "Slides Agent Session cutover uses the shared Session controller and narrow Office Tool bridge",
+          "status": "passed",
+          "title": "uses the shared Session controller and narrow Office Tool bridge",
+          "duration": 3.8651250000000346,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Agent Session cutover"
+          ],
+          "fullName": "Slides Agent Session cutover has no legacy Agent, provider, cloud page, media, or branded production path",
+          "status": "passed",
+          "title": "has no legacy Agent, provider, cloud page, media, or branded production path",
+          "duration": 85.85287500000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379984089,
+      "endTime": 1786379984178.8528,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/agent-session-cutover.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "AiPanel collapse (slides)"
+          ],
+          "fullName": "AiPanel collapse (slides) keeps the draft input across a collapse/expand cycle",
+          "status": "passed",
+          "title": "keeps the draft input across a collapse/expand cycle",
+          "duration": 33.92991700000039,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AiPanel collapse (slides)"
+          ],
+          "fullName": "AiPanel collapse (slides) expands back through the rail button",
+          "status": "passed",
+          "title": "expands back through the rail button",
+          "duration": 1.72262499999988,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AiPanel collapse (slides)"
+          ],
+          "fullName": "AiPanel collapse (slides) sends a picked media attachment only as an opaque ArtifactRef",
+          "status": "passed",
+          "title": "sends a picked media attachment only as an opaque ArtifactRef",
+          "duration": 16.241250000000036,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AiPanel collapse (slides)"
+          ],
+          "fullName": "AiPanel collapse (slides) renders disabled media provenance and opens model settings",
+          "status": "passed",
+          "title": "renders disabled media provenance and opens model settings",
+          "duration": 56.58958299999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AiPanel collapse (slides)"
+          ],
+          "fullName": "AiPanel collapse (slides) accepts only exact bounded WAV and MP4 artifact projections",
+          "status": "passed",
+          "title": "accepts only exact bounded WAV and MP4 artifact projections",
+          "duration": 1.917583999999806,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985586,
+      "endTime": 1786379985695.9175,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/ai-panel-collapse.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "buildSteps"
+          ],
+          "fullName": "buildSteps groups onClick into new steps; withPrev/afterPrev join the current one",
+          "status": "passed",
+          "title": "groups onClick into new steps; withPrev/afterPrev join the current one",
+          "duration": 1.688916000000063,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildSteps"
+          ],
+          "fullName": "buildSteps marks step 0 auto when the list starts with a non-click trigger",
+          "status": "passed",
+          "title": "marks step 0 auto when the list starts with a non-click trigger",
+          "duration": 0.21266700000001038,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "computeNodeStates"
+          ],
+          "fullName": "computeNodeStates hides entrance targets before they play; leaves others visible",
+          "status": "passed",
+          "title": "hides entrance targets before they play; leaves others visible",
+          "duration": 0.1637500000001637,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "computeNodeStates"
+          ],
+          "fullName": "computeNodeStates interpolates the active step and finalizes played steps",
+          "status": "passed",
+          "title": "interpolates the active step and finalizes played steps",
+          "duration": 0.5866659999999229,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "computeNodeStates"
+          ],
+          "fullName": "computeNodeStates keeps pending items of the active step untouched until their start time",
+          "status": "passed",
+          "title": "keeps pending items of the active step untouched until their start time",
+          "duration": 0.08358399999997346,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "new effects (P2 additions)"
+          ],
+          "fullName": "new effects (P2 additions) classifies the new effects",
+          "status": "passed",
+          "title": "classifies the new effects",
+          "duration": 0.13395900000000438,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "new effects (P2 additions)"
+          ],
+          "fullName": "new effects (P2 additions) wipe variants clip from the right edge (btm/top/mid)",
+          "status": "passed",
+          "title": "wipe variants clip from the right edge (btm/top/mid)",
+          "duration": 0.22649999999998727,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "new effects (P2 additions)"
+          ],
+          "fullName": "new effects (P2 additions) bounce drops in from above and settles at 0",
+          "status": "passed",
+          "title": "bounce drops in from above and settles at 0",
+          "duration": 0.09895800000003874,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "new effects (P2 additions)"
+          ],
+          "fullName": "new effects (P2 additions) flipIn expands horizontally (scaleX 0→1)",
+          "status": "passed",
+          "title": "flipIn expands horizontally (scaleX 0→1)",
+          "duration": 0.3343330000000151,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "new effects (P2 additions)"
+          ],
+          "fullName": "new effects (P2 additions) teeter rocks around 0 and returns to rest; shrink/wipeOut hide at the end",
+          "status": "passed",
+          "title": "teeter rocks around 0 and returns to rest; shrink/wipeOut hide at the end",
+          "duration": 0.24233299999991686,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "paragraph animations"
+          ],
+          "fullName": "paragraph animations animStateKey separates paragraph targets and round-trips through parse",
+          "status": "passed",
+          "title": "animStateKey separates paragraph targets and round-trips through parse",
+          "duration": 0.16258399999992434,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "paragraph animations"
+          ],
+          "fullName": "paragraph animations same-shape paragraphs build/hide independently, one bullet per click",
+          "status": "passed",
+          "title": "same-shape paragraphs build/hide independently, one bullet per click",
+          "duration": 0.14845900000000256,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "paragraph animations"
+          ],
+          "fullName": "paragraph animations mixes paragraph and whole-shape animations without cross-talk",
+          "status": "passed",
+          "title": "mixes paragraph and whole-shape animations without cross-talk",
+          "duration": 0.053208000000040556,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "motion paths"
+          ],
+          "fullName": "motion paths samples M/L polylines and closes Z back to the start",
+          "status": "passed",
+          "title": "samples M/L polylines and closes Z back to the start",
+          "duration": 0.28341599999998834,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "motion paths"
+          ],
+          "fullName": "motion paths subdivides cubic beziers",
+          "status": "passed",
+          "title": "subdivides cubic beziers",
+          "duration": 0.12445800000000418,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "motion paths"
+          ],
+          "fullName": "motion paths moves the node along the path and keeps it at the end point",
+          "status": "passed",
+          "title": "moves the node along the path and keeps it at the end point",
+          "duration": 0.10187500000006366,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "motion paths"
+          ],
+          "fullName": "motion paths legacy items without motionPath fall back to the default path (no crash)",
+          "status": "passed",
+          "title": "legacy items without motionPath fall back to the default path (no crash)",
+          "duration": 0.03662500000018554,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379987534,
+      "endTime": 1786379987539.2834,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/animation-play.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "canvasPixelRatio"
+          ],
+          "fullName": "canvasPixelRatio follows zoom above 100% so the bitmap matches the displayed resolution (blur)",
+          "status": "passed",
+          "title": "follows zoom above 100% so the bitmap matches the displayed resolution (blur)",
+          "duration": 0.8383750000000418,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "canvasPixelRatio"
+          ],
+          "fullName": "canvasPixelRatio never drops below devicePixelRatio when zoomed out",
+          "status": "passed",
+          "title": "never drops below devicePixelRatio when zoomed out",
+          "duration": 0.1874169999998685,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "canvasPixelRatio"
+          ],
+          "fullName": "canvasPixelRatio caps at 3 to bound canvas memory",
+          "status": "passed",
+          "title": "caps at 3 to bound canvas memory",
+          "duration": 0.06387500000005275,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "canvasPixelRatio"
+          ],
+          "fullName": "canvasPixelRatio treats a missing/zero devicePixelRatio as 1",
+          "status": "passed",
+          "title": "treats a missing/zero devicePixelRatio as 1",
+          "duration": 0.11349999999993088,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "canvasPixelRatio"
+          ],
+          "fullName": "canvasPixelRatio caps dense slides at min(dpr, 2) regardless of zoom (raster-pressure mitigation)",
+          "status": "passed",
+          "title": "caps dense slides at min(dpr, 2) regardless of zoom (raster-pressure mitigation)",
+          "duration": 0.09412499999984902,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379989109,
+      "endTime": 1786379989110.1875,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/canvas-pixel-ratio.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "cfbKind"
+          ],
+          "fullName": "cfbKind plain zip (pptx) does not match",
+          "status": "passed",
+          "title": "plain zip (pptx) does not match",
+          "duration": 0.8363339999999653,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cfbKind"
+          ],
+          "fullName": "cfbKind CFB without EncryptedPackage stream -> legacy .ppt",
+          "status": "passed",
+          "title": "CFB without EncryptedPackage stream -> legacy .ppt",
+          "duration": 0.1464579999999387,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cfbKind"
+          ],
+          "fullName": "cfbKind CFB containing EncryptedPackage stream name (UTF-16LE) -> encrypted OOXML",
+          "status": "passed",
+          "title": "CFB containing EncryptedPackage stream name (UTF-16LE) -> encrypted OOXML",
+          "duration": 0.07787499999994907,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cfbKind"
+          ],
+          "fullName": "cfbKind ASCII-form EncryptedPackage is not misdetected (stream name must be UTF-16LE)",
+          "status": "passed",
+          "title": "ASCII-form EncryptedPackage is not misdetected (stream name must be UTF-16LE)",
+          "duration": 0.106708000000026,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379988511,
+      "endTime": 1786379988512.1465,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/cfb-sniff.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "armColorInput"
+          ],
+          "fullName": "armColorInput flips the lowest blue bit so re-picking the shown color still fires change",
+          "status": "passed",
+          "title": "flips the lowest blue bit so re-picking the shown color still fires change",
+          "duration": 1.0937089999999898,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "armColorInput"
+          ],
+          "fullName": "armColorInput stays within range at channel max",
+          "status": "passed",
+          "title": "stays within range at channel max",
+          "duration": 0.1315830000000915,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "armColorInput"
+          ],
+          "fullName": "armColorInput round-trips: arming twice restores the original value",
+          "status": "passed",
+          "title": "round-trips: arming twice restores the original value",
+          "duration": 0.09416699999997036,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "armColorInput"
+          ],
+          "fullName": "armColorInput ignores values that are not 6-digit hex",
+          "status": "passed",
+          "title": "ignores values that are not 6-digit hex",
+          "duration": 0.12637500000005275,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "toPickerHex"
+          ],
+          "fullName": "toPickerHex lowercases and keeps the # prefix",
+          "status": "passed",
+          "title": "lowercases and keeps the # prefix",
+          "duration": 0.10008299999992687,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "toPickerHex"
+          ],
+          "fullName": "toPickerHex drops the alpha byte of #RRGGBBAA",
+          "status": "passed",
+          "title": "drops the alpha byte of #RRGGBBAA",
+          "duration": 0.11537500000008549,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "toPickerHex"
+          ],
+          "fullName": "toPickerHex returns null for missing or non-hex colors (gradient/image backgrounds)",
+          "status": "passed",
+          "title": "returns null for missing or non-hex colors (gradient/image backgrounds)",
+          "duration": 0.17333299999995688,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379988340,
+      "endTime": 1786379988342.1733,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/color-input.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "computePlayOrder (playback order)"
+          ],
+          "fullName": "computePlayOrder (playback order) default order skips hidden slides",
+          "status": "passed",
+          "title": "default order skips hidden slides",
+          "duration": 1.8424589999999625,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "computePlayOrder (playback order)"
+          ],
+          "fullName": "computePlayOrder (playback order) starting from a hidden slide keeps that slide",
+          "status": "passed",
+          "title": "starting from a hidden slide keeps that slide",
+          "duration": 0.42670799999996234,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "computePlayOrder (playback order)"
+          ],
+          "fullName": "computePlayOrder (playback order) custom show plays in the specified order",
+          "status": "passed",
+          "title": "custom show plays in the specified order",
+          "duration": 0.16783299999997325,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "computePlayOrder (playback order)"
+          ],
+          "fullName": "computePlayOrder (playback order) custom show filters out hidden slides and out-of-range indices",
+          "status": "passed",
+          "title": "custom show filters out hidden slides and out-of-range indices",
+          "duration": 0.3342090000001008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "computePlayOrder (playback order)"
+          ],
+          "fullName": "computePlayOrder (playback order) falls back to the starting slide when the result is empty",
+          "status": "passed",
+          "title": "falls back to the starting slide when the result is empty",
+          "duration": 0.5012919999999212,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rehearsal timer accumulation"
+          ],
+          "fullName": "rehearsal timer accumulation page turns accumulate the previous slide dwell time; revisiting keeps accumulating",
+          "status": "passed",
+          "title": "page turns accumulate the previous slide dwell time; revisiting keeps accumulating",
+          "duration": 0.7042079999998805,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rehearsal timer accumulation"
+          ],
+          "fullName": "rehearsal timer accumulation clock going backwards never produces negatives",
+          "status": "passed",
+          "title": "clock going backwards never produces negatives",
+          "duration": 0.28558399999997164,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rehearsal timer accumulation"
+          ],
+          "fullName": "rehearsal timer accumulation formatClock outputs m:ss",
+          "status": "passed",
+          "title": "formatClock outputs m:ss",
+          "duration": 0.3689999999999145,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "advTm (auto-advance time) pptx patch"
+          ],
+          "fullName": "advTm (auto-advance time) pptx patch with no transition effect, creates an empty transition with only advTm, readable back",
+          "status": "passed",
+          "title": "with no transition effect, creates an empty transition with only advTm, readable back",
+          "duration": 1.378708000000188,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "advTm (auto-advance time) pptx patch"
+          ],
+          "fullName": "advTm (auto-advance time) pptx patch with an existing transition, adds advTm on its opening tag; ms=null removes it",
+          "status": "passed",
+          "title": "with an existing transition, adds advTm on its opening tag; ms=null removes it",
+          "duration": 0.44583299999999326,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "advTm (auto-advance time) pptx patch"
+          ],
+          "fullName": "advTm (auto-advance time) pptx patch rewriting overwrites the old value instead of stacking attributes",
+          "status": "passed",
+          "title": "rewriting overwrites the old value instead of stacking attributes",
+          "duration": 0.16237499999988358,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "advTm (auto-advance time) pptx patch"
+          ],
+          "fullName": "advTm (auto-advance time) pptx patch changing the transition keeps advTm; setting it to none keeps it too",
+          "status": "passed",
+          "title": "changing the transition keeps advTm; setting it to none keeps it too",
+          "duration": 0.0805840000000444,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "advTm (auto-advance time) pptx patch"
+          ],
+          "fullName": "advTm (auto-advance time) pptx patch writes advTm to both Choice/Fallback transitions inside morph AlternateContent",
+          "status": "passed",
+          "title": "writes advTm to both Choice/Fallback transitions inside morph AlternateContent",
+          "duration": 0.05850000000009459,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379988166,
+      "endTime": 1786379988173.4458,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/custom-show-rehearse.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "toleranceToThreshold"
+          ],
+          "fullName": "toleranceToThreshold 0 → 0, increases monotonically with tolerance, clamps out-of-range values",
+          "status": "passed",
+          "title": "0 → 0, increases monotonically with tolerance, clamps out-of-range values",
+          "duration": 0.9259170000000267,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "toleranceToThreshold"
+          ],
+          "fullName": "toleranceToThreshold tolerance 100 covers the black-white distance (whole image classifiable as background)",
+          "status": "passed",
+          "title": "tolerance 100 covers the black-white distance (whole image classifiable as background)",
+          "duration": 0.1604170000000522,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "colorDistance"
+          ],
+          "fullName": "colorDistance same color is 0, black vs white is 255, symmetric",
+          "status": "passed",
+          "title": "same color is 0, black vs white is 255, symmetric",
+          "duration": 0.11587500000007367,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sampleBackgroundColors"
+          ],
+          "fullName": "sampleBackgroundColors solid background + centered foreground → single representative background color",
+          "status": "passed",
+          "title": "solid background + centered foreground → single representative background color",
+          "duration": 0.6730830000000196,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sampleBackgroundColors"
+          ],
+          "fullName": "sampleBackgroundColors two-color top/bottom border → two representative colors, dominant one first",
+          "status": "passed",
+          "title": "two-color top/bottom border → two representative colors, dominant one first",
+          "duration": 0.13716699999997672,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sampleBackgroundColors"
+          ],
+          "fullName": "sampleBackgroundColors fully transparent border yields no representative colors",
+          "status": "passed",
+          "title": "fully transparent border yields no representative colors",
+          "duration": 0.08875000000000455,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sampleBackgroundColors"
+          ],
+          "fullName": "sampleBackgroundColors empty image returns an empty array",
+          "status": "passed",
+          "title": "empty image returns an empty array",
+          "duration": 0.14420799999993505,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "removeBackground"
+          ],
+          "fullName": "removeBackground background made transparent, foreground kept, removedCount correct",
+          "status": "passed",
+          "title": "background made transparent, foreground kept, removedCount correct",
+          "duration": 0.24291700000003402,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "removeBackground"
+          ],
+          "fullName": "removeBackground flood fill: enclosed regions matching the background but surrounded by foreground are not removed",
+          "status": "passed",
+          "title": "flood fill: enclosed regions matching the background but surrounded by foreground are not removed",
+          "duration": 0.319417000000044,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "removeBackground"
+          ],
+          "fullName": "removeBackground tolerance takes effect: near-background pixels kept at low tolerance, removed at high tolerance",
+          "status": "passed",
+          "title": "tolerance takes effect: near-background pixels kept at low tolerance, removed at high tolerance",
+          "duration": 0.1396670000000313,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "removeBackground"
+          ],
+          "fullName": "removeBackground tolerance 100: all connected background across the image becomes transparent",
+          "status": "passed",
+          "title": "tolerance 100: all connected background across the image becomes transparent",
+          "duration": 0.1133750000000191,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "removeBackground"
+          ],
+          "fullName": "removeBackground does not mutate input pixels",
+          "status": "passed",
+          "title": "does not mutate input pixels",
+          "duration": 0.4522499999999354,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "removeBackground"
+          ],
+          "fullName": "removeBackground already-transparent pixels count as connected background and are not double-counted",
+          "status": "passed",
+          "title": "already-transparent pixels count as connected background and are not double-counted",
+          "duration": 0.08633300000008148,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "removeBackground"
+          ],
+          "fullName": "removeBackground explicit background color param: uses the given color instead of auto-sampling",
+          "status": "passed",
+          "title": "explicit background color param: uses the given color instead of auto-sampling",
+          "duration": 0.038584000000014385,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379987717,
+      "endTime": 1786379987721.0386,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/cutout.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "draw kind classification"
+          ],
+          "fullName": "draw kind classification recognizes line kinds",
+          "status": "passed",
+          "title": "recognizes line kinds",
+          "duration": 0.8333750000000464,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "draw kind classification"
+          ],
+          "fullName": "draw kind classification recognizes straight lines (zero-height default)",
+          "status": "passed",
+          "title": "recognizes straight lines (zero-height default)",
+          "duration": 0.202083000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "defaultDrawSize (single click = PowerPoint 1in defaults)"
+          ],
+          "fullName": "defaultDrawSize (single click = PowerPoint 1in defaults) shapes default to a 96x96 square (1x1 inch)",
+          "status": "passed",
+          "title": "shapes default to a 96x96 square (1x1 inch)",
+          "duration": 1.0382499999999482,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "defaultDrawSize (single click = PowerPoint 1in defaults)"
+          ],
+          "fullName": "defaultDrawSize (single click = PowerPoint 1in defaults) straight lines default to a 1in horizontal stroke",
+          "status": "passed",
+          "title": "straight lines default to a 1in horizontal stroke",
+          "duration": 0.16191700000001674,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "defaultDrawSize (single click = PowerPoint 1in defaults)"
+          ],
+          "fullName": "defaultDrawSize (single click = PowerPoint 1in defaults) bent/curved connectors need a real box for their elbow geometry",
+          "status": "passed",
+          "title": "bent/curved connectors need a real box for their elbow geometry",
+          "duration": 0.07862499999998818,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: shapes"
+          ],
+          "fullName": "resolveDrawRect: shapes free drag down-right maps to the dragged rectangle",
+          "status": "passed",
+          "title": "free drag down-right maps to the dragged rectangle",
+          "duration": 0.09320900000000165,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: shapes"
+          ],
+          "fullName": "resolveDrawRect: shapes drag up-left normalizes to a positive-size rectangle",
+          "status": "passed",
+          "title": "drag up-left normalizes to a positive-size rectangle",
+          "duration": 0.13445799999999508,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: shapes"
+          ],
+          "fullName": "resolveDrawRect: shapes shift constrains to a square using the larger delta, anchored at the start point",
+          "status": "passed",
+          "title": "shift constrains to a square using the larger delta, anchored at the start point",
+          "duration": 0.058749999999918145,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: shapes"
+          ],
+          "fullName": "resolveDrawRect: shapes shift square follows the drag direction (up-left drag grows up-left)",
+          "status": "passed",
+          "title": "shift square follows the drag direction (up-left drag grows up-left)",
+          "duration": 0.2841250000000173,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: lines"
+          ],
+          "fullName": "resolveDrawRect: lines down-right drag: box spans the two endpoints, no flip",
+          "status": "passed",
+          "title": "down-right drag: box spans the two endpoints, no flip",
+          "duration": 0.07962499999996453,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: lines"
+          ],
+          "fullName": "resolveDrawRect: lines up-right drag: flipV so the head lands on the drag end",
+          "status": "passed",
+          "title": "up-right drag: flipV so the head lands on the drag end",
+          "duration": 0.08458299999995234,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: lines"
+          ],
+          "fullName": "resolveDrawRect: lines down-left drag: flipH",
+          "status": "passed",
+          "title": "down-left drag: flipH",
+          "duration": 0.040500000000065484,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: lines"
+          ],
+          "fullName": "resolveDrawRect: lines up-left drag: flipH + flipV",
+          "status": "passed",
+          "title": "up-left drag: flipH + flipV",
+          "duration": 0.03708299999993869,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: lines"
+          ],
+          "fullName": "resolveDrawRect: lines shift snaps a near-horizontal line to exactly horizontal",
+          "status": "passed",
+          "title": "shift snaps a near-horizontal line to exactly horizontal",
+          "duration": 0.03641600000003109,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: lines"
+          ],
+          "fullName": "resolveDrawRect: lines shift snaps a near-vertical line to exactly vertical",
+          "status": "passed",
+          "title": "shift snaps a near-vertical line to exactly vertical",
+          "duration": 0.029875000000060936,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveDrawRect: lines"
+          ],
+          "fullName": "resolveDrawRect: lines shift snaps a diagonal-ish line to exactly 45 degrees",
+          "status": "passed",
+          "title": "shift snaps a diagonal-ish line to exactly 45 degrees",
+          "duration": 0.11087499999996453,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379987826,
+      "endTime": 1786379987829.1108,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/draw-shape.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun shows PPT letter spacing in the editor DOM to match canvas",
+          "status": "passed",
+          "title": "shows PPT letter spacing in the editor DOM to match canvas",
+          "duration": 16.246999999999844,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun preserves multilingual text order across layout fragments",
+          "status": "passed",
+          "title": "preserves multilingual text order across layout fragments",
+          "duration": 232.97358299999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun restores logical text order from mixed RTL/LTR canvas runs",
+          "status": "passed",
+          "title": "restores logical text order from mixed RTL/LTR canvas runs",
+          "duration": 137.44333300000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun releases stale fragment widths after input so text can reflow",
+          "status": "passed",
+          "title": "releases stale fragment widths after input so text can reflow",
+          "duration": 12.142374999999902,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun CJK paragraph (laid out per character) is still a single run after commit",
+          "status": "passed",
+          "title": "CJK paragraph (laid out per character) is still a single run after commit",
+          "duration": 74.64191699999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun multi-run paragraph keeps original run boundaries and order (with format differences)",
+          "status": "passed",
+          "title": "multi-run paragraph keeps original run boundaries and order (with format differences)",
+          "duration": 143.8469580000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun spaces swallowed by auto-wrap are restored exactly via trailingSpace (lossless text)",
+          "status": "passed",
+          "title": "spaces swallowed by auto-wrap are restored exactly via trailingSpace (lossless text)",
+          "duration": 16.384625000000142,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun hard-wrapped long URL no longer gets spaces injected (historical bug: URL rewritten after one edit round-trip)",
+          "status": "passed",
+          "title": "hard-wrapped long URL no longer gets spaces injected (historical bug: URL rewritten after one edit round-trip)",
+          "duration": 100.81683299999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run fragmentation: layout fragments merge back into original runs by srcRun"
+          ],
+          "fullName": "run fragmentation: layout fragments merge back into original runs by srcRun multiple paragraphs → each div carries srcPara; empty paragraphs keep their identity",
+          "status": "passed",
+          "title": "multiple paragraphs → each div carries srcPara; empty paragraphs keep their identity",
+          "duration": 90.36762499999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved"
+          ],
+          "fullName": "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved splitting a paragraph: both halves inherit source paragraph props (bullet/line spacing), later paragraphs stay aligned",
+          "status": "passed",
+          "title": "splitting a paragraph: both halves inherit source paragraph props (bullet/line spacing), later paragraphs stay aligned",
+          "duration": 0.45316700000012133,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved"
+          ],
+          "fullName": "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved run fields the editor cannot express (letter spacing/hyperlink/field/strikethrough) survive editing",
+          "status": "passed",
+          "title": "run fields the editor cannot express (letter spacing/hyperlink/field/strikethrough) survive editing",
+          "duration": 0.16687499999989086,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved"
+          ],
+          "fullName": "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved explicit bold:false is not overridden by the old value via ?? fallback (unbolding must take effect)",
+          "status": "passed",
+          "title": "explicit bold:false is not overridden by the old value via ?? fallback (unbolding must take effect)",
+          "duration": 0.053707999999915046,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved"
+          ],
+          "fullName": "applyEditParagraphs: srcPara/srcRun tracing + unedited fields preserved no srcPara/srcRun (newly typed paragraph) falls back to position without crashing",
+          "status": "passed",
+          "title": "no srcPara/srcRun (newly typed paragraph) falls back to position without crashing",
+          "duration": 0.04770800000005693,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "full chain: one edit → lossless in-place patch path (run count stable)"
+          ],
+          "fullName": "full chain: one edit → lossless in-place patch path (run count stable) no-op commit: takes patch path, spc/pPr(buNone)/bodyPr/text all preserved",
+          "status": "passed",
+          "title": "no-op commit: takes patch path, spc/pPr(buNone)/bodyPr/text all preserved",
+          "duration": 44.63979199999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "full chain: one edit → lossless in-place patch path (run count stable)"
+          ],
+          "fullName": "full chain: one edit → lossless in-place patch path (run count stable) text-only edit: patch path replaces text, all other bytes preserved",
+          "status": "passed",
+          "title": "text-only edit: patch path replaces text, all other bytes preserved",
+          "duration": 35.76704100000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "theme colors: schemeClr is not needlessly baked into srgbClr by edits"
+          ],
+          "fullName": "theme colors: schemeClr is not needlessly baked into srgbClr by edits text-only edit: schemeClr (with lumMod) bytes preserved, still follows theme switches",
+          "status": "passed",
+          "title": "text-only edit: schemeClr (with lumMod) bytes preserved, still follows theme switches",
+          "duration": 7.28104200000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "theme colors: schemeClr is not needlessly baked into srgbClr by edits"
+          ],
+          "fullName": "theme colors: schemeClr is not needlessly baked into srgbClr by edits user actually changed the color: baked into srgbClr (correct behavior)",
+          "status": "passed",
+          "title": "user actually changed the color: baked into srgbClr (correct behavior)",
+          "duration": 26.804957999999715,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "theme colors: schemeClr is not needlessly baked into srgbClr by edits"
+          ],
+          "fullName": "theme colors: schemeClr is not needlessly baked into srgbClr by edits applyEditParagraphs: unchanged color keeps colorFollowsTheme, changed color clears it",
+          "status": "passed",
+          "title": "applyEditParagraphs: unchanged color keeps colorFollowsTheme, changed color clears it",
+          "duration": 0.16383300000006784,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "normAutofit fontScale: files already shrunk by PowerPoint render at the stored scale"
+          ],
+          "fullName": "normAutofit fontScale: files already shrunk by PowerPoint render at the stored scale stored fontScale is used as-is (no scaling back up even if content fits)",
+          "status": "passed",
+          "title": "stored fontScale is used as-is (no scaling back up even if content fits)",
+          "duration": 0.1885419999998703,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "normAutofit fontScale: files already shrunk by PowerPoint render at the stored scale"
+          ],
+          "fullName": "normAutofit fontScale: files already shrunk by PowerPoint render at the stored scale content still overflows at the stored scale: keep bisecting downward, never exceed the stored scale",
+          "status": "passed",
+          "title": "content still overflows at the stored scale: keep bisecting downward, never exceed the stored scale",
+          "duration": 84.79825000000028,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "normAutofit fontScale: files already shrunk by PowerPoint render at the stored scale"
+          ],
+          "fullName": "normAutofit fontScale: files already shrunk by PowerPoint render at the stored scale lnSpcReduction compresses line spacing (fixed lineExact unaffected)",
+          "status": "passed",
+          "title": "lnSpcReduction compresses line spacing (fixed lineExact unaffected)",
+          "duration": 0.26079200000003766,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs"
+          ],
+          "fullName": "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs line-height = layout line height (px), paragraph margin-top = space before/after",
+          "status": "passed",
+          "title": "line-height = layout line height (px), paragraph margin-top = space before/after",
+          "duration": 1.1663329999996677,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs"
+          ],
+          "fullName": "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs first paragraph spcBef also applies (measured from root padding)",
+          "status": "passed",
+          "title": "first paragraph spcBef also applies (measured from root padding)",
+          "duration": 0.4102080000002388,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs"
+          ],
+          "fullName": "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs dy baked into line top by middle anchor is excluded, not miscounted as first-paragraph spacing",
+          "status": "passed",
+          "title": "dy baked into line top by middle anchor is excluded, not miscounted as first-paragraph spacing",
+          "duration": 0.2950839999998607,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs"
+          ],
+          "fullName": "edit-mode vertical metrics: line/paragraph spacing derived back from layout lines onto paragraph divs lnSpcReduction compression is reflected in line-height",
+          "status": "passed",
+          "title": "lnSpcReduction compression is reflected in line-height",
+          "duration": 0.5914999999999964,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save"
+          ],
+          "fullName": "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save layout → editor DOM → extraction: sentinel run round-trips (shown as a line break in edit mode)",
+          "status": "passed",
+          "title": "layout → editor DOM → extraction: sentinel run round-trips (shown as a line break in edit mode)",
+          "duration": 74.21675000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save"
+          ],
+          "fullName": "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save no-op commit takes the patch path: <a:br/> bytes preserved",
+          "status": "passed",
+          "title": "no-op commit takes the patch path: <a:br/> bytes preserved",
+          "duration": 26.828583999999864,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save"
+          ],
+          "fullName": "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save user-typed \\n (Shift+Enter) is split into sentinel runs on commit",
+          "status": "passed",
+          "title": "user-typed \\n (Shift+Enter) is split into sentinel runs on commit",
+          "duration": 6.465666999999939,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save"
+          ],
+          "fullName": "soft line break <a:br/>: visible in edit mode + preserved on commit + written back on save rebuild path writes sentinel/embedded \\n back as <a:br/>",
+          "status": "passed",
+          "title": "rebuild path writes sentinel/embedded \\n back as <a:br/>",
+          "duration": 0.2742079999998168,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: font/underline fidelity markers"
+          ],
+          "fullName": "applyEditParagraphs: font/underline fidelity markers font unchanged (display-name alias passed back): latin/ea markers preserved",
+          "status": "passed",
+          "title": "font unchanged (display-name alias passed back): latin/ea markers preserved",
+          "duration": 0.08354099999996834,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: font/underline fidelity markers"
+          ],
+          "fullName": "applyEditParagraphs: font/underline fidelity markers font actually changed: markers cleared (new font written back)",
+          "status": "passed",
+          "title": "font actually changed: markers cleared (new font written back)",
+          "duration": 0.0567919999998594,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: font/underline fidelity markers"
+          ],
+          "fullName": "applyEditParagraphs: font/underline fidelity markers display stack head != model name and not in alias table (JP/KR/TC fonts): data-font returns the original name, markers preserved",
+          "status": "passed",
+          "title": "display stack head != model name and not in alias table (JP/KR/TC fonts): data-font returns the original name, markers preserved",
+          "duration": 140.3435830000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: font/underline fidelity markers"
+          ],
+          "fullName": "applyEditParagraphs: font/underline fidelity markers font actually changed while editing: extraction returns the new font name (data-font does not hijack)",
+          "status": "passed",
+          "title": "font actually changed while editing: extraction returns the new font name (data-font does not hijack)",
+          "duration": 17.789874999999938,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: font/underline fidelity markers"
+          ],
+          "fullName": "applyEditParagraphs: font/underline fidelity markers run without explicit font + bold in edit mode does not commit the layout Arial fallback",
+          "status": "passed",
+          "title": "run without explicit font + bold in edit mode does not commit the layout Arial fallback",
+          "duration": 119.17479200000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: font/underline fidelity markers"
+          ],
+          "fullName": "applyEditParagraphs: font/underline fidelity markers missing-font substitution (等线 displayed as Arial) still commits the model name",
+          "status": "passed",
+          "title": "missing-font substitution (等线 displayed as Arial) still commits the model name",
+          "duration": 27.335125000000062,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applyEditParagraphs: font/underline fidelity markers"
+          ],
+          "fullName": "applyEditParagraphs: font/underline fidelity markers underline keeps dbl; style cleared after removal",
+          "status": "passed",
+          "title": "underline keeps dbl; style cleared after removal",
+          "duration": 0.1185830000003989,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "vertical text (bodyPr vert): horizontal edit overlay round-trips losslessly"
+          ],
+          "fullName": "vertical text (bodyPr vert): horizontal edit overlay round-trips losslessly eaVert per-character column layout → DOM → extraction: runs merge back intact, paragraph structure preserved",
+          "status": "passed",
+          "title": "eaVert per-character column layout → DOM → extraction: runs merge back intact, paragraph structure preserved",
+          "duration": 161.34745799999973,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "vertical text (bodyPr vert): horizontal edit overlay round-trips losslessly"
+          ],
+          "fullName": "vertical text (bodyPr vert): horizontal edit overlay round-trips losslessly soft break <a:br/> still round-trips as a \\n sentinel in vertical column layout",
+          "status": "passed",
+          "title": "soft break <a:br/> still round-trips as a \\n sentinel in vertical column layout",
+          "duration": 15.112708000000566,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "per-paragraph format on the editing selection"
+          ],
+          "fullName": "per-paragraph format on the editing selection populate marks the original bullet kind per paragraph (toggle-off reference)",
+          "status": "passed",
+          "title": "populate marks the original bullet kind per paragraph (toggle-off reference)",
+          "duration": 1.5,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "per-paragraph format on the editing selection"
+          ],
+          "fullName": "per-paragraph format on the editing selection applySelectionParagraphFormat marks only the selected paragraph; extraction carries it",
+          "status": "passed",
+          "title": "applySelectionParagraphFormat marks only the selected paragraph; extraction carries it",
+          "duration": 91.18095799999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "per-paragraph format on the editing selection"
+          ],
+          "fullName": "per-paragraph format on the editing selection toggle-off: applying the current kind again turns the bullet off",
+          "status": "passed",
+          "title": "toggle-off: applying the current kind again turns the bullet off",
+          "duration": 1.201332999999977,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "per-paragraph format on the editing selection"
+          ],
+          "fullName": "per-paragraph format on the editing selection unchanged round-trip carries no per-paragraph format (no spurious commits)",
+          "status": "passed",
+          "title": "unchanged round-trip carries no per-paragraph format (no spurious commits)",
+          "duration": 45.216042000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "per-paragraph format on the editing selection"
+          ],
+          "fullName": "per-paragraph format on the editing selection collectParagraphFormatPatches maps marks to engine patches by paragraph index",
+          "status": "passed",
+          "title": "collectParagraphFormatPatches maps marks to engine patches by paragraph index",
+          "duration": 0.1902909999998883,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run hyperlinks: overlay round-trip + merge semantics"
+          ],
+          "fullName": "run hyperlinks: overlay round-trip + merge semantics linked run round-trips through the editor DOM as <a href>",
+          "status": "passed",
+          "title": "linked run round-trips through the editor DOM as <a href>",
+          "duration": 100.35716600000069,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run hyperlinks: overlay round-trip + merge semantics"
+          ],
+          "fullName": "run hyperlinks: overlay round-trip + merge semantics slide-jump encoding round-trips as a slide target",
+          "status": "passed",
+          "title": "slide-jump encoding round-trips as a slide target",
+          "duration": 8.344208000000435,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run hyperlinks: overlay round-trip + merge semantics"
+          ],
+          "fullName": "run hyperlinks: overlay round-trip + merge semantics adding a link clears the stale rId so ensureRunLinkRels reallocates",
+          "status": "passed",
+          "title": "adding a link clears the stale rId so ensureRunLinkRels reallocates",
+          "duration": 0.11495800000011513,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run hyperlinks: overlay round-trip + merge semantics"
+          ],
+          "fullName": "run hyperlinks: overlay round-trip + merge semantics removing a link drops rId/action and the hlink-derived underline",
+          "status": "passed",
+          "title": "removing a link drops rId/action and the hlink-derived underline",
+          "duration": 0.09662499999922147,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run hyperlinks: overlay round-trip + merge semantics"
+          ],
+          "fullName": "run hyperlinks: overlay round-trip + merge semantics retargeting a link keeps it and reallocates the relationship",
+          "status": "passed",
+          "title": "retargeting a link keeps it and reallocates the relationship",
+          "duration": 0.1484999999993306,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "run hyperlinks: overlay round-trip + merge semantics"
+          ],
+          "fullName": "run hyperlinks: overlay round-trip + merge semantics an unresolvable rId (not representable in the DOM) survives a commit reporting no link",
+          "status": "passed",
+          "title": "an unresolvable rId (not representable in the DOM) survives a commit reporting no link",
+          "duration": 0.04054199999973207,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985398,
+      "endTime": 1786379987265.3442,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/edit-fidelity.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Phase 3 open → render → edit → save flow"
+          ],
+          "fullName": "Phase 3 open → render → edit → save flow opens and builds RenderSlides at fit width",
+          "status": "passed",
+          "title": "opens and builds RenderSlides at fit width",
+          "duration": 158.77754200000027,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Phase 3 open → render → edit → save flow"
+          ],
+          "fullName": "Phase 3 open → render → edit → save flow edit text (as IPC editText does) rebuilds RenderSlide and marks dirty",
+          "status": "passed",
+          "title": "edit text (as IPC editText does) rebuilds RenderSlide and marks dirty",
+          "duration": 127.11533300000019,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Phase 3 open → render → edit → save flow"
+          ],
+          "fullName": "Phase 3 open → render → edit → save flow edit transform (as IPC editTransform does) reflects new geometry",
+          "status": "passed",
+          "title": "edit transform (as IPC editTransform does) reflects new geometry",
+          "duration": 148.4526249999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Phase 3 open → render → edit → save flow"
+          ],
+          "fullName": "Phase 3 open → render → edit → save flow run-level edit preserves per-run formatting (bold run + plain run)",
+          "status": "passed",
+          "title": "run-level edit preserves per-run formatting (bold run + plain run)",
+          "duration": 471.3203749999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Phase 3 open → render → edit → save flow"
+          ],
+          "fullName": "Phase 3 open → render → edit → save flow save after edit → reopen reads new text (full round-trip)",
+          "status": "passed",
+          "title": "save after edit → reopen reads new text (full round-trip)",
+          "duration": 214.24529200000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Phase 3 open → render → edit → save flow"
+          ],
+          "fullName": "Phase 3 open → render → edit → save flow no-edit save stays byte-identical (fidelity through the app path)",
+          "status": "passed",
+          "title": "no-edit save stays byte-identical (fidelity through the app path)",
+          "duration": 160.50829199999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) solid fill → css color",
+          "status": "passed",
+          "title": "solid fill → css color",
+          "duration": 0.8628329999996822,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) gradient fill → linear gradient stops",
+          "status": "passed",
+          "title": "gradient fill → linear gradient stops",
+          "duration": 0.1937910000001466,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) 8-digit hex → rgba",
+          "status": "passed",
+          "title": "8-digit hex → rgba",
+          "duration": 0.44033300000000963,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) image fill → fillPatternImage when image loaded (stretch scales)",
+          "status": "passed",
+          "title": "image fill → fillPatternImage when image loaded (stretch scales)",
+          "duration": 0.13699999999971624,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) image fill → empty when image not yet loaded",
+          "status": "passed",
+          "title": "image fill → empty when image not yet loaded",
+          "duration": 0.11204199999974662,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) fillImageUrl extracts dataUrl only for image fills",
+          "status": "passed",
+          "title": "fillImageUrl extracts dataUrl only for image fills",
+          "duration": 0.059874999999919964,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) preset geometry mapping",
+          "status": "passed",
+          "title": "preset geometry mapping",
+          "duration": 0.0632500000001528,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "konva-adapter (thin data mapping)"
+          ],
+          "fullName": "konva-adapter (thin data mapping) glyph draw: baseline → top y conversion + font style",
+          "status": "passed",
+          "title": "glyph draw: baseline → top y conversion + font style",
+          "duration": 0.3769170000000486,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985290,
+      "endTime": 1786379986574.377,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/edit-flow.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "edit selection handoff for ribbon controls"
+          ],
+          "fullName": "edit selection handoff for ribbon controls restores the saved range and re-focuses the editor after focus moved to a control",
+          "status": "passed",
+          "title": "restores the saved range and re-focuses the editor after focus moved to a control",
+          "duration": 7.156499999999824,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit selection handoff for ribbon controls"
+          ],
+          "fullName": "edit selection handoff for ribbon controls restore fails once the editor is gone (overlay committed/unmounted)",
+          "status": "passed",
+          "title": "restore fails once the editor is gone (overlay committed/unmounted)",
+          "duration": 1.4347500000001219,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit selection handoff for ribbon controls"
+          ],
+          "fullName": "edit selection handoff for ribbon controls save is a no-op when focus is not inside a contenteditable",
+          "status": "passed",
+          "title": "save is a no-op when focus is not inside a contenteditable",
+          "duration": 6.8613339999999425,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986832,
+      "endTime": 1786379986847.8613,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/edit-selection.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching collapses several edits into one pre-run snapshot",
+          "status": "passed",
+          "title": "collapses several edits into one pre-run snapshot",
+          "duration": 1.3344999999999345,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching supports nested tool batching inside an AI-run batch",
+          "status": "passed",
+          "title": "supports nested tool batching inside an AI-run batch",
+          "duration": 0.21766600000000835,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching does not create a history step when every edit is rolled back",
+          "status": "passed",
+          "title": "does not create a history step when every edit is rolled back",
+          "duration": 0.10687499999994543,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching restores the deck size on undo",
+          "status": "passed",
+          "title": "restores the deck size on undo",
+          "duration": 0.35808300000007875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching keeps the old deck snapshot when replacing the full deck",
+          "status": "passed",
+          "title": "keeps the old deck snapshot when replacing the full deck",
+          "duration": 0.18033300000001873,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching returns the pre-run snapshot from the outermost batch end with edits",
+          "status": "passed",
+          "title": "returns the pre-run snapshot from the outermost batch end with edits",
+          "duration": 0.12420800000018062,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching rolls back to a registered AI snapshot and makes the rollback undoable",
+          "status": "passed",
+          "title": "rolls back to a registered AI snapshot and makes the rollback undoable",
+          "duration": 0.16395799999986593,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching keeps registered snapshots isolated from later in-place deck mutations",
+          "status": "passed",
+          "title": "keeps registered snapshots isolated from later in-place deck mutations",
+          "duration": 0.16716700000006313,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching undo → edit → redo replays the state that was undone, not a mutated copy",
+          "status": "passed",
+          "title": "undo → edit → redo replays the state that was undone, not a mutated copy",
+          "duration": 0.31891700000005585,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main-process history batching"
+          ],
+          "fullName": "Slides main-process history batching a batch left open by a crashed tool path is collapsed so undo still works",
+          "status": "passed",
+          "title": "a batch left open by a crashed tool path is collapsed so undo still works",
+          "duration": 0.14895799999999326,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379988064,
+      "endTime": 1786379988067.3188,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/history.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "createImageLoader"
+          ],
+          "fullName": "createImageLoader surfaces loaded images by timer batches while others are still pending",
+          "status": "passed",
+          "title": "surfaces loaded images by timer batches while others are still pending",
+          "duration": 4.247082999999975,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "createImageLoader"
+          ],
+          "fullName": "createImageLoader flushes immediately when the batch size is reached",
+          "status": "passed",
+          "title": "flushes immediately when the batch size is reached",
+          "duration": 0.4942079999999578,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "createImageLoader"
+          ],
+          "fullName": "createImageLoader flushes the remainder when the last pending image settles, even on error",
+          "status": "passed",
+          "title": "flushes the remainder when the last pending image settles, even on error",
+          "duration": 0.3182920000000422,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "createImageLoader"
+          ],
+          "fullName": "createImageLoader never reloads finished urls nor discards in-flight ones on a new load call",
+          "status": "passed",
+          "title": "never reloads finished urls nor discards in-flight ones on a new load call",
+          "duration": 0.2627499999999827,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "createImageLoader"
+          ],
+          "fullName": "createImageLoader stops applying after dispose",
+          "status": "passed",
+          "title": "stops applying after dispose",
+          "duration": 0.21108400000002803,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986676,
+      "endTime": 1786379986682.2112,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/image-loader.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "ink payload (cNvPr descr) encode/decode"
+          ],
+          "fullName": "ink payload (cNvPr descr) encode/decode round-trips tool/color/width/points",
+          "status": "passed",
+          "title": "round-trips tool/color/width/points",
+          "duration": 1.370792000000165,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ink payload (cNvPr descr) encode/decode"
+          ],
+          "fullName": "ink payload (cNvPr descr) encode/decode rejects foreign/broken payloads",
+          "status": "passed",
+          "title": "rejects foreign/broken payloads",
+          "duration": 0.20374999999967258,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ink geometry"
+          ],
+          "fullName": "ink geometry strokeBounds pads by half width + 1",
+          "status": "passed",
+          "title": "strokeBounds pads by half width + 1",
+          "duration": 0.15162499999996726,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ink geometry"
+          ],
+          "fullName": "ink geometry strokeHitTest hits near segments, misses far away",
+          "status": "passed",
+          "title": "strokeHitTest hits near segments, misses far away",
+          "duration": 0.09508300000015879,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ink geometry"
+          ],
+          "fullName": "ink geometry strokePathD renders a dot for single points",
+          "status": "passed",
+          "title": "strokePathD renders a dot for single points",
+          "duration": 0.1479580000000169,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ink stroke → save → reopen (engine path = slides:add-ink handler)"
+          ],
+          "fullName": "ink stroke → save → reopen (engine path = slides:add-ink handler) addPicture with name/descr survives save + reopen and reaches render nodes",
+          "status": "passed",
+          "title": "addPicture with name/descr survives save + reopen and reaches render nodes",
+          "duration": 53.55695800000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ink stroke → save → reopen (engine path = slides:add-ink handler)"
+          ],
+          "fullName": "ink stroke → save → reopen (engine path = slides:add-ink handler) a regular image (no ink name/descr) is not recognized as an ink stroke",
+          "status": "passed",
+          "title": "a regular image (no ink name/descr) is not recognized as an ink stroke",
+          "duration": 39.0324999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985300,
+      "endTime": 1786379985395.0325,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/ink.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "shape gallery previews"
+          ],
+          "fullName": "shape gallery previews covers every gallery prst with non-empty path data",
+          "status": "passed",
+          "title": "covers every gallery prst with non-empty path data",
+          "duration": 5.803750000000036,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shape gallery previews"
+          ],
+          "fullName": "shape gallery previews renders pairwise distinct previews",
+          "status": "passed",
+          "title": "renders pairwise distinct previews",
+          "duration": 1.3766250000001037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "chart gallery previews"
+          ],
+          "fullName": "chart gallery previews renders a non-empty, distinct SVG thumb per kind",
+          "status": "passed",
+          "title": "renders a non-empty, distinct SVG thumb per kind",
+          "duration": 7.52537499999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "smartart gallery previews"
+          ],
+          "fullName": "smartart gallery previews derives non-empty, distinct previews from the engine layout",
+          "status": "passed",
+          "title": "derives non-empty, distinct previews from the engine layout",
+          "duration": 0.7547079999999369,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985616,
+      "endTime": 1786379985630.7546,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/insert-gallery.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "copy shortcuts with a DOM text selection"
+          ],
+          "fullName": "copy shortcuts with a DOM text selection does not hijack ⌘C for the slide clipboard when nothing is selected on canvas",
+          "status": "passed",
+          "title": "does not hijack ⌘C for the slide clipboard when nothing is selected on canvas",
+          "duration": 3.9452909999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copy shortcuts with a DOM text selection"
+          ],
+          "fullName": "copy shortcuts with a DOM text selection does not hijack ⌘C/⌘X for the element clipboard when shapes are selected",
+          "status": "passed",
+          "title": "does not hijack ⌘C/⌘X for the element clipboard when shapes are selected",
+          "duration": 1.1942080000000033,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copy shortcuts with a DOM text selection"
+          ],
+          "fullName": "copy shortcuts with a DOM text selection still copies the current slide / selection when the selection is collapsed",
+          "status": "passed",
+          "title": "still copies the current slide / selection when the selection is collapsed",
+          "duration": 0.6994999999999436,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copy shortcuts with a DOM text selection"
+          ],
+          "fullName": "copy shortcuts with a DOM text selection keeps non-copy shortcuts unaffected by a text selection",
+          "status": "passed",
+          "title": "keeps non-copy shortcuts unaffected by a text selection",
+          "duration": 0.31491700000003675,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copy shortcuts with a DOM text selection"
+          ],
+          "fullName": "copy shortcuts with a DOM text selection does not hijack ⌘X for slide cut while text is selected",
+          "status": "passed",
+          "title": "does not hijack ⌘X for slide cut while text is selected",
+          "duration": 0.39308299999993324,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986442,
+      "endTime": 1786379986448.393,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/keyboard-actions.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript computes evenly spaced arrangement from real geometry",
+          "status": "passed",
+          "title": "computes evenly spaced arrangement from real geometry",
+          "duration": 9.875290999999834,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript setBox errors on unknown id",
+          "status": "passed",
+          "title": "setBox errors on unknown id",
+          "duration": 0.4463749999999891,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript setBox rejects elements inside a group",
+          "status": "passed",
+          "title": "setBox rejects elements inside a group",
+          "duration": 0.14512500000000728,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript multiple setBox calls on the same element merge, later ones win",
+          "status": "passed",
+          "title": "multiple setBox calls on the same element merge, later ones win",
+          "duration": 0.5867499999999382,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript forbids sandbox-escape primitives",
+          "status": "passed",
+          "title": "forbids sandbox-escape primitives",
+          "duration": 0.30845799999997325,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript environment globals are shadowed to undefined",
+          "status": "passed",
+          "title": "environment globals are shadowed to undefined",
+          "duration": 0.19866700000011406,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript mutating els inside the script does not affect the input",
+          "status": "passed",
+          "title": "mutating els inside the script does not affect the input",
+          "duration": 0.25183400000014444,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript"
+          ],
+          "fullName": "runLayoutScript log output is collected",
+          "status": "passed",
+          "title": "log output is collected",
+          "duration": 0.14495799999986048,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "auditSlideLayout"
+          ],
+          "fullName": "auditSlideLayout clean layout passes",
+          "status": "passed",
+          "title": "clean layout passes",
+          "duration": 0.5376249999999345,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "auditSlideLayout"
+          ],
+          "fullName": "auditSlideLayout detects overlapping text",
+          "status": "passed",
+          "title": "detects overlapping text",
+          "duration": 0.12816700000007586,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "auditSlideLayout"
+          ],
+          "fullName": "auditSlideLayout detects out-of-bounds elements",
+          "status": "passed",
+          "title": "detects out-of-bounds elements",
+          "duration": 0.11695800000006784,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "auditSlideLayout"
+          ],
+          "fullName": "auditSlideLayout detects text overflow (contentHeight > box inner height)",
+          "status": "passed",
+          "title": "detects text overflow (contentHeight > box inner height)",
+          "duration": 0.15233299999999872,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "auditSlideLayout"
+          ],
+          "fullName": "auditSlideLayout decoration layers and large background blocks are excluded",
+          "status": "passed",
+          "title": "decoration layers and large background blocks are excluded",
+          "duration": 0.14175000000000182,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_layout_script tool"
+          ],
+          "fullName": "execute_layout_script tool script → atomic apply → audit passes",
+          "status": "passed",
+          "title": "script → atomic apply → audit passes",
+          "duration": 2.118332999999893,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_layout_script tool"
+          ],
+          "fullName": "execute_layout_script tool still overlapping after adjustment → audit reports the issue and requests a fix",
+          "status": "passed",
+          "title": "still overlapping after adjustment → audit reports the issue and requests a fix",
+          "duration": 0.2929999999998927,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_layout_script tool"
+          ],
+          "fullName": "execute_layout_script tool script error → isError and nothing is applied",
+          "status": "passed",
+          "title": "script error → isError and nothing is applied",
+          "duration": 0.21545799999989868,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_layout_script tool"
+          ],
+          "fullName": "execute_layout_script tool read_slide returns geometry info",
+          "status": "passed",
+          "title": "read_slide returns geometry info",
+          "duration": 0.23254099999985556,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986682,
+      "endTime": 1786379986698.2324,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/layout-tools.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "mp4 audio codec sniffing"
+          ],
+          "fullName": "mp4 audio codec sniffing finds the audio sample format and ignores video tracks",
+          "status": "passed",
+          "title": "finds the audio sample format and ignores video tracks",
+          "duration": 1.239500000000021,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "mp4 audio codec sniffing"
+          ],
+          "fullName": "mp4 audio codec sniffing flags AC-3 / E-AC-3 audio as unplayable",
+          "status": "passed",
+          "title": "flags AC-3 / E-AC-3 audio as unplayable",
+          "duration": 0.28112499999997453,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "mp4 audio codec sniffing"
+          ],
+          "fullName": "mp4 audio codec sniffing accepts PCM and Opus audio",
+          "status": "passed",
+          "title": "accepts PCM and Opus audio",
+          "duration": 0.11658299999999144,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "mp4 audio codec sniffing"
+          ],
+          "fullName": "mp4 audio codec sniffing video-only files report nothing",
+          "status": "passed",
+          "title": "video-only files report nothing",
+          "duration": 0.14949999999998909,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "mp4 audio codec sniffing"
+          ],
+          "fullName": "mp4 audio codec sniffing is safe on truncated/garbage input",
+          "status": "passed",
+          "title": "is safe on truncated/garbage input",
+          "duration": 0.17279100000007475,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379988134,
+      "endTime": 1786379988136.1729,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/mp4-audio-sniff.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "parseOutlineJson"
+          ],
+          "fullName": "parseOutlineJson parses valid JSON",
+          "status": "passed",
+          "title": "parses valid JSON",
+          "duration": 0.9948340000000826,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "parseOutlineJson"
+          ],
+          "fullName": "parseOutlineJson strips markdown fences",
+          "status": "passed",
+          "title": "strips markdown fences",
+          "duration": 0.1612920000000031,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "parseOutlineJson"
+          ],
+          "fullName": "parseOutlineJson repairs unescaped Chinese quotes inside brief (reproduces position-671-style errors)",
+          "status": "passed",
+          "title": "repairs unescaped Chinese quotes inside brief (reproduces position-671-style errors)",
+          "duration": 0.5415840000000571,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "parseOutlineJson"
+          ],
+          "fullName": "parseOutlineJson strips trailing commas",
+          "status": "passed",
+          "title": "strips trailing commas",
+          "duration": 0.08183299999996052,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "parseOutlineJson"
+          ],
+          "fullName": "parseOutlineJson normalizes curly quotes",
+          "status": "passed",
+          "title": "normalizes curly quotes",
+          "duration": 0.07637499999987085,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "parseOutlineJson"
+          ],
+          "fullName": "parseOutlineJson returns null when completely broken",
+          "status": "passed",
+          "title": "returns null when completely broken",
+          "duration": 0.13124999999990905,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "extractJsonObject / escapeBrokenStringLiterals"
+          ],
+          "fullName": "extractJsonObject / escapeBrokenStringLiterals slices from the first to the last brace",
+          "status": "passed",
+          "title": "slices from the first to the last brace",
+          "duration": 0.08924999999999272,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "extractJsonObject / escapeBrokenStringLiterals"
+          ],
+          "fullName": "extractJsonObject / escapeBrokenStringLiterals quotes inside values are escaped so it can be parsed",
+          "status": "passed",
+          "title": "quotes inside values are escaped so it can be parsed",
+          "duration": 0.26774999999997817,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379984301,
+      "endTime": 1786379984304.2678,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/outline-json.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "read_slide colors"
+          ],
+          "fullName": "read_slide colors output lines carry fill/text/stroke hex colors",
+          "status": "passed",
+          "title": "output lines carry fill/text/stroke hex colors",
+          "duration": 2.230624999999918,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "read_slide colors"
+          ],
+          "fullName": "read_slide colors dominant text color chosen by character-count majority, alpha colors normalized to 6 digits",
+          "status": "passed",
+          "title": "dominant text color chosen by character-count majority, alpha colors normalized to 6 digits",
+          "duration": 0.2902920000001359,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "read_slide colors"
+          ],
+          "fullName": "read_slide colors gradient fill yields no fill field; image elements declare unreadable color at the tail",
+          "status": "passed",
+          "title": "gradient fill yields no fill field; image elements declare unreadable color at the tail",
+          "duration": 0.14945800000009513,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "deck outline main fills"
+          ],
+          "fullName": "deck outline main fills tallies main fill colors by frequency",
+          "status": "passed",
+          "title": "tallies main fill colors by frequency",
+          "duration": 0.2723750000000109,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "deck outline main fills"
+          ],
+          "fullName": "deck outline main fills omits the main fills line when there are no readable fill colors",
+          "status": "passed",
+          "title": "omits the main fills line when there are no readable fill colors",
+          "duration": 0.11537499999985812,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "layout-script els colors"
+          ],
+          "fullName": "layout-script els colors scripts can read fill/textColor/strokeColor fields",
+          "status": "passed",
+          "title": "scripts can read fill/textColor/strokeColor fields",
+          "duration": 2.7902090000000044,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379988255,
+      "endTime": 1786379988260.7903,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/read-colors.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer renders every accepted fixture to its reopened editable golden structure",
+          "status": "passed",
+          "title": "renders every accepted fixture to its reopened editable golden structure",
+          "duration": 1479.994791,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer rejects every isolated invalid fixture at the TypeBox boundary",
+          "status": "passed",
+          "title": "rejects every isolated invalid fixture at the TypeBox boundary",
+          "duration": 22.67208299999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer appends, inserts and replaces one editable page only after save/reopen/audit",
+          "status": "passed",
+          "title": "appends, inserts and replaces one editable page only after save/reopen/audit",
+          "duration": 1189.2804580000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer renders a full-bleed ArtifactRef plus editable chart, table and SmartArt",
+          "status": "passed",
+          "title": "renders a full-bleed ArtifactRef plus editable chart, table and SmartArt",
+          "duration": 232.19945800000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer renders contain, vertical-cover and stretch image geometry from verified bytes",
+          "status": "passed",
+          "title": "renders contain, vertical-cover and stretch image geometry from verified bytes",
+          "duration": 135.5017089999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer preserves explicit text style and shape stroke defaults as editable properties",
+          "status": "passed",
+          "title": "preserves explicit text style and shape stroke defaults as editable properties",
+          "duration": 213.6405420000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer honors an explicit overlap whitelist but rejects undeclared overlap and overflow",
+          "status": "passed",
+          "title": "honors an explicit overlap whitelist but rejects undeclared overlap and overflow",
+          "duration": 380.9823750000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer rejects missing, mismatched or malformed image artifacts before rendering",
+          "status": "passed",
+          "title": "rejects missing, mismatched or malformed image artifacts before rendering",
+          "duration": 272.5356660000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer rejects every invalid append/insert/replace index before touching the source",
+          "status": "passed",
+          "title": "rejects every invalid append/insert/replace index before touching the source",
+          "duration": 203.42841700000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer detects incomplete elements, missing editable text and damaged image relationships",
+          "status": "passed",
+          "title": "detects incomplete elements, missing editable text and damaged image relationships",
+          "duration": 219.2924579999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer audits elements whose optional editable text bodies are absent after reopen",
+          "status": "passed",
+          "title": "audits elements whose optional editable text bodies are absent after reopen",
+          "duration": 250.13387499999953,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when render fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when render fails",
+          "duration": 26.66570899999988,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when candidate-open fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when candidate-open fails",
+          "duration": 90.86999999999989,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when candidate-audit fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when candidate-audit fails",
+          "duration": 156.58287500000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when candidate-audit-result fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when candidate-audit-result fails",
+          "duration": 113.24762499999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when source-save fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when source-save fails",
+          "duration": 184.68012500000077,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when clone-open fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when clone-open fails",
+          "duration": 124.67358300000069,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when clone-open-empty fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when clone-open-empty fails",
+          "duration": 49.33249999999953,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when target-render fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when target-render fails",
+          "duration": 54.3549579999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when target-move fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when target-move fails",
+          "duration": 126.14699999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when final-save fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when final-save fails",
+          "duration": 135.66541699999925,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when final-open fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when final-open fails",
+          "duration": 140.67191699999967,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when final-audit fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when final-audit fails",
+          "duration": 259.80833299999904,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "local SlidePageSpec renderer"
+          ],
+          "fullName": "local SlidePageSpec renderer leaves the original deck byte/model hash unchanged when final-audit-result fails",
+          "status": "passed",
+          "title": "leaves the original deck byte/model hash unchanged when final-audit-result fails",
+          "duration": 189.30283299999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985476,
+      "endTime": 1786379991729.3027,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slide-page-renderer.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives moveBy accumulates on the current value (multiple calls mixed with setBox)",
+          "status": "passed",
+          "title": "moveBy accumulates on the current value (multiple calls mixed with setBox)",
+          "duration": 4.413749999999709,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives resizeBy resizes relatively, result never below 1px",
+          "status": "passed",
+          "title": "resizeBy resizes relatively, result never below 1px",
+          "duration": 0.5977499999999054,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives setText string collects a text op (split into paragraphs by \\n, one run each)",
+          "status": "passed",
+          "title": "setText string collects a text op (split into paragraphs by \\n, one run each)",
+          "duration": 0.3688329999999951,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives setText passes paragraph arrays through (same flat format as set_element_text)",
+          "status": "passed",
+          "title": "setText passes paragraph arrays through (same flat format as set_element_text)",
+          "duration": 0.3368749999999636,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives setStyle collects a style patch (colors normalized to # prefix)",
+          "status": "passed",
+          "title": "setStyle collects a style patch (colors normalized to # prefix)",
+          "duration": 0.32704199999989214,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives setStyle errors on invalid color / empty patch",
+          "status": "passed",
+          "title": "setStyle errors on invalid color / empty patch",
+          "duration": 0.3712500000001455,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives setFill collects fill (none/#RRGGBB), errors on invalid values",
+          "status": "passed",
+          "title": "setFill collects fill (none/#RRGGBB), errors on invalid values",
+          "duration": 0.307166000000052,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives setStroke collects stroke (null = remove; color/width have defaults)",
+          "status": "passed",
+          "title": "setStroke collects stroke (null = remove; color/width have defaults)",
+          "duration": 0.2055000000000291,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives one script mixing multiple operations keeps edits in call order",
+          "status": "passed",
+          "title": "one script mixing multiple operations keeps edits in call order",
+          "duration": 0.5783750000000509,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives children nested in a sub-group (inGroup without groupId) are rejected by all write primitives",
+          "status": "passed",
+          "title": "children nested in a sub-group (inGroup without groupId) are rejected by all write primitives",
+          "duration": 0.7608330000002752,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives direct group children (inGroup+groupId) accept all write primitives; ops/edits carry groupId",
+          "status": "passed",
+          "title": "direct group children (inGroup+groupId) accept all write primitives; ops/edits carry groupId",
+          "duration": 0.30979200000001583,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives locked elements are rejected by all write primitives (including setBox)",
+          "status": "passed",
+          "title": "locked elements are rejected by all write primitives (including setBox)",
+          "duration": 0.31291600000031394,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives unknown id errors",
+          "status": "passed",
+          "title": "unknown id errors",
+          "duration": 0.06645900000012261,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript editing primitives"
+          ],
+          "fullName": "runLayoutScript editing primitives allows legitimate layout computation: filtering, regex, callbacks, loops, Math, computed properties",
+          "status": "passed",
+          "title": "allows legitimate layout computation: filtering, regex, callbacks, loops, Math, computed properties",
+          "duration": 1.5850420000001577,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects dynamic constructor spelling and collects no operations",
+          "status": "passed",
+          "title": "rejects dynamic constructor spelling and collects no operations",
+          "duration": 0.23795800000016243,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects element constructor chain and collects no operations",
+          "status": "passed",
+          "title": "rejects element constructor chain and collects no operations",
+          "duration": 0.12358299999959854,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects prototype chain and collects no operations",
+          "status": "passed",
+          "title": "rejects prototype chain and collects no operations",
+          "duration": 0.162166999999954,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects globalThis and collects no operations",
+          "status": "passed",
+          "title": "rejects globalThis and collects no operations",
+          "duration": 0.08429200000000492,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects fetch and collects no operations",
+          "status": "passed",
+          "title": "rejects fetch and collects no operations",
+          "duration": 0.11533400000007532,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects process and collects no operations",
+          "status": "passed",
+          "title": "rejects process and collects no operations",
+          "duration": 0.11779200000000856,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects dynamic import and collects no operations",
+          "status": "passed",
+          "title": "rejects dynamic import and collects no operations",
+          "duration": 0.12416700000039782,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary rejects Function constructor and collects no operations",
+          "status": "passed",
+          "title": "rejects Function constructor and collects no operations",
+          "duration": 0.12525000000005093,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "runLayoutScript security boundary"
+          ],
+          "fullName": "runLayoutScript security boundary computed properties may only read own JSON data or explicitly allowed methods",
+          "status": "passed",
+          "title": "computed properties may only read own JSON data or explicitly allowed methods",
+          "duration": 0.3145840000001954,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool mixed script: layout + text + style + fill + stroke all dispatched in order",
+          "status": "passed",
+          "title": "mixed script: layout + text + style + fill + stroke all dispatched in order",
+          "duration": 2.623458000000028,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool setStyle after setText in the same script: style merges onto the new text",
+          "status": "passed",
+          "title": "setStyle after setText in the same script: style merges onto the new text",
+          "duration": 0.4730830000003152,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool one failing edit does not crash the batch: failures reported honestly, successes kept",
+          "status": "passed",
+          "title": "one failing edit does not crash the batch: failures reported honestly, successes kept",
+          "duration": 0.3562920000003942,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool all operations fail → isError",
+          "status": "passed",
+          "title": "all operations fail → isError",
+          "duration": 0.19691700000021228,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool script sandbox error (e.g. locked/in-group) → isError and nothing is applied",
+          "status": "passed",
+          "title": "script sandbox error (e.g. locked/in-group) → isError and nothing is applied",
+          "duration": 0.18983299999990777,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool group child: setBox routes through editTransform (groupId + group-local px), setText carries groupId",
+          "status": "passed",
+          "title": "group child: setBox routes through editTransform (groupId + group-local px), setText carries groupId",
+          "duration": 0.8227499999998145,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool set_element_text auto-routes direct group children; nested-deep children get an ungroup hint",
+          "status": "passed",
+          "title": "set_element_text auto-routes direct group children; nested-deep children get an ungroup hint",
+          "duration": 0.29958399999986796,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool ungroup_element promotes children, applies the fresh slide, and echoes the new element list",
+          "status": "passed",
+          "title": "ungroup_element promotes children, applies the fresh slide, and echoes the new element list",
+          "duration": 0.3672500000002401,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool delete_element on a group member guides to ungroup instead of \"not found\"",
+          "status": "passed",
+          "title": "delete_element on a group member guides to ungroup instead of \"not found\"",
+          "duration": 0.13216700000020865,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "execute_slide_script tool"
+          ],
+          "fullName": "execute_slide_script tool applies layout and style primitives through the canonical script tool",
+          "status": "passed",
+          "title": "applies layout and style primitives through the canonical script tool",
+          "duration": 0.21849999999994907,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985221,
+      "endTime": 1786379985239.2185,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slide-script.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides native executor pre-cutover boundary"
+          ],
+          "fullName": "Slides native executor pre-cutover boundary wires the dormant host without exposing the Pi catalog to the production Panel yet",
+          "status": "passed",
+          "title": "wires the dormant host without exposing the Pi catalog to the production Panel yet",
+          "duration": 3.1715000000000373,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379987580,
+      "endTime": 1786379987583.1714,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slides-native-cutover-guard.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane reads live deck context through the restricted native allowlist",
+          "status": "passed",
+          "title": "reads live deck context through the restricted native allowlist",
+          "duration": 3.045541000000185,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane rejects the unregistered layout alias and an already-aborted call",
+          "status": "passed",
+          "title": "rejects the unregistered layout alias and an already-aborted call",
+          "duration": 1.011540999999852,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane inserts only a renderer-validated ArtifactRef payload",
+          "status": "passed",
+          "title": "inserts only a renderer-validated ArtifactRef payload",
+          "duration": 1.1569999999999254,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane creates an image background for one or all slides and sends it behind content",
+          "status": "passed",
+          "title": "creates an image background for one or all slides and sends it behind content",
+          "duration": 0.4493330000000242,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane keeps the existing solid-background executor in the native lane",
+          "status": "passed",
+          "title": "keeps the existing solid-background executor in the native lane",
+          "duration": 0.3711249999998927,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane commits one audited SlidePageSpec with only its scoped ArtifactRefs",
+          "status": "passed",
+          "title": "commits one audited SlidePageSpec with only its scoped ArtifactRefs",
+          "duration": 0.6654579999999441,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane reports an atomic main-process page commit failure without applying a deck",
+          "status": "passed",
+          "title": "reports an atomic main-process page commit failure without applying a deck",
+          "duration": 0.32674999999994725,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Pi native tool lane"
+          ],
+          "fullName": "Slides Pi native tool lane reports main-process image insertion and ordering failures",
+          "status": "passed",
+          "title": "reports main-process image insertion and ordering failures",
+          "duration": 0.1632919999999558,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986988,
+      "endTime": 1786379986996.1633,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slides-native-tool.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host maps a read into a provenance receipt with fresh deck context",
+          "status": "passed",
+          "title": "maps a read into a provenance receipt with fresh deck context",
+          "duration": 9.173083000000133,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host reuses the first renderer snapshot across a run and restores it",
+          "status": "passed",
+          "title": "reuses the first renderer snapshot across a run and restores it",
+          "duration": 1.2802910000000338,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host opens image ArtifactRefs in the exact document and run scope",
+          "status": "passed",
+          "title": "opens image ArtifactRefs in the exact document and run scope",
+          "duration": 0.805417000000034,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host opens nested SlidePageSpec ArtifactRefs once and forwards verified metadata",
+          "status": "passed",
+          "title": "opens nested SlidePageSpec ArtifactRefs once and forwards verified metadata",
+          "duration": 0.7035420000001977,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host fails closed on malformed arguments and invalid scoped artifacts",
+          "status": "passed",
+          "title": "fails closed on malformed arguments and invalid scoped artifacts",
+          "duration": 0.3937919999998485,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host blocks an unknown mutation outcome and a repeated run mutation",
+          "status": "passed",
+          "title": "blocks an unknown mutation outcome and a repeated run mutation",
+          "duration": 0.4816659999996773,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host rejects unknown tools, missing renderers and malformed snapshot responses",
+          "status": "passed",
+          "title": "rejects unknown tools, missing renderers and malformed snapshot responses",
+          "duration": 0.877042000000074,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host honors pre-abort and authorizes a subagent mutation against the parent run",
+          "status": "passed",
+          "title": "honors pre-abort and authorizes a subagent mutation against the parent run",
+          "duration": 0.5554160000001502,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host maps renderer not-started failures and malformed read context",
+          "status": "passed",
+          "title": "maps renderer not-started failures and malformed read context",
+          "duration": 0.5116250000000946,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host fails rollback closed on renderer errors and unexpected response kinds",
+          "status": "passed",
+          "title": "fails rollback closed on renderer errors and unexpected response kinds",
+          "duration": 0.291957999999795,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host drops an uncommitted renderer boundary and preserves optional result shapes",
+          "status": "passed",
+          "title": "drops an uncommitted renderer boundary and preserves optional result shapes",
+          "duration": 0.32887499999969805,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host maps read execution failures and unexpected execute responses without mutation metadata",
+          "status": "passed",
+          "title": "maps read execution failures and unexpected execute responses without mutation metadata",
+          "duration": 0.33766700000023775,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides main Office Tool host"
+          ],
+          "fullName": "Slides main Office Tool host fails closed when an internal rollback boundary is missing",
+          "status": "passed",
+          "title": "fails closed when an internal rollback boundary is missing",
+          "duration": 0.10075000000006185,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985735,
+      "endTime": 1786379985751.1008,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slides-office-tool-host.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter projects live context and executes reads without history metadata",
+          "status": "passed",
+          "title": "projects live context and executes reads without history metadata",
+          "duration": 2.3150409999998374,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter captures the first committed main-process snapshot for whole-run rollback",
+          "status": "passed",
+          "title": "captures the first committed main-process snapshot for whole-run rollback",
+          "duration": 0.7419589999999516,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter enforces current request and snapshot freshness before mutation",
+          "status": "passed",
+          "title": "enforces current request and snapshot freshness before mutation",
+          "duration": 0.35966599999983373,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter converts only main-validated PNG bytes into the renderer artifact map",
+          "status": "passed",
+          "title": "converts only main-validated PNG bytes into the renderer artifact map",
+          "duration": 0.31208300000002964,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter rejects unsupported tools, missing boundaries and rollback without a commit",
+          "status": "passed",
+          "title": "rejects unsupported tools, missing boundaries and rollback without a commit",
+          "duration": 0.34287499999982174,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter reports execution failures and always closes a started history batch",
+          "status": "passed",
+          "title": "reports execution failures and always closes a started history batch",
+          "duration": 0.7999999999999545,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter forwards abort state and handles history/restore failures",
+          "status": "passed",
+          "title": "forwards abort state and handles history/restore failures",
+          "duration": 0.5617919999999685,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool renderer adapter"
+          ],
+          "fullName": "Slides Office Tool renderer adapter uses the platform UUID source when no deterministic source is supplied",
+          "status": "passed",
+          "title": "uses the platform UUID source when no deterministic source is supplied",
+          "duration": 0.28829099999984464,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986866,
+      "endTime": 1786379986872.2883,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slides-office-tool-renderer-adapter.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides Office Tool narrow transport"
+          ],
+          "fullName": "Slides Office Tool narrow transport accepts exact request shapes and rejects ambient image capabilities",
+          "status": "passed",
+          "title": "accepts exact request shapes and rejects ambient image capabilities",
+          "duration": 1.2662920000000213,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool narrow transport"
+          ],
+          "fullName": "Slides Office Tool narrow transport accepts exact response variants and rejects malformed results",
+          "status": "passed",
+          "title": "accepts exact response variants and rejects malformed results",
+          "duration": 0.35654199999999037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides Office Tool narrow transport"
+          ],
+          "fullName": "Slides Office Tool narrow transport correlates webContents and closes or times out pending requests",
+          "status": "passed",
+          "title": "correlates webContents and closes or times out pending requests",
+          "duration": 3.101833000000056,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379984984,
+      "endTime": 1786379984988.1018,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slides-office-tool-transport.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Pi fake Provider to real Slides editor"
+          ],
+          "fullName": "Pi fake Provider to real Slides editor commits a native text mutation and preserves it across save and reopen",
+          "status": "passed",
+          "title": "commits a native text mutation and preserves it across save and reopen",
+          "duration": 640.598583,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Pi fake Provider to real Slides editor"
+          ],
+          "fullName": "Pi fake Provider to real Slides editor commits a whole editable page through the local renderer and reopens it",
+          "status": "passed",
+          "title": "commits a whole editable page through the local renderer and reopens it",
+          "duration": 1189.821458,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986331,
+      "endTime": 1786379988161.8215,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/slides-pi-native-e2e.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "alignment snapping computeSnap"
+          ],
+          "fullName": "alignment snapping computeSnap left edge snaps to page-left when within threshold",
+          "status": "passed",
+          "title": "left edge snaps to page-left when within threshold",
+          "duration": 1.5547919999999067,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "alignment snapping computeSnap"
+          ],
+          "fullName": "alignment snapping computeSnap center snaps to page center line",
+          "status": "passed",
+          "title": "center snaps to page center line",
+          "duration": 0.42725000000007185,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "alignment snapping computeSnap"
+          ],
+          "fullName": "alignment snapping computeSnap vertical middle snaps to page middle",
+          "status": "passed",
+          "title": "vertical middle snaps to page middle",
+          "duration": 0.2330410000000711,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "alignment snapping computeSnap"
+          ],
+          "fullName": "alignment snapping computeSnap no snap when outside threshold",
+          "status": "passed",
+          "title": "no snap when outside threshold",
+          "duration": 0.5517079999999623,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "alignment snapping computeSnap"
+          ],
+          "fullName": "alignment snapping computeSnap snaps to another element edge (right→left alignment)",
+          "status": "passed",
+          "title": "snaps to another element edge (right→left alignment)",
+          "duration": 0.17137500000001182,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "alignment snapping computeSnap"
+          ],
+          "fullName": "alignment snapping computeSnap picks nearest line among multiple",
+          "status": "passed",
+          "title": "picks nearest line among multiple",
+          "duration": 0.1482499999999618,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "equal-spacing snapping computeSpacingSnap"
+          ],
+          "fullName": "equal-spacing snapping computeSpacingSnap centering: snaps when landing between two neighbors with equal gaps on both sides",
+          "status": "passed",
+          "title": "centering: snaps when landing between two neighbors with equal gaps on both sides",
+          "duration": 0.7478329999999005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "equal-spacing snapping computeSpacingSnap"
+          ],
+          "fullName": "equal-spacing snapping computeSpacingSnap continuation: two elements on the left with gap g=100, dragged box snaps to g right of the nearest neighbor",
+          "status": "passed",
+          "title": "continuation: two elements on the left with gap g=100, dragged box snaps to g right of the nearest neighbor",
+          "duration": 0.17724999999995816,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "equal-spacing snapping computeSpacingSnap"
+          ],
+          "fullName": "equal-spacing snapping computeSpacingSnap continuation: two elements on the right with gap g, dragged box snaps to their left",
+          "status": "passed",
+          "title": "continuation: two elements on the right with gap g, dragged box snaps to their left",
+          "duration": 0.33624999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "equal-spacing snapping computeSpacingSnap"
+          ],
+          "fullName": "equal-spacing snapping computeSpacingSnap elements in a different band (no projection overlap) do not participate",
+          "status": "passed",
+          "title": "elements in a different band (no projection overlap) do not participate",
+          "duration": 0.08687499999996362,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "equal-spacing snapping computeSpacingSnap"
+          ],
+          "fullName": "equal-spacing snapping computeSpacingSnap does not snap beyond the threshold",
+          "status": "passed",
+          "title": "does not snap beyond the threshold",
+          "duration": 0.16483399999992798,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "equal-spacing snapping computeSpacingSnap"
+          ],
+          "fullName": "equal-spacing snapping computeSpacingSnap vertical equal spacing (y axis)",
+          "status": "passed",
+          "title": "vertical equal spacing (y axis)",
+          "duration": 0.14558399999998528,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "equal-spacing snapping computeSpacingSnap"
+          ],
+          "fullName": "equal-spacing snapping computeSpacingSnap overlapping elements (negative gap) produce no snapping",
+          "status": "passed",
+          "title": "overlapping elements (negative gap) produce no snapping",
+          "duration": 0.03562499999998181,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379987820,
+      "endTime": 1786379987825.1648,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/snap.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "stage fit-to-window follow"
+          ],
+          "fullName": "stage fit-to-window follow re-fits on container resize after a reading-view round trip",
+          "status": "passed",
+          "title": "re-fits on container resize after a reading-view round trip",
+          "duration": 343.2162919999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "stage fit-to-window follow"
+          ],
+          "fullName": "stage fit-to-window follow clamps a manual zoom back to fit when the container shrinks",
+          "status": "passed",
+          "title": "clamps a manual zoom back to fit when the container shrinks",
+          "duration": 184.57700000000023,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "stage fit-to-window follow"
+          ],
+          "fullName": "stage fit-to-window follow leaves a manual zoom smaller than fit alone on container resize",
+          "status": "passed",
+          "title": "leaves a manual zoom smaller than fit alone on container resize",
+          "duration": 243.80733299999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "stage fit-to-window follow"
+          ],
+          "fullName": "stage fit-to-window follow keeps a zoom above the 1.5 fit cap while it still fits the container",
+          "status": "passed",
+          "title": "keeps a zoom above the 1.5 fit cap while it still fits the container",
+          "duration": 232.04620799999975,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986954,
+      "endTime": 1786379987958.0461,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/stage-refit-follow.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts)"
+          ],
+          "fullName": "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts) missing Japanese fonts substitute to Hiragino (same family for metrics and rendering)",
+          "status": "passed",
+          "title": "missing Japanese fonts substitute to Hiragino (same family for metrics and rendering)",
+          "duration": 478.9977919999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts)"
+          ],
+          "fullName": "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts) missing Korean/Traditional-Chinese fonts substitute to same-script fonts, not Arial/Simplified Chinese",
+          "status": "passed",
+          "title": "missing Korean/Traditional-Chinese fonts substitute to same-script fonts, not Arial/Simplified Chinese",
+          "duration": 1225.3754159999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts)"
+          ],
+          "fullName": "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts) ttc parsing yields real metrics: CJK full-width 1em, Latin non-heuristic",
+          "status": "passed",
+          "title": "ttc parsing yields real metrics: CJK full-width 1em, Latin non-heuristic",
+          "duration": 0.3903330000002825,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts)"
+          ],
+          "fullName": "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts) bold picks the matching face inside the ttc (Apple SD Gothic Neo Bold)",
+          "status": "passed",
+          "title": "bold picks the matching face inside the ttc (Apple SD Gothic Neo Bold)",
+          "duration": 201.9454169999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts)"
+          ],
+          "fullName": "Japanese/Korean/Traditional-Chinese font substitution (macOS system fonts) non-CJK path is unaffected",
+          "status": "passed",
+          "title": "non-CJK path is unaffected",
+          "duration": 85.8605419999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379984549,
+      "endTime": 1786379986543.8606,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/system-fonts.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "add_table"
+          ],
+          "fullName": "add_table inserts table and fills cells row by row",
+          "status": "passed",
+          "title": "inserts table and fills cells row by row",
+          "duration": 2.986125000000129,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "add_table"
+          ],
+          "fullName": "add_table rejects invalid dimensions and out-of-range slideIndex",
+          "status": "passed",
+          "title": "rejects invalid dimensions and out-of-range slideIndex",
+          "duration": 0.3634999999999309,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit_table_cell"
+          ],
+          "fullName": "edit_table_cell replaces one cell text via IPC",
+          "status": "passed",
+          "title": "replaces one cell text via IPC",
+          "duration": 0.29795899999999165,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit_table_cell"
+          ],
+          "fullName": "edit_table_cell fails when the table/cell is missing",
+          "status": "passed",
+          "title": "fails when the table/cell is missing",
+          "duration": 0.19137499999987995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit_table_structure"
+          ],
+          "fullName": "edit_table_structure passes kind/index/before through to IPC",
+          "status": "passed",
+          "title": "passes kind/index/before through to IPC",
+          "duration": 0.1925420000000031,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "edit_table_structure"
+          ],
+          "fullName": "edit_table_structure rejects unknown kind without calling IPC",
+          "status": "passed",
+          "title": "rejects unknown kind without calling IPC",
+          "duration": 0.15354200000001583,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379986954,
+      "endTime": 1786379986958.1926,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/table-tools.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "patchThemeXml"
+          ],
+          "fullName": "patchThemeXml rewrites clrScheme (incl. sysClr slots) and latin fonts, keeps EA fonts",
+          "status": "passed",
+          "title": "rewrites clrScheme (incl. sysClr slots) and latin fonts, keeps EA fonts",
+          "duration": 49.377416999999696,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildColorMap / recolorXml (explicit color remapping)"
+          ],
+          "fullName": "buildColorMap / recolorXml (explicit color remapping) neutrals bucketed along the dk1↔lt1 axis, chromatic colors mapped to accents by frequency with luminance preserved",
+          "status": "passed",
+          "title": "neutrals bucketed along the dk1↔lt1 axis, chromatic colors mapped to accents by frequency with luminance preserved",
+          "duration": 0.48183300000027884,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildColorMap / recolorXml (explicit color remapping)"
+          ],
+          "fullName": "buildColorMap / recolorXml (explicit color remapping) light/dark variants of the same hue join one cluster (mapped to different luminances of the same accent)",
+          "status": "passed",
+          "title": "light/dark variants of the same hue join one cluster (mapped to different luminances of the same accent)",
+          "duration": 0.1972089999999298,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildColorMap / recolorXml (explicit color remapping)"
+          ],
+          "fullName": "buildColorMap / recolorXml (explicit color remapping) recolorXml only touches srgbClr val, leaves other val attributes alone",
+          "status": "passed",
+          "title": "recolorXml only touches srgbClr val, leaves other val attributes alone",
+          "duration": 0.10870800000020608,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "apply-theme round trip (bake → surgical patch → save → reopen and reparse)"
+          ],
+          "fullName": "apply-theme round trip (bake → surgical patch → save → reopen and reparse) theme + explicit color remapping survive save+reopen",
+          "status": "passed",
+          "title": "theme + explicit color remapping survive save+reopen",
+          "duration": 102.52320899999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "apply-theme round trip (bake → surgical patch → save → reopen and reparse)"
+          ],
+          "fullName": "apply-theme round trip (bake → surgical patch → save → reopen and reparse) every built-in preset has all 12 slots filled with valid hex",
+          "status": "passed",
+          "title": "every built-in preset has all 12 slots filled with valid hex",
+          "duration": 2.4819579999998496,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379985300,
+      "endTime": 1786379985455.482,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/theme.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "tiffToPng"
+          ],
+          "fullName": "tiffToPng decodes a TIFF into a valid PNG with matching dimensions",
+          "status": "passed",
+          "title": "decodes a TIFF into a valid PNG with matching dimensions",
+          "duration": 59.37087500000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "tiffToPng"
+          ],
+          "fullName": "tiffToPng returns null on garbage bytes instead of throwing",
+          "status": "passed",
+          "title": "returns null on garbage bytes instead of throwing",
+          "duration": 0.3040000000000873,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379987708,
+      "endTime": 1786379987768.304,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/tiff-decode.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Slides undo shortcut routing"
+          ],
+          "fullName": "Slides undo shortcut routing routes a cleared, untouched AI composer to deck undo",
+          "status": "passed",
+          "title": "routes a cleared, untouched AI composer to deck undo",
+          "duration": 1.7229170000000522,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides undo shortcut routing"
+          ],
+          "fullName": "Slides undo shortcut routing preserves native undo after the user types in the AI composer",
+          "status": "passed",
+          "title": "preserves native undo after the user types in the AI composer",
+          "duration": 0.13304199999993216,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Slides undo shortcut routing"
+          ],
+          "fullName": "Slides undo shortcut routing preserves native undo in ordinary inputs and editable text",
+          "status": "passed",
+          "title": "preserves native undo in ordinary inputs and editable text",
+          "duration": 0.08650000000000091,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786379988535,
+      "endTime": 1786379988537.133,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/slides/tests/undo-routing.test.ts"
+    }
+  ]
+}

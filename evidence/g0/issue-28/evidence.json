@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "commit": "1936f6b5338e20ba6c002571d0d7da6ef0f4a554",
+  "acceptanceIds": [
+    "OT-001",
+    "OT-002",
+    "OT-003",
+    "OT-004",
+    "OT-005",
+    "OTC-001",
+    "OTC-002",
+    "OTC-010"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "catalogHashes": {
+    "docs": "c7df023595cbfa4780424841dd03f18cc21156c534fb24fc6e6b225571956e82",
+    "pdf": "8981cc5f0b46f5483102d01e0dc8f2620b0c4a84db7627b47648a4e84672be9f",
+    "sheets": "0904d366ddf21423a9a01b0709d508c9cb74b620db11c8e2881fa0115d3d04a8",
+    "slides": "f97ef27d662ffd344c604b5aa427697f5b6a9fffd6e2a8dc8d9abbd4c07cfb2b"
+  },
+  "fixtureHashes": {
+    "officeCatalog": "1244db204e7c6b4da94efbd4412d054924fce587f9ee0115e1e4b18a5e8150b6"
+  },
+  "fixtureSources": {
+    "officeCatalog": "packages/agent-runtime-protocol/fixtures/office-tool-catalog-baseline.json"
+  },
+  "reportHashes": {
+    "evidence": "95874c8420ffc9123875f292d49094bf719c6f03f16dee4791009fb9d0d755b3",
+    "protocol": "c011c09fa689f2321f6aae019d54f7c03e7fe41e7348e820e8642b87f6f97f31",
+    "runtime": "d741214b5cefb35e3f44d5fe31124c194c75a085cb1af7dd278104fcb3fd6917",
+    "electron": "9593f3329903708cf7b0849e282243de0a7a9bdc0af1cd552be892a827269c06",
+    "ui": "ed1eff8ccc6d9b9c81d819d8a7ce9490238f6d095db09b7e1749e45158810742",
+    "docs": "645a2ad3b96f2a2c15845f57b7e42739b703eb9ac13b39b88bc125fd8817a23d",
+    "pdf": "240dafb3de428c8ed18e2ddec5342e3a80e59fbcf17b2693acb5338e3fe1ade3",
+    "sheets": "8e21d3c62c58a7354e054ecaa2d0ef6ccc8569e8c3da44e0c577e6a3944d59b3",
+    "slides": "19753942848bd82018d7d4ffd0cf7d5c30e69bf129ae16e3c8586ded665081cd",
+    "shell": "d913ebc4144314aefb68880bbb17ba7627ef2b17d714d8a23b5aa66476395ab5"
+  },
+  "receipts": [
+    {
+      "name": "officeReceipts",
+      "path": "evidence/g0/issue-28/receipts/officeReceipts.json",
+      "sha256": "13e882de2f3c09f6f060b2b594ad92ec5ea5fb517506f0aca083d91f337335dc",
+      "count": 4
+    }
+  ],
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint -- --quiet",
+    "npm run format:check",
+    "npm run build:all",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "evidence",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/evidence.json"
+    },
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/protocol.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/runtime.json"
+    },
+    {
+      "suite": "electron",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/electron.json"
+    },
+    {
+      "suite": "ui",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/ui.json"
+    },
+    {
+      "suite": "docs",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/docs.json"
+    },
+    {
+      "suite": "pdf",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/pdf.json"
+    },
+    {
+      "suite": "sheets",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/sheets.json"
+    },
+    {
+      "suite": "slides",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/slides.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g0/issue-28/reports/shell.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

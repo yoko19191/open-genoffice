@@ -1,0 +1,349 @@
+{
+  "numTotalTestSuites": 4,
+  "numPassedTestSuites": 4,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 25,
+  "numPassedTests": 25,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786382882030,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController rolls back only the latest committed Office run and clears the one-click action",
+          "status": "passed",
+          "title": "rolls back only the latest committed Office run and clears the one-click action",
+          "duration": 2.32133300000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController subscribes before connect and folds events arriving during the snapshot handshake once",
+          "status": "passed",
+          "title": "subscribes before connect and folds events arriving during the snapshot handshake once",
+          "duration": 52.809999999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController sends only session-bound prompt and active-run abort commands",
+          "status": "passed",
+          "title": "sends only session-bound prompt and active-run abort commands",
+          "duration": 0.7617089999999962,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController grants, denies and revokes only authoritative projected Mutation Grant requests",
+          "status": "passed",
+          "title": "grants, denies and revokes only authoritative projected Mutation Grant requests",
+          "duration": 0.8624169999999935,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController answers only a projected pending question and never supplies a renderer receipt",
+          "status": "passed",
+          "title": "answers only a projected pending question and never supplies a renderer receipt",
+          "duration": 0.6000000000000227,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController rejects empty prompts and aborts without an active run, then disconnects cleanly",
+          "status": "passed",
+          "title": "rejects empty prompts and aborts without an active run, then disconnects cleanly",
+          "duration": 0.49225000000001273,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController resumes only a resumable child from the authoritative projection",
+          "status": "passed",
+          "title": "resumes only a resumable child from the authoritative projection",
+          "duration": 0.3929170000000113,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController reconnects from the last authoritative cursor and ignores already-snapshotted queued events",
+          "status": "passed",
+          "title": "reconnects from the last authoritative cursor and ignores already-snapshotted queued events",
+          "duration": 0.216542000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController clears handshake state after connect failure and fails closed on a stale reconnect snapshot",
+          "status": "passed",
+          "title": "clears handshake state after connect failure and fails closed on a stale reconnect snapshot",
+          "duration": 0.46712500000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController uses the browser UUID source, immediately publishes an existing snapshot, and removes subscribers",
+          "status": "passed",
+          "title": "uses the browser UUID source, immediately publishes an existing snapshot, and removes subscribers",
+          "duration": 1.041499999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController allows abort while a run is queued",
+          "status": "passed",
+          "title": "allows abort while a run is queued",
+          "duration": 0.1875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "AgentSessionController"
+          ],
+          "fullName": "AgentSessionController allows abort while a run is cancelling",
+          "status": "passed",
+          "title": "allows abort while a run is cancelling",
+          "duration": 0.0731249999999477,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786382882249,
+      "endTime": 1786382882309.1875,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/ui/tests/agent-session-controller.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection restores and updates a stable Subagent run tree without provider metadata",
+          "status": "passed",
+          "title": "restores and updates a stable Subagent run tree without provider metadata",
+          "duration": 1.7774579999999958,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection projects Mutation Grant requests and replaces only the matching receipt state",
+          "status": "passed",
+          "title": "projects Mutation Grant requests and replaces only the matching receipt state",
+          "duration": 0.4977909999999781,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection restores pending user questions and removes them only after a validated terminal event",
+          "status": "passed",
+          "title": "restores pending user questions and removes them only after a validated terminal event",
+          "duration": 0.19408300000000622,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection adds and replaces pending user questions while ignoring an unknown terminal update",
+          "status": "passed",
+          "title": "adds and replaces pending user questions while ignoring an unknown terminal update",
+          "duration": 0.25183300000000486,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection renders native message, thinking, tool, and run events in journal order",
+          "status": "passed",
+          "title": "renders native message, thinking, tool, and run events in journal order",
+          "duration": 0.4249580000000037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection keeps only validated platform details on the matching tool row",
+          "status": "passed",
+          "title": "keeps only validated platform details on the matching tool row",
+          "duration": 0.5611250000000041,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection ignores exact duplicates, rejects gaps and cross-document events, and bounds dedupe state",
+          "status": "passed",
+          "title": "ignores exact duplicates, rejects gaps and cross-document events, and bounds dedupe state",
+          "duration": 0.7907079999999951,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection projects terminal failures, implicit stream starts, and missing optional payload fields safely",
+          "status": "passed",
+          "title": "projects terminal failures, implicit stream starts, and missing optional payload fields safely",
+          "duration": 0.2174579999999935,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection maps run.failed to the visible run state",
+          "status": "passed",
+          "title": "maps run.failed to the visible run state",
+          "duration": 0.3457919999999888,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection maps run.interrupted to the visible run state",
+          "status": "passed",
+          "title": "maps run.interrupted to the visible run state",
+          "duration": 0.07687500000000114,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection uses safe fallbacks for absent renderer payload fields",
+          "status": "passed",
+          "title": "uses safe fallbacks for absent renderer payload fields",
+          "duration": 0.19829099999998334,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection projects failed compaction and branch navigation without optional identifiers",
+          "status": "passed",
+          "title": "projects failed compaction and branch navigation without optional identifiers",
+          "duration": 0.0573750000000075,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "shared AI Panel Session projection"
+          ],
+          "fullName": "shared AI Panel Session projection replaces renderer state from a reconnect snapshot before applying newer events",
+          "status": "passed",
+          "title": "replaces renderer state from a reconnect snapshot before applying newer events",
+          "duration": 0.07949999999999591,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786382882248,
+      "endTime": 1786382882254.1982,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/ui/tests/agent-session-projection.test.ts"
+    }
+  ]
+}

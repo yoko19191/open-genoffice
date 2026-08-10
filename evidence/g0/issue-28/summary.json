@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "commit": "1936f6b5338e20ba6c002571d0d7da6ef0f4a554",
+  "status": "passed",
+  "acceptanceIds": [
+    "OT-001",
+    "OT-002",
+    "OT-003",
+    "OT-004",
+    "OT-005",
+    "OTC-001",
+    "OTC-002",
+    "OTC-010"
+  ],
+  "coverage": {
+    "OT-001": [
+      "evidence/g0/issue-28/evidence.json"
+    ],
+    "OT-002": [
+      "evidence/g0/issue-28/evidence.json"
+    ],
+    "OT-003": [
+      "evidence/g0/issue-28/evidence.json"
+    ],
+    "OT-004": [
+      "evidence/g0/issue-28/evidence.json"
+    ],
+    "OT-005": [
+      "evidence/g0/issue-28/evidence.json"
+    ],
+    "OTC-001": [
+      "evidence/g0/issue-28/evidence.json"
+    ],
+    "OTC-002": [
+      "evidence/g0/issue-28/evidence.json"
+    ],
+    "OTC-010": [
+      "evidence/g0/issue-28/evidence.json"
+    ]
+  },
+  "catalog": {
+    "path": "packages/agent-runtime-protocol/fixtures/office-tool-catalog-baseline.json",
+    "sha256": "1244db204e7c6b4da94efbd4412d054924fce587f9ee0115e1e4b18a5e8150b6",
+    "entries": 63,
+    "officeExecutors": 46,
+    "reclassified": 15,
+    "retiredAliases": 2
+  },
+  "catalogHashes": {
+    "docs": "c7df023595cbfa4780424841dd03f18cc21156c534fb24fc6e6b225571956e82",
+    "pdf": "8981cc5f0b46f5483102d01e0dc8f2620b0c4a84db7627b47648a4e84672be9f",
+    "sheets": "0904d366ddf21423a9a01b0709d508c9cb74b620db11c8e2881fa0115d3d04a8",
+    "slides": "f97ef27d662ffd344c604b5aa427697f5b6a9fffd6e2a8dc8d9abbd4c07cfb2b"
+  },
+  "receipts": {
+    "checked": 4,
+    "unknown": 0
+  },
+  "manifests": [
+    {
+      "path": "evidence/g0/issue-28/evidence.json",
+      "sha256": "c34c1a5c04bb698eb5809c4637319bd58859517910b62dffcc9ad43e37f0c606",
+      "platform": "macos",
+      "arch": "arm64"
+    }
+  ],
+  "redactionCheck": "passed"
+}
