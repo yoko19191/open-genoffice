@@ -11,13 +11,16 @@ import {
   SCHEMA_VERSION,
   parseCredentialBrokerRequest,
   type BootstrapRecord,
+  type MutationGrantProjection,
   type ProtocolEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
 import {
   createAuthenticatedRuntimeServer,
   createSessionRegistry,
+  MutationGrantRegistryError,
   resolveSubagentToolDescriptor,
+  type SessionMutationGrantRegistry,
 } from '../src'
 import { ResourceActivationStore, initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { OpenGenOfficeMcpConfigResolver } from '../src/mcp-config-resolver'
@@ -836,6 +839,10 @@ describe('authenticated Runtime socket', () => {
           'session.prompt',
           'session.abort',
           'session.subagent.resume',
+          'session.mutation-grant.issue',
+          'session.mutation-grant.deny',
+          'session.mutation-grant.revoke',
+          'session.mutation-grant.revoke-document',
           'session.fork',
           'session.navigate',
           'session.snapshot',
@@ -1003,7 +1010,70 @@ describe('authenticated Runtime socket', () => {
   it('carries create, prompt, snapshot, subscribe, idempotency, and document errors over one socket', async () => {
     const socketPath = await endpoint()
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-runtime-session-e2e-'))
+    const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
     let uuid = 0
+    let grantSessionId = ''
+    let grantListener: Parameters<SessionMutationGrantRegistry['onEvent']>[0] = () => {}
+    let grantProjections: MutationGrantProjection[] = [
+      {
+        requestId: 'grant-request-1',
+        subagentRunId: 'subagent-run-1',
+        role: 'Reviewer',
+        exactToolIds: ['office:docs:insert_content'],
+        requestedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'pending',
+      },
+      {
+        requestId: 'grant-request-2',
+        subagentRunId: 'subagent-run-1',
+        role: 'Reviewer',
+        exactToolIds: ['office:docs:replace_blocks'],
+        requestedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'pending',
+      },
+    ]
+    const emitGrant = (projection: MutationGrantProjection) => {
+      grantProjections = grantProjections.map((candidate) =>
+        candidate.requestId === projection.requestId ? projection : candidate,
+      )
+      grantListener({ parentSessionId: grantSessionId, documentId, projection })
+      return projection
+    }
+    const revokeForDocument = vi.fn(async () => undefined)
+    const mutationGrants: SessionMutationGrantRegistry = {
+      onEvent: (listener) => {
+        grantListener = listener
+        return () => {
+          grantListener = () => {}
+        }
+      },
+      listForSession: () => structuredClone(grantProjections),
+      issue: vi.fn(async (requestId, receipt) =>
+        emitGrant({
+          ...grantProjections.find((candidate) => candidate.requestId === requestId)!,
+          grantId: receipt.grantId,
+          expiresAt: receipt.expiresAt,
+          status: 'active',
+        }),
+      ),
+      deny: vi.fn(async (requestId) =>
+        emitGrant({
+          ...grantProjections.find((candidate) => candidate.requestId === requestId)!,
+          status: 'denied',
+        }),
+      ),
+      revoke: vi.fn(async (grantId) =>
+        emitGrant({
+          ...grantProjections.find((candidate) => candidate.grantId === grantId)!,
+          status: 'revoked',
+        }),
+      ),
+      revokeForRun: vi.fn(async () => undefined),
+      revokeForParentRun: vi.fn(async () => undefined),
+      revokeForDocument,
+    }
     const registry = createSessionRegistry({
       dataRoot,
       instanceId: 'instance-session',
@@ -1013,6 +1083,7 @@ describe('authenticated Runtime socket', () => {
         return `${String(uuid).padStart(8, '0')}-0000-4000-8000-000000000000`
       },
       now: () => new Date('2026-08-09T12:00:00.000Z'),
+      mutationGrants,
     })
     const runtime = await createAuthenticatedRuntimeServer({
       bootstrap: bootstrap(socketPath),
@@ -1052,6 +1123,88 @@ describe('authenticated Runtime socket', () => {
     })
     const sessionId = (created as ResponseEnvelope & { result: { sessionId: string } }).result
       .sessionId
+    grantSessionId = sessionId
+
+    const grantReceipt = {
+      grantId: 'grant-1',
+      subagentRunId: 'subagent-run-1',
+      documentId,
+      exactToolIds: ['office:docs:insert_content'],
+      issuedByUserActionId: 'user-action-1',
+      issuedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'active',
+    }
+    for (const [method, params, expectedStatus] of [
+      [
+        'session.mutation-grant.issue',
+        { requestId: 'grant-request-1', receipt: grantReceipt },
+        'active',
+      ],
+      [
+        'session.mutation-grant.deny',
+        { requestId: 'grant-request-2', userActionId: 'user-action-2' },
+        'denied',
+      ],
+      [
+        'session.mutation-grant.revoke',
+        { grantId: 'grant-1', userActionId: 'user-action-3' },
+        'revoked',
+      ],
+    ] as const) {
+      client.write(
+        `${request(
+          method,
+          { operationId: randomUUID(), sessionId, documentId, ...params },
+          method,
+        )}\n`,
+      )
+      await reader.next(
+        (frame) => frame.kind === 'event' && frame.type === 'mutation-grant.updated',
+      )
+      expect(
+        await reader.next((frame) => frame.kind === 'response' && frame.id === method),
+      ).toMatchObject({ result: { grant: { status: expectedStatus } } })
+    }
+    client.write(
+      `${request(
+        'session.mutation-grant.revoke-document',
+        { operationId: randomUUID(), sessionId, documentId },
+        'grant-revoke-document',
+      )}\n`,
+    )
+    expect(
+      await reader.next(
+        (frame) => frame.kind === 'response' && frame.id === 'grant-revoke-document',
+      ),
+    ).toMatchObject({ result: { revoked: true } })
+    expect(revokeForDocument).toHaveBeenCalledWith(documentId, 'document_closed')
+    for (const [error, code] of [
+      [new MutationGrantRegistryError('mutation_grant_denied'), 'mutation_grant_denied'],
+      [new MutationGrantRegistryError('mutation_grant_receipt_invalid'), 'mutation_grant_invalid'],
+      [new Error('private failure'), 'internal_error'],
+    ] as const) {
+      mutationGrants.revoke = vi.fn(async () => {
+        throw error
+      })
+      const id = `grant-error-${code}`
+      client.write(
+        `${request(
+          'session.mutation-grant.revoke',
+          {
+            operationId: randomUUID(),
+            sessionId,
+            documentId,
+            grantId: 'grant-1',
+            userActionId: 'user-action-error',
+          },
+          id,
+        )}\n`,
+      )
+      expect(
+        await reader.next((frame) => frame.kind === 'response' && frame.id === id),
+      ).toMatchObject({ error: { code } })
+    }
 
     client.write(
       `${request(
@@ -1074,9 +1227,8 @@ describe('authenticated Runtime socket', () => {
     const completed = await reader.next(
       (frame) => frame.kind === 'event' && frame.type === 'run.completed',
     )
-    expect(
-      [queued, completed].map((frame) => (frame.kind === 'event' ? frame.sequence : 0)),
-    ).toEqual([2, expect.any(Number)])
+    expect(queued).toMatchObject({ kind: 'event', sequence: 5 })
+    expect(completed.kind === 'event' && completed.sequence).toBeGreaterThan(5)
     expect(promptReceipt).toMatchObject({ kind: 'response', result: { runId: expect.any(String) } })
 
     client.write(

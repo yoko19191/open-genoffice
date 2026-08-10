@@ -9,7 +9,9 @@ import type {
   SessionNavigateReceipt,
   SessionPromptReceipt,
   SessionSubagentResumeReceipt,
+  SessionMutationGrantReceipt,
   SessionSubscriptionReceipt,
+  MutationGrantReceipt,
 } from '@genoffice/agent-runtime-protocol'
 
 export type AgentSessionTransport = {
@@ -46,6 +48,32 @@ export type AgentSessionTransport = {
     documentId: string
     runId: string
   }): Promise<SessionSubagentResumeReceipt>
+  issueMutationGrant(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+    requestId: string
+    receipt: MutationGrantReceipt
+  }): Promise<SessionMutationGrantReceipt>
+  denyMutationGrant(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+    requestId: string
+    userActionId: string
+  }): Promise<SessionMutationGrantReceipt>
+  revokeMutationGrant(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+    grantId: string
+    userActionId: string
+  }): Promise<SessionMutationGrantReceipt>
+  revokeDocumentMutationGrants(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+  }): Promise<{ revoked: true }>
   forkSession(input: {
     operationId: string
     sessionId: string
@@ -74,6 +102,9 @@ export type AgentSessionBrokerOptions<ClientId> = {
       sessionId: string,
     ): Promise<unknown>
   }
+  now?: () => Date
+  mutationGrantTtlMs?: number
+  trustedGestureTtlMs?: number
 }
 
 type SessionStream = {
@@ -102,12 +133,33 @@ export class AgentSessionBroker<ClientId = number> {
   private readonly replayWindowSize: number
   private listenPromise: Promise<void> | undefined
   private unsubscribe: (() => void) | undefined
+  private readonly now: () => Date
+  private readonly mutationGrantTtlMs: number
+  private readonly trustedGestureTtlMs: number
+  private readonly trustedGestures = new Map<
+    ClientId,
+    { userActionId: string; expiresAt: number }
+  >()
 
   constructor(
     private readonly transport: AgentSessionTransport,
     private readonly options: AgentSessionBrokerOptions<ClientId>,
   ) {
     this.replayWindowSize = Math.max(1, options.replayWindowSize ?? 512)
+    this.now = options.now ?? (() => new Date())
+    this.mutationGrantTtlMs = Math.max(1_000, options.mutationGrantTtlMs ?? 5 * 60 * 1_000)
+    this.trustedGestureTtlMs = Math.max(100, options.trustedGestureTtlMs ?? 1_500)
+  }
+
+  recordTrustedUserGesture(clientId: ClientId, input: { type: string; key?: string }): void {
+    const activates =
+      input.type === 'mouseUp' ||
+      (input.type === 'keyUp' && (input.key === 'Enter' || input.key === ' '))
+    if (!activates) return
+    this.trustedGestures.set(clientId, {
+      userActionId: this.options.randomUUID(),
+      expiresAt: this.now().getTime() + this.trustedGestureTtlMs,
+    })
   }
 
   async connect(
@@ -181,6 +233,7 @@ export class AgentSessionBroker<ClientId = number> {
     | SessionPromptReceipt
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
+    | SessionMutationGrantReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
   > {
@@ -222,6 +275,44 @@ export class AgentSessionBroker<ClientId = number> {
         runId: command.runId,
       })
     }
+    if (command.type === 'grantMutation') {
+      const userActionId = this.consumeTrustedUserGesture(clientId)
+      const issuedAt = this.now()
+      return this.transport.issueMutationGrant({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        requestId: command.requestId,
+        receipt: {
+          grantId: this.options.randomUUID(),
+          subagentRunId: command.subagentRunId,
+          documentId: command.documentId,
+          exactToolIds: [...command.exactToolIds],
+          issuedByUserActionId: userActionId,
+          issuedAt: issuedAt.toISOString(),
+          expiresAt: new Date(issuedAt.getTime() + this.mutationGrantTtlMs).toISOString(),
+          status: 'active',
+        },
+      })
+    }
+    if (command.type === 'denyMutation') {
+      return this.transport.denyMutationGrant({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        requestId: command.requestId,
+        userActionId: this.consumeTrustedUserGesture(clientId),
+      })
+    }
+    if (command.type === 'revokeMutation') {
+      return this.transport.revokeMutationGrant({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        grantId: command.grantId,
+        userActionId: this.consumeTrustedUserGesture(clientId),
+      })
+    }
     if (command.type === 'navigate') {
       const receipt = await this.transport.navigateSession({
         operationId: command.operationId,
@@ -253,15 +344,46 @@ export class AgentSessionBroker<ClientId = number> {
   }
 
   disconnect(clientId: ClientId): void {
+    const connection = this.connections.get(clientId)
     this.connections.delete(clientId)
+    this.trustedGestures.delete(clientId)
+    if (connection) {
+      void this.transport
+        .revokeDocumentMutationGrants({
+          operationId: this.options.randomUUID(),
+          sessionId: connection.sessionId,
+          documentId: connection.documentId,
+        })
+        .catch(() => undefined)
+    }
   }
 
   async close(): Promise<void> {
+    const connections = [...this.connections.values()]
     this.connections.clear()
+    this.trustedGestures.clear()
+    await Promise.allSettled(
+      connections.map((connection) =>
+        this.transport.revokeDocumentMutationGrants({
+          operationId: this.options.randomUUID(),
+          sessionId: connection.sessionId,
+          documentId: connection.documentId,
+        }),
+      ),
+    )
     this.streams.clear()
     await this.listenPromise
     this.unsubscribe?.()
     this.unsubscribe = undefined
+  }
+
+  private consumeTrustedUserGesture(clientId: ClientId): string {
+    const gesture = this.trustedGestures.get(clientId)
+    this.trustedGestures.delete(clientId)
+    if (!gesture || this.now().getTime() > gesture.expiresAt) {
+      throw new Error('trusted_user_gesture_required')
+    }
+    return gesture.userActionId
   }
 
   private async ensureListening(): Promise<void> {

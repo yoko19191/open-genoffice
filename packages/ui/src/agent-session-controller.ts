@@ -7,6 +7,7 @@ import type {
   SessionNavigateReceipt,
   SessionPromptReceipt,
   SessionSubagentResumeReceipt,
+  SessionMutationGrantReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import {
   applyAgentSessionEvent,
@@ -23,6 +24,7 @@ export interface AgentSessionClient {
     | SessionPromptReceipt
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
+    | SessionMutationGrantReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
   >
@@ -143,6 +145,53 @@ export class AgentSessionController {
       documentId: projection.documentId,
       runId,
     })) as SessionSubagentResumeReceipt
+  }
+
+  async grantMutation(requestId: string): Promise<SessionMutationGrantReceipt> {
+    const projection = this.requireProjection()
+    const request = projection.mutationGrants.find(
+      (candidate) => candidate.requestId === requestId && candidate.status === 'pending',
+    )
+    if (!request) throw new Error('mutation_grant_request_not_pending')
+    return (await this.client.command({
+      type: 'grantMutation',
+      operationId: this.randomUUID(),
+      sessionId: projection.sessionId,
+      documentId: projection.documentId,
+      requestId: request.requestId,
+      subagentRunId: request.subagentRunId,
+      exactToolIds: [...request.exactToolIds],
+    })) as SessionMutationGrantReceipt
+  }
+
+  async denyMutation(requestId: string): Promise<SessionMutationGrantReceipt> {
+    const projection = this.requireProjection()
+    const request = projection.mutationGrants.find(
+      (candidate) => candidate.requestId === requestId && candidate.status === 'pending',
+    )
+    if (!request) throw new Error('mutation_grant_request_not_pending')
+    return (await this.client.command({
+      type: 'denyMutation',
+      operationId: this.randomUUID(),
+      sessionId: projection.sessionId,
+      documentId: projection.documentId,
+      requestId: request.requestId,
+    })) as SessionMutationGrantReceipt
+  }
+
+  async revokeMutation(grantId: string): Promise<SessionMutationGrantReceipt> {
+    const projection = this.requireProjection()
+    const grant = projection.mutationGrants.find(
+      (candidate) => candidate.grantId === grantId && candidate.status === 'active',
+    )
+    if (!grant) throw new Error('mutation_grant_not_active')
+    return (await this.client.command({
+      type: 'revokeMutation',
+      operationId: this.randomUUID(),
+      sessionId: projection.sessionId,
+      documentId: projection.documentId,
+      grantId,
+    })) as SessionMutationGrantReceipt
   }
 
   disconnect(): void {

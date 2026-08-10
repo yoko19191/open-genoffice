@@ -5,9 +5,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import type { MutationGrantProjection } from '@genoffice/agent-runtime-protocol'
 import { CapabilitySnapshotError, createCapabilitySnapshot } from '@genoffice/agent-resource'
 import { RuntimeSessionError, createSessionRegistry } from '../src'
 import type {
+  SessionMutationGrantRegistry,
   SessionSubagentCoordinator,
   SubagentCoordinatorEvent,
   SubagentRunProjection,
@@ -82,6 +84,124 @@ function fakePiSession(options: {
 }
 
 describe('document-bound Pi Session registry', () => {
+  it('projects Mutation Grants and routes exact issue and document revocation through the Session', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-mutation-grant-'))
+    roots.push(dataRoot)
+    let listener: Parameters<SessionMutationGrantRegistry['onEvent']>[0] = () => {}
+    const pending = {
+      requestId: 'grant-request-1',
+      subagentRunId: 'subagent-run-1',
+      role: 'Reviewer',
+      exactToolIds: ['office:docs:insert_content'],
+      requestedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'pending' as const,
+    }
+    let grants: MutationGrantProjection[] = [pending]
+    const revokeForDocument = vi.fn(async () => undefined)
+    const mutationGrants: SessionMutationGrantRegistry = {
+      onEvent: (next) => {
+        listener = next
+        return () => {
+          listener = () => {}
+        }
+      },
+      listForSession: () => structuredClone(grants),
+      issue: vi.fn(async (_requestId, receipt) => {
+        const active = {
+          ...pending,
+          grantId: receipt.grantId,
+          expiresAt: receipt.expiresAt,
+          status: 'active' as const,
+        }
+        grants = [active]
+        listener({ parentSessionId: sessionId, documentId, projection: active })
+        return active
+      }),
+      deny: vi.fn(),
+      revoke: vi.fn(),
+      revokeForRun: vi.fn(async () => undefined),
+      revokeForParentRun: vi.fn(async () => undefined),
+      revokeForDocument,
+    }
+    const fake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-mutation-grant',
+      cursorSecret: Buffer.alloc(32, 46),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+      mutationGrants,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const sessionId = created.sessionId
+    expect(created.snapshot.mutationGrants).toEqual([pending])
+    const receipt = {
+      grantId: 'grant-1',
+      subagentRunId: 'subagent-run-1',
+      documentId,
+      exactToolIds: ['office:docs:insert_content'],
+      issuedByUserActionId: 'user-action-1',
+      issuedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'active' as const,
+    }
+    for (const [suffix, requestId, candidateReceipt] of [
+      ['missing', 'missing-request', receipt],
+      ['wrong-run', pending.requestId, { ...receipt, subagentRunId: 'other-run' }],
+      [
+        'wrong-document',
+        pending.requestId,
+        { ...receipt, documentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1' },
+      ],
+    ] as const) {
+      await expect(
+        registry.issueMutationGrant({
+          operationId: `invalid-${suffix}`,
+          sessionId,
+          documentId,
+          requestId,
+          receipt: candidateReceipt,
+        }),
+      ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    }
+    await expect(
+      registry.issueMutationGrant({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId,
+        documentId,
+        requestId: pending.requestId,
+        receipt,
+      }),
+    ).resolves.toMatchObject({
+      sessionId,
+      documentId,
+      grant: { grantId: 'grant-1', status: 'active' },
+    })
+    await expect(
+      registry.issueMutationGrant({
+        operationId: 'active-request-cannot-reissue',
+        sessionId,
+        documentId,
+        requestId: pending.requestId,
+        receipt,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    await expect(registry.snapshot({ sessionId, documentId })).resolves.toMatchObject({
+      mutationGrants: [{ grantId: 'grant-1', status: 'active' }],
+    })
+    await expect(
+      registry.revokeDocumentMutationGrants({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId,
+        documentId,
+      }),
+    ).resolves.toEqual({ revoked: true })
+    expect(revokeForDocument).toHaveBeenCalledWith(documentId, 'document_closed')
+    await registry.shutdown()
+  })
+
   it('journals safe Subagent projections, resumes one attempt, and attaches parent Stop', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-subagent-'))
     roots.push(dataRoot)

@@ -4,8 +4,12 @@ import type {
   SessionMessageProjection,
   SessionSnapshot,
   SubagentRunProjection,
+  MutationGrantProjection,
 } from '@genoffice/agent-runtime-protocol'
-import { parseSubagentRunProjection } from '@genoffice/agent-runtime-protocol'
+import {
+  parseMutationGrantProjection,
+  parseSubagentRunProjection,
+} from '@genoffice/agent-runtime-protocol'
 
 export type AgentPanelTool = {
   toolCallId: string
@@ -20,6 +24,7 @@ export type AgentSessionProjection = {
   thinking?: { text: string; streaming: boolean }
   tools: AgentPanelTool[]
   subagents: SubagentRunProjection[]
+  mutationGrants: MutationGrantProjection[]
   compaction?: {
     state: 'running' | 'completed' | 'failed'
     tokensBefore?: number
@@ -98,6 +103,15 @@ function subagentProjection(event: EventEnvelope): SubagentRunProjection | undef
   }
 }
 
+function mutationGrantProjection(event: EventEnvelope): MutationGrantProjection | undefined {
+  if (event.type !== 'mutation-grant.updated') return undefined
+  try {
+    return parseMutationGrantProjection(event.payload)
+  } catch {
+    return undefined
+  }
+}
+
 export function createAgentSessionProjection(snapshot: SessionSnapshot): AgentSessionProjection {
   return {
     sessionId: snapshot.sessionId,
@@ -105,6 +119,7 @@ export function createAgentSessionProjection(snapshot: SessionSnapshot): AgentSe
     messages: structuredClone(snapshot.messages),
     tools: [],
     subagents: structuredClone(snapshot.subagents ?? []),
+    mutationGrants: structuredClone(snapshot.mutationGrants ?? []),
     ...(snapshot.activeRun ? { activeRun: { ...snapshot.activeRun } } : {}),
     lastSequence: snapshot.lastSequence,
     cursor: snapshot.cursor,
@@ -136,6 +151,7 @@ export function applyAgentSessionEvent(
     messages: [...projection.messages],
     tools: [...projection.tools],
     subagents: [...projection.subagents],
+    mutationGrants: [...projection.mutationGrants],
     lastSequence: event.sequence,
     cursor: event.cursor,
     recentEventIds: [...projection.recentEventIds, event.eventId].slice(-EVENT_DEDUPE_WINDOW),
@@ -152,6 +168,15 @@ export function applyAgentSessionEvent(
     const index = next.subagents.findIndex((candidate) => candidate.runId === nextSubagent.runId)
     if (index === -1) next.subagents.push(nextSubagent)
     else next.subagents[index] = nextSubagent
+  }
+
+  const nextGrant = mutationGrantProjection(event)
+  if (nextGrant) {
+    const index = next.mutationGrants.findIndex(
+      (candidate) => candidate.requestId === nextGrant.requestId,
+    )
+    if (index === -1) next.mutationGrants.push(nextGrant)
+    else next.mutationGrants[index] = nextGrant
   }
 
   if (event.type === 'message.started') {

@@ -107,6 +107,19 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
     })
   }
 
+  const decideMutationGrant = (action: 'grant' | 'deny' | 'revoke', id: string): void => {
+    setConnectionError(undefined)
+    const operation =
+      action === 'grant'
+        ? controller.grantMutation(id)
+        : action === 'deny'
+          ? controller.denyMutation(id)
+          : controller.revokeMutation(id)
+    void operation.catch((error: unknown) => {
+      setConnectionError(error instanceof Error ? error.message : 'mutation_grant_failed')
+    })
+  }
+
   const onChatScroll = (): void => {
     const element = chatRef.current
     if (!element) return
@@ -219,6 +232,17 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
             onResume={resumeSubagent}
           />
         )}
+        {(projection?.mutationGrants.length ?? 0) > 0 && (
+          <MutationGrantList
+            grants={projection!.mutationGrants}
+            documentId={projection!.documentId}
+            approveLabel={t('ok')}
+            denyLabel={t('cancel')}
+            onGrant={(requestId) => decideMutationGrant('grant', requestId)}
+            onDeny={(requestId) => decideMutationGrant('deny', requestId)}
+            onRevoke={(grantId) => decideMutationGrant('revoke', grantId)}
+          />
+        )}
         {errorCode && <div className="ai-msg ai-msg-assistant ai-msg-error">{errorCode}</div>}
         {busy && <AiTypingIndicator label={typingLabel} />}
       </div>
@@ -242,6 +266,74 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
         />
       </div>
     </aside>
+  )
+}
+
+function MutationGrantList({
+  grants,
+  documentId,
+  approveLabel,
+  denyLabel,
+  onGrant,
+  onDeny,
+  onRevoke,
+}: {
+  grants: AgentSessionProjection['mutationGrants']
+  documentId: string
+  approveLabel: string
+  denyLabel: string
+  onGrant: (requestId: string) => void
+  onDeny: (requestId: string) => void
+  onRevoke: (grantId: string) => void
+}): ReactElement {
+  return (
+    <div className="ai-work-group" data-testid="mutation-grant-list">
+      <div className="ai-work-group-body open">
+        <div className="ai-work-group-body-inner">
+          {grants.map((grant) => (
+            <div key={grant.requestId} className="ai-step-row">
+              <span className={`ai-step-icon ${grant.status}`} aria-hidden>
+                ·
+              </span>
+              <div className="ai-step-content">
+                <span className="ai-step-title">{grant.role}</span>
+                <span className="ai-step-desc">
+                  {grant.subagentRunId} · {documentId} · {grant.exactToolIds.join(', ')} ·{' '}
+                  {grant.expiresAt}
+                </span>
+              </div>
+              {grant.status === 'pending' && (
+                <>
+                  <button
+                    type="button"
+                    className="ai-header-btn"
+                    onClick={() => onGrant(grant.requestId)}
+                  >
+                    {approveLabel}
+                  </button>
+                  <button
+                    type="button"
+                    className="ai-header-btn"
+                    onClick={() => onDeny(grant.requestId)}
+                  >
+                    {denyLabel}
+                  </button>
+                </>
+              )}
+              {grant.status === 'active' && grant.grantId && (
+                <button
+                  type="button"
+                  className="ai-header-btn"
+                  onClick={() => onRevoke(grant.grantId!)}
+                >
+                  {denyLabel}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 

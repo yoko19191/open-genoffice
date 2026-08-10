@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 30
     env:
       GENOFFICE_WINDOWS_JOB_LAUNCHER: ${{ github.workspace }}\apps\pi-agent-runtime\native\windows-job-launcher\target\release\open-genoffice-job-launcher.exe
+      GENOFFICE_WINDOWS_PI_FIXTURE: ${{ github.workspace }}\apps\pi-agent-runtime\native\windows-job-launcher\target\release\pi-headless-fixture.exe
       GENOFFICE_WINDOWS_CENSUS_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\process-census.json
       GENOFFICE_WINDOWS_RUNTIME_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\native-runtime.json
       GENOFFICE_WINDOWS_CAPABILITY_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\capabilities.json

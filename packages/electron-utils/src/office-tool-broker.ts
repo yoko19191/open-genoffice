@@ -24,6 +24,10 @@ export type OfficeToolBrokerDependencies = {
     descriptor: OfficeToolDescriptor,
   ): Promise<boolean>
   authorizeActor(request: OfficeToolInvocation, descriptor: OfficeToolDescriptor): Promise<boolean>
+  authorizeMutationGrant(
+    request: OfficeToolInvocation,
+    descriptor: Extract<OfficeToolDescriptor, { effect: 'mutation' }>,
+  ): Promise<boolean>
   captureSnapshot(request: OfficeToolInvocation): Promise<{ kind: 'snapshot'; snapshotId: string }>
   execute(
     request: OfficeToolInvocation,
@@ -67,6 +71,7 @@ function requestHash(request: OfficeToolInvocation): string {
 export class OfficeToolBroker {
   private readonly operations = new Map<string, OperationEntry>()
   private readonly documentTails = new Map<string, Promise<void>>()
+  private readonly mutationBoundaries = new Map<string, Promise<OfficeMutationBoundary>>()
   private readonly blockedDocuments = new Set<string>()
 
   constructor(private readonly dependencies: OfficeToolBrokerDependencies) {}
@@ -124,7 +129,7 @@ export class OfficeToolBroker {
     if (descriptor.effect === 'mutation') {
       if (descriptor.mutationBoundary === 'snapshot') {
         try {
-          boundary = await this.dependencies.captureSnapshot(request)
+          boundary = await this.snapshotBoundary(request)
         } catch {
           return this.receipt(request, {
             status: 'failed',
@@ -172,12 +177,28 @@ export class OfficeToolBroker {
     if (!(await this.dependencies.validateBinding(request))) {
       throw new OfficeToolBrokerError('document_mismatch')
     }
+    const subagentMutation = request.actor.type === 'subagent' && descriptor.effect === 'mutation'
     if (
       descriptor.id !== request.toolId ||
-      request.permissionSnapshot.createdForRunId !== request.runId ||
-      !request.permissionSnapshot.toolIds.includes(request.toolId)
+      request.permissionSnapshot.createdForRunId !== request.runId
     ) {
       throw new OfficeToolBrokerError('tool_not_in_snapshot')
+    }
+    if (subagentMutation) {
+      if (
+        request.permissionSnapshot.toolIds.includes(request.toolId) ||
+        request.mutationGrantId === undefined ||
+        !(await this.dependencies.authorizeMutationGrant(request, descriptor))
+      ) {
+        throw new OfficeToolBrokerError('permission_denied')
+      }
+    } else if (
+      request.mutationGrantId !== undefined ||
+      !request.permissionSnapshot.toolIds.includes(request.toolId)
+    ) {
+      throw new OfficeToolBrokerError(
+        request.mutationGrantId === undefined ? 'tool_not_in_snapshot' : 'permission_denied',
+      )
     }
     if (!(await this.dependencies.validatePermissionSnapshot(request, descriptor))) {
       throw new OfficeToolBrokerError('permission_denied')
@@ -185,6 +206,20 @@ export class OfficeToolBroker {
     if (!(await this.dependencies.authorizeActor(request, descriptor))) {
       throw new OfficeToolBrokerError('permission_denied')
     }
+  }
+
+  private snapshotBoundary(request: OfficeToolInvocation): Promise<OfficeMutationBoundary> {
+    const parentRunId =
+      request.actor.type === 'subagent' ? request.actor.parentRunId : request.runId
+    const key = `${request.documentId}:${parentRunId}`
+    const existing = this.mutationBoundaries.get(key)
+    if (existing) return existing
+    const created = this.dependencies.captureSnapshot(request)
+    this.mutationBoundaries.set(key, created)
+    void created.catch(() => {
+      if (this.mutationBoundaries.get(key) === created) this.mutationBoundaries.delete(key)
+    })
+    return created
   }
 
   private receipt(
@@ -200,6 +235,9 @@ export class OfficeToolBroker {
         actorId: request.actor.actorId,
         runId: request.runId,
         documentId: request.documentId,
+        ...(request.mutationGrantId === undefined
+          ? {}
+          : { mutationGrantId: request.mutationGrantId }),
       },
     }
   }

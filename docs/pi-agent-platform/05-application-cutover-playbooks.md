@@ -21,18 +21,18 @@ Pi、切换后必须删除哪些旧路径，以及什么证据允许开始下一
 
 ## 2. 已批准的切换不变量
 
-| ID      | 决策                                                                                                      |
-| ------- | --------------------------------------------------------------------------------------------------------- |
-| CO-D01  | 正式顺序固定为 PDF → Docs → Sheets → Slides/Slide QC；同一时间只允许一个应用进入生产切换窗口。           |
-| CO-D02  | 每个应用以完整 Catalog 为原子切换单位；工具族可以分 PR 实现，但生产入口不能只切一部分工具。              |
-| CO-D03  | 一个 gate 只有在新路径验收通过且该应用旧入口已删除后才算关闭；隐藏旧按钮或保留 fallback 都不算删除。     |
-| CO-D04  | 正式包不携带运行时开关。developer/nightly 可以显示诊断开关，但不得改变生产 bundle 的依赖与网络审计结果。 |
-| CO-D05  | 失败回滚只能安装上一版已签名产物；当前包内不回退旧 AgentLoop、Genspark 或旧 Provider。                    |
-| CO-D06  | Slides 与 Slide QC 是一个 gate；整页生成、图片、media、QC 未全部通过时不得切换 Slides 生产入口。          |
-| CO-D07  | 共享 `agent-core`、`ai-provider` 只在最后一个应用完成后删除；App 自有旧 transport/IPC 必须随 App 删除。   |
-| CO-D08  | 当前 app gate 未关闭时，后一个 app 可以准备 fixture，但不得修改共享 Panel 的生产状态机或切换入口。       |
-| CO-D09  | 每次切换保留 Office 普通文件格式和原位 executor；不得为了 Agent 迁移引入统一 Office domain model。       |
-| CO-D10  | 任何无法证明 mutation outcome 的断连都标为 `unknown` 并阻塞该文档写队列，不能以重试完成切换演示。        |
+| ID     | 决策                                                                                                     |
+| ------ | -------------------------------------------------------------------------------------------------------- |
+| CO-D01 | 正式顺序固定为 PDF → Docs → Sheets → Slides/Slide QC；同一时间只允许一个应用进入生产切换窗口。           |
+| CO-D02 | 每个应用以完整 Catalog 为原子切换单位；工具族可以分 PR 实现，但生产入口不能只切一部分工具。              |
+| CO-D03 | 一个 gate 只有在新路径验收通过且该应用旧入口已删除后才算关闭；隐藏旧按钮或保留 fallback 都不算删除。     |
+| CO-D04 | 正式包不携带运行时开关。developer/nightly 可以显示诊断开关，但不得改变生产 bundle 的依赖与网络审计结果。 |
+| CO-D05 | 失败回滚只能安装上一版已签名产物；当前包内不回退旧 AgentLoop、Genspark 或旧 Provider。                   |
+| CO-D06 | Slides 与 Slide QC 是一个 gate；整页生成、图片、media、QC 未全部通过时不得切换 Slides 生产入口。         |
+| CO-D07 | 共享 `agent-core`、`ai-provider` 只在最后一个应用完成后删除；App 自有旧 transport/IPC 必须随 App 删除。  |
+| CO-D08 | 当前 app gate 未关闭时，后一个 app 可以准备 fixture，但不得修改共享 Panel 的生产状态机或切换入口。       |
+| CO-D09 | 每次切换保留 Office 普通文件格式和原位 executor；不得为了 Agent 迁移引入统一 Office domain model。       |
+| CO-D10 | 任何无法证明 mutation outcome 的断连都标为 `unknown` 并阻塞该文档写队列，不能以重试完成切换演示。        |
 
 ## 3. Gate 状态机与证据包
 
@@ -101,7 +101,7 @@ pdf.js 对象、文件路径或页面对象。
 2. Parent Agent 调用 `read_pages/search_text/get_outline/list_form_fields`，再以 view effect
    `goto_page` 定位；只读 Subagent只能调用四个 read tools。
 3. Parent Agent 或获精确 Grant 的 Subagent 完成 `markup_text/fill_form_field/rotate_page/
-   delete_page`，所有操作使用 original page number 和同一 run rollback point。
+delete_page`，所有操作使用 original page number 和同一 run rollback point。
 4. 用户 Stop 或制造 renderer reload；已提交修改如实显示，未确定结果阻塞后续 mutation。
 5. 用户一键回滚整个 run，PDF 回到第一次 committed mutation 前状态。
 6. 在同一 gate 开启默认关闭的 MinerU，验证授权、精准解析、并排查看和原 PDF 保留。
@@ -266,16 +266,16 @@ schema 必须让旧版安全忽略未知数据；回滚不得恢复旧聊天、�
 以下拆票已经批准，发布到 Issue tracker 时按依赖顺序创建。它们复用文档 04 的 local ID，
 不再创建一组重复的“切换票”。
 
-| ID     | 完整纵向行为                                                  | 类型 | Blocked by              | 关闭的应用 gate |
-| ------ | ------------------------------------------------------------- | ---- | ----------------------- | --------------- |
-| OT-I01 | PDF Panel 完成读取、修改、Stop、恢复、整 run 回滚与旧入口删除 | AFK  | #2、#4、#5、#17、#24   | PDF             |
-| OT-I02 | Docs 用实时 Context 与 Artifact 完成编辑、恢复并删除旧入口    | AFK  | #2、#4、#5、#17、#25   | Docs            |
-| OT-I03 | Sheets 用内置 Skill 与 Workbook DSL 原子修改并删除旧入口      | AFK  | #2、#4、#5、#17、#18   | Sheets          |
-| OT-I04 | Slides 迁移 23 个 native executor，但暂不切换生产入口         | AFK  | #2、#4、#5、#17        | -               |
-| OT-I05 | 合并附件、Web/Image Search 与 ask-user 平台工具               | AFK  | #2、#8、#17、#18       | 随调用 App      |
-| OT-I06 | 用 SlidePageSpec 本地生成并原子替换一张可编辑整页             | AFK  | OT-I04、#18、#25       | -               |
-| OT-I07 | QC Subagent 经用户 Grant 修复页面，拒绝时保持只读             | HITL | OT-I06、#22、#23       | Slides          |
-| OT-I08 | 删除共享旧层、63 个旧注册点与所有 Genspark 生产路径           | AFK  | OT-I01～OT-I07          | 全部            |
+| ID     | 完整纵向行为                                                  | 类型 | Blocked by           | 关闭的应用 gate |
+| ------ | ------------------------------------------------------------- | ---- | -------------------- | --------------- |
+| OT-I01 | PDF Panel 完成读取、修改、Stop、恢复、整 run 回滚与旧入口删除 | AFK  | #2、#4、#5、#17、#24 | PDF             |
+| OT-I02 | Docs 用实时 Context 与 Artifact 完成编辑、恢复并删除旧入口    | AFK  | #2、#4、#5、#17、#25 | Docs            |
+| OT-I03 | Sheets 用内置 Skill 与 Workbook DSL 原子修改并删除旧入口      | AFK  | #2、#4、#5、#17、#18 | Sheets          |
+| OT-I04 | Slides 迁移 23 个 native executor，但暂不切换生产入口         | AFK  | #2、#4、#5、#17      | -               |
+| OT-I05 | 合并附件、Web/Image Search 与 ask-user 平台工具               | AFK  | #2、#8、#17、#18     | 随调用 App      |
+| OT-I06 | 用 SlidePageSpec 本地生成并原子替换一张可编辑整页             | AFK  | OT-I04、#18、#25     | -               |
+| OT-I07 | QC Subagent 经用户 Grant 修复页面，拒绝时保持只读             | HITL | OT-I06、#22、#23     | Slides          |
+| OT-I08 | 删除共享旧层、63 个旧注册点与所有 Genspark 生产路径           | AFK  | OT-I01～OT-I07       | 全部            |
 
 每张 Issue 必须在正文列出覆盖的 Gate ID、删除点和证据包；测试属于行为切片，不另拆成“补测试”横向票。
 

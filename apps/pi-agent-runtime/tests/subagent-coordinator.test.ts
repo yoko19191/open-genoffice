@@ -153,19 +153,52 @@ const budget: SubagentRootBudget = {
   maxToolCalls: 10,
 }
 
-async function fixture(options: { engine?: ControlledEngine; budget?: SubagentRootBudget } = {}) {
+async function fixture(
+  options: {
+    engine?: ControlledEngine
+    budget?: SubagentRootBudget
+    mutationGrants?: boolean
+  } = {},
+) {
   const rootDirectory = await root()
   const randomUUID = idFactory()
   const registry = new SubagentRunRegistry({ rootDirectory, randomUUID })
   await registry.initialize()
   const engine = options.engine ?? new ControlledEngine()
   const authorizeSnapshot = vi.fn(async () => undefined)
+  const requestMutationGrant = vi.fn(async (input) => ({
+    requestId: 'grant-request-1',
+    subagentRunId: input.subagentRunId,
+    role: 'researcher',
+    exactToolIds: [...input.exactToolIds],
+    requestedAt: '2026-08-10T00:00:00.000Z',
+    expiresAt: '2026-08-10T00:05:00.000Z',
+    status: 'pending' as const,
+  }))
+  const authorizeMutationGrant = vi.fn(async () => ({
+    grantId: 'grant-1',
+    subagentRunId: 'unused',
+    documentId,
+    exactToolIds: ['office:pdf:delete_page'],
+    issuedByUserActionId: 'user-action-1',
+    issuedAt: '2026-08-10T00:00:00.000Z',
+    expiresAt: '2026-08-10T00:05:00.000Z',
+    status: 'active' as const,
+  }))
   const coordinator = new SubagentCoordinator({
     registry,
     engine,
     randomUUID,
     budget: options.budget ?? budget,
     authorizeSnapshot,
+    ...(options.mutationGrants === false
+      ? {}
+      : {
+          mutationGrants: {
+            request: requestMutationGrant,
+            authorize: authorizeMutationGrant,
+          },
+        }),
     resolveTool: (toolId) => {
       if (toolId === 'office:pdf:read_text') {
         return { canonicalToolId: toolId, modelAlias: 'pdf_read_text', effect: 'read' as const }
@@ -200,7 +233,14 @@ async function fixture(options: { engine?: ControlledEngine; budget?: SubagentRo
       resourceTexts: ['Reviewer skill', 'Brief prompt'],
     })),
   })
-  return { coordinator, registry, engine, authorizeSnapshot }
+  return {
+    coordinator,
+    registry,
+    engine,
+    authorizeSnapshot,
+    requestMutationGrant,
+    authorizeMutationGrant,
+  }
 }
 
 describe('SubagentCoordinator', () => {
@@ -664,6 +704,78 @@ describe('SubagentCoordinator', () => {
     engine.emit(grandchild.runId, { type: 'completed', result: { kind: 'text', text: 'critique' } })
     engine.emit(child.runId, { type: 'completed', result: { kind: 'text', text: 'plan' } })
     await Promise.all([coordinator.wait(grandchild.runId), coordinator.wait(child.runId)])
+  })
+
+  it('records grantable parent mutations and requires an exact active Grant before authorization', async () => {
+    const {
+      coordinator,
+      registry,
+      requestMutationGrant,
+      authorizeMutationGrant,
+      authorizeSnapshot,
+      engine,
+    } = await fixture()
+    const child = await coordinator.spawn({
+      parentRunId,
+      parentSessionId,
+      documentId,
+      role: 'researcher',
+      task: 'Review and request one edit if needed.',
+      parentSnapshot: parentSnapshot(),
+    })
+    expect(registry.getInternal(child.runId)?.grantableToolIds).toEqual(['office:pdf:delete_page'])
+
+    await expect(
+      coordinator.requestMutationGrant(child.runId, ['office:pdf:delete_page']),
+    ).resolves.toMatchObject({ requestId: 'grant-request-1', status: 'pending' })
+    expect(requestMutationGrant).toHaveBeenCalledWith({
+      parentSessionId,
+      subagentRunId: child.runId,
+      documentId,
+      exactToolIds: ['office:pdf:delete_page'],
+    })
+    await expect(
+      coordinator.authorizeMutationTool(child.runId, 'office:pdf:delete_page', 'grant-1'),
+    ).resolves.toEqual({
+      actorId: child.runId,
+      runId: child.runId,
+      documentId,
+      toolId: 'office:pdf:delete_page',
+      mutationGrantId: 'grant-1',
+    })
+    expect(authorizeMutationGrant).toHaveBeenCalledWith({
+      grantId: 'grant-1',
+      subagentRunId: child.runId,
+      documentId,
+      toolId: 'office:pdf:delete_page',
+    })
+    authorizeSnapshot.mockRejectedValueOnce(new Error('project_trust_revoked'))
+    await expect(
+      coordinator.authorizeMutationTool(child.runId, 'office:pdf:delete_page', 'grant-1'),
+    ).rejects.toThrow('project_trust_revoked')
+    expect(authorizeMutationGrant).toHaveBeenCalledOnce()
+    await expect(
+      coordinator.authorizeMutationTool(child.runId, 'office:pdf:read_text', 'grant-1'),
+    ).rejects.toMatchObject({ code: 'subagent_mutation_forbidden' })
+    engine.emit(child.runId, { type: 'completed', result: { kind: 'text', text: 'done' } })
+    await coordinator.wait(child.runId)
+  })
+
+  it('keeps mutations forbidden when the Runtime has no Mutation Grant authority', async () => {
+    const { coordinator, engine } = await fixture({ mutationGrants: false })
+    const child = await coordinator.spawn({
+      parentRunId,
+      parentSessionId,
+      documentId,
+      role: 'researcher',
+      task: 'Inspect without mutation authority.',
+      parentSnapshot: parentSnapshot(),
+    })
+    expect(() => coordinator.requestMutationGrant(child.runId, ['office:pdf:delete_page'])).toThrow(
+      'subagent_mutation_forbidden',
+    )
+    engine.emit(child.runId, { type: 'completed', result: { kind: 'text', text: 'done' } })
+    await coordinator.wait(child.runId)
   })
 
   it('cancels descendants child-first and leaves siblings and the parent session usable', async () => {

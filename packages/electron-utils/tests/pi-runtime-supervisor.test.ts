@@ -75,6 +75,51 @@ function harness(
         attempt: 2,
         acceptedCursor: `cursor-${id}`,
       })),
+      issueMutationGrant: vi.fn(async (input) => ({
+        sessionId: input.sessionId,
+        documentId: input.documentId,
+        grant: {
+          requestId: input.requestId,
+          subagentRunId: input.receipt.subagentRunId,
+          role: 'Reviewer',
+          exactToolIds: input.receipt.exactToolIds,
+          requestedAt: input.receipt.issuedAt,
+          expiresAt: input.receipt.expiresAt,
+          status: 'active' as const,
+          grantId: input.receipt.grantId,
+        },
+        acceptedCursor: `cursor-${id}`,
+      })),
+      denyMutationGrant: vi.fn(async (input) => ({
+        sessionId: input.sessionId,
+        documentId: input.documentId,
+        grant: {
+          requestId: input.requestId,
+          subagentRunId: 'subagent-run-1',
+          role: 'Reviewer',
+          exactToolIds: ['office:docs:insert_content'],
+          requestedAt: '2026-08-10T00:00:00.000Z',
+          expiresAt: '2026-08-10T00:05:00.000Z',
+          status: 'denied' as const,
+        },
+        acceptedCursor: `cursor-${id}`,
+      })),
+      revokeMutationGrant: vi.fn(async (input) => ({
+        sessionId: input.sessionId,
+        documentId: input.documentId,
+        grant: {
+          requestId: 'grant-request-1',
+          subagentRunId: 'subagent-run-1',
+          role: 'Reviewer',
+          exactToolIds: ['office:docs:insert_content'],
+          requestedAt: '2026-08-10T00:00:00.000Z',
+          expiresAt: '2026-08-10T00:05:00.000Z',
+          status: 'revoked' as const,
+          grantId: input.grantId,
+        },
+        acceptedCursor: `cursor-${id}`,
+      })),
+      revokeDocumentMutationGrants: vi.fn(async () => ({ revoked: true as const })),
       forkSession: vi.fn(async (input) => ({
         sessionId: `fork-session-${id}`,
         parentSessionId: input.sessionId,
@@ -348,6 +393,46 @@ describe('PiRuntimeSupervisor', () => {
         runId: 'subagent-run-1',
       }),
     ).resolves.toMatchObject({ attempt: 2 })
+    const grantReceipt = {
+      grantId: 'grant-1',
+      subagentRunId: 'subagent-run-1',
+      documentId: bound.documentId,
+      exactToolIds: ['office:docs:insert_content'],
+      issuedByUserActionId: 'user-action-1',
+      issuedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'active' as const,
+    }
+    await expect(
+      fixture.supervisor.issueMutationGrant({
+        operationId: 'operation-grant',
+        ...bound,
+        requestId: 'grant-request-1',
+        receipt: grantReceipt,
+      }),
+    ).resolves.toMatchObject({ grant: { status: 'active' } })
+    await expect(
+      fixture.supervisor.denyMutationGrant({
+        operationId: 'operation-deny',
+        ...bound,
+        requestId: 'grant-request-1',
+        userActionId: 'user-action-2',
+      }),
+    ).resolves.toMatchObject({ grant: { status: 'denied' } })
+    await expect(
+      fixture.supervisor.revokeMutationGrant({
+        operationId: 'operation-revoke',
+        ...bound,
+        grantId: 'grant-1',
+        userActionId: 'user-action-3',
+      }),
+    ).resolves.toMatchObject({ grant: { status: 'revoked' } })
+    await expect(
+      fixture.supervisor.revokeDocumentMutationGrants({
+        operationId: 'operation-close',
+        ...bound,
+      }),
+    ).resolves.toEqual({ revoked: true })
     await expect(
       fixture.supervisor.forkSession({
         operationId: '44444444-4444-4444-8444-444444444444',

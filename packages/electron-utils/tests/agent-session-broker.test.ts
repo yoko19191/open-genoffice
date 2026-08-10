@@ -72,6 +72,51 @@ function harness() {
       attempt: 2,
       acceptedCursor: 'cursor-4',
     })),
+    issueMutationGrant: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      grant: {
+        requestId: input.requestId,
+        subagentRunId: input.receipt.subagentRunId,
+        role: 'Reviewer',
+        exactToolIds: input.receipt.exactToolIds,
+        requestedAt: input.receipt.issuedAt,
+        expiresAt: input.receipt.expiresAt,
+        status: 'active' as const,
+        grantId: input.receipt.grantId,
+      },
+      acceptedCursor: 'cursor-5',
+    })),
+    denyMutationGrant: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      grant: {
+        requestId: input.requestId,
+        subagentRunId: 'subagent-run-1',
+        role: 'Reviewer',
+        exactToolIds: ['office:docs:insert_content'],
+        requestedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'denied' as const,
+      },
+      acceptedCursor: 'cursor-5',
+    })),
+    revokeMutationGrant: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      grant: {
+        requestId: 'grant-request-1',
+        subagentRunId: 'subagent-run-1',
+        role: 'Reviewer',
+        exactToolIds: ['office:docs:insert_content'],
+        requestedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'revoked' as const,
+        grantId: input.grantId,
+      },
+      acceptedCursor: 'cursor-5',
+    })),
+    revokeDocumentMutationGrants: vi.fn(async () => ({ revoked: true as const })),
     forkSession: vi.fn(async () => {
       const forkSnapshot = {
         ...currentSnapshot,
@@ -107,12 +152,14 @@ function harness() {
     }),
   }
   let uuid = 0
+  let now = new Date('2026-08-10T00:00:00.000Z')
   const authorize = vi.fn(async () => true)
   const resolveProjectRoot = vi.fn(async () => undefined as string | undefined)
   const broker = new AgentSessionBroker(transport, {
     authorize,
     resolveProjectRoot,
     randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+    now: () => now,
     replayWindowSize: 4,
   })
   return {
@@ -129,10 +176,85 @@ function harness() {
       subscription = value
     },
     unsubscribe,
+    advance: (milliseconds: number) => {
+      now = new Date(now.getTime() + milliseconds)
+    },
   }
 }
 
 describe('Electron main Agent Session broker', () => {
+  it('issues a precise Mutation Grant only after a one-time real main-process user gesture', async () => {
+    const fixture = harness()
+    await fixture.broker.connect(1, { documentId, sessionId }, () => {})
+    const command = {
+      type: 'grantMutation' as const,
+      operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      sessionId,
+      documentId,
+      requestId: 'grant-request-1',
+      subagentRunId: 'subagent-run-1',
+      exactToolIds: ['office:docs:insert_content'],
+    }
+    await expect(fixture.broker.command(1, command)).rejects.toThrowError(
+      'trusted_user_gesture_required',
+    )
+    expect(fixture.transport.issueMutationGrant).not.toHaveBeenCalled()
+
+    fixture.broker.recordTrustedUserGesture(1, { type: 'mouseUp' })
+    await expect(fixture.broker.command(1, command)).resolves.toMatchObject({
+      grant: { status: 'active', exactToolIds: command.exactToolIds },
+    })
+    expect(fixture.transport.issueMutationGrant).toHaveBeenCalledWith({
+      operationId: command.operationId,
+      sessionId,
+      documentId,
+      requestId: command.requestId,
+      receipt: {
+        grantId: '00000004-0000-4000-8000-000000000000',
+        subagentRunId: command.subagentRunId,
+        documentId,
+        exactToolIds: command.exactToolIds,
+        issuedByUserActionId: '00000003-0000-4000-8000-000000000000',
+        issuedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'active',
+      },
+    })
+    await expect(fixture.broker.command(1, command)).rejects.toThrowError(
+      'trusted_user_gesture_required',
+    )
+    await fixture.broker.close()
+  })
+
+  it('rejects stale or non-activation input and requires gestures for deny and revoke', async () => {
+    const fixture = harness()
+    await fixture.broker.connect(1, { documentId, sessionId }, () => {})
+    fixture.broker.recordTrustedUserGesture(1, { type: 'mouseDown' })
+    await expect(
+      fixture.broker.command(1, {
+        type: 'denyMutation',
+        operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        sessionId,
+        documentId,
+        requestId: 'grant-request-1',
+      }),
+    ).rejects.toThrowError('trusted_user_gesture_required')
+
+    fixture.broker.recordTrustedUserGesture(1, { type: 'keyUp', key: 'Enter' })
+    fixture.advance(1_501)
+    await expect(
+      fixture.broker.command(1, {
+        type: 'revokeMutation',
+        operationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        sessionId,
+        documentId,
+        grantId: 'grant-1',
+      }),
+    ).rejects.toThrowError('trusted_user_gesture_required')
+    expect(fixture.transport.denyMutationGrant).not.toHaveBeenCalled()
+    expect(fixture.transport.revokeMutationGrant).not.toHaveBeenCalled()
+    await fixture.broker.close()
+  })
   it('atomically merges replay with live events and delivers each event once in sequence', async () => {
     const fixture = harness()
     let release!: (value: SessionSubscriptionReceipt) => void

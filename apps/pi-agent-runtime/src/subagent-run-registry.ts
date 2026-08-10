@@ -121,6 +121,7 @@ const SubagentRunRecordSchema = Type.Object(
     usage: SubagentUsageSchema,
     attemptUsage: SubagentUsageSchema,
     capabilitySnapshot: CapabilitySnapshotSchema,
+    grantableToolIds: Type.Array(EntityIdSchema, { maxItems: 512, uniqueItems: true }),
     createdAt: Type.String({ minLength: 1, maxLength: 64 }),
     updatedAt: Type.String({ minLength: 1, maxLength: 64 }),
     startedAt: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
@@ -180,6 +181,7 @@ export type CreateSubagentRunInput = {
   model: { providerId: string; modelId: string }
   budget?: SubagentRootBudget
   capabilitySnapshot: CapabilitySnapshot
+  grantableToolIds?: readonly string[]
   sessionId?: string
   projectRoot?: string
 }
@@ -366,6 +368,7 @@ export class SubagentRunRegistry {
         usage: clone(EMPTY_USAGE),
         attemptUsage: clone(EMPTY_USAGE),
         capabilitySnapshot: clone(input.capabilitySnapshot),
+        grantableToolIds: [...new Set(input.grantableToolIds ?? [])].sort(),
         createdAt,
         updatedAt: createdAt,
       }

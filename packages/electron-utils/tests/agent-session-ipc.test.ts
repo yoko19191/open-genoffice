@@ -54,11 +54,19 @@ function mainHarness() {
     removeListener: vi.fn((channel: string) => listeners.delete(channel)),
   }
   const lifecycle = new Map<string, () => void>()
+  const inputListeners = new Map<
+    string,
+    (event: unknown, input: { type: string; key?: string }) => void
+  >()
   const sender = {
     id: 42,
     isDestroyed: vi.fn(() => false),
     send: vi.fn(),
     once: vi.fn((name: string, listener: () => void) => lifecycle.set(name, listener)),
+    on: vi.fn(
+      (name: string, listener: (event: unknown, input: { type: string; key?: string }) => void) =>
+        inputListeners.set(name, listener),
+    ),
   }
   let deliver: ((event: EventEnvelope) => void) | undefined
   const broker = {
@@ -67,6 +75,7 @@ function mainHarness() {
       return receipt
     }),
     command: vi.fn(async () => ({ runId: 'run-1', acceptedCursor: 'cursor-2' })),
+    recordTrustedUserGesture: vi.fn(),
     disconnect: vi.fn(),
     close: vi.fn(async () => {}),
   }
@@ -75,6 +84,7 @@ function mainHarness() {
     handlers,
     ipcMain,
     lifecycle,
+    inputListeners,
     listeners,
     sender,
     emit: () => deliver?.(liveEvent),
@@ -96,6 +106,11 @@ describe('Agent Session IPC main bridge', () => {
     await expect(connect(event, { documentId, sessionId })).resolves.toEqual(receipt)
     await expect(connect(event, { documentId, sessionId })).resolves.toEqual(receipt)
     expect(fixture.sender.once).toHaveBeenCalledTimes(2)
+    fixture.inputListeners.get('before-input-event')?.({}, { type: 'keyUp', key: 'Enter' })
+    expect(fixture.broker.recordTrustedUserGesture).toHaveBeenCalledWith(42, {
+      type: 'keyUp',
+      key: 'Enter',
+    })
     fixture.emit()
     expect(fixture.sender.send).toHaveBeenCalledWith(AGENT_SESSION_CHANNELS.event, liveEvent)
 
@@ -124,6 +139,18 @@ describe('Agent Session IPC main bridge', () => {
     ).resolves.toMatchObject({ runId: 'run-1' })
     expect(() =>
       command(event, { type: 'invoke', operationId, sessionId, documentId, text: 'go' }),
+    ).toThrowError('agent_session_command_invalid')
+    expect(() =>
+      command(event, {
+        type: 'grantMutation',
+        operationId,
+        sessionId,
+        documentId,
+        requestId: 'request-1',
+        subagentRunId: 'subagent-run-1',
+        exactToolIds: ['office:docs:insert_content'],
+        userActionId: 'forged-renderer-action',
+      }),
     ).toThrowError('agent_session_command_invalid')
     fixture.listeners.get(AGENT_SESSION_CHANNELS.disconnect)!(event)
     expect(fixture.broker.disconnect).toHaveBeenCalledWith(42)

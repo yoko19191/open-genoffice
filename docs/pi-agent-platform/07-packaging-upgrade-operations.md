@@ -27,18 +27,18 @@ Windows NSIS、Linux AppImage 配置。现有构建仍显式校验和复制 `@ge
 
 ## 2. 已批准的发行决策
 
-| ID      | 决策                                                                                                         |
-| ------- | ------------------------------------------------------------------------------------------------------------ |
-| PK-D01  | Runtime 是完整复制、无 symlink 的 Node `22.19.0` + unpacked ESM tree；不使用系统 Node、SEA、`npx` 或下载首启。 |
-| PK-D02  | 每个安装包只携带自身 platform/arch 的 Runtime，不把三平台二进制塞入同一个包。                                |
-| PK-D03  | 首版原生发行证据矩阵为 macOS arm64、Windows x64、Linux x64 glibc AppImage；增加架构需完整重跑同一 gate。       |
-| PK-D04  | macOS/Linux 使用 UDS，Windows 使用 Named Pipe；stdio 仅用于 bootstrap 与 debug/test，不是正式业务传输。       |
-| PK-D05  | Windows Runtime、MCP 与 Subagent 必须进入 kill-on-close Job Object 或经等价原生证据的监督边界。               |
-| PK-D06  | Runtime tree、manifest、license/notices 与 app 属于一个不可拆分版本；禁止首启或后台静默更新其中一部分。       |
-| PK-D07  | 同包没有旧 Runtime fallback；Runtime 故障只禁用 Agent，Office 本地编辑继续。                                  |
-| PK-D08  | stable promotion 不重建；它只能推广同一 hash、已签名并具有完整 evidence manifest 的 RC artifact。            |
-| PK-D09  | 首个 Pi 版本直接删除旧聊天、Provider/Genspark 凭据和云缓存，不迁移；清理器必须精确、幂等、可审计。            |
-| PK-D10  | 卸载默认保留用户 Office 文件和 `~/.open-genoffice`；删除应用数据必须由用户另行明确确认。                       |
+| ID     | 决策                                                                                                           |
+| ------ | -------------------------------------------------------------------------------------------------------------- |
+| PK-D01 | Runtime 是完整复制、无 symlink 的 Node `22.19.0` + unpacked ESM tree；不使用系统 Node、SEA、`npx` 或下载首启。 |
+| PK-D02 | 每个安装包只携带自身 platform/arch 的 Runtime，不把三平台二进制塞入同一个包。                                  |
+| PK-D03 | 首版原生发行证据矩阵为 macOS arm64、Windows x64、Linux x64 glibc AppImage；增加架构需完整重跑同一 gate。       |
+| PK-D04 | macOS/Linux 使用 UDS，Windows 使用 Named Pipe；stdio 仅用于 bootstrap 与 debug/test，不是正式业务传输。        |
+| PK-D05 | Windows Runtime、MCP 与 Subagent 必须进入 kill-on-close Job Object 或经等价原生证据的监督边界。                |
+| PK-D06 | Runtime tree、manifest、license/notices 与 app 属于一个不可拆分版本；禁止首启或后台静默更新其中一部分。        |
+| PK-D07 | 同包没有旧 Runtime fallback；Runtime 故障只禁用 Agent，Office 本地编辑继续。                                   |
+| PK-D08 | stable promotion 不重建；它只能推广同一 hash、已签名并具有完整 evidence manifest 的 RC artifact。              |
+| PK-D09 | 首个 Pi 版本直接删除旧聊天、Provider/Genspark 凭据和云缓存，不迁移；清理器必须精确、幂等、可审计。             |
+| PK-D10 | 卸载默认保留用户 Office 文件和 `~/.open-genoffice`；删除应用数据必须由用户另行明确确认。                       |
 
 macOS x64、Linux arm64 或 Windows arm64 不因为 npm lock 中存在相应 optional package 就被视为
 支持。目标架构只有在 Node hash、原生模块、安装、IPC、MCP/Subagent 和退出回收均由原生 runner
@@ -276,15 +276,15 @@ Panel 的“导出诊断”生成用户可预览的压缩包，默认包含：
 
 常见故障的产品动作固定为：
 
-| 故障                         | 用户可见动作                                                     |
-| ---------------------------- | ---------------------------------------------------------------- |
-| bundle hash/arch/signature   | 禁用 Agent，显示重装与导出诊断；不尝试网络修复 Runtime tree      |
-| IPC handshake/version        | 有界重启；持续失败后禁用 Agent，不放宽 token/version             |
-| Runtime crash budget exhausted | Office 继续编辑，保存诊断，等待用户重启应用                     |
-| MCP/Subagent orphan          | 强制回收受管树并将 RC 标为失败；不静默忽略                       |
-| Credential unavailable       | 只禁用对应 Provider，提示重新登录/配置                           |
-| MinerU/同步不可用            | 保留原 PDF/Local Current/已下载 artifact，不切换服务或覆盖文件    |
-| mutation outcome unknown     | 阻塞该文档 mutation queue，引导用户核对，不自动重试              |
+| 故障                           | 用户可见动作                                                   |
+| ------------------------------ | -------------------------------------------------------------- |
+| bundle hash/arch/signature     | 禁用 Agent，显示重装与导出诊断；不尝试网络修复 Runtime tree    |
+| IPC handshake/version          | 有界重启；持续失败后禁用 Agent，不放宽 token/version           |
+| Runtime crash budget exhausted | Office 继续编辑，保存诊断，等待用户重启应用                    |
+| MCP/Subagent orphan            | 强制回收受管树并将 RC 标为失败；不静默忽略                     |
+| Credential unavailable         | 只禁用对应 Provider，提示重新登录/配置                         |
+| MinerU/同步不可用              | 保留原 PDF/Local Current/已下载 artifact，不切换服务或覆盖文件 |
+| mutation outcome unknown       | 阻塞该文档 mutation queue，引导用户核对，不自动重试            |
 
 ## 10. 发布、推广与回滚
 
@@ -323,14 +323,14 @@ Session open 与 Office 文件 smoke。回滚不恢复 Genspark、旧 AgentLoop�
 
 以下拆票已经批准，按依赖顺序发布：
 
-| ID     | Title                                                           | Type | Blocked by                | 覆盖验收                 |
-| ------ | --------------------------------------------------------------- | ---- | ------------------------- | ------------------------ |
-| [PK-I01 / #39](https://github.com/yoko19191/open-genoffice/issues/39) | 构建并校验当前平台 Runtime bundle，随 unsigned Electron 包首次启动 | AFK  | #1、#27                  | AR-009/010、PK-001       |
-| [PK-I02 / #40](https://github.com/yoko19191/open-genoffice/issues/40) | 在 macOS arm64 签名、公证并回收 Runtime/MCP/Subagent 进程树       | HITL | #39、#20、#22            | AR-003/009/010、PK-002   |
-| [PK-I03 / #41](https://github.com/yoko19191/open-genoffice/issues/41) | 在 Windows x64 以 Named Pipe 与 Job Object 完成安装升级退出       | HITL | #39、#20、#22            | AR-003/009/010、PK-001/2 |
-| [PK-I04 / #42](https://github.com/yoko19191/open-genoffice/issues/42) | 在 Linux x64 glibc AppImage 完成安装升级退出和 feed 产物          | AFK  | #39、#20、#22            | AR-003/009/010、PK-001/2 |
-| [PK-I05 / #43](https://github.com/yoko19191/open-genoffice/issues/43) | 幂等清理旧 Agent 数据并验证升级、降级、卸载保留边界              | AFK  | #11、#39                 | AR-008、GX-002、PK-002   |
-| [PK-I06 / #44](https://github.com/yoko19191/open-genoffice/issues/44) | 汇总验收、SBOM 与 Genspark-Free 审计后推广同一 RC artifact        | HITL | #36～#38、#40～#43       | GX-001～004、QA-001      |
+| ID                                                                    | Title                                                              | Type | Blocked by         | 覆盖验收                 |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------ | ---- | ------------------ | ------------------------ |
+| [PK-I01 / #39](https://github.com/yoko19191/open-genoffice/issues/39) | 构建并校验当前平台 Runtime bundle，随 unsigned Electron 包首次启动 | AFK  | #1、#27            | AR-009/010、PK-001       |
+| [PK-I02 / #40](https://github.com/yoko19191/open-genoffice/issues/40) | 在 macOS arm64 签名、公证并回收 Runtime/MCP/Subagent 进程树        | HITL | #39、#20、#22      | AR-003/009/010、PK-002   |
+| [PK-I03 / #41](https://github.com/yoko19191/open-genoffice/issues/41) | 在 Windows x64 以 Named Pipe 与 Job Object 完成安装升级退出        | HITL | #39、#20、#22      | AR-003/009/010、PK-001/2 |
+| [PK-I04 / #42](https://github.com/yoko19191/open-genoffice/issues/42) | 在 Linux x64 glibc AppImage 完成安装升级退出和 feed 产物           | AFK  | #39、#20、#22      | AR-003/009/010、PK-001/2 |
+| [PK-I05 / #43](https://github.com/yoko19191/open-genoffice/issues/43) | 幂等清理旧 Agent 数据并验证升级、降级、卸载保留边界                | AFK  | #11、#39           | AR-008、GX-002、PK-002   |
+| [PK-I06 / #44](https://github.com/yoko19191/open-genoffice/issues/44) | 汇总验收、SBOM 与 Genspark-Free 审计后推广同一 RC artifact         | HITL | #36～#38、#40～#43 | GX-001～004、QA-001      |
 
 HITL 表示需要发行证书、受保护环境或用户确认；实现与无签名 smoke 仍应尽量由 AFK Agent 完成。
 

@@ -58,6 +58,7 @@ export {
   RuntimeSessionError,
   SessionRegistry,
   createSessionRegistry,
+  type SessionMutationGrantRegistry,
   type SessionSubagentCoordinator,
   type SessionRegistryOptions,
 } from './session-registry'
@@ -85,6 +86,15 @@ export {
   type SubagentUsage,
 } from './subagent-run-registry'
 export { PiSubagentEngine, type PiSubagentEngineOptions } from './pi-subagent-engine'
+export {
+  MutationGrantRegistry,
+  MutationGrantRegistryError,
+  type MutationGrantProjection,
+  type MutationGrantReceipt,
+  type MutationGrantRegistryEvent,
+  type MutationGrantRegistryOptions,
+  type MutationGrantRun,
+} from './mutation-grant-registry'
 export { runRuntimeEntrypoint, type RuntimeEntrypointDependencies } from './runtime-entrypoint'
 export {
   RunAbortTree,

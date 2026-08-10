@@ -7,6 +7,8 @@ import type { AssistantMessage, CredentialStore, Message } from '@earendil-works
 import type { AgentSessionEvent, SessionMessageEntry } from '@earendil-works/pi-coding-agent'
 import type {
   EventEnvelope,
+  MutationGrantProjection,
+  MutationGrantReceipt,
   SessionMessageProjection,
   SessionSnapshot,
   SubagentRunProjection as RendererSubagentRunProjection,
@@ -46,6 +48,12 @@ type OpenInput = CreateInput & { sessionId: string }
 type PromptInput = OpenInput & { text: string; projectRoot?: string }
 type AbortInput = OpenInput & { runId: string }
 type ResumeSubagentInput = OpenInput & { runId: string }
+type IssueMutationGrantInput = OpenInput & {
+  requestId: string
+  receipt: MutationGrantReceipt
+}
+type DenyMutationGrantInput = OpenInput & { requestId: string; userActionId: string }
+type RevokeMutationGrantInput = OpenInput & { grantId: string; userActionId: string }
 type NavigateInput = OpenInput & { targetEntryId: string }
 type BoundInput = { sessionId: string; documentId: string }
 type SubscribeInput = BoundInput & { afterCursor?: string }
@@ -69,6 +77,12 @@ type AbortReceipt = {
   acceptedCursor: string
 }
 type ResumeSubagentReceipt = { runId: string; attempt: number; acceptedCursor: string }
+type SessionMutationGrantReceipt = {
+  sessionId: string
+  documentId: string
+  grant: MutationGrantProjection
+  acceptedCursor: string
+}
 type ForkReceipt = CreateReceipt & { parentSessionId: string }
 type NavigateReceipt = CreateReceipt & { activeLeafId: string }
 type OperationEntry = { hash: string; result: Promise<unknown> }
@@ -109,6 +123,7 @@ export type SessionRegistryOptions = {
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
   credentials?: CredentialStore
   subagents?: SessionSubagentCoordinator
+  mutationGrants?: SessionMutationGrantRegistry
   bindingAtomicWriteOptions?: (binding: Readonly<Binding>) => AtomicWriteOptions
 }
 
@@ -120,6 +135,23 @@ export type SessionSubagentCoordinator = {
   resume(runId: string): Promise<SubagentRunProjection>
   parentSessionIdsWithRuns?(): string[]
   reconcile?(): Promise<void>
+}
+
+export type SessionMutationGrantRegistry = {
+  onEvent(
+    listener: (event: {
+      parentSessionId: string
+      documentId: string
+      projection: MutationGrantProjection
+    }) => void,
+  ): () => void
+  listForSession(parentSessionId: string): MutationGrantProjection[]
+  issue(requestId: string, receipt: MutationGrantReceipt): Promise<MutationGrantProjection>
+  deny(requestId: string, userActionId: string): Promise<MutationGrantProjection>
+  revoke(grantId: string, userActionId: string): Promise<MutationGrantProjection>
+  revokeForRun(runId: string, reason: string): Promise<void>
+  revokeForParentRun(parentRunId: string, reason: string): Promise<void>
+  revokeForDocument(documentId: string, reason: string): Promise<void>
 }
 
 export class RuntimeSessionError extends Error {
@@ -208,6 +240,7 @@ export class SessionRegistry {
   private readonly operations = new Map<string, OperationEntry>()
   private readonly listeners = new Set<(event: EventEnvelope) => void>()
   private readonly unsubscribeSubagents: () => void
+  private readonly unsubscribeMutationGrants: () => void
 
   constructor(private readonly options: SessionRegistryOptions) {
     this.dataRoot =
@@ -251,6 +284,9 @@ export class SessionRegistry {
     })
     this.unsubscribeSubagents =
       options.subagents?.onEvent((event) => this.projectSubagentEvent(event)) ?? (() => {})
+    this.unsubscribeMutationGrants =
+      options.mutationGrants?.onEvent((event) => this.projectMutationGrantEvent(event)) ??
+      (() => {})
   }
 
   onEvent(listener: (event: EventEnvelope) => void): () => void {
@@ -487,6 +523,7 @@ export class SessionRegistry {
           const terminalState = record.pendingTerminalState ?? 'completed'
           record.pendingTerminalState = undefined
           activeRun.state = terminalState
+          await this.options.mutationGrants?.revokeForParentRun(activeRun.runId, 'parent_terminal')
           await this.appendEvent(record, `run.${terminalState}`, {}, runId)
         })
         .catch(async (error) => {
@@ -494,6 +531,7 @@ export class SessionRegistry {
           if (record.activeRun !== activeRun || activeRun.abortRegistration) return
           record.pendingTerminalState = undefined
           activeRun.state = 'failed'
+          await this.options.mutationGrants?.revokeForParentRun(activeRun.runId, 'parent_terminal')
           await this.appendEvent(
             record,
             'run.failed',
@@ -579,6 +617,72 @@ export class SessionRegistry {
         attempt: resumed.attempt,
         acceptedCursor: this.snapshotFor(record).cursor,
       }
+    })
+  }
+
+  async issueMutationGrant(input: IssueMutationGrantInput): Promise<SessionMutationGrantReceipt> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.mutation-grant.issue', input, async () => {
+      const record = await this.loadRecord(binding)
+      const pending = this.options.mutationGrants
+        ?.listForSession(binding.sessionId)
+        .find((candidate) => candidate.requestId === input.requestId)
+      if (
+        !pending ||
+        pending.status !== 'pending' ||
+        pending.subagentRunId !== input.receipt.subagentRunId ||
+        input.receipt.documentId !== binding.documentId
+      ) {
+        throw new RuntimeSessionError('invalid_state')
+      }
+      const grant = await this.options.mutationGrants!.issue(input.requestId, input.receipt)
+      await record.eventQueue
+      return {
+        sessionId: binding.sessionId,
+        documentId: binding.documentId,
+        grant,
+        acceptedCursor: this.snapshotFor(record).cursor,
+      }
+    })
+  }
+
+  async denyMutationGrant(input: DenyMutationGrantInput): Promise<SessionMutationGrantReceipt> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.mutation-grant.deny', input, async () => {
+      const record = await this.loadRecord(binding)
+      const grant = await this.options.mutationGrants!.deny(input.requestId, input.userActionId)
+      await record.eventQueue
+      return {
+        sessionId: binding.sessionId,
+        documentId: binding.documentId,
+        grant,
+        acceptedCursor: this.snapshotFor(record).cursor,
+      }
+    })
+  }
+
+  async revokeMutationGrant(input: RevokeMutationGrantInput): Promise<SessionMutationGrantReceipt> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.mutation-grant.revoke', input, async () => {
+      const record = await this.loadRecord(binding)
+      const grant = await this.options.mutationGrants!.revoke(input.grantId, input.userActionId)
+      await record.eventQueue
+      return {
+        sessionId: binding.sessionId,
+        documentId: binding.documentId,
+        grant,
+        acceptedCursor: this.snapshotFor(record).cursor,
+      }
+    })
+  }
+
+  async revokeDocumentMutationGrants(input: OpenInput): Promise<{ revoked: true }> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.mutation-grant.revoke-document', input, async () => {
+      await this.options.mutationGrants?.revokeForDocument(binding.documentId, 'document_closed')
+      const record = await this.loadRecord(binding)
+      await record.eventQueue
+      return { revoked: true as const }
     })
   }
 
@@ -705,6 +809,7 @@ export class SessionRegistry {
       this.loadingRecords.clear()
       this.listeners.clear()
       this.unsubscribeSubagents()
+      this.unsubscribeMutationGrants()
     }
   }
 
@@ -1059,6 +1164,7 @@ export class SessionRegistry {
     if (record.activeRun !== activeRun || activeRun.state !== 'cancelling') return
     if (!summary.complete) {
       activeRun.state = 'failed'
+      await this.options.mutationGrants?.revokeForParentRun(activeRun.runId, 'parent_terminal')
       await this.appendEvent(
         record,
         'run.failed',
@@ -1079,6 +1185,7 @@ export class SessionRegistry {
       return
     }
     activeRun.state = 'aborted'
+    await this.options.mutationGrants?.revokeForParentRun(activeRun.runId, 'parent_terminal')
     await this.appendEvent(
       record,
       'run.aborted',
@@ -1196,6 +1303,9 @@ export class SessionRegistry {
               .map(rendererSubagentProjection),
           }
         : {}),
+      ...(this.options.mutationGrants
+        ? { mutationGrants: this.options.mutationGrants.listForSession(record.binding.sessionId) }
+        : {}),
       branch: {
         ...(record.binding.parentSessionId
           ? { parentSessionId: record.binding.parentSessionId }
@@ -1233,6 +1343,14 @@ export class SessionRegistry {
     const record = this.records.get(parentSessionId)
     if (!record) return
     const runId = 'run' in event ? event.run.runId : event.runId
+    if (
+      'run' in event &&
+      (event.run.status === 'completed' ||
+        event.run.status === 'failed' ||
+        event.run.status === 'cancelled')
+    ) {
+      void this.options.mutationGrants?.revokeForRun(runId, 'subagent_terminal')
+    }
     if ('run' in event) {
       void this.appendEvent(
         record,
@@ -1253,6 +1371,21 @@ export class SessionRegistry {
         ...(event.toolId ? { toolId: event.toolId } : {}),
       },
       runId,
+    )
+  }
+
+  private projectMutationGrantEvent(event: {
+    parentSessionId: string
+    documentId: string
+    projection: MutationGrantProjection
+  }): void {
+    const record = this.records.get(event.parentSessionId)
+    if (!record || record.binding.documentId !== event.documentId) return
+    void this.appendEvent(
+      record,
+      'mutation-grant.updated',
+      event.projection,
+      event.projection.subagentRunId,
     )
   }
 

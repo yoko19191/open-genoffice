@@ -131,6 +131,7 @@ const SessionEventTypeSchema = Type.Union([
   Type.Literal('subagent.assistant.delta'),
   Type.Literal('subagent.tool.started'),
   Type.Literal('subagent.tool.completed'),
+  Type.Literal('mutation-grant.updated'),
   Type.Literal('runtime.degraded'),
   Type.Literal('diagnostic.available'),
 ])
@@ -211,6 +212,8 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('mcp_oauth_state_invalid'),
   Type.Literal('mcp_oauth_token_invalid'),
   Type.Literal('mcp_result_unknown'),
+  Type.Literal('mutation_grant_invalid'),
+  Type.Literal('mutation_grant_denied'),
 ])
 
 export const CredentialBrokerMetadataSchema = Type.Object(
@@ -330,6 +333,7 @@ export const OfficeToolInvocationSchema = Type.Object(
     toolId: OfficeToolIdSchema,
     toolOrder: Type.Integer({ minimum: 0 }),
     actor: OfficeToolActorSchema,
+    mutationGrantId: Type.Optional(EntityIdSchema),
     permissionSnapshot: Type.Object(
       {
         snapshotId: EntityIdSchema,
@@ -404,12 +408,57 @@ export const SubagentRunProjectionSchema = Type.Object(
   { additionalProperties: false },
 )
 
+const MutationGrantStatusSchema = Type.Union([
+  Type.Literal('pending'),
+  Type.Literal('denied'),
+  Type.Literal('active'),
+  Type.Literal('revoked'),
+  Type.Literal('expired'),
+])
+
+export const MutationGrantProjectionSchema = Type.Object(
+  {
+    requestId: EntityIdSchema,
+    subagentRunId: EntityIdSchema,
+    role: Type.String({ minLength: 1, maxLength: 128 }),
+    exactToolIds: Type.Array(OfficeToolIdSchema, {
+      minItems: 1,
+      maxItems: 32,
+      uniqueItems: true,
+    }),
+    requestedAt: Type.String({ minLength: 20, maxLength: 32 }),
+    expiresAt: Type.String({ minLength: 20, maxLength: 32 }),
+    status: MutationGrantStatusSchema,
+    grantId: Type.Optional(EntityIdSchema),
+  },
+  { additionalProperties: false },
+)
+
+export const MutationGrantReceiptSchema = Type.Object(
+  {
+    grantId: EntityIdSchema,
+    subagentRunId: EntityIdSchema,
+    documentId: DocumentIdSchema,
+    exactToolIds: Type.Array(OfficeToolIdSchema, {
+      minItems: 1,
+      maxItems: 32,
+      uniqueItems: true,
+    }),
+    issuedByUserActionId: EntityIdSchema,
+    issuedAt: Type.String({ minLength: 20, maxLength: 32 }),
+    expiresAt: Type.String({ minLength: 20, maxLength: 32 }),
+    status: Type.Literal('active'),
+  },
+  { additionalProperties: false },
+)
+
 export const SessionSnapshotSchema = Type.Object(
   {
     sessionId: EntityIdSchema,
     documentId: DocumentIdSchema,
     messages: Type.Array(SessionMessageProjectionSchema),
     subagents: Type.Optional(Type.Array(SubagentRunProjectionSchema, { maxItems: 256 })),
+    mutationGrants: Type.Optional(Type.Array(MutationGrantProjectionSchema, { maxItems: 256 })),
     activeRun: Type.Optional(
       Type.Object(
         {
@@ -907,6 +956,67 @@ const SessionSubagentResumeRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const SessionMutationGrantIssueRequestSchema = sessionRequestEnvelope(
+  'session.mutation-grant.issue',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      requestId: EntityIdSchema,
+      receipt: MutationGrantReceiptSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionMutationGrantDenyRequestSchema = sessionRequestEnvelope(
+  'session.mutation-grant.deny',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      requestId: EntityIdSchema,
+      userActionId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionMutationGrantRevokeRequestSchema = sessionRequestEnvelope(
+  'session.mutation-grant.revoke',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      grantId: EntityIdSchema,
+      userActionId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+const SessionMutationGrantRevokeDocumentRequestSchema = sessionRequestEnvelope(
+  'session.mutation-grant.revoke-document',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+export const MutationGrantManagementRequestSchema = Type.Union([
+  SessionMutationGrantIssueRequestSchema,
+  SessionMutationGrantDenyRequestSchema,
+  SessionMutationGrantRevokeRequestSchema,
+  SessionMutationGrantRevokeDocumentRequestSchema,
+])
+
 const SessionForkRequestSchema = sessionRequestEnvelope(
   'session.fork',
   Type.Object(
@@ -1013,6 +1123,10 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionPromptRequestSchema,
   SessionAbortRequestSchema,
   SessionSubagentResumeRequestSchema,
+  SessionMutationGrantIssueRequestSchema,
+  SessionMutationGrantDenyRequestSchema,
+  SessionMutationGrantRevokeRequestSchema,
+  SessionMutationGrantRevokeDocumentRequestSchema,
   SessionForkRequestSchema,
   SessionNavigateRequestSchema,
   SessionSnapshotRequestSchema,
@@ -1151,6 +1265,16 @@ export const SessionNavigateReceiptSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const SessionMutationGrantReceiptSchema = Type.Object(
+  {
+    sessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    grant: MutationGrantProjectionSchema,
+    acceptedCursor: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+)
+
 export const OfficeToolReceiptSchema = Type.Object(
   {
     operationId: OperationIdSchema,
@@ -1175,6 +1299,7 @@ export const OfficeToolReceiptSchema = Type.Object(
         actorId: EntityIdSchema,
         runId: EntityIdSchema,
         documentId: DocumentIdSchema,
+        mutationGrantId: Type.Optional(EntityIdSchema),
       },
       { additionalProperties: false },
     ),
@@ -1228,6 +1353,42 @@ export const AgentSessionCommandSchema = Type.Union([
       sessionId: SessionIdSchema,
       documentId: DocumentIdSchema,
       runId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('grantMutation'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      requestId: EntityIdSchema,
+      subagentRunId: EntityIdSchema,
+      exactToolIds: Type.Array(OfficeToolIdSchema, {
+        minItems: 1,
+        maxItems: 32,
+        uniqueItems: true,
+      }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('denyMutation'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      requestId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('revokeMutation'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      grantId: EntityIdSchema,
     },
     { additionalProperties: false },
   ),
@@ -1359,6 +1520,8 @@ export type OfficeToolInvocation = Static<typeof OfficeToolInvocationSchema>
 export type OfficeToolReceipt = Static<typeof OfficeToolReceiptSchema>
 export type SessionMessageProjection = Static<typeof SessionMessageProjectionSchema>
 export type SubagentRunProjection = Static<typeof SubagentRunProjectionSchema>
+export type MutationGrantProjection = Static<typeof MutationGrantProjectionSchema>
+export type MutationGrantReceipt = Static<typeof MutationGrantReceiptSchema>
 export type SessionSnapshot = Static<typeof SessionSnapshotSchema>
 export type RequestEnvelope = Static<typeof RequestEnvelopeSchema>
 export type ResponseEnvelope = Static<typeof ResponseEnvelopeSchema>
@@ -1367,6 +1530,7 @@ export type SessionConnectionReceipt = Static<typeof SessionConnectionReceiptSch
 export type SessionPromptReceipt = Static<typeof SessionPromptReceiptSchema>
 export type SessionAbortReceipt = Static<typeof SessionAbortReceiptSchema>
 export type SessionSubagentResumeReceipt = Static<typeof SessionSubagentResumeReceiptSchema>
+export type SessionMutationGrantReceipt = Static<typeof SessionMutationGrantReceiptSchema>
 export type SessionForkReceipt = Static<typeof SessionForkReceiptSchema>
 export type SessionNavigateReceipt = Static<typeof SessionNavigateReceiptSchema>
 export type SessionSubscriptionReceipt = Static<typeof SessionSubscriptionReceiptSchema>
@@ -1386,6 +1550,7 @@ export type CredentialBrokerRequest = Static<typeof CredentialBrokerRequestSchem
 export type CredentialManagementRequest = Static<typeof CredentialManagementRequestSchema>
 export type ModelManagementRequest = Static<typeof ModelManagementRequestSchema>
 export type ResourceManagementRequest = Static<typeof ResourceManagementRequestSchema>
+export type MutationGrantManagementRequest = Static<typeof MutationGrantManagementRequestSchema>
 
 export function parseBootstrapLine(line: string): BootstrapRecord {
   try {
@@ -1441,6 +1606,13 @@ export function parseResourceManagementRequest(value: unknown): ResourceManageme
   throw new Error('resource_management_request_invalid')
 }
 
+export function parseMutationGrantManagementRequest(
+  value: unknown,
+): MutationGrantManagementRequest {
+  if (Value.Check(MutationGrantManagementRequestSchema, value)) return value
+  throw new Error('mutation_grant_management_request_invalid')
+}
+
 export function parseRuntimeBundleManifest(value: unknown): RuntimeBundleManifest {
   if (Value.Check(RuntimeBundleManifestSchema, value)) return value
   throw new Error('runtime_bundle_invalid')
@@ -1464,6 +1636,11 @@ export function parseSessionAbortReceipt(value: unknown): SessionAbortReceipt {
 export function parseSessionSubagentResumeReceipt(value: unknown): SessionSubagentResumeReceipt {
   if (Value.Check(SessionSubagentResumeReceiptSchema, value)) return value
   throw new Error('session_subagent_resume_receipt_invalid')
+}
+
+export function parseSessionMutationGrantReceipt(value: unknown): SessionMutationGrantReceipt {
+  if (Value.Check(SessionMutationGrantReceiptSchema, value)) return value
+  throw new Error('session_mutation_grant_receipt_invalid')
 }
 
 export function parseSessionForkReceipt(value: unknown): SessionForkReceipt {
@@ -1509,6 +1686,16 @@ export function parseSessionSnapshot(value: unknown): SessionSnapshot {
 export function parseSubagentRunProjection(value: unknown): SubagentRunProjection {
   if (Value.Check(SubagentRunProjectionSchema, value)) return value
   throw new Error('subagent_run_projection_invalid')
+}
+
+export function parseMutationGrantProjection(value: unknown): MutationGrantProjection {
+  if (Value.Check(MutationGrantProjectionSchema, value)) return value
+  throw new Error('mutation_grant_projection_invalid')
+}
+
+export function parseMutationGrantReceipt(value: unknown): MutationGrantReceipt {
+  if (Value.Check(MutationGrantReceiptSchema, value)) return value
+  throw new Error('mutation_grant_receipt_invalid')
 }
 
 export function parseSessionSubscriptionReceipt(value: unknown): SessionSubscriptionReceipt {

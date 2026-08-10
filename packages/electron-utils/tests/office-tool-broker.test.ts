@@ -63,6 +63,7 @@ function harness() {
   const validateBinding = vi.fn(async () => true)
   const validatePermissionSnapshot = vi.fn(async () => true)
   const authorizeActor = vi.fn(async () => true)
+  const authorizeMutationGrant = vi.fn(async () => true)
   const captureSnapshot = vi.fn(async (request: OfficeToolInvocation) => ({
     kind: 'snapshot' as const,
     snapshotId: `rollback-${request.runId}`,
@@ -82,11 +83,13 @@ function harness() {
     validateBinding,
     validatePermissionSnapshot,
     authorizeActor,
+    authorizeMutationGrant,
     captureSnapshot,
     execute,
   })
   return {
     authorizeActor,
+    authorizeMutationGrant,
     broker,
     captureSnapshot,
     execute,
@@ -117,7 +120,14 @@ describe('Electron main OfficeToolBroker', () => {
           type: 'subagent',
           actorId: 'subagent-1',
           subagentRunId: 'subagent-run-1',
-          parentRunId: 'run-2',
+          parentRunId: 'run-1',
+        },
+        mutationGrantId: 'grant-1',
+        permissionSnapshot: {
+          snapshotId: 'snapshot-op-2',
+          createdForRunId: 'run-2',
+          permissionVersion: 'permission-1',
+          toolIds: ['office:docs:read'],
         },
       }),
     )
@@ -133,6 +143,8 @@ describe('Electron main OfficeToolBroker', () => {
     expect(fixture.validateBinding).toHaveBeenCalledTimes(3)
     expect(fixture.validatePermissionSnapshot).toHaveBeenCalledTimes(3)
     expect(fixture.authorizeActor).toHaveBeenCalledTimes(3)
+    expect(fixture.authorizeMutationGrant).toHaveBeenCalledOnce()
+    expect(fixture.captureSnapshot).toHaveBeenCalledTimes(2)
   })
 
   it('runs readonly tools concurrently without entering the document mutation queue', async () => {
@@ -240,6 +252,91 @@ describe('Electron main OfficeToolBroker', () => {
     expect(fixture.captureSnapshot).toHaveBeenCalledOnce()
     expect(fixture.execute.mock.calls[0]?.[2]).toMatchObject({ kind: 'snapshot' })
     expect(fixture.execute.mock.calls[1]?.[2]).toEqual({ kind: 'atomic' })
+  })
+
+  it('requires an exact grant only for Subagent mutations and records it in provenance', async () => {
+    const missing = harness()
+    const child = invocation('subagent-missing', {
+      actor: {
+        type: 'subagent',
+        actorId: 'subagent-1',
+        subagentRunId: 'subagent-run-1',
+        parentRunId: 'run-1',
+      },
+      permissionSnapshot: {
+        snapshotId: 'snapshot-subagent',
+        createdForRunId: 'run-1',
+        permissionVersion: 'permission-1',
+        toolIds: ['office:docs:read'],
+      },
+    })
+    await expect(missing.broker.invoke(child)).rejects.toEqual(
+      new OfficeToolBrokerError('permission_denied'),
+    )
+
+    const denied = harness()
+    denied.authorizeMutationGrant.mockResolvedValueOnce(false)
+    await expect(
+      denied.broker.invoke({
+        ...child,
+        operationId: 'subagent-denied',
+        mutationGrantId: 'grant-1',
+      }),
+    ).rejects.toEqual(new OfficeToolBrokerError('permission_denied'))
+
+    const granted = harness()
+    await expect(
+      granted.broker.invoke({
+        ...child,
+        operationId: 'subagent-granted',
+        mutationGrantId: 'grant-1',
+      }),
+    ).resolves.toMatchObject({
+      status: 'completed',
+      provenance: { mutationGrantId: 'grant-1' },
+    })
+    expect(granted.authorizeMutationGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId,
+        mutationGrantId: 'grant-1',
+        toolId: 'office:docs:write',
+      }),
+      expect.objectContaining({ effect: 'mutation' }),
+    )
+
+    await expect(
+      granted.broker.invoke(
+        invocation('read-with-grant', {
+          toolId: 'office:docs:read',
+          mutationGrantId: 'grant-1',
+        }),
+      ),
+    ).rejects.toEqual(new OfficeToolBrokerError('permission_denied'))
+  })
+
+  it('shares the first rollback snapshot across parent and Subagent mutations in one run', async () => {
+    const fixture = harness()
+    await fixture.broker.invoke(invocation('parent-first'))
+    await fixture.broker.invoke(
+      invocation('child-second', {
+        runId: 'subagent-run-1',
+        actor: {
+          type: 'subagent',
+          actorId: 'subagent-1',
+          subagentRunId: 'subagent-run-1',
+          parentRunId: 'run-1',
+        },
+        mutationGrantId: 'grant-1',
+        permissionSnapshot: {
+          snapshotId: 'snapshot-child',
+          createdForRunId: 'subagent-run-1',
+          permissionVersion: 'permission-1',
+          toolIds: ['office:docs:read'],
+        },
+      }),
+    )
+    expect(fixture.captureSnapshot).toHaveBeenCalledOnce()
+    expect(fixture.execute.mock.calls[0]?.[2]).toBe(fixture.execute.mock.calls[1]?.[2])
   })
 
   it.each([

@@ -8,6 +8,7 @@ import {
   parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
   parseSessionSubagentResumeReceipt,
+  parseSessionMutationGrantReceipt,
   type AgentSessionCommand,
   type AgentSessionConnectReceipt,
   type AgentSessionConnectRequest,
@@ -17,6 +18,7 @@ import {
   type SessionForkReceipt,
   type SessionNavigateReceipt,
   type SessionSubagentResumeReceipt,
+  type SessionMutationGrantReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import type { AgentSessionBroker } from './agent-session-broker'
 
@@ -33,6 +35,10 @@ type IpcSender = {
   isDestroyed(): boolean
   send(channel: string, value: unknown): void
   once(event: 'destroyed' | 'render-process-gone', listener: () => void): unknown
+  on?(
+    event: 'before-input-event',
+    listener: (event: unknown, input: { type: string; key?: string }) => void,
+  ): unknown
 }
 
 type IpcMainEvent = { sender: IpcSender }
@@ -63,6 +69,7 @@ export interface AgentSessionPreloadApi {
     | SessionPromptReceipt
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
+    | SessionMutationGrantReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
   >
@@ -82,6 +89,9 @@ export function installAgentSessionIpc(
     const disconnect = () => broker.disconnect(sender.id)
     sender.once('destroyed', disconnect)
     sender.once('render-process-gone', disconnect)
+    sender.on?.('before-input-event', (_event, input) => {
+      broker.recordTrustedUserGesture(sender.id, input)
+    })
   }
   ipcMain.handle(AGENT_SESSION_CHANNELS.connect, async (event, value) => {
     observeSender(event.sender)
@@ -142,6 +152,13 @@ export function createAgentSessionPreloadApi(
       if (validated.type === 'abort') return parseSessionAbortReceipt(receipt)
       if (validated.type === 'resumeSubagent') {
         return parseSessionSubagentResumeReceipt(receipt)
+      }
+      if (
+        validated.type === 'grantMutation' ||
+        validated.type === 'denyMutation' ||
+        validated.type === 'revokeMutation'
+      ) {
+        return parseSessionMutationGrantReceipt(receipt)
       }
       if (validated.type === 'fork') return parseSessionForkReceipt(receipt)
       return parseSessionNavigateReceipt(receipt)

@@ -10,6 +10,7 @@ import {
   type SubagentRunProjection,
   type SubagentUsage,
 } from './subagent-run-registry'
+import type { MutationGrantProjection, MutationGrantReceipt } from './mutation-grant-registry'
 
 export type SubagentToolDescriptor = {
   canonicalToolId: string
@@ -108,6 +109,20 @@ export type SubagentCoordinatorOptions = {
   budget?: SubagentRootBudget
   authorizeSnapshot: (snapshot: CapabilitySnapshot, projectRoot?: string) => Promise<void>
   resolveTool: (canonicalToolId: string) => SubagentToolDescriptor | undefined
+  mutationGrants?: {
+    request(input: {
+      parentSessionId: string
+      subagentRunId: string
+      documentId: string
+      exactToolIds: readonly string[]
+    }): Promise<MutationGrantProjection>
+    authorize(input: {
+      grantId: string
+      subagentRunId: string
+      documentId: string
+      toolId: string
+    }): Promise<MutationGrantReceipt>
+  }
   resolveContext: (input: {
     runId: string
     parentRunId: string
@@ -194,9 +209,10 @@ export class SubagentCoordinator {
     const rootRunId = parent?.rootRunId ?? request.parentRunId
     const runId = this.randomUUID()
     const depth = parent ? parent.depth + 1 : 1
-    const tools = request.parentSnapshot.toolIds
+    const parentTools = request.parentSnapshot.toolIds
       .map((toolId) => this.options.resolveTool(toolId))
       .filter((tool): tool is SubagentToolDescriptor => tool !== undefined)
+    const tools = parentTools
       .filter(
         (tool) =>
           tool.effect === 'read' ||
@@ -231,6 +247,10 @@ export class SubagentCoordinator {
       model: request.parentSnapshot.model,
       budget: this.budget,
       capabilitySnapshot,
+      grantableToolIds: parentTools
+        .filter((tool) => tool.effect === 'mutation' && tool.canonicalToolId.startsWith('office:'))
+        .map((tool) => tool.canonicalToolId)
+        .sort(),
       ...(request.projectRoot ? { projectRoot: request.projectRoot } : {}),
     })
     await this.start(record.runId, request.task, tools, context)
@@ -264,6 +284,61 @@ export class SubagentCoordinator {
       runId,
       documentId: record.documentId,
       toolId: canonicalToolId,
+    }
+  }
+
+  requestMutationGrant(
+    runId: string,
+    exactToolIds: readonly string[],
+  ): Promise<MutationGrantProjection> {
+    const record = this.registry.getInternal(runId)
+    if (!record) throw new SubagentCoordinatorError('subagent_parent_invalid')
+    if (!this.options.mutationGrants) {
+      throw new SubagentCoordinatorError('subagent_mutation_forbidden')
+    }
+    return this.options.mutationGrants.request({
+      parentSessionId: record.parentSessionId,
+      subagentRunId: runId,
+      documentId: record.documentId,
+      exactToolIds,
+    })
+  }
+
+  async authorizeMutationTool(
+    runId: string,
+    canonicalToolId: string,
+    mutationGrantId: string,
+  ): Promise<{
+    actorId: string
+    runId: string
+    documentId: string
+    toolId: string
+    mutationGrantId: string
+  }> {
+    const record = this.registry.getInternal(runId)
+    if (!record) throw new SubagentCoordinatorError('subagent_parent_invalid')
+    const descriptor = this.options.resolveTool(canonicalToolId)
+    if (
+      descriptor?.effect !== 'mutation' ||
+      !canonicalToolId.startsWith('office:') ||
+      !record.grantableToolIds.includes(canonicalToolId) ||
+      !this.options.mutationGrants
+    ) {
+      throw new SubagentCoordinatorError('subagent_mutation_forbidden')
+    }
+    await this.options.authorizeSnapshot(record.capabilitySnapshot, record.projectRoot)
+    await this.options.mutationGrants.authorize({
+      grantId: mutationGrantId,
+      subagentRunId: runId,
+      documentId: record.documentId,
+      toolId: canonicalToolId,
+    })
+    return {
+      actorId: runId,
+      runId,
+      documentId: record.documentId,
+      toolId: canonicalToolId,
+      mutationGrantId,
     }
   }
 

@@ -34,6 +34,7 @@ import { RunResourceService, RunResourceServiceError } from './run-resource-serv
 import { PiSubagentEngine } from './pi-subagent-engine'
 import { SubagentCoordinator, type SubagentToolDescriptor } from './subagent-coordinator'
 import { SubagentRunRegistry } from './subagent-run-registry'
+import { MutationGrantRegistry, MutationGrantRegistryError } from './mutation-grant-registry'
 import {
   RuntimeSessionError,
   createSessionRegistry,
@@ -158,17 +159,38 @@ export async function createAuthenticatedRuntimeServer(
   }
 
   let ownedSubagentCoordinator: SubagentCoordinator | undefined
+  let ownedMutationGrants: MutationGrantRegistry | undefined
   let sessionRegistry: SessionRegistry
   if (options.sessionRegistry) {
     sessionRegistry = options.sessionRegistry
   } else {
     const subagentRuns = new SubagentRunRegistry({ rootDirectory: options.resourceHome })
     await subagentRuns.initialize()
+    ownedMutationGrants = new MutationGrantRegistry({
+      rootDirectory: options.resourceHome,
+      inspectRun: (runId) => {
+        const run = subagentRuns.getInternal(runId)
+        return run
+          ? {
+              runId: run.runId,
+              parentRunId: run.parentRunId,
+              parentSessionId: run.parentSessionId,
+              documentId: run.documentId,
+              role: run.role,
+              status: run.status,
+              grantableToolIds: run.grantableToolIds,
+            }
+          : undefined
+      },
+      resolveEffect: (toolId) => resolveSubagentToolDescriptor(toolId)?.effect,
+    })
+    await ownedMutationGrants.initialize()
     ownedSubagentCoordinator = new SubagentCoordinator({
       registry: subagentRuns,
       engine: new PiSubagentEngine({ resourceHome: options.resourceHome }),
       authorizeSnapshot: (snapshot, projectRoot) => runResources.verify(snapshot, projectRoot),
       resolveTool: resolveSubagentToolDescriptor,
+      mutationGrants: ownedMutationGrants,
       resolveContext: async ({ parentSnapshot, projectRoot }) => ({
         resourceTexts: await runResources.subagentResourceTexts(parentSnapshot, projectRoot),
       }),
@@ -179,6 +201,7 @@ export async function createAuthenticatedRuntimeServer(
       cursorSecret: randomBytes(32),
       credentials,
       subagents: ownedSubagentCoordinator,
+      mutationGrants: ownedMutationGrants,
       ...(ownedModelCatalog
         ? {
             createPiSession: (sessionOptions) =>
@@ -243,6 +266,10 @@ export async function createAuthenticatedRuntimeServer(
                 'session.prompt',
                 'session.abort',
                 'session.subagent.resume',
+                'session.mutation-grant.issue',
+                'session.mutation-grant.deny',
+                'session.mutation-grant.revoke',
+                'session.mutation-grant.revoke-document',
                 'session.fork',
                 'session.navigate',
                 'session.snapshot',
@@ -699,6 +726,24 @@ export async function createAuthenticatedRuntimeServer(
         socket.write(response(request, await sessionRegistry.resumeSubagent(request.params)))
         return
       }
+      if (request.method === 'session.mutation-grant.issue') {
+        socket.write(response(request, await sessionRegistry.issueMutationGrant(request.params)))
+        return
+      }
+      if (request.method === 'session.mutation-grant.deny') {
+        socket.write(response(request, await sessionRegistry.denyMutationGrant(request.params)))
+        return
+      }
+      if (request.method === 'session.mutation-grant.revoke') {
+        socket.write(response(request, await sessionRegistry.revokeMutationGrant(request.params)))
+        return
+      }
+      if (request.method === 'session.mutation-grant.revoke-document') {
+        socket.write(
+          response(request, await sessionRegistry.revokeDocumentMutationGrants(request.params)),
+        )
+        return
+      }
       if (request.method === 'session.fork') {
         socket.write(response(request, await sessionRegistry.fork(request.params)))
         return
@@ -720,7 +765,13 @@ export async function createAuthenticatedRuntimeServer(
       socket.write(
         errorResponse(
           request,
-          error instanceof RuntimeSessionError ? error.code : 'internal_error',
+          error instanceof RuntimeSessionError
+            ? error.code
+            : error instanceof MutationGrantRegistryError
+              ? error.code === 'mutation_grant_denied'
+                ? 'mutation_grant_denied'
+                : 'mutation_grant_invalid'
+              : 'internal_error',
         ),
       )
     }

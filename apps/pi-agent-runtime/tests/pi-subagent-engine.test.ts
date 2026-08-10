@@ -1,14 +1,4 @@
-import {
-  access,
-  chmod,
-  copyFile,
-  mkdtemp,
-  mkdir,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises'
+import { access, chmod, copyFile, mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,7 +11,11 @@ const roots: string[] = []
 const piFixture = fileURLToPath(new URL('../fixtures/pi-headless-fixture', import.meta.url))
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(
+    roots
+      .splice(0)
+      .map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })),
+  )
 })
 
 async function root(prefix: string): Promise<string> {
@@ -83,12 +77,9 @@ async function collect(events: AsyncIterable<SubagentEngineEvent>): Promise<Suba
 async function installPiFixture(bin: string): Promise<void> {
   await mkdir(bin, { recursive: true })
   if (process.platform === 'win32') {
-    const script = join(bin, 'pi-headless-fixture.mjs')
-    await copyFile(piFixture, script)
-    await writeFile(
-      join(bin, 'pi.cmd'),
-      `@echo off\r\n"${process.execPath}" "%~dp0pi-headless-fixture.mjs" %*\r\n`,
-    )
+    const nativeFixture = process.env.GENOFFICE_WINDOWS_PI_FIXTURE
+    if (!nativeFixture) throw new Error('windows_pi_fixture_missing')
+    await copyFile(nativeFixture, join(bin, 'pi.exe'))
     return
   }
   await chmod(piFixture, 0o755)

@@ -57,6 +57,51 @@ function manager(overrides: Record<string, unknown> = {}) {
       attempt: 2,
       acceptedCursor: 'cursor-2',
     })),
+    issueMutationGrant: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      grant: {
+        requestId: input.requestId,
+        subagentRunId: input.receipt.subagentRunId,
+        role: 'Reviewer',
+        exactToolIds: input.receipt.exactToolIds,
+        requestedAt: input.receipt.issuedAt,
+        expiresAt: input.receipt.expiresAt,
+        status: 'active' as const,
+        grantId: input.receipt.grantId,
+      },
+      acceptedCursor: 'cursor-2',
+    })),
+    denyMutationGrant: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      grant: {
+        requestId: input.requestId,
+        subagentRunId: 'subagent-run-1',
+        role: 'Reviewer',
+        exactToolIds: ['office:docs:insert_content'],
+        requestedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'denied' as const,
+      },
+      acceptedCursor: 'cursor-2',
+    })),
+    revokeMutationGrant: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      grant: {
+        requestId: 'grant-request-1',
+        subagentRunId: 'subagent-run-1',
+        role: 'Reviewer',
+        exactToolIds: ['office:docs:insert_content'],
+        requestedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'revoked' as const,
+        grantId: input.grantId,
+      },
+      acceptedCursor: 'cursor-2',
+    })),
+    revokeDocumentMutationGrants: vi.fn(async () => ({ revoked: true as const })),
     forkSession: vi.fn(async () => ({
       sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       parentSessionId: snapshot.sessionId,
@@ -274,6 +319,38 @@ describe('installed Pi Runtime service', () => {
       operationId: 'operation-resume',
       runId: 'subagent-run-1',
     })
+    const grantReceipt = {
+      grantId: 'grant-1',
+      subagentRunId: 'subagent-run-1',
+      documentId: bound.documentId,
+      exactToolIds: ['office:docs:insert_content'],
+      issuedByUserActionId: 'user-action-1',
+      issuedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'active' as const,
+    }
+    await fixture.instance.issueMutationGrant({
+      operationId: 'operation-grant',
+      ...bound,
+      requestId: 'grant-request-1',
+      receipt: grantReceipt,
+    })
+    await fixture.instance.denyMutationGrant({
+      operationId: 'operation-deny',
+      ...bound,
+      requestId: 'grant-request-1',
+      userActionId: 'user-action-2',
+    })
+    await fixture.instance.revokeMutationGrant({
+      operationId: 'operation-revoke',
+      ...bound,
+      grantId: 'grant-1',
+      userActionId: 'user-action-3',
+    })
+    await fixture.instance.revokeDocumentMutationGrants({
+      operationId: 'operation-close',
+      ...bound,
+    })
     await fixture.instance.forkSession({
       operationId: '55555555-5555-4555-8555-555555555555',
       ...bound,
@@ -289,6 +366,10 @@ describe('installed Pi Runtime service', () => {
     expect(fixture.runtimeManager.promptSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.abortSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.resumeSubagent).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.issueMutationGrant).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.denyMutationGrant).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.revokeMutationGrant).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.revokeDocumentMutationGrants).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.forkSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.navigateSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.snapshotSession).toHaveBeenCalledOnce()

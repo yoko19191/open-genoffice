@@ -26,6 +26,8 @@ jobs:
     name: ${{ matrix.evidence-platform }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    env:
+      GENOFFICE_WINDOWS_PI_FIXTURE: ${{ github.workspace }}\apps\pi-agent-runtime\native\windows-job-launcher\target\release\pi-headless-fixture.exe
     strategy:
       fail-fast: false
       matrix:
@@ -47,8 +49,18 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Setup Rust for the native Windows Pi fixture
+        if: matrix.evidence-platform == 'windows'
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch, 2026-07
+        with:
+          toolchain: stable
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Build the native Windows Pi fixture
+        if: matrix.evidence-platform == 'windows'
+        run: cargo build --release --manifest-path apps/pi-agent-runtime/native/windows-job-launcher/Cargo.toml --bin pi-headless-fixture
 
       - name: Audit Runtime and Subagent boundaries
         run: npm run audit:pi-platform
@@ -62,12 +74,17 @@ jobs:
 
       - name: Spawn, watch, cancel, reconcile, resume, and recover the native process tree
         run: >-
+          npm run test -w @genoffice/pi-agent-runtime --
+          --coverage.enabled=false
+          tests/pi-subagent-engine.test.ts
+          tests/subagent-run-registry.test.ts
+          tests/subagent-coordinator.test.ts
+          tests/process-entry.test.ts
+          tests/session-registry.test.ts
+
+      - name: Validate native main-process and renderer projections
+        run: >-
           npx vitest run
-          apps/pi-agent-runtime/tests/pi-subagent-engine.test.ts
-          apps/pi-agent-runtime/tests/subagent-run-registry.test.ts
-          apps/pi-agent-runtime/tests/subagent-coordinator.test.ts
-          apps/pi-agent-runtime/tests/process-entry.test.ts
-          apps/pi-agent-runtime/tests/session-registry.test.ts
           packages/electron-utils/tests/agent-session-broker.test.ts
           packages/ui/tests/agent-session-projection.test.ts
           --coverage.enabled=false

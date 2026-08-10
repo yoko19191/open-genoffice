@@ -57,6 +57,29 @@ function fixture(connect = vi.fn(async () => receipt())) {
       if (command.type === 'resumeSubagent') {
         return { runId: command.runId, attempt: 2, acceptedCursor: 'cursor-4' }
       }
+      if (
+        command.type === 'grantMutation' ||
+        command.type === 'denyMutation' ||
+        command.type === 'revokeMutation'
+      ) {
+        return {
+          sessionId,
+          documentId,
+          grant: {
+            requestId: 'grant-request-1',
+            subagentRunId: 'subagent-run-1',
+            role: 'Reviewer',
+            exactToolIds: ['office:docs:insert_content'],
+            requestedAt: '2026-08-10T00:00:00.000Z',
+            expiresAt: '2026-08-10T00:05:00.000Z',
+            status: command.type === 'grantMutation' ? ('active' as const) : ('revoked' as const),
+            ...(command.type === 'grantMutation' || command.type === 'revokeMutation'
+              ? { grantId: 'grant-1' }
+              : {}),
+          },
+          acceptedCursor: 'cursor-5',
+        }
+      }
       return { runId, state: 'cancelling', acceptedCursor: 'cursor-3' }
     }),
     disconnect: vi.fn(),
@@ -118,6 +141,69 @@ describe('AgentSessionController', () => {
       documentId,
       runId,
     })
+  })
+
+  it('grants, denies and revokes only authoritative projected Mutation Grant requests', async () => {
+    const connect = vi.fn(async () => ({
+      ...receipt(),
+      snapshot: {
+        ...receipt().snapshot,
+        mutationGrants: [
+          {
+            requestId: 'grant-request-1',
+            subagentRunId: 'subagent-run-1',
+            role: 'Reviewer',
+            exactToolIds: ['office:docs:insert_content'],
+            requestedAt: '2026-08-10T00:00:00.000Z',
+            expiresAt: '2026-08-10T00:05:00.000Z',
+            status: 'pending' as const,
+          },
+        ],
+      },
+    }))
+    const test = fixture(connect)
+    const controller = new AgentSessionController(test.client, { randomUUID: () => operationId })
+    await controller.connect()
+    await controller.grantMutation('grant-request-1')
+    expect(test.commands.at(-1)).toEqual({
+      type: 'grantMutation',
+      operationId,
+      sessionId,
+      documentId,
+      requestId: 'grant-request-1',
+      subagentRunId: 'subagent-run-1',
+      exactToolIds: ['office:docs:insert_content'],
+    })
+    await controller.denyMutation('grant-request-1')
+    expect(test.commands.at(-1)).toMatchObject({
+      type: 'denyMutation',
+      requestId: 'grant-request-1',
+    })
+
+    test.emit({
+      ...event(2, 'mutation-grant.updated'),
+      payload: {
+        requestId: 'grant-request-1',
+        subagentRunId: 'subagent-run-1',
+        role: 'Reviewer',
+        exactToolIds: ['office:docs:insert_content'],
+        requestedAt: '2026-08-10T00:00:00.000Z',
+        expiresAt: '2026-08-10T00:05:00.000Z',
+        status: 'active',
+        grantId: 'grant-1',
+      },
+    })
+    await controller.revokeMutation('grant-1')
+    expect(test.commands.at(-1)).toMatchObject({ type: 'revokeMutation', grantId: 'grant-1' })
+    await expect(controller.grantMutation('missing')).rejects.toThrowError(
+      'mutation_grant_request_not_pending',
+    )
+    await expect(controller.denyMutation('missing')).rejects.toThrowError(
+      'mutation_grant_request_not_pending',
+    )
+    await expect(controller.revokeMutation('missing')).rejects.toThrowError(
+      'mutation_grant_not_active',
+    )
   })
 
   it('rejects empty prompts and aborts without an active run, then disconnects cleanly', async () => {

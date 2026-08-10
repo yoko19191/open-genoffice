@@ -20,6 +20,7 @@ import {
   parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
   parseSessionSubagentResumeReceipt,
+  parseSessionMutationGrantReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
   type BootstrapRecord,
@@ -28,6 +29,7 @@ import {
   type ModelCatalogProjection,
   type McpCatalogProjection,
   type ModelManagementRequest,
+  type MutationGrantManagementRequest,
   type ModelSelectionRole,
   type OAuthOperationProjection,
   type PackageCatalogProjection,
@@ -41,6 +43,7 @@ import {
   type SessionNavigateReceipt,
   type SessionPromptReceipt,
   type SessionSubagentResumeReceipt,
+  type SessionMutationGrantReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -113,6 +116,22 @@ export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
 export type SessionPromptRequest = SessionOpenRequest & { text: string; projectRoot?: string }
 export type SessionAbortRequest = SessionOpenRequest & { runId: string }
 export type SessionSubagentResumeRequest = SessionOpenRequest & { runId: string }
+export type SessionMutationGrantIssueRequest = Extract<
+  MutationGrantManagementRequest,
+  { method: 'session.mutation-grant.issue' }
+>['params']
+export type SessionMutationGrantDenyRequest = Extract<
+  MutationGrantManagementRequest,
+  { method: 'session.mutation-grant.deny' }
+>['params']
+export type SessionMutationGrantRevokeRequest = Extract<
+  MutationGrantManagementRequest,
+  { method: 'session.mutation-grant.revoke' }
+>['params']
+export type SessionMutationGrantRevokeDocumentRequest = Extract<
+  MutationGrantManagementRequest,
+  { method: 'session.mutation-grant.revoke-document' }
+>['params']
 export type SessionForkRequest = SessionOpenRequest
 export type SessionNavigateRequest = SessionOpenRequest & { targetEntryId: string }
 export type SessionBoundRequest = { sessionId: string; documentId: string }
@@ -201,6 +220,10 @@ type ClientRuntimeMethod =
   | 'session.prompt'
   | 'session.abort'
   | 'session.subagent.resume'
+  | 'session.mutation-grant.issue'
+  | 'session.mutation-grant.deny'
+  | 'session.mutation-grant.revoke'
+  | 'session.mutation-grant.revoke-document'
   | 'session.fork'
   | 'session.navigate'
   | 'session.snapshot'
@@ -492,6 +515,10 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('session.prompt') ||
         !hello.capabilities.includes('session.abort') ||
         !hello.capabilities.includes('session.subagent.resume') ||
+        !hello.capabilities.includes('session.mutation-grant.issue') ||
+        !hello.capabilities.includes('session.mutation-grant.deny') ||
+        !hello.capabilities.includes('session.mutation-grant.revoke') ||
+        !hello.capabilities.includes('session.mutation-grant.revoke-document') ||
         !hello.capabilities.includes('session.fork') ||
         !hello.capabilities.includes('session.navigate') ||
         !hello.capabilities.includes('session.snapshot') ||
@@ -959,6 +986,35 @@ export class PiRuntimeManager {
     }
   }
 
+  async issueMutationGrant(
+    input: SessionMutationGrantIssueRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return this.mutationGrantRequest('session.mutation-grant.issue', input)
+  }
+
+  async denyMutationGrant(
+    input: SessionMutationGrantDenyRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return this.mutationGrantRequest('session.mutation-grant.deny', input)
+  }
+
+  async revokeMutationGrant(
+    input: SessionMutationGrantRevokeRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return this.mutationGrantRequest('session.mutation-grant.revoke', input)
+  }
+
+  async revokeDocumentMutationGrants(
+    input: SessionMutationGrantRevokeDocumentRequest,
+  ): Promise<{ revoked: true }> {
+    this.assertReady()
+    const value = asRecord(await this.request('session.mutation-grant.revoke-document', input))
+    if (value?.revoked !== true) {
+      throw new PiRuntimeManagerError('session_mutation_grant_receipt_invalid')
+    }
+    return { revoked: true }
+  }
+
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {
     this.assertReady()
     try {
@@ -976,6 +1032,25 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('session_navigate_receipt_invalid')
+    }
+  }
+
+  private async mutationGrantRequest(
+    method:
+      | 'session.mutation-grant.issue'
+      | 'session.mutation-grant.deny'
+      | 'session.mutation-grant.revoke',
+    input:
+      | SessionMutationGrantIssueRequest
+      | SessionMutationGrantDenyRequest
+      | SessionMutationGrantRevokeRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    this.assertReady()
+    try {
+      return parseSessionMutationGrantReceipt(await this.request(method, input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('session_mutation_grant_receipt_invalid')
     }
   }
 

@@ -472,16 +472,16 @@ Genspark，未完成时应阻止发行而不是静默降级。
 
 以下拆票粒度与依赖已经批准，并已按依赖顺序发布到 Issue tracker：
 
-| Local ID | Title                                                       | Type | Blocked by       | 覆盖验收                         |
-| -------- | ----------------------------------------------------------- | ---- | ---------------- | -------------------------------- |
+| Local ID                                                              | Title                                                       | Type | Blocked by           | 覆盖验收                         |
+| --------------------------------------------------------------------- | ----------------------------------------------------------- | ---- | -------------------- | -------------------------------- |
 | [OT-I01 / #29](https://github.com/yoko19191/open-genoffice/issues/29) | 在 PDF Panel 通过 Pi 完成读取、标注与整 run 回滚            | AFK  | #2、#4、#5、#17、#24 | OTC-001/002/003、OT-001～004     |
 | [OT-I02 / #30](https://github.com/yoko19191/open-genoffice/issues/30) | 在 Docs Panel 用 Artifact 图片与 freshness gate 完成编辑    | AFK  | #2、#4、#5、#17、#25 | OTC-001/002/004、OT-001～005     |
 | [OT-I03 / #31](https://github.com/yoko19191/open-genoffice/issues/31) | 在 Sheets Panel 用内置 Skill 与 Workbook DSL 原子修改工作簿 | AFK  | #2、#4、#5、#17、#18 | OTC-001/002/005、RS-004          |
 | [OT-I04 / #32](https://github.com/yoko19191/open-genoffice/issues/32) | 在 Slides Panel 迁移 23 个 native read/mutation executor    | AFK  | #2、#4、#5、#17      | OTC-001/002/006、OT-001～005     |
 | [OT-I05 / #33](https://github.com/yoko19191/open-genoffice/issues/33) | 合并附件、Web/Image Search 与 ask-user 平台工具             | AFK  | #2、#8、#17、#18     | OTC-002/009、AR-002、OT-005      |
-| [OT-I06 / #34](https://github.com/yoko19191/open-genoffice/issues/34) | 用 SlidePageSpec 本地生成并原子替换一张可编辑整页           | AFK  | #32、#18、#25         | OTC-007、SL-001、GX-001～004     |
-| [OT-I07 / #35](https://github.com/yoko19191/open-genoffice/issues/35) | 让获准 Slides QC Subagent 修复页面并在拒绝时保持只读        | HITL | #34、#22、#23         | OTC-008、SA-005、SL-001          |
-| [OT-I08 / #36](https://github.com/yoko19191/open-genoffice/issues/36) | 切换四应用 Catalog 并删除 63 个旧注册点与全部 Genspark 路径 | AFK  | #29～#35              | OTC-009/010、AR-001、GX-001～004 |
+| [OT-I06 / #34](https://github.com/yoko19191/open-genoffice/issues/34) | 用 SlidePageSpec 本地生成并原子替换一张可编辑整页           | AFK  | #32、#18、#25        | OTC-007、SL-001、GX-001～004     |
+| [OT-I07 / #35](https://github.com/yoko19191/open-genoffice/issues/35) | 让获准 Slides QC Subagent 修复页面并在拒绝时保持只读        | HITL | #34、#22、#23        | OTC-008、SA-005、SL-001          |
+| [OT-I08 / #36](https://github.com/yoko19191/open-genoffice/issues/36) | 切换四应用 Catalog 并删除 63 个旧注册点与全部 Genspark 路径 | AFK  | #29～#35             | OTC-009/010、AR-001、GX-001～004 |
 
 `HITL` 只表示 OT-I07 的验收需要真实用户完成一次 Grant/deny 操作；自动化实现和大部分测试仍应
 AFK。发布前需要再核对现有 Issues 是否已覆盖共享 Broker，避免重复创建 #5、#17 或 #23 的横向票。

@@ -86,6 +86,39 @@ describe('shared AI Panel Session projection', () => {
     expect(JSON.stringify(updated)).not.toContain('providerRunId')
   })
 
+  it('projects Mutation Grant requests and replaces only the matching receipt state', () => {
+    const pending = {
+      requestId: 'grant-request-1',
+      subagentRunId: 'subagent-run-1',
+      role: 'Reviewer',
+      exactToolIds: ['office:docs:insert_content'],
+      requestedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'pending' as const,
+    }
+    const initial = createAgentSessionProjection({ ...snapshot, mutationGrants: [pending] })
+    const forged = applyAgentSessionEvent(
+      initial,
+      event(2, 'mutation-grant.updated', {
+        ...pending,
+        status: 'active',
+        grantId: 'grant-1',
+        issuedByUserActionId: 'must-not-project',
+      }),
+    )
+    expect(forged.mutationGrants).toEqual([pending])
+    const active = applyAgentSessionEvent(
+      forged,
+      event(3, 'mutation-grant.updated', {
+        ...pending,
+        status: 'active',
+        grantId: 'grant-1',
+      }),
+    )
+    expect(active.mutationGrants).toEqual([{ ...pending, status: 'active', grantId: 'grant-1' }])
+    expect(JSON.stringify(active)).not.toContain('issuedByUserActionId')
+  })
+
   it('renders native message, thinking, tool, and run events in journal order', () => {
     const projection = apply(createAgentSessionProjection(snapshot), [
       event(2, 'run.started'),
@@ -242,6 +275,15 @@ describe('shared AI Panel Session projection', () => {
       role: 'user',
       text: 'prompt',
     })
+  })
+
+  it('projects failed compaction and branch navigation without optional identifiers', () => {
+    const projection = apply(createAgentSessionProjection(snapshot), [
+      event(2, 'compaction.failed'),
+      event(3, 'branch.navigated'),
+    ])
+    expect(projection.compaction).toEqual({ state: 'failed' })
+    expect(projection.branch).toEqual({ state: 'navigated' })
   })
 
   it('replaces renderer state from a reconnect snapshot before applying newer events', () => {

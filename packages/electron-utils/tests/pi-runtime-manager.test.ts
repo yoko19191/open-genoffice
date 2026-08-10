@@ -114,6 +114,10 @@ class FakeRuntimeSocket extends Duplex {
               'session.prompt',
               'session.abort',
               'session.subagent.resume',
+              'session.mutation-grant.issue',
+              'session.mutation-grant.deny',
+              'session.mutation-grant.revoke',
+              'session.mutation-grant.revoke-document',
               'session.fork',
               'session.navigate',
               'session.snapshot',
@@ -238,40 +242,91 @@ class FakeRuntimeSocket extends Duplex {
                                         attempt: 2,
                                         acceptedCursor: 'cursor-3',
                                       }
-                                    : request.method === 'session.fork'
+                                    : request.method === 'session.mutation-grant.issue'
                                       ? {
-                                          sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                          parentSessionId: snapshot.sessionId,
-                                          documentId: snapshot.documentId,
-                                          snapshot: {
-                                            ...snapshot,
-                                            sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                            branch: {
-                                              parentSessionId: snapshot.sessionId,
-                                              nodes: [],
-                                            },
+                                          sessionId: request.params.sessionId,
+                                          documentId: request.params.documentId,
+                                          grant: {
+                                            requestId: request.params.requestId,
+                                            subagentRunId: request.params.receipt.subagentRunId,
+                                            role: 'Reviewer',
+                                            exactToolIds: request.params.receipt.exactToolIds,
+                                            requestedAt: request.params.receipt.issuedAt,
+                                            expiresAt: request.params.receipt.expiresAt,
+                                            status: 'active',
+                                            grantId: request.params.receipt.grantId,
                                           },
-                                          cursor: snapshot.cursor,
+                                          acceptedCursor: 'cursor-4',
                                         }
-                                      : request.method === 'session.navigate'
+                                      : request.method === 'session.mutation-grant.deny'
                                         ? {
-                                            sessionId: snapshot.sessionId,
-                                            documentId: snapshot.documentId,
-                                            activeLeafId: 'navigation-leaf',
-                                            snapshot: {
-                                              ...snapshot,
-                                              branch: {
-                                                activeLeafId: 'navigation-leaf',
-                                                nodes: [],
-                                              },
+                                            sessionId: request.params.sessionId,
+                                            documentId: request.params.documentId,
+                                            grant: {
+                                              requestId: request.params.requestId,
+                                              subagentRunId: 'subagent-run-1',
+                                              role: 'Reviewer',
+                                              exactToolIds: ['office:docs:insert_content'],
+                                              requestedAt: '2026-08-10T00:00:00.000Z',
+                                              expiresAt: '2026-08-10T00:05:00.000Z',
+                                              status: 'denied',
                                             },
-                                            cursor: snapshot.cursor,
+                                            acceptedCursor: 'cursor-4',
                                           }
-                                        : request.method === 'session.snapshot'
-                                          ? snapshot
-                                          : request.method === 'session.subscribe'
-                                            ? { resetRequired: false, snapshot, events: [] }
-                                            : { shuttingDown: true }
+                                        : request.method === 'session.mutation-grant.revoke'
+                                          ? {
+                                              sessionId: request.params.sessionId,
+                                              documentId: request.params.documentId,
+                                              grant: {
+                                                requestId: 'grant-request-1',
+                                                subagentRunId: 'subagent-run-1',
+                                                role: 'Reviewer',
+                                                exactToolIds: ['office:docs:insert_content'],
+                                                requestedAt: '2026-08-10T00:00:00.000Z',
+                                                expiresAt: '2026-08-10T00:05:00.000Z',
+                                                status: 'revoked',
+                                                grantId: request.params.grantId,
+                                              },
+                                              acceptedCursor: 'cursor-4',
+                                            }
+                                          : request.method ===
+                                              'session.mutation-grant.revoke-document'
+                                            ? { revoked: true }
+                                            : request.method === 'session.fork'
+                                              ? {
+                                                  sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                                  parentSessionId: snapshot.sessionId,
+                                                  documentId: snapshot.documentId,
+                                                  snapshot: {
+                                                    ...snapshot,
+                                                    sessionId:
+                                                      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                                    branch: {
+                                                      parentSessionId: snapshot.sessionId,
+                                                      nodes: [],
+                                                    },
+                                                  },
+                                                  cursor: snapshot.cursor,
+                                                }
+                                              : request.method === 'session.navigate'
+                                                ? {
+                                                    sessionId: snapshot.sessionId,
+                                                    documentId: snapshot.documentId,
+                                                    activeLeafId: 'navigation-leaf',
+                                                    snapshot: {
+                                                      ...snapshot,
+                                                      branch: {
+                                                        activeLeafId: 'navigation-leaf',
+                                                        nodes: [],
+                                                      },
+                                                    },
+                                                    cursor: snapshot.cursor,
+                                                  }
+                                                : request.method === 'session.snapshot'
+                                                  ? snapshot
+                                                  : request.method === 'session.subscribe'
+                                                    ? { resetRequired: false, snapshot, events: [] }
+                                                    : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
@@ -666,6 +721,47 @@ describe('PiRuntimeManager', () => {
         runId: 'run-1',
       }),
     ).resolves.toEqual({ runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' })
+    const bound = {
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    }
+    const grantReceipt = {
+      grantId: 'grant-1',
+      subagentRunId: 'subagent-run-1',
+      documentId: bound.documentId,
+      exactToolIds: ['office:docs:insert_content'],
+      issuedByUserActionId: 'user-action-1',
+      issuedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'active' as const,
+    }
+    await expect(
+      manager.issueMutationGrant({
+        operationId,
+        ...bound,
+        requestId: 'grant-request-1',
+        receipt: grantReceipt,
+      }),
+    ).resolves.toMatchObject({ grant: { status: 'active' } })
+    await expect(
+      manager.denyMutationGrant({
+        operationId,
+        ...bound,
+        requestId: 'grant-request-1',
+        userActionId: 'user-action-2',
+      }),
+    ).resolves.toMatchObject({ grant: { status: 'denied' } })
+    await expect(
+      manager.revokeMutationGrant({
+        operationId,
+        ...bound,
+        grantId: 'grant-1',
+        userActionId: 'user-action-3',
+      }),
+    ).resolves.toMatchObject({ grant: { status: 'revoked' } })
+    await expect(manager.revokeDocumentMutationGrants({ operationId, ...bound })).resolves.toEqual({
+      revoked: true,
+    })
     await expect(
       manager.forkSession({
         operationId,
@@ -1117,6 +1213,7 @@ describe('PiRuntimeManager', () => {
     ['openSession', 'session_connection_receipt_invalid'],
     ['promptSession', 'session_prompt_receipt_invalid'],
     ['abortSession', 'session_abort_receipt_invalid'],
+    ['resumeSubagent', 'session_subagent_resume_receipt_invalid'],
     ['forkSession', 'session_fork_receipt_invalid'],
     ['navigateSession', 'session_navigate_receipt_invalid'],
     ['snapshotSession', 'session_snapshot_invalid'],
@@ -1149,17 +1246,89 @@ describe('PiRuntimeManager', () => {
                   ...bound,
                   runId: 'run-1',
                 }
-              : method === 'navigateSession'
+              : method === 'resumeSubagent'
                 ? {
                     operationId: 'abababab-abab-4bab-8bab-abababababab',
                     ...bound,
-                    targetEntryId: 'target-leaf',
+                    runId: 'subagent-run-1',
                   }
-                : method === 'forkSession'
-                  ? { operationId: 'abababab-abab-4bab-8bab-abababababab', ...bound }
-                  : bound
+                : method === 'navigateSession'
+                  ? {
+                      operationId: 'abababab-abab-4bab-8bab-abababababab',
+                      ...bound,
+                      targetEntryId: 'target-leaf',
+                    }
+                  : method === 'forkSession'
+                    ? { operationId: 'abababab-abab-4bab-8bab-abababababab', ...bound }
+                    : bound
     await expect(manager[method](input as never)).rejects.toEqual(new PiRuntimeManagerError(code))
     await manager.shutdown()
+  })
+
+  it('maps invalid and Runtime-error Mutation Grant receipts to stable errors', async () => {
+    const operationId = 'abababab-abab-4bab-8bab-abababababab'
+    const bound = {
+      sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    }
+    const receipt = {
+      grantId: 'grant-1',
+      subagentRunId: 'subagent-run-1',
+      documentId: bound.documentId,
+      exactToolIds: ['office:docs:insert_content'],
+      issuedByUserActionId: 'user-action-1',
+      issuedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'active' as const,
+    }
+    const invalid = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness({ sessionResult: null }).dependencies,
+    )
+    await invalid.start()
+    await Promise.all(
+      [
+        invalid.issueMutationGrant({
+          operationId,
+          ...bound,
+          requestId: 'grant-request-1',
+          receipt,
+        }),
+        invalid.denyMutationGrant({
+          operationId,
+          ...bound,
+          requestId: 'grant-request-1',
+          userActionId: 'user-action-2',
+        }),
+        invalid.revokeMutationGrant({
+          operationId,
+          ...bound,
+          grantId: 'grant-1',
+          userActionId: 'user-action-3',
+        }),
+        invalid.revokeDocumentMutationGrants({ operationId, ...bound }),
+      ].map((call) =>
+        expect(call).rejects.toEqual(
+          new PiRuntimeManagerError('session_mutation_grant_receipt_invalid'),
+        ),
+      ),
+    )
+    await invalid.shutdown()
+
+    const runtimeError = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness({ sessionMode: 'error-response' }).dependencies,
+    )
+    await runtimeError.start()
+    await expect(
+      runtimeError.denyMutationGrant({
+        operationId,
+        ...bound,
+        requestId: 'grant-request-1',
+        userActionId: 'user-action-2',
+      }),
+    ).rejects.toEqual(new PiRuntimeManagerError('unavailable'))
+    await runtimeError.shutdown()
   })
 
   it('preserves stable Runtime errors across every narrow Session method', async () => {
@@ -1179,6 +1348,7 @@ describe('PiRuntimeManager', () => {
       manager.openSession({ operationId, ...bound }),
       manager.promptSession({ operationId, ...bound, text: 'hello' }),
       manager.abortSession({ operationId, ...bound, runId: 'run-1' }),
+      manager.resumeSubagent({ operationId, ...bound, runId: 'subagent-run-1' }),
       manager.forkSession({ operationId, ...bound }),
       manager.navigateSession({ operationId, ...bound, targetEntryId: 'target-leaf' }),
       manager.snapshotSession(bound),

@@ -8,6 +8,7 @@ import {
   ModelCatalogProjectionSchema,
   McpCatalogProjectionSchema,
   ModelManagementRequestSchema,
+  MutationGrantManagementRequestSchema,
   ResourceCatalogProjectionSchema,
   PackageCatalogProjectionSchema,
   ResourceManagementRequestSchema,
@@ -37,6 +38,9 @@ import {
   parseModelCatalogProjection,
   parseMcpCatalogProjection,
   parseModelManagementRequest,
+  parseMutationGrantManagementRequest,
+  parseMutationGrantProjection,
+  parseMutationGrantReceipt,
   parseResourceCatalogProjection,
   parsePackageCatalogProjection,
   parseResourceManagementRequest,
@@ -53,6 +57,7 @@ import {
   parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
   parseSessionSubagentResumeReceipt,
+  parseSessionMutationGrantReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
 } from '../src'
@@ -113,6 +118,88 @@ describe('runtime bootstrap contract', () => {
 
   it('rejects malformed JSON with the same redacted error', () => {
     expect(() => parseBootstrapLine('{"token":"top-secret"')).toThrowError('invalid_bootstrap')
+  })
+})
+
+describe('Mutation Grant contract', () => {
+  const request = {
+    requestId: 'grant-request-1',
+    subagentRunId: 'subagent-run-1',
+    role: 'Reviewer',
+    exactToolIds: ['office:docs:insert_content'],
+    requestedAt: '2026-08-10T00:00:00.000Z',
+    expiresAt: '2026-08-10T00:05:00.000Z',
+    status: 'pending' as const,
+  }
+  const grant = {
+    grantId: 'grant-1',
+    subagentRunId: 'subagent-run-1',
+    documentId,
+    exactToolIds: ['office:docs:insert_content'],
+    issuedByUserActionId: 'user-action-1',
+    issuedAt: '2026-08-10T00:00:00.000Z',
+    expiresAt: '2026-08-10T00:05:00.000Z',
+    status: 'active' as const,
+  }
+
+  it('accepts exact projections, main-signed receipts and session commands', () => {
+    expect(parseMutationGrantProjection(request)).toEqual(request)
+    expect(parseMutationGrantReceipt(grant)).toEqual(grant)
+    expect(
+      parseAgentSessionCommand({
+        type: 'grantMutation',
+        operationId,
+        sessionId,
+        documentId,
+        requestId: request.requestId,
+        subagentRunId: request.subagentRunId,
+        exactToolIds: request.exactToolIds,
+      }),
+    ).toMatchObject({ type: 'grantMutation', exactToolIds: request.exactToolIds })
+    expect(
+      parseSessionMutationGrantReceipt({
+        sessionId,
+        documentId,
+        grant: { ...request, grantId: grant.grantId, status: 'active' },
+        acceptedCursor: 'cursor-1',
+      }),
+    ).toMatchObject({ grant: { grantId: 'grant-1', status: 'active' } })
+    expect(() =>
+      parseMutationGrantProjection({ ...request, exactToolIds: ['office:docs:*'] }),
+    ).toThrowError('mutation_grant_projection_invalid')
+    expect(() => parseMutationGrantReceipt({ ...grant, issuedByUserActionId: '' })).toThrowError(
+      'mutation_grant_receipt_invalid',
+    )
+  })
+
+  it('accepts only authenticated main issue/deny/revoke envelopes and rejects expansion shapes', () => {
+    const issue = {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: 'request',
+      id: 'request-1',
+      correlationId: 'correlation-1',
+      method: 'session.mutation-grant.issue',
+      params: { operationId, sessionId, documentId, requestId: request.requestId, receipt: grant },
+    }
+    expect(MutationGrantManagementRequestSchema).toBeDefined()
+    expect(parseMutationGrantManagementRequest(issue)).toEqual(issue)
+    expect(() =>
+      parseMutationGrantManagementRequest({
+        ...issue,
+        params: { ...issue.params, wildcard: true },
+      }),
+    ).toThrowError('mutation_grant_management_request_invalid')
+    expect(() =>
+      parseAgentSessionCommand({
+        type: 'grantMutation',
+        operationId,
+        sessionId,
+        documentId,
+        requestId: request.requestId,
+        subagentRunId: request.subagentRunId,
+        exactToolIds: ['office:docs:*'],
+      }),
+    ).toThrowError('agent_session_command_invalid')
   })
 })
 
@@ -199,7 +286,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(50)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(54)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)

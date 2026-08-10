@@ -6,6 +6,7 @@ import type {
   SessionConnectionReceipt,
   SessionPromptReceipt,
   SessionSubagentResumeReceipt,
+  SessionMutationGrantReceipt,
   SessionSnapshot,
   SessionSubscriptionReceipt,
   ProviderCredentialStatus,
@@ -25,6 +26,10 @@ import type {
   SessionOpenRequest,
   SessionPromptRequest,
   SessionSubagentResumeRequest,
+  SessionMutationGrantIssueRequest,
+  SessionMutationGrantDenyRequest,
+  SessionMutationGrantRevokeRequest,
+  SessionMutationGrantRevokeDocumentRequest,
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
@@ -58,6 +63,14 @@ export type SupervisedPiRuntimeManager = {
   promptSession(input: SessionPromptRequest): Promise<SessionPromptReceipt>
   abortSession(input: SessionAbortRequest): Promise<SessionAbortReceipt>
   resumeSubagent(input: SessionSubagentResumeRequest): Promise<SessionSubagentResumeReceipt>
+  issueMutationGrant(input: SessionMutationGrantIssueRequest): Promise<SessionMutationGrantReceipt>
+  denyMutationGrant(input: SessionMutationGrantDenyRequest): Promise<SessionMutationGrantReceipt>
+  revokeMutationGrant(
+    input: SessionMutationGrantRevokeRequest,
+  ): Promise<SessionMutationGrantReceipt>
+  revokeDocumentMutationGrants(
+    input: SessionMutationGrantRevokeDocumentRequest,
+  ): Promise<{ revoked: true }>
   forkSession(input: SessionForkRequest): Promise<SessionForkReceipt>
   navigateSession(input: SessionNavigateRequest): Promise<SessionNavigateReceipt>
   snapshotSession(input: SessionBoundRequest): Promise<SessionSnapshot>
@@ -228,6 +241,30 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async resumeSubagent(input: SessionSubagentResumeRequest): Promise<SessionSubagentResumeReceipt> {
     return (await this.readyManager()).resumeSubagent(input)
+  }
+
+  async issueMutationGrant(
+    input: SessionMutationGrantIssueRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return (await this.readyManager()).issueMutationGrant(input)
+  }
+
+  async denyMutationGrant(
+    input: SessionMutationGrantDenyRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return (await this.readyManager()).denyMutationGrant(input)
+  }
+
+  async revokeMutationGrant(
+    input: SessionMutationGrantRevokeRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return (await this.readyManager()).revokeMutationGrant(input)
+  }
+
+  async revokeDocumentMutationGrants(
+    input: SessionMutationGrantRevokeDocumentRequest,
+  ): Promise<{ revoked: true }> {
+    return (await this.readyManager()).revokeDocumentMutationGrants(input)
   }
 
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {

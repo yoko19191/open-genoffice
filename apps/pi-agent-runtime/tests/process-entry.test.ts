@@ -89,7 +89,7 @@ describe('Runtime process entry', () => {
           startRuntime: async (options) => {
             expect(options.resourceHome).toBe('/isolated/.open-genoffice')
             expect(process.env[PI_SUBAGENT_AGENT_DIR_ENV]).toBe(
-              '/isolated/.open-genoffice/state/subagent-pi-agent',
+              join('/isolated/.open-genoffice', 'state', 'subagent-pi-agent'),
             )
             calls.push('runtime')
             return runtime

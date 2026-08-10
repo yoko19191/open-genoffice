@@ -15,6 +15,7 @@ import {
   type SessionNavigateReceipt,
   type SessionPromptReceipt,
   type SessionSubagentResumeReceipt,
+  type SessionMutationGrantReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -31,6 +32,10 @@ import type {
   SessionOpenRequest,
   SessionPromptRequest,
   SessionSubagentResumeRequest,
+  SessionMutationGrantIssueRequest,
+  SessionMutationGrantDenyRequest,
+  SessionMutationGrantRevokeRequest,
+  SessionMutationGrantRevokeDocumentRequest,
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
@@ -74,6 +79,10 @@ type OwnedPiRuntimeManager = Pick<
   | 'promptSession'
   | 'abortSession'
   | 'resumeSubagent'
+  | 'issueMutationGrant'
+  | 'denyMutationGrant'
+  | 'revokeMutationGrant'
+  | 'revokeDocumentMutationGrants'
   | 'forkSession'
   | 'navigateSession'
   | 'snapshotSession'
@@ -177,6 +186,30 @@ export class PiRuntimeService {
 
   async resumeSubagent(input: SessionSubagentResumeRequest): Promise<SessionSubagentResumeReceipt> {
     return (await this.readyManager()).resumeSubagent(input)
+  }
+
+  async issueMutationGrant(
+    input: SessionMutationGrantIssueRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return (await this.readyManager()).issueMutationGrant(input)
+  }
+
+  async denyMutationGrant(
+    input: SessionMutationGrantDenyRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return (await this.readyManager()).denyMutationGrant(input)
+  }
+
+  async revokeMutationGrant(
+    input: SessionMutationGrantRevokeRequest,
+  ): Promise<SessionMutationGrantReceipt> {
+    return (await this.readyManager()).revokeMutationGrant(input)
+  }
+
+  async revokeDocumentMutationGrants(
+    input: SessionMutationGrantRevokeDocumentRequest,
+  ): Promise<{ revoked: true }> {
+    return (await this.readyManager()).revokeDocumentMutationGrants(input)
   }
 
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {
