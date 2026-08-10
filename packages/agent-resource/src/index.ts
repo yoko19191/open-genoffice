@@ -128,3 +128,11 @@ export {
   ProviderOperationStoreError,
   type ProviderOperationRecord,
 } from './provider-operation-store'
+export {
+  ScopedArtifactStore,
+  ScopedArtifactStoreError,
+  type OpenedScopedImage,
+  type ScopedArtifactRef,
+  type ScopedArtifactStoreErrorCode,
+  type ScopedArtifactStoreOptions,
+} from './scoped-artifact-store'

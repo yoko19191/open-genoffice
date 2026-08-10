@@ -1,8 +1,8 @@
-import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { AuthResult } from '@earendil-works/pi-ai'
 import type { ArtifactRef } from '@genoffice/agent-runtime-protocol'
+import { ScopedArtifactStore, type ScopedArtifactRef } from '@genoffice/agent-resource'
 
 const RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
 const OUTER_MODEL = 'gpt-5.4-mini'
@@ -43,6 +43,18 @@ export type CodexImageGenerateResult = {
 export type CodexOAuthImageProviderOptions = {
   rootDirectory: string
   modelRuntime: ModelRuntimePort
+  artifactStore?: {
+    registerImage(input: {
+      artifactId: string
+      documentId: string
+      runId: string
+      bytes: Uint8Array
+      mediaType: 'image/png'
+      width: number
+      height: number
+      displayName?: string
+    }): Promise<ScopedArtifactRef>
+  }
   fetch?: Fetch
   createId?: () => string
   timeoutMs?: number
@@ -200,17 +212,14 @@ function mapHttpError(status: number): CodexOAuthImageProviderError {
 export class CodexOAuthImageProvider {
   private readonly fetch: Fetch
   private readonly createId: () => string
-  private readonly assetDirectory: string
+  private readonly artifactStore: NonNullable<CodexOAuthImageProviderOptions['artifactStore']>
 
   constructor(private readonly options: CodexOAuthImageProviderOptions) {
     this.fetch = options.fetch ?? globalThis.fetch
     this.createId = options.createId ?? randomUUID
-    this.assetDirectory = join(options.rootDirectory, 'assets', 'provider', 'codex-image')
-  }
-
-  artifactPath(artifactId: string): string {
-    if (!UUID.test(artifactId)) throw new CodexOAuthImageProviderError('artifact_invalid')
-    return join(this.assetDirectory, `${artifactId}.png`)
+    this.artifactStore =
+      options.artifactStore ??
+      new ScopedArtifactStore({ rootDirectory: join(options.rootDirectory, 'assets', 'artifacts') })
   }
 
   async generate(
@@ -244,28 +253,18 @@ export class CodexOAuthImageProvider {
       }
       const image = decodePng(parsed.finalBase64)
       const artifactId = this.createId()
-      const path = this.artifactPath(artifactId)
-      await mkdir(this.assetDirectory, { recursive: true })
-      const temporary = `${path}.${input.operationId}.tmp`
-      try {
-        await writeFile(temporary, image.bytes, { flag: 'wx', mode: 0o600 })
-        await rename(temporary, path)
-      } catch (error) {
-        try {
-          await unlink(temporary)
-        } catch {
-          // The temporary may not exist when exclusive creation itself failed.
-        }
-        throw error
-      }
+      const artifact = await this.artifactStore.registerImage({
+        artifactId,
+        documentId: input.documentId,
+        runId: input.runId,
+        bytes: image.bytes,
+        mediaType: 'image/png',
+        width: image.width,
+        height: image.height,
+        displayName: 'generated-image.png',
+      })
       return {
-        artifact: {
-          artifactId,
-          mediaType: 'image/png',
-          byteLength: image.bytes.length,
-          sha256: createHash('sha256').update(image.bytes).digest('hex'),
-          displayName: 'generated-image.png',
-        },
+        artifact,
         width: image.width,
         height: image.height,
         ...(parsed.usage ? { usage: parsed.usage } : {}),

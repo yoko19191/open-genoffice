@@ -1,11 +1,13 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthResult } from '@earendil-works/pi-ai'
+import { ScopedArtifactStore } from '@genoffice/agent-resource'
 import {
   CodexOAuthImageProvider,
   CodexOAuthImageProviderError,
+  type CodexOAuthImageProviderOptions,
 } from '../src/codex-oauth-image-provider'
 
 const PNG_BASE64 =
@@ -62,9 +64,13 @@ describe('CodexOAuthImageProvider', () => {
     const storage = await root()
     const getAuth = vi.fn(async (_providerId: string, _options?: object) => auth())
     const fetch = vi.fn(async (_input: string, _init: RequestInit) => sse([completed()]))
+    const artifactStore = new ScopedArtifactStore({
+      rootDirectory: join(storage, 'assets', 'artifacts'),
+    })
     const provider = new CodexOAuthImageProvider({
       rootDirectory: storage,
       modelRuntime: { getAuth, isUsingOAuth: () => true },
+      artifactStore,
       fetch,
       createId: () => '11111111-1111-4111-8111-111111111111',
     })
@@ -104,9 +110,13 @@ describe('CodexOAuthImageProvider', () => {
       usage: { inputTokens: 4, outputTokens: 8, totalTokens: 12 },
     })
     expect(result.artifact.sha256).toMatch(/^[0-9a-f]{64}$/)
-    expect(await readFile(provider.artifactPath(result.artifact.artifactId))).toEqual(
-      Buffer.from(PNG_BASE64, 'base64'),
-    )
+    expect(
+      await artifactStore.openImage({
+        artifactId: result.artifact.artifactId,
+        documentId: VALID_INPUT.documentId,
+        runId: VALID_INPUT.runId,
+      }),
+    ).toMatchObject({ bytes: Buffer.from(PNG_BASE64, 'base64'), width: 1, height: 1 })
     expect(JSON.stringify(result)).not.toContain('private prompt')
     expect(JSON.stringify(result)).not.toContain('oauth-secret')
     expect(JSON.stringify(result)).not.toContain(PNG_BASE64)
@@ -279,9 +289,6 @@ describe('CodexOAuthImageProvider', () => {
         modelRuntime: { getAuth: async () => auth(), isUsingOAuth: () => true },
         fetch: response,
       })
-    expect(() => build(async () => sse([completed()])).artifactPath('bad')).toThrow(
-      'artifact_invalid',
-    )
     await expect(
       build(async () => sse([completed('not base64!')])).generate(VALID_INPUT),
     ).rejects.toMatchObject({
@@ -310,6 +317,7 @@ describe('CodexOAuthImageProvider', () => {
       getAuth?: () => Promise<AuthResult | undefined>
       fetch?: () => Promise<Response>
       createId?: () => string
+      artifactStore?: CodexOAuthImageProviderOptions['artifactStore']
     }) =>
       new CodexOAuthImageProvider({
         rootDirectory: storage,
@@ -319,6 +327,7 @@ describe('CodexOAuthImageProvider', () => {
         },
         fetch: options.fetch,
         createId: options.createId,
+        artifactStore: options.artifactStore,
       })
 
     await expect(
@@ -343,14 +352,14 @@ describe('CodexOAuthImageProvider', () => {
       }).generate(VALID_INPUT),
     ).rejects.toMatchObject({ code: 'provider_unavailable' })
 
-    const artifactId = '11111111-1111-4111-8111-111111111111'
     const writeFailure = provider({
       fetch: async () => sse([completed()]),
-      createId: () => artifactId,
+      artifactStore: {
+        registerImage: async () => {
+          throw new Error('private storage failure')
+        },
+      },
     })
-    const temporary = `${writeFailure.artifactPath(artifactId)}.${VALID_INPUT.operationId}.tmp`
-    await mkdir(dirname(temporary), { recursive: true })
-    await writeFile(temporary, 'occupied')
     await expect(writeFailure.generate(VALID_INPUT)).rejects.toMatchObject({
       code: 'provider_unavailable',
     })
