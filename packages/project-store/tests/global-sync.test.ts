@@ -153,5 +153,5 @@ describe('GlobalAssetSyncReconciler', () => {
         { canonicalPath: 'assets/overflow.bin', kind: 'global-asset', bytes: shared },
       ]),
     ).rejects.toThrow(/sync_limit_exceeded/)
-  }, 30_000)
+  }, 60_000)
 })

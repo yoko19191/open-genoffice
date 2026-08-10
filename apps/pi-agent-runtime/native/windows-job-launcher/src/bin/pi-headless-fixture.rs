@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
@@ -28,6 +29,8 @@ fn main() {
     let message = r#"{"role":"assistant","content":[{"type":"text","text":"fixture child completed"}],"provider":"fixture-provider","model":"fixture-model","usage":{"input":7,"output":3,"cost":{"total":0.01}},"stopReason":"stop"}"#;
     println!(r#"{{"type":"message_end","message":{message}}}"#);
     println!(r#"{{"type":"agent_end","messages":[{message}]}}"#);
+    io::stdout().flush().expect("fixture stdout");
+    thread::sleep(Duration::from_millis(100));
 }
 
 #[cfg(test)]
