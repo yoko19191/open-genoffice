@@ -131,6 +131,7 @@ const SessionEventTypeSchema = Type.Union([
   Type.Literal('subagent.tool.started'),
   Type.Literal('subagent.tool.completed'),
   Type.Literal('mutation-grant.updated'),
+  Type.Literal('user-action.updated'),
   Type.Literal('runtime.degraded'),
   Type.Literal('diagnostic.available'),
 ])
@@ -492,6 +493,33 @@ export const MutationGrantReceiptSchema = Type.Object(
   { additionalProperties: false },
 )
 
+const UserActionStatusSchema = Type.Union([
+  Type.Literal('pending'),
+  Type.Literal('answered'),
+  Type.Literal('cancelled'),
+])
+
+export const UserActionProjectionSchema = Type.Object(
+  {
+    requestId: EntityIdSchema,
+    runId: EntityIdSchema,
+    mode: Type.Union([Type.Literal('confirm'), Type.Literal('input')]),
+    question: Type.String({ minLength: 1, maxLength: 8_000 }),
+    confirmLabel: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    cancelLabel: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    placeholder: Type.Optional(Type.String({ maxLength: 256 })),
+    maxLength: Type.Optional(Type.Integer({ minimum: 1, maximum: 4_000 })),
+    requestedAt: Type.String({ minLength: 20, maxLength: 32 }),
+    status: UserActionStatusSchema,
+  },
+  { additionalProperties: false },
+)
+
+export const UserActionAnswerSchema = Type.Union([
+  Type.Object({ confirmed: Type.Boolean() }, { additionalProperties: false }),
+  Type.Object({ text: Type.String({ maxLength: 4_000 }) }, { additionalProperties: false }),
+])
+
 export const SessionSnapshotSchema = Type.Object(
   {
     sessionId: EntityIdSchema,
@@ -499,6 +527,7 @@ export const SessionSnapshotSchema = Type.Object(
     messages: Type.Array(SessionMessageProjectionSchema),
     subagents: Type.Optional(Type.Array(SubagentRunProjectionSchema, { maxItems: 256 })),
     mutationGrants: Type.Optional(Type.Array(MutationGrantProjectionSchema, { maxItems: 256 })),
+    userActions: Type.Optional(Type.Array(UserActionProjectionSchema, { maxItems: 16 })),
     activeRun: Type.Optional(
       Type.Object(
         {
@@ -1085,6 +1114,23 @@ const SessionMutationGrantRevokeDocumentRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const SessionUserActionAnswerRequestSchema = sessionRequestEnvelope(
+  'session.user-action.answer',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      requestId: EntityIdSchema,
+      userActionId: EntityIdSchema,
+      answer: UserActionAnswerSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
+export const UserActionManagementRequestSchema = SessionUserActionAnswerRequestSchema
+
 export const MutationGrantManagementRequestSchema = Type.Union([
   SessionMutationGrantIssueRequestSchema,
   SessionMutationGrantDenyRequestSchema,
@@ -1205,6 +1251,7 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionMutationGrantDenyRequestSchema,
   SessionMutationGrantRevokeRequestSchema,
   SessionMutationGrantRevokeDocumentRequestSchema,
+  SessionUserActionAnswerRequestSchema,
   SessionForkRequestSchema,
   SessionNavigateRequestSchema,
   SessionSnapshotRequestSchema,
@@ -1348,6 +1395,16 @@ export const SessionMutationGrantReceiptSchema = Type.Object(
     sessionId: SessionIdSchema,
     documentId: DocumentIdSchema,
     grant: MutationGrantProjectionSchema,
+    acceptedCursor: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+)
+
+export const SessionUserActionReceiptSchema = Type.Object(
+  {
+    sessionId: SessionIdSchema,
+    documentId: DocumentIdSchema,
+    action: UserActionProjectionSchema,
     acceptedCursor: Type.String({ minLength: 1, maxLength: 4096 }),
   },
   { additionalProperties: false },
@@ -1515,6 +1572,17 @@ export const AgentSessionCommandSchema = Type.Union([
   ),
   Type.Object(
     {
+      type: Type.Literal('answerUserAction'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      requestId: EntityIdSchema,
+      answer: UserActionAnswerSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
       type: Type.Literal('rollbackRun'),
       operationId: OperationIdSchema,
       sessionId: SessionIdSchema,
@@ -1676,6 +1744,8 @@ export type SessionMessageProjection = Static<typeof SessionMessageProjectionSch
 export type SubagentRunProjection = Static<typeof SubagentRunProjectionSchema>
 export type MutationGrantProjection = Static<typeof MutationGrantProjectionSchema>
 export type MutationGrantReceipt = Static<typeof MutationGrantReceiptSchema>
+export type UserActionProjection = Static<typeof UserActionProjectionSchema>
+export type UserActionAnswer = Static<typeof UserActionAnswerSchema>
 export type SessionSnapshot = Static<typeof SessionSnapshotSchema>
 export type RequestEnvelope = Static<typeof RequestEnvelopeSchema>
 export type ResponseEnvelope = Static<typeof ResponseEnvelopeSchema>
@@ -1685,6 +1755,7 @@ export type SessionPromptReceipt = Static<typeof SessionPromptReceiptSchema>
 export type SessionAbortReceipt = Static<typeof SessionAbortReceiptSchema>
 export type SessionSubagentResumeReceipt = Static<typeof SessionSubagentResumeReceiptSchema>
 export type SessionMutationGrantReceipt = Static<typeof SessionMutationGrantReceiptSchema>
+export type SessionUserActionReceipt = Static<typeof SessionUserActionReceiptSchema>
 export type SessionForkReceipt = Static<typeof SessionForkReceiptSchema>
 export type SessionNavigateReceipt = Static<typeof SessionNavigateReceiptSchema>
 export type SessionSubscriptionReceipt = Static<typeof SessionSubscriptionReceiptSchema>
@@ -1706,6 +1777,7 @@ export type CredentialManagementRequest = Static<typeof CredentialManagementRequ
 export type ModelManagementRequest = Static<typeof ModelManagementRequestSchema>
 export type ResourceManagementRequest = Static<typeof ResourceManagementRequestSchema>
 export type MutationGrantManagementRequest = Static<typeof MutationGrantManagementRequestSchema>
+export type UserActionManagementRequest = Static<typeof UserActionManagementRequestSchema>
 
 export function parseBootstrapLine(line: string): BootstrapRecord {
   try {
@@ -1796,6 +1868,11 @@ export function parseSessionSubagentResumeReceipt(value: unknown): SessionSubage
 export function parseSessionMutationGrantReceipt(value: unknown): SessionMutationGrantReceipt {
   if (Value.Check(SessionMutationGrantReceiptSchema, value)) return value
   throw new Error('session_mutation_grant_receipt_invalid')
+}
+
+export function parseSessionUserActionReceipt(value: unknown): SessionUserActionReceipt {
+  if (Value.Check(SessionUserActionReceiptSchema, value)) return value
+  throw new Error('session_user_action_receipt_invalid')
 }
 
 export function parseSessionForkReceipt(value: unknown): SessionForkReceipt {
@@ -1895,6 +1972,16 @@ export function parseMutationGrantProjection(value: unknown): MutationGrantProje
 export function parseMutationGrantReceipt(value: unknown): MutationGrantReceipt {
   if (Value.Check(MutationGrantReceiptSchema, value)) return value
   throw new Error('mutation_grant_receipt_invalid')
+}
+
+export function parseUserActionProjection(value: unknown): UserActionProjection {
+  if (Value.Check(UserActionProjectionSchema, value)) return value
+  throw new Error('user_action_projection_invalid')
+}
+
+export function parseUserActionManagementRequest(value: unknown): UserActionManagementRequest {
+  if (Value.Check(UserActionManagementRequestSchema, value)) return value
+  throw new Error('user_action_management_request_invalid')
 }
 
 export function parseSessionSubscriptionReceipt(value: unknown): SessionSubscriptionReceipt {

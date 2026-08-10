@@ -25,6 +25,7 @@ import {
   parseSessionPromptReceipt,
   parseSessionSubagentResumeReceipt,
   parseSessionMutationGrantReceipt,
+  parseSessionUserActionReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
   type BootstrapRecord,
@@ -37,6 +38,7 @@ import {
   type MediaPreparationRequest,
   type ModelManagementRequest,
   type MutationGrantManagementRequest,
+  type UserActionManagementRequest,
   type OfficeToolCatalogBinding,
   type ModelSelectionRole,
   type OAuthOperationProjection,
@@ -56,6 +58,7 @@ import {
   type SessionPromptReceipt,
   type SessionSubagentResumeReceipt,
   type SessionMutationGrantReceipt,
+  type SessionUserActionReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -161,6 +164,7 @@ export type SessionMutationGrantRevokeDocumentRequest = Extract<
   MutationGrantManagementRequest,
   { method: 'session.mutation-grant.revoke-document' }
 >['params']
+export type SessionUserActionAnswerRequest = UserActionManagementRequest['params']
 export type SessionForkRequest = SessionOperationRequest
 export type SessionNavigateRequest = SessionOperationRequest & { targetEntryId: string }
 export type SessionBoundRequest = { sessionId: string; documentId: string }
@@ -253,6 +257,7 @@ type ClientRuntimeMethod =
   | 'session.mutation-grant.deny'
   | 'session.mutation-grant.revoke'
   | 'session.mutation-grant.revoke-document'
+  | 'session.user-action.answer'
   | 'session.fork'
   | 'session.navigate'
   | 'session.snapshot'
@@ -572,6 +577,7 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('session.mutation-grant.deny') ||
         !hello.capabilities.includes('session.mutation-grant.revoke') ||
         !hello.capabilities.includes('session.mutation-grant.revoke-document') ||
+        !hello.capabilities.includes('session.user-action.answer') ||
         !hello.capabilities.includes('session.fork') ||
         !hello.capabilities.includes('session.navigate') ||
         !hello.capabilities.includes('session.snapshot') ||
@@ -1183,6 +1189,16 @@ export class PiRuntimeManager {
       throw new PiRuntimeManagerError('session_mutation_grant_receipt_invalid')
     }
     return { revoked: true }
+  }
+
+  async answerUserAction(input: SessionUserActionAnswerRequest): Promise<SessionUserActionReceipt> {
+    this.assertReady()
+    try {
+      return parseSessionUserActionReceipt(await this.request('session.user-action.answer', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('session_user_action_receipt_invalid')
+    }
   }
 
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {

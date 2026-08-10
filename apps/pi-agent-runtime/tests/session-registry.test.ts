@@ -9,6 +9,7 @@ import type { MutationGrantProjection } from '@genoffice/agent-runtime-protocol'
 import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import { CapabilitySnapshotError, createCapabilitySnapshot } from '@genoffice/agent-resource'
 import { RuntimeSessionError, createSessionRegistry } from '../src'
+import { UserActionRegistry } from '../src/user-action-registry'
 import type {
   SessionMutationGrantRegistry,
   SessionSubagentCoordinator,
@@ -259,6 +260,73 @@ describe('document-bound Pi Session registry', () => {
       }),
     ).resolves.toEqual({ revoked: true })
     expect(revokeForDocument).toHaveBeenCalledWith(documentId, 'document_closed')
+    await registry.shutdown()
+  })
+
+  it('journals a safe pending question and accepts only the bound main-signed answer', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-user-action-'))
+    roots.push(dataRoot)
+    const userActions = new UserActionRegistry({
+      randomUUID: () => 'question-1',
+      now: () => new Date('2026-08-11T00:00:00.000Z'),
+    })
+    const fake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-user-action',
+      cursorSecret: Buffer.alloc(32, 49),
+      randomUUID: () => '11111111-1111-4111-8111-111111111111',
+      createPiSession: async () => fake.handle as never,
+      userActions,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const waiting = userActions.request({
+      sessionId: created.sessionId,
+      documentId,
+      runId: 'run-1',
+      mode: 'input',
+      question: 'Name this section',
+      maxLength: 80,
+    })
+    await vi.waitFor(async () => {
+      await expect(
+        registry.snapshot({ sessionId: created.sessionId, documentId }),
+      ).resolves.toMatchObject({
+        userActions: [{ requestId: 'question-1', status: 'pending' }],
+      })
+    })
+    await expect(
+      registry.answerUserAction({
+        operationId: 'wrong-document-answer',
+        sessionId: created.sessionId,
+        documentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+        requestId: 'question-1',
+        userActionId: 'gesture-1',
+        answer: { text: 'Overview' },
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('document_mismatch'))
+    await expect(
+      registry.answerUserAction({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+        requestId: 'question-1',
+        userActionId: 'gesture-1',
+        answer: { text: 'Overview' },
+      }),
+    ).resolves.toMatchObject({
+      action: { requestId: 'question-1', status: 'answered' },
+    })
+    await expect(waiting).resolves.toEqual({
+      requestId: 'question-1',
+      answer: { text: 'Overview' },
+    })
+    const snapshot = await registry.snapshot({ sessionId: created.sessionId, documentId })
+    expect(snapshot.userActions).toEqual([])
+    const replay = await registry.subscribe({ sessionId: created.sessionId, documentId })
+    expect(replay.snapshot.userActions).toEqual([])
+    expect(JSON.stringify(replay)).not.toContain('Overview')
+    expect(JSON.stringify(replay)).not.toContain('gesture-1')
     await registry.shutdown()
   })
 

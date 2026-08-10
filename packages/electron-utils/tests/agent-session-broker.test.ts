@@ -118,6 +118,19 @@ function harness() {
       acceptedCursor: 'cursor-5',
     })),
     revokeDocumentMutationGrants: vi.fn(async () => ({ revoked: true as const })),
+    answerUserAction: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      action: {
+        requestId: input.requestId,
+        runId: 'run-1',
+        mode: 'confirm' as const,
+        question: 'Continue?',
+        requestedAt: '2026-08-11T00:00:00.000Z',
+        status: 'answered' as const,
+      },
+      acceptedCursor: 'cursor-6',
+    })),
     forkSession: vi.fn(async () => {
       const forkSnapshot = {
         ...currentSnapshot,
@@ -300,6 +313,38 @@ describe('Electron main Agent Session broker', () => {
         toolId: command.exactToolIds[0]!,
       }),
     ).toBe(false)
+    await expect(fixture.broker.command(1, command)).rejects.toThrowError(
+      'trusted_user_gesture_required',
+    )
+    await fixture.broker.close()
+  })
+
+  it('attaches a one-time main-owned gesture receipt when answering a Runtime question', async () => {
+    const fixture = harness()
+    await fixture.broker.connect(1, { documentId, sessionId }, () => {})
+    const command = {
+      type: 'answerUserAction' as const,
+      operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      sessionId,
+      documentId,
+      requestId: 'question-1',
+      answer: { confirmed: true },
+    }
+    await expect(fixture.broker.command(1, command)).rejects.toThrowError(
+      'trusted_user_gesture_required',
+    )
+    fixture.broker.recordTrustedUserGesture(1, { type: 'mouseUp' })
+    await expect(fixture.broker.command(1, command)).resolves.toMatchObject({
+      action: { requestId: 'question-1', status: 'answered' },
+    })
+    expect(fixture.transport.answerUserAction).toHaveBeenCalledWith({
+      operationId: command.operationId,
+      sessionId,
+      documentId,
+      requestId: command.requestId,
+      userActionId: '00000003-0000-4000-8000-000000000000',
+      answer: { confirmed: true },
+    })
     await expect(fixture.broker.command(1, command)).rejects.toThrowError(
       'trusted_user_gesture_required',
     )

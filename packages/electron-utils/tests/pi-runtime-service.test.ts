@@ -102,6 +102,19 @@ function manager(overrides: Record<string, unknown> = {}) {
       acceptedCursor: 'cursor-2',
     })),
     revokeDocumentMutationGrants: vi.fn(async () => ({ revoked: true as const })),
+    answerUserAction: vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      documentId: input.documentId,
+      action: {
+        requestId: input.requestId,
+        runId: 'run-1',
+        mode: 'confirm' as const,
+        question: 'Continue?',
+        requestedAt: '2026-08-11T00:00:00.000Z',
+        status: 'answered' as const,
+      },
+      acceptedCursor: 'cursor-1',
+    })),
     forkSession: vi.fn(async () => ({
       sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       parentSessionId: snapshot.sessionId,
@@ -407,6 +420,13 @@ describe('installed Pi Runtime service', () => {
       operationId: 'operation-close',
       ...bound,
     })
+    await fixture.instance.answerUserAction({
+      operationId: 'operation-answer',
+      ...bound,
+      requestId: 'question-1',
+      userActionId: 'user-action-4',
+      answer: { confirmed: true },
+    })
     await fixture.instance.forkSession({
       operationId: '55555555-5555-4555-8555-555555555555',
       ...bound,
@@ -426,6 +446,7 @@ describe('installed Pi Runtime service', () => {
     expect(fixture.runtimeManager.denyMutationGrant).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.revokeMutationGrant).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.revokeDocumentMutationGrants).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.answerUserAction).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.forkSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.navigateSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.snapshotSession).toHaveBeenCalledOnce()

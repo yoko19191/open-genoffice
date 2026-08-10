@@ -221,6 +221,63 @@ describe('Agent Session preload bridge', () => {
         runId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
       }),
     ).resolves.toMatchObject({ attempt: 2 })
+    ipcRenderer.invoke.mockResolvedValueOnce({
+      sessionId,
+      documentId,
+      action: {
+        requestId: 'question-1',
+        runId: 'run-1',
+        mode: 'confirm',
+        question: 'Continue?',
+        requestedAt: '2026-08-11T00:00:00.000Z',
+        status: 'answered',
+      },
+      acceptedCursor: 'cursor-5',
+    })
+    await expect(
+      api.command({
+        type: 'answerUserAction',
+        operationId,
+        sessionId,
+        documentId,
+        requestId: 'question-1',
+        answer: { confirmed: true },
+      }),
+    ).resolves.toMatchObject({ action: { status: 'answered' } })
+    for (const type of ['grantMutation', 'denyMutation', 'revokeMutation'] as const) {
+      ipcRenderer.invoke.mockResolvedValueOnce({
+        sessionId,
+        documentId,
+        grant: {
+          requestId: 'grant-request-1',
+          subagentRunId: 'subagent-run-1',
+          role: 'Reviewer',
+          exactToolIds: ['office:docs:insert_content'],
+          requestedAt: '2026-08-10T00:00:00.000Z',
+          expiresAt: '2026-08-10T00:05:00.000Z',
+          status: type === 'grantMutation' ? 'active' : 'revoked',
+          ...(type === 'denyMutation' ? {} : { grantId: 'grant-1' }),
+        },
+        acceptedCursor: 'cursor-6',
+      })
+      await expect(
+        api.command(
+          type === 'grantMutation'
+            ? {
+                type,
+                operationId,
+                sessionId,
+                documentId,
+                requestId: 'grant-request-1',
+                subagentRunId: 'subagent-run-1',
+                exactToolIds: ['office:docs:insert_content'],
+              }
+            : type === 'denyMutation'
+              ? { type, operationId, sessionId, documentId, requestId: 'grant-request-1' }
+              : { type, operationId, sessionId, documentId, grantId: 'grant-1' },
+        ),
+      ).resolves.toMatchObject({ grant: { requestId: 'grant-request-1' } })
+    }
     const forkSessionId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
     ipcRenderer.invoke.mockResolvedValueOnce({
       sessionId: forkSessionId,
@@ -259,7 +316,7 @@ describe('Agent Session preload bridge', () => {
     await expect(api.connect({ documentId: 'other' })).rejects.toThrowError(
       'agent_session_connect_request_invalid',
     )
-    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(7)
+    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(11)
 
     const next = vi.fn()
     const remove = api.onEvent(next)
@@ -281,6 +338,7 @@ describe('Agent Session preload bridge', () => {
       removeListener: vi.fn(),
     }
     const api = createAgentSessionPreloadApi(ipcRenderer)
+    await expect(api.documentId()).rejects.toThrowError('agent_document_id_invalid')
     await expect(api.connect({ documentId, sessionId })).rejects.toThrowError(
       'agent_session_connect_receipt_invalid',
     )

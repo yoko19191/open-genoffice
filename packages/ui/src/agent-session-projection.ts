@@ -5,9 +5,11 @@ import type {
   SessionSnapshot,
   SubagentRunProjection,
   MutationGrantProjection,
+  UserActionProjection,
 } from '@genoffice/agent-runtime-protocol'
 import {
   parseMutationGrantProjection,
+  parseUserActionProjection,
   parseSubagentRunProjection,
 } from '@genoffice/agent-runtime-protocol'
 import {
@@ -30,6 +32,7 @@ export type AgentSessionProjection = {
   tools: AgentPanelTool[]
   subagents: SubagentRunProjection[]
   mutationGrants: MutationGrantProjection[]
+  userActions: UserActionProjection[]
   compaction?: {
     state: 'running' | 'completed' | 'failed'
     tokensBefore?: number
@@ -118,6 +121,15 @@ function mutationGrantProjection(event: EventEnvelope): MutationGrantProjection 
   }
 }
 
+function userActionProjection(event: EventEnvelope): UserActionProjection | undefined {
+  if (event.type !== 'user-action.updated') return undefined
+  try {
+    return parseUserActionProjection(event.payload)
+  } catch {
+    return undefined
+  }
+}
+
 function platformToolDetails(event: EventEnvelope): PlatformToolDetails | undefined {
   if (event.type !== 'tool.completed') return undefined
   const payload = event.payload
@@ -137,6 +149,7 @@ export function createAgentSessionProjection(snapshot: SessionSnapshot): AgentSe
     tools: [],
     subagents: structuredClone(snapshot.subagents ?? []),
     mutationGrants: structuredClone(snapshot.mutationGrants ?? []),
+    userActions: structuredClone(snapshot.userActions ?? []),
     ...(snapshot.activeRun ? { activeRun: { ...snapshot.activeRun } } : {}),
     lastSequence: snapshot.lastSequence,
     cursor: snapshot.cursor,
@@ -169,6 +182,7 @@ export function applyAgentSessionEvent(
     tools: [...projection.tools],
     subagents: [...projection.subagents],
     mutationGrants: [...projection.mutationGrants],
+    userActions: [...projection.userActions],
     lastSequence: event.sequence,
     cursor: event.cursor,
     recentEventIds: [...projection.recentEventIds, event.eventId].slice(-EVENT_DEDUPE_WINDOW),
@@ -198,6 +212,19 @@ export function applyAgentSessionEvent(
     )
     if (index === -1) next.mutationGrants.push(nextGrant)
     else next.mutationGrants[index] = nextGrant
+  }
+
+  const nextUserAction = userActionProjection(event)
+  if (nextUserAction) {
+    const index = next.userActions.findIndex(
+      (candidate) => candidate.requestId === nextUserAction.requestId,
+    )
+    if (nextUserAction.status === 'pending') {
+      if (index === -1) next.userActions.push(nextUserAction)
+      else next.userActions[index] = nextUserAction
+    } else if (index !== -1) {
+      next.userActions.splice(index, 1)
+    }
   }
 
   if (event.type === 'message.started') {

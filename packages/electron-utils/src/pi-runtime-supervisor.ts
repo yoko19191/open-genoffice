@@ -7,6 +7,7 @@ import type {
   SessionPromptReceipt,
   SessionSubagentResumeReceipt,
   SessionMutationGrantReceipt,
+  SessionUserActionReceipt,
   SessionSnapshot,
   SessionSubscriptionReceipt,
   ProviderCredentialStatus,
@@ -30,6 +31,7 @@ import type {
   SessionMutationGrantDenyRequest,
   SessionMutationGrantRevokeRequest,
   SessionMutationGrantRevokeDocumentRequest,
+  SessionUserActionAnswerRequest,
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
@@ -71,6 +73,7 @@ export type SupervisedPiRuntimeManager = {
   revokeDocumentMutationGrants(
     input: SessionMutationGrantRevokeDocumentRequest,
   ): Promise<{ revoked: true }>
+  answerUserAction(input: SessionUserActionAnswerRequest): Promise<SessionUserActionReceipt>
   forkSession(input: SessionForkRequest): Promise<SessionForkReceipt>
   navigateSession(input: SessionNavigateRequest): Promise<SessionNavigateReceipt>
   snapshotSession(input: SessionBoundRequest): Promise<SessionSnapshot>
@@ -265,6 +268,10 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
     input: SessionMutationGrantRevokeDocumentRequest,
   ): Promise<{ revoked: true }> {
     return (await this.readyManager()).revokeDocumentMutationGrants(input)
+  }
+
+  async answerUserAction(input: SessionUserActionAnswerRequest): Promise<SessionUserActionReceipt> {
+    return (await this.readyManager()).answerUserAction(input)
   }
 
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {

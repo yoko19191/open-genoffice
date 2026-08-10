@@ -9,6 +9,7 @@ import {
   McpCatalogProjectionSchema,
   ModelManagementRequestSchema,
   MutationGrantManagementRequestSchema,
+  UserActionManagementRequestSchema,
   ResourceCatalogProjectionSchema,
   PackageCatalogProjectionSchema,
   ResourceManagementRequestSchema,
@@ -41,6 +42,8 @@ import {
   parseMutationGrantManagementRequest,
   parseMutationGrantProjection,
   parseMutationGrantReceipt,
+  parseUserActionManagementRequest,
+  parseUserActionProjection,
   parseResourceCatalogProjection,
   parsePackageCatalogProjection,
   parseResourceManagementRequest,
@@ -59,6 +62,7 @@ import {
   parseSessionPromptReceipt,
   parseSessionSubagentResumeReceipt,
   parseSessionMutationGrantReceipt,
+  parseSessionUserActionReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
 } from '../src'
@@ -205,6 +209,81 @@ describe('Mutation Grant contract', () => {
   })
 })
 
+describe('ask_user_question contract', () => {
+  const pending = {
+    requestId: 'user-question-1',
+    runId: 'run-1',
+    mode: 'confirm' as const,
+    question: 'Apply these changes?',
+    confirmLabel: 'Apply',
+    cancelLabel: 'Cancel',
+    requestedAt: '2026-08-11T00:00:00.000Z',
+    status: 'pending' as const,
+  }
+
+  it('projects only safe pending details and accepts a renderer answer without a receipt field', () => {
+    expect(parseUserActionProjection(pending)).toEqual(pending)
+    expect(
+      parseAgentSessionCommand({
+        type: 'answerUserAction',
+        operationId,
+        sessionId,
+        documentId,
+        requestId: pending.requestId,
+        answer: { confirmed: true },
+      }),
+    ).toMatchObject({ type: 'answerUserAction', answer: { confirmed: true } })
+    expect(() =>
+      parseAgentSessionCommand({
+        type: 'answerUserAction',
+        operationId,
+        sessionId,
+        documentId,
+        requestId: pending.requestId,
+        userActionId: 'renderer-forged',
+        answer: { confirmed: true },
+      }),
+    ).toThrowError('agent_session_command_invalid')
+  })
+
+  it('requires a main-owned userActionId on the Runtime envelope and validates receipts', () => {
+    const request = {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: 'request',
+      id: 'request-1',
+      correlationId: 'correlation-1',
+      method: 'session.user-action.answer',
+      params: {
+        operationId,
+        sessionId,
+        documentId,
+        requestId: pending.requestId,
+        userActionId: 'main-user-action-1',
+        answer: { confirmed: false },
+      },
+    }
+    expect(UserActionManagementRequestSchema).toBeDefined()
+    expect(parseUserActionManagementRequest(request)).toEqual(request)
+    expect(
+      parseSessionUserActionReceipt({
+        sessionId,
+        documentId,
+        action: { ...pending, status: 'answered' },
+        acceptedCursor: 'cursor-1',
+      }),
+    ).toMatchObject({ action: { status: 'answered' } })
+    expect(() =>
+      parseUserActionManagementRequest({
+        ...request,
+        params: { ...request.params, userActionId: undefined },
+      }),
+    ).toThrowError('user_action_management_request_invalid')
+    expect(() =>
+      parseUserActionProjection({ ...pending, answer: { confirmed: true } }),
+    ).toThrowError('user_action_projection_invalid')
+  })
+})
+
 describe('runtime bundle manifest contract', () => {
   const manifest = {
     manifestVersion: 1,
@@ -294,7 +373,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(57)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(58)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)

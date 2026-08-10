@@ -119,6 +119,59 @@ describe('shared AI Panel Session projection', () => {
     expect(JSON.stringify(active)).not.toContain('issuedByUserActionId')
   })
 
+  it('restores pending user questions and removes them only after a validated terminal event', () => {
+    const pending = {
+      requestId: 'question-1',
+      runId: 'run-1',
+      mode: 'input' as const,
+      question: 'Name this section',
+      placeholder: 'Section name',
+      maxLength: 80,
+      requestedAt: '2026-08-11T00:00:00.000Z',
+      status: 'pending' as const,
+    }
+    const initial = createAgentSessionProjection({ ...snapshot, userActions: [pending] })
+    const forged = applyAgentSessionEvent(
+      initial,
+      event(2, 'user-action.updated', { ...pending, answer: { text: 'secret' } }),
+    )
+    expect(forged.userActions).toEqual([pending])
+    const answered = applyAgentSessionEvent(
+      forged,
+      event(3, 'user-action.updated', { ...pending, status: 'answered' }),
+    )
+    expect(answered.userActions).toEqual([])
+    expect(JSON.stringify(answered)).not.toContain('secret')
+  })
+
+  it('adds and replaces pending user questions while ignoring an unknown terminal update', () => {
+    const initial = createAgentSessionProjection(snapshot)
+    const pending = {
+      requestId: 'question-1',
+      runId: 'run-1',
+      mode: 'confirm' as const,
+      question: 'Continue?',
+      requestedAt: '2026-08-11T00:00:00.000Z',
+      status: 'pending' as const,
+    }
+    const added = applyAgentSessionEvent(initial, event(2, 'user-action.updated', pending))
+    expect(added.userActions).toEqual([pending])
+    const replaced = applyAgentSessionEvent(
+      added,
+      event(3, 'user-action.updated', { ...pending, question: 'Still continue?' }),
+    )
+    expect(replaced.userActions).toEqual([{ ...pending, question: 'Still continue?' }])
+    const unchanged = applyAgentSessionEvent(
+      replaced,
+      event(4, 'user-action.updated', {
+        ...pending,
+        requestId: 'question-missing',
+        status: 'cancelled',
+      }),
+    )
+    expect(unchanged.userActions).toEqual(replaced.userActions)
+  })
+
   it('renders native message, thinking, tool, and run events in journal order', () => {
     const projection = apply(createAgentSessionProjection(snapshot), [
       event(2, 'run.started'),

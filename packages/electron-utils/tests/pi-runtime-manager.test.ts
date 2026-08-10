@@ -128,6 +128,7 @@ class FakeRuntimeSocket extends Duplex {
               'session.mutation-grant.deny',
               'session.mutation-grant.revoke',
               'session.mutation-grant.revoke-document',
+              'session.user-action.answer',
               'session.fork',
               'session.navigate',
               'session.snapshot',
@@ -302,41 +303,60 @@ class FakeRuntimeSocket extends Duplex {
                                           : request.method ===
                                               'session.mutation-grant.revoke-document'
                                             ? { revoked: true }
-                                            : request.method === 'session.fork'
+                                            : request.method === 'session.user-action.answer'
                                               ? {
-                                                  sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                                  parentSessionId: snapshot.sessionId,
-                                                  documentId: snapshot.documentId,
-                                                  snapshot: {
-                                                    ...snapshot,
+                                                  sessionId: request.params.sessionId,
+                                                  documentId: request.params.documentId,
+                                                  action: {
+                                                    requestId: request.params.requestId,
+                                                    runId: 'run-1',
+                                                    mode: 'confirm',
+                                                    question: 'Continue?',
+                                                    requestedAt: '2026-08-11T00:00:00.000Z',
+                                                    status: 'answered',
+                                                  },
+                                                  acceptedCursor: 'cursor-5',
+                                                }
+                                              : request.method === 'session.fork'
+                                                ? {
                                                     sessionId:
                                                       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                                    branch: {
-                                                      parentSessionId: snapshot.sessionId,
-                                                      nodes: [],
-                                                    },
-                                                  },
-                                                  cursor: snapshot.cursor,
-                                                }
-                                              : request.method === 'session.navigate'
-                                                ? {
-                                                    sessionId: snapshot.sessionId,
+                                                    parentSessionId: snapshot.sessionId,
                                                     documentId: snapshot.documentId,
-                                                    activeLeafId: 'navigation-leaf',
                                                     snapshot: {
                                                       ...snapshot,
+                                                      sessionId:
+                                                        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
                                                       branch: {
-                                                        activeLeafId: 'navigation-leaf',
+                                                        parentSessionId: snapshot.sessionId,
                                                         nodes: [],
                                                       },
                                                     },
                                                     cursor: snapshot.cursor,
                                                   }
-                                                : request.method === 'session.snapshot'
-                                                  ? snapshot
-                                                  : request.method === 'session.subscribe'
-                                                    ? { resetRequired: false, snapshot, events: [] }
-                                                    : { shuttingDown: true }
+                                                : request.method === 'session.navigate'
+                                                  ? {
+                                                      sessionId: snapshot.sessionId,
+                                                      documentId: snapshot.documentId,
+                                                      activeLeafId: 'navigation-leaf',
+                                                      snapshot: {
+                                                        ...snapshot,
+                                                        branch: {
+                                                          activeLeafId: 'navigation-leaf',
+                                                          nodes: [],
+                                                        },
+                                                      },
+                                                      cursor: snapshot.cursor,
+                                                    }
+                                                  : request.method === 'session.snapshot'
+                                                    ? snapshot
+                                                    : request.method === 'session.subscribe'
+                                                      ? {
+                                                          resetRequired: false,
+                                                          snapshot,
+                                                          events: [],
+                                                        }
+                                                      : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
@@ -977,6 +997,15 @@ describe('PiRuntimeManager', () => {
       revoked: true,
     })
     await expect(
+      manager.answerUserAction({
+        operationId,
+        ...bound,
+        requestId: 'question-1',
+        userActionId: 'user-action-4',
+        answer: { confirmed: true },
+      }),
+    ).resolves.toMatchObject({ action: { requestId: 'question-1', status: 'answered' } })
+    await expect(
       manager.forkSession({
         operationId,
         sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -1527,6 +1556,15 @@ describe('PiRuntimeManager', () => {
         ),
       ),
     )
+    await expect(
+      invalid.answerUserAction({
+        operationId,
+        ...bound,
+        requestId: 'question-1',
+        userActionId: 'user-action-4',
+        answer: { confirmed: true },
+      }),
+    ).rejects.toEqual(new PiRuntimeManagerError('session_user_action_receipt_invalid'))
     await invalid.shutdown()
 
     const runtimeError = new PiRuntimeManager(
@@ -1563,6 +1601,13 @@ describe('PiRuntimeManager', () => {
       manager.promptSession({ operationId, ...bound, text: 'hello' }),
       manager.abortSession({ operationId, ...bound, runId: 'run-1' }),
       manager.resumeSubagent({ operationId, ...bound, runId: 'subagent-run-1' }),
+      manager.answerUserAction({
+        operationId,
+        ...bound,
+        requestId: 'question-1',
+        userActionId: 'user-action-1',
+        answer: { confirmed: true },
+      }),
       manager.forkSession({ operationId, ...bound }),
       manager.navigateSession({ operationId, ...bound, targetEntryId: 'target-leaf' }),
       manager.snapshotSession(bound),

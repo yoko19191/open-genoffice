@@ -26,6 +26,7 @@ import {
 import { ResourceActivationStore, initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { OpenGenOfficeMcpConfigResolver } from '../src/mcp-config-resolver'
 import { ModelCatalogError } from '../src/model-catalog-service'
+import { UserActionRegistry } from '../src/user-action-registry'
 
 const token = 'a'.repeat(64)
 const mcpFixture = fileURLToPath(new URL('../fixtures/mcp-stdio-server.mjs', import.meta.url))
@@ -948,6 +949,7 @@ describe('authenticated Runtime socket', () => {
           'session.mutation-grant.deny',
           'session.mutation-grant.revoke',
           'session.mutation-grant.revoke-document',
+          'session.user-action.answer',
           'session.fork',
           'session.navigate',
           'session.snapshot',
@@ -1147,6 +1149,10 @@ describe('authenticated Runtime socket', () => {
       return projection
     }
     const revokeForDocument = vi.fn(async () => undefined)
+    const userActions = new UserActionRegistry({
+      randomUUID: () => 'question-1',
+      now: () => new Date('2026-08-11T00:00:00.000Z'),
+    })
     const mutationGrants: SessionMutationGrantRegistry = {
       onEvent: (listener) => {
         grantListener = listener
@@ -1189,6 +1195,7 @@ describe('authenticated Runtime socket', () => {
       },
       now: () => new Date('2026-08-09T12:00:00.000Z'),
       mutationGrants,
+      userActions,
     })
     const runtime = await createAuthenticatedRuntimeServer({
       bootstrap: bootstrap(socketPath),
@@ -1229,6 +1236,41 @@ describe('authenticated Runtime socket', () => {
     const sessionId = (created as ResponseEnvelope & { result: { sessionId: string } }).result
       .sessionId
     grantSessionId = sessionId
+
+    const waitingForAnswer = userActions.request({
+      sessionId,
+      documentId,
+      runId: 'run-1',
+      mode: 'confirm',
+      question: 'Continue?',
+    })
+    await reader.next((frame) => frame.kind === 'event' && frame.type === 'user-action.updated')
+    client.write(
+      `${request(
+        'session.user-action.answer',
+        {
+          operationId: randomUUID(),
+          sessionId,
+          documentId,
+          requestId: 'question-1',
+          userActionId: 'main-gesture-1',
+          answer: { confirmed: true },
+        },
+        'user-action-answer',
+      )}\n`,
+    )
+    const answeredEvent = await reader.next(
+      (frame) => frame.kind === 'event' && frame.type === 'user-action.updated',
+    )
+    expect(JSON.stringify(answeredEvent)).not.toContain('main-gesture-1')
+    expect(JSON.stringify(answeredEvent)).not.toContain('confirmed')
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'user-action-answer'),
+    ).toMatchObject({ result: { action: { requestId: 'question-1', status: 'answered' } } })
+    await expect(waitingForAnswer).resolves.toEqual({
+      requestId: 'question-1',
+      answer: { confirmed: true },
+    })
 
     const grantReceipt = {
       grantId: 'grant-1',
@@ -1332,8 +1374,8 @@ describe('authenticated Runtime socket', () => {
     const completed = await reader.next(
       (frame) => frame.kind === 'event' && frame.type === 'run.completed',
     )
-    expect(queued).toMatchObject({ kind: 'event', sequence: 5 })
-    expect(completed.kind === 'event' && completed.sequence).toBeGreaterThan(5)
+    expect(queued).toMatchObject({ kind: 'event', sequence: 7 })
+    expect(completed.kind === 'event' && completed.sequence).toBeGreaterThan(7)
     expect(promptReceipt).toMatchObject({ kind: 'response', result: { runId: expect.any(String) } })
 
     client.write(

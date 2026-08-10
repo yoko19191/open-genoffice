@@ -4,6 +4,7 @@ import {
   AgentSessionController,
   AiComposer,
   AiTypingIndicator,
+  AiUserActionList,
   Markdown,
   type AgentSessionProjection,
 } from '@genoffice/ui'
@@ -104,6 +105,16 @@ export function AiPanel({
           : controller.revokeMutation(id)
     void operation.catch((error: unknown) => {
       setConnectionError(error instanceof Error ? error.message : 'mutation_grant_failed')
+    })
+  }
+
+  const answerUserAction: Parameters<typeof AiUserActionList>[0]['onAnswer'] = (
+    requestId,
+    answer,
+  ): void => {
+    setConnectionError(undefined)
+    void controller.answerUserAction(requestId, answer).catch((error: unknown) => {
+      setConnectionError(error instanceof Error ? error.message : 'user_action_failed')
     })
   }
 
@@ -211,6 +222,9 @@ export function AiPanel({
               </div>
             ))}
           </div>
+        )}
+        {(projection?.userActions.length ?? 0) > 0 && (
+          <AiUserActionList actions={projection!.userActions} onAnswer={answerUserAction} />
         )}
         {projection?.rollbackRunId && !busy && (
           <button

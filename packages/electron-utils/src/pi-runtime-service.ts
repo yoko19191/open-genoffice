@@ -16,6 +16,7 @@ import {
   type SessionPromptReceipt,
   type SessionSubagentResumeReceipt,
   type SessionMutationGrantReceipt,
+  type SessionUserActionReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -36,6 +37,7 @@ import type {
   SessionMutationGrantDenyRequest,
   SessionMutationGrantRevokeRequest,
   SessionMutationGrantRevokeDocumentRequest,
+  SessionUserActionAnswerRequest,
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
@@ -86,6 +88,7 @@ type OwnedPiRuntimeManager = Pick<
   | 'denyMutationGrant'
   | 'revokeMutationGrant'
   | 'revokeDocumentMutationGrants'
+  | 'answerUserAction'
   | 'forkSession'
   | 'navigateSession'
   | 'snapshotSession'
@@ -215,6 +218,10 @@ export class PiRuntimeService {
     input: SessionMutationGrantRevokeDocumentRequest,
   ): Promise<{ revoked: true }> {
     return (await this.readyManager()).revokeDocumentMutationGrants(input)
+  }
+
+  async answerUserAction(input: SessionUserActionAnswerRequest): Promise<SessionUserActionReceipt> {
+    return (await this.readyManager()).answerUserAction(input)
   }
 
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {

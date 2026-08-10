@@ -51,6 +51,7 @@ import { SlidesQcCoordinator } from './slides-qc-coordinator'
 import { SubagentCoordinator, type SubagentToolDescriptor } from './subagent-coordinator'
 import { SubagentRunRegistry } from './subagent-run-registry'
 import { MutationGrantRegistry, MutationGrantRegistryError } from './mutation-grant-registry'
+import { UserActionRegistry, UserActionRegistryError } from './user-action-registry'
 import {
   RuntimeSessionError,
   createSessionRegistry,
@@ -235,6 +236,7 @@ export async function createAuthenticatedRuntimeServer(
 
   let ownedSubagentCoordinator: SubagentCoordinator | undefined
   let ownedMutationGrants: MutationGrantRegistry | undefined
+  const userActions = new UserActionRegistry()
   let unsubscribeSlidesQcGrants = () => {}
   let sessionRegistry: SessionRegistry
   if (options.sessionRegistry) {
@@ -299,6 +301,7 @@ export async function createAuthenticatedRuntimeServer(
       subagents: ownedSubagentCoordinator,
       ...(slidesQc ? { slidesQc } : {}),
       mutationGrants: ownedMutationGrants,
+      userActions,
       ...(ownedModelCatalog
         ? {
             createPiSession: (sessionOptions) =>
@@ -313,6 +316,7 @@ export async function createAuthenticatedRuntimeServer(
                 generateImage: (input, signal) => imageProvider.generate(input, signal),
                 platformTools,
                 mediaProvider,
+                requestUserAction: (input) => userActions.request(input),
                 spawnSubagent: (request, signal) => sessionRegistry.spawnSubagent(request, signal),
               }),
           }
@@ -371,6 +375,7 @@ export async function createAuthenticatedRuntimeServer(
                 'session.mutation-grant.deny',
                 'session.mutation-grant.revoke',
                 'session.mutation-grant.revoke-document',
+                'session.user-action.answer',
                 'session.fork',
                 'session.navigate',
                 'session.snapshot',
@@ -857,6 +862,10 @@ export async function createAuthenticatedRuntimeServer(
         )
         return
       }
+      if (request.method === 'session.user-action.answer') {
+        socket.write(response(request, await sessionRegistry.answerUserAction(request.params)))
+        return
+      }
       if (request.method === 'session.fork') {
         socket.write(response(request, await sessionRegistry.fork(request.params)))
         return
@@ -884,7 +893,9 @@ export async function createAuthenticatedRuntimeServer(
               ? error.code === 'mutation_grant_denied'
                 ? 'mutation_grant_denied'
                 : 'mutation_grant_invalid'
-              : 'internal_error',
+              : error instanceof UserActionRegistryError
+                ? 'invalid_state'
+                : 'internal_error',
         ),
       )
     }
@@ -918,7 +929,7 @@ export function resolveSubagentToolDescriptor(
     return { canonicalToolId, modelAlias: 'read', effect: 'read' }
   }
   const platform = resolvePlatformToolDefinition(canonicalToolId)
-  if (platform) {
+  if (platform && platform.effect !== 'interactive') {
     return {
       canonicalToolId,
       modelAlias: platform.modelAlias,

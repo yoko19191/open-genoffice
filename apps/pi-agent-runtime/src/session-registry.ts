@@ -10,6 +10,9 @@ import type {
   EventEnvelope,
   MutationGrantProjection,
   MutationGrantReceipt,
+  SessionUserActionReceipt,
+  UserActionAnswer,
+  UserActionProjection,
   OfficeToolCatalogBinding,
   SessionMessageProjection,
   SessionSnapshot,
@@ -63,6 +66,11 @@ type IssueMutationGrantInput = OpenInput & {
 }
 type DenyMutationGrantInput = OpenInput & { requestId: string; userActionId: string }
 type RevokeMutationGrantInput = OpenInput & { grantId: string; userActionId: string }
+type AnswerUserActionInput = OpenInput & {
+  requestId: string
+  userActionId: string
+  answer: UserActionAnswer
+}
 type NavigateInput = OpenInput & { targetEntryId: string }
 type BoundInput = { sessionId: string; documentId: string }
 type SubscribeInput = BoundInput & { afterCursor?: string }
@@ -134,6 +142,7 @@ export type SessionRegistryOptions = {
   subagents?: SessionSubagentCoordinator
   slidesQc?: SessionSlidesQcCoordinator
   mutationGrants?: SessionMutationGrantRegistry
+  userActions?: SessionUserActionRegistry
   bindingAtomicWriteOptions?: (binding: Readonly<Binding>) => AtomicWriteOptions
 }
 
@@ -179,6 +188,20 @@ export type SessionMutationGrantRegistry = {
   revokeForRun(runId: string, reason: string): Promise<void>
   revokeForParentRun(parentRunId: string, reason: string): Promise<void>
   revokeForDocument(documentId: string, reason: string): Promise<void>
+}
+
+export type SessionUserActionRegistry = {
+  onEvent(
+    listener: (event: {
+      sessionId: string
+      documentId: string
+      projection: UserActionProjection
+    }) => void,
+  ): () => void
+  listForSession(sessionId: string): UserActionProjection[]
+  answer(input: AnswerUserActionInput): Promise<UserActionProjection>
+  cancelForRun(runId: string): number
+  cancelForSession(sessionId: string): number
 }
 
 export class RuntimeSessionError extends Error {
@@ -275,6 +298,7 @@ export class SessionRegistry {
   private readonly listeners = new Set<(event: EventEnvelope) => void>()
   private readonly unsubscribeSubagents: () => void
   private readonly unsubscribeMutationGrants: () => void
+  private readonly unsubscribeUserActions: () => void
 
   constructor(private readonly options: SessionRegistryOptions) {
     this.dataRoot =
@@ -321,6 +345,8 @@ export class SessionRegistry {
     this.unsubscribeMutationGrants =
       options.mutationGrants?.onEvent((event) => this.projectMutationGrantEvent(event)) ??
       (() => {})
+    this.unsubscribeUserActions =
+      options.userActions?.onEvent((event) => this.projectUserActionEvent(event)) ?? (() => {})
   }
 
   onEvent(listener: (event: EventEnvelope) => void): () => void {
@@ -766,6 +792,25 @@ export class SessionRegistry {
     })
   }
 
+  async answerUserAction(input: AnswerUserActionInput): Promise<SessionUserActionReceipt> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.user-action.answer', input, async () => {
+      const record = await this.loadRecord(binding)
+      const pending = this.options.userActions
+        ?.listForSession(binding.sessionId)
+        .find((candidate) => candidate.requestId === input.requestId)
+      if (!pending || pending.status !== 'pending') throw new RuntimeSessionError('invalid_state')
+      const action = await this.options.userActions!.answer(input)
+      await record.eventQueue
+      return {
+        sessionId: binding.sessionId,
+        documentId: binding.documentId,
+        action,
+        acceptedCursor: this.snapshotFor(record).cursor,
+      }
+    })
+  }
+
   registerRunDescendant(
     sessionId: string,
     runId: string,
@@ -908,6 +953,7 @@ export class SessionRegistry {
       this.listeners.clear()
       this.unsubscribeSubagents()
       this.unsubscribeMutationGrants()
+      this.unsubscribeUserActions()
     }
   }
 
@@ -1463,6 +1509,9 @@ export class SessionRegistry {
       ...(this.options.mutationGrants
         ? { mutationGrants: this.options.mutationGrants.listForSession(record.binding.sessionId) }
         : {}),
+      ...(this.options.userActions
+        ? { userActions: this.options.userActions.listForSession(record.binding.sessionId) }
+        : {}),
       branch: {
         ...(record.binding.parentSessionId
           ? { parentSessionId: record.binding.parentSessionId }
@@ -1544,6 +1593,16 @@ export class SessionRegistry {
       event.projection,
       event.projection.subagentRunId,
     )
+  }
+
+  private projectUserActionEvent(event: {
+    sessionId: string
+    documentId: string
+    projection: UserActionProjection
+  }): void {
+    const record = this.records.get(event.sessionId)
+    if (!record || record.binding.documentId !== event.documentId) return
+    void this.appendEvent(record, 'user-action.updated', event.projection, event.projection.runId)
   }
 
   private cursor(sessionId: string, sequence: number): string {

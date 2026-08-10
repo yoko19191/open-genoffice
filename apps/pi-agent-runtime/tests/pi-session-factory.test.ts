@@ -31,6 +31,80 @@ afterEach(async () => {
 })
 
 describe('deterministic Pi Session factory', () => {
+  it('pauses ask_user_question until the Runtime receives an explicit user answer', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-user-action-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-user-action-faux',
+      provider: 'genoffice-user-action-faux',
+      models: [{ id: 'question-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    provider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'ask_user_question',
+            { mode: 'confirm', question: 'Apply these changes?' },
+            { id: 'question-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('Applied after confirmation'),
+    ])
+    let answer!: (value: { requestId: string; answer: { confirmed: boolean } }) => void
+    const requestUserAction = vi.fn(
+      () =>
+        new Promise<{ requestId: string; answer: { confirmed: boolean } }>((resolve) => {
+          answer = resolve
+        }),
+    )
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-user-action-faux',
+        modelId: 'question-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources: new RunResourceService({
+        resourceHome: root,
+        deviceId: '33333333-3333-4333-8333-333333333333',
+      }),
+      requestUserAction,
+    })
+    const prompting = handle.prompt('make the change', new AbortController().signal, {
+      runId: '44444444-4444-4444-8444-444444444444',
+    })
+    await vi.waitFor(() => expect(requestUserAction).toHaveBeenCalledOnce())
+    expect(handle.session.getActiveToolNames()).toEqual(['ask_user_question'])
+    expect(requestUserAction).toHaveBeenCalledWith({
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      runId: '44444444-4444-4444-8444-444444444444',
+      mode: 'confirm',
+      question: 'Apply these changes?',
+      signal: expect.any(AbortSignal),
+    })
+    answer({ requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', answer: { confirmed: true } })
+    await prompting
+    expect(JSON.stringify(handle.sessionManager.getEntries())).toContain('\\"confirmed\\":true')
+    handle.dispose()
+  })
+
   it('registers the three platform aliases once and executes them with run scope', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-platform-tools-'))
     roots.push(root)

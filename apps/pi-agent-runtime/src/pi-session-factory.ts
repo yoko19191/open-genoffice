@@ -25,12 +25,17 @@ import {
   type AgentSessionEvent,
 } from '@earendil-works/pi-coding-agent'
 import type { CapabilitySnapshot } from '@genoffice/agent-resource'
-import type { ArtifactRef, OfficeToolCatalogBinding } from '@genoffice/agent-runtime-protocol'
+import type {
+  ArtifactRef,
+  OfficeToolCatalogBinding,
+  UserActionAnswer,
+} from '@genoffice/agent-runtime-protocol'
 import {
   resolveOfficeToolDefinitions,
   type OfficeToolDefinition,
 } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import {
+  ASK_USER_QUESTION_TOOL_DEFINITION,
   MEDIA_ANALYSIS_TOOL_DEFINITION,
   PLATFORM_TOOL_DEFINITIONS,
   type PlatformToolDetails,
@@ -89,6 +94,18 @@ type CreatePiSessionBaseOptions = {
   ) => Promise<CodexImageGenerateResult>
   platformTools?: Pick<PlatformToolService, 'execute'>
   mediaProvider?: Pick<ModelMediaProvider, 'analyze'>
+  requestUserAction?: (input: {
+    sessionId: string
+    documentId: string
+    runId: string
+    mode: 'confirm' | 'input'
+    question: string
+    confirmLabel?: string
+    cancelLabel?: string
+    placeholder?: string
+    maxLength?: number
+    signal?: AbortSignal
+  }) => Promise<{ requestId: string; answer: UserActionAnswer }>
   credentials?: CredentialStore
   spawnSubagent?: (
     request: SpawnSubagentRequest,
@@ -470,6 +487,47 @@ export async function createDeterministicPiSession(
         }),
       )
     : []
+  const askUserTool =
+    managedModel && options.requestUserAction
+      ? defineTool<
+          typeof ASK_USER_QUESTION_TOOL_DEFINITION.parameters,
+          { platformTool: PlatformToolDetails }
+        >({
+          name: ASK_USER_QUESTION_TOOL_DEFINITION.modelAlias,
+          label: ASK_USER_QUESTION_TOOL_DEFINITION.label,
+          description: ASK_USER_QUESTION_TOOL_DEFINITION.description,
+          promptSnippet: ASK_USER_QUESTION_TOOL_DEFINITION.description,
+          parameters: ASK_USER_QUESTION_TOOL_DEFINITION.parameters,
+          executionMode: 'sequential',
+          async execute(_toolCallId, input, signal) {
+            if (!extensionExecution) throw new Error('user_action_run_context_required')
+            if (
+              !extensionExecution.snapshot.toolIds.includes(ASK_USER_QUESTION_TOOL_DEFINITION.id)
+            ) {
+              throw new Error('user_action_not_authorized')
+            }
+            const result = await options.requestUserAction!({
+              sessionId: options.sessionId,
+              documentId: options.documentId,
+              runId: extensionExecution.runId,
+              ...input,
+              ...(signal ? { signal } : {}),
+            })
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify(result.answer) }],
+              details: {
+                platformTool: {
+                  toolId: ASK_USER_QUESTION_TOOL_DEFINITION.id,
+                  kind: 'user_action' as const,
+                  requestId: result.requestId,
+                  mode: input.mode,
+                  state: 'answered' as const,
+                },
+              },
+            }
+          },
+        })
+      : undefined
   const mediaTool =
     managedModel && options.mediaProvider
       ? defineTool<
@@ -656,6 +714,7 @@ export async function createDeterministicPiSession(
           subagentTool,
           imageTool,
           mediaTool,
+          askUserTool,
           ...platformTools,
           ...officeTools,
         ].filter((tool): tool is NonNullable<typeof tool> => tool !== undefined)
@@ -685,6 +744,7 @@ export async function createDeterministicPiSession(
             ...(options.generateImage ? ['platform:image:generate'] : []),
             ...(options.platformTools ? PLATFORM_TOOL_DEFINITIONS.map(({ id }) => id) : []),
             ...(options.mediaProvider ? [MEDIA_ANALYSIS_TOOL_DEFINITION.id] : []),
+            ...(options.requestUserAction ? [ASK_USER_QUESTION_TOOL_DEFINITION.id] : []),
             ...officeToolDefinitions.map(({ id }) => id),
           ],
           reservedToolAliases: [
@@ -693,6 +753,7 @@ export async function createDeterministicPiSession(
               ? PLATFORM_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
               : []),
             ...(options.mediaProvider ? [MEDIA_ANALYSIS_TOOL_DEFINITION.modelAlias] : []),
+            ...(options.requestUserAction ? [ASK_USER_QUESTION_TOOL_DEFINITION.modelAlias] : []),
             ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ],
         })
@@ -724,6 +785,7 @@ export async function createDeterministicPiSession(
             ? PLATFORM_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
             : []),
           ...(options.mediaProvider ? [MEDIA_ANALYSIS_TOOL_DEFINITION.modelAlias] : []),
+          ...(options.requestUserAction ? [ASK_USER_QUESTION_TOOL_DEFINITION.modelAlias] : []),
           ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ...prepared.extensionTools.map(({ name }) => name),
           ...prepared.mcpTools.map(({ modelAlias }) => modelAlias),

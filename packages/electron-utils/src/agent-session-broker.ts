@@ -10,6 +10,7 @@ import type {
   SessionPromptReceipt,
   SessionSubagentResumeReceipt,
   SessionMutationGrantReceipt,
+  SessionUserActionReceipt,
   SessionSubscriptionReceipt,
   MutationGrantReceipt,
   OfficeToolCatalogBinding,
@@ -80,6 +81,14 @@ export type AgentSessionTransport = {
     sessionId: string
     documentId: string
   }): Promise<{ revoked: true }>
+  answerUserAction(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+    requestId: string
+    userActionId: string
+    answer: { confirmed: boolean } | { text: string }
+  }): Promise<SessionUserActionReceipt>
   forkSession(input: {
     operationId: string
     sessionId: string
@@ -251,6 +260,7 @@ export class AgentSessionBroker<ClientId = number> {
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
     | SessionMutationGrantReceipt
+    | SessionUserActionReceipt
     | OfficeRollbackReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
@@ -343,6 +353,16 @@ export class AgentSessionBroker<ClientId = number> {
       })
       this.activeMutationGrants.delete(command.grantId)
       return result
+    }
+    if (command.type === 'answerUserAction') {
+      return this.transport.answerUserAction({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        requestId: command.requestId,
+        userActionId: this.consumeTrustedUserGesture(clientId),
+        answer: command.answer,
+      })
     }
     if (command.type === 'rollbackRun') {
       this.consumeTrustedUserGesture(clientId)

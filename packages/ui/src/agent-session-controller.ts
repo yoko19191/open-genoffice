@@ -8,6 +8,7 @@ import type {
   SessionPromptReceipt,
   SessionSubagentResumeReceipt,
   SessionMutationGrantReceipt,
+  SessionUserActionReceipt,
   OfficeRollbackReceipt,
   ArtifactRef,
 } from '@genoffice/agent-runtime-protocol'
@@ -27,6 +28,7 @@ export interface AgentSessionClient {
     | SessionAbortReceipt
     | SessionSubagentResumeReceipt
     | SessionMutationGrantReceipt
+    | SessionUserActionReceipt
     | OfficeRollbackReceipt
     | SessionForkReceipt
     | SessionNavigateReceipt
@@ -199,6 +201,31 @@ export class AgentSessionController {
       documentId: projection.documentId,
       grantId,
     })) as SessionMutationGrantReceipt
+  }
+
+  async answerUserAction(
+    requestId: string,
+    answer: { confirmed: boolean } | { text: string },
+  ): Promise<SessionUserActionReceipt> {
+    const projection = this.requireProjection()
+    const request = projection.userActions.find(
+      (candidate) => candidate.requestId === requestId && candidate.status === 'pending',
+    )
+    if (!request) throw new Error('user_action_not_pending')
+    if (
+      (request.mode === 'confirm' && !('confirmed' in answer)) ||
+      (request.mode === 'input' && !('text' in answer))
+    ) {
+      throw new Error('user_action_answer_invalid')
+    }
+    return (await this.client.command({
+      type: 'answerUserAction',
+      operationId: this.randomUUID(),
+      sessionId: projection.sessionId,
+      documentId: projection.documentId,
+      requestId,
+      answer,
+    })) as SessionUserActionReceipt
   }
 
   async rollbackLastRun(): Promise<OfficeRollbackReceipt> {

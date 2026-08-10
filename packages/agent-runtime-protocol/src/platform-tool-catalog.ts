@@ -1,4 +1,4 @@
-import { Type, type Static, type TObject } from '@sinclair/typebox'
+import { Type, type Static, type TSchema } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 
 export type PlatformToolDefinition = {
@@ -7,11 +7,13 @@ export type PlatformToolDefinition = {
     | 'platform:image_search'
     | 'platform:artifact:read_text'
     | 'platform:analyze_media'
-  modelAlias: 'web_search' | 'image_search' | 'read_attachment' | 'analyze_media'
-  effect: 'read' | 'external'
+    | 'platform:ask_user_question'
+  modelAlias:
+    'web_search' | 'image_search' | 'read_attachment' | 'analyze_media' | 'ask_user_question'
+  effect: 'read' | 'external' | 'interactive'
   label: string
   description: string
-  parameters: TObject
+  parameters: TSchema
 }
 
 export const MEDIA_ANALYSIS_TOOL_DEFINITION = {
@@ -31,6 +33,35 @@ export const MEDIA_ANALYSIS_TOOL_DEFINITION = {
     },
     { additionalProperties: false },
   ),
+} as const satisfies PlatformToolDefinition
+
+export const ASK_USER_QUESTION_TOOL_DEFINITION = {
+  id: 'platform:ask_user_question',
+  modelAlias: 'ask_user_question',
+  effect: 'interactive',
+  label: 'ask user question',
+  description:
+    'Pause the current run for one explicit user confirmation or short text answer. This tool does not authorize Office mutations.',
+  parameters: Type.Union([
+    Type.Object(
+      {
+        mode: Type.Literal('confirm'),
+        question: Type.String({ minLength: 1, maxLength: 8_000 }),
+        confirmLabel: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+        cancelLabel: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        mode: Type.Literal('input'),
+        question: Type.String({ minLength: 1, maxLength: 8_000 }),
+        placeholder: Type.Optional(Type.String({ maxLength: 256 })),
+        maxLength: Type.Optional(Type.Integer({ minimum: 1, maximum: 4_000 })),
+      },
+      { additionalProperties: false },
+    ),
+  ]),
 } as const satisfies PlatformToolDefinition
 
 const uuid = () =>
@@ -142,6 +173,16 @@ export const PlatformToolDetailsSchema = Type.Union([
   ),
   Type.Object(
     {
+      toolId: Type.Literal('platform:ask_user_question'),
+      kind: Type.Literal('user_action'),
+      requestId: uuid(),
+      mode: Type.Union([Type.Literal('confirm'), Type.Literal('input')]),
+      state: Type.Literal('answered'),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
       toolId: Type.Literal('platform:analyze_media'),
       kind: Type.Literal('media_analysis'),
       state: Type.Union([Type.Literal('completed'), Type.Literal('disabled')]),
@@ -192,9 +233,11 @@ export function parsePlatformToolDetails(value: unknown): PlatformToolDetails {
 export function resolvePlatformToolDefinition(
   canonicalToolId: string,
 ): PlatformToolDefinition | undefined {
-  return [...PLATFORM_TOOL_DEFINITIONS, MEDIA_ANALYSIS_TOOL_DEFINITION].find(
-    ({ id }) => id === canonicalToolId,
-  )
+  return [
+    ...PLATFORM_TOOL_DEFINITIONS,
+    MEDIA_ANALYSIS_TOOL_DEFINITION,
+    ASK_USER_QUESTION_TOOL_DEFINITION,
+  ].find(({ id }) => id === canonicalToolId)
 }
 
 export function parsePlatformToolInput(toolId: string, value: unknown): unknown {

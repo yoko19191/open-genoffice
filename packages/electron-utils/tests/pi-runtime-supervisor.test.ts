@@ -120,6 +120,19 @@ function harness(
         acceptedCursor: `cursor-${id}`,
       })),
       revokeDocumentMutationGrants: vi.fn(async () => ({ revoked: true as const })),
+      answerUserAction: vi.fn(async (input) => ({
+        sessionId: input.sessionId,
+        documentId: input.documentId,
+        action: {
+          requestId: input.requestId,
+          runId: 'run-1',
+          mode: 'confirm' as const,
+          question: 'Continue?',
+          requestedAt: '2026-08-11T00:00:00.000Z',
+          status: 'answered' as const,
+        },
+        acceptedCursor: 'cursor-1',
+      })),
       forkSession: vi.fn(async (input) => ({
         sessionId: `fork-session-${id}`,
         parentSessionId: input.sessionId,
@@ -433,6 +446,15 @@ describe('PiRuntimeSupervisor', () => {
         ...bound,
       }),
     ).resolves.toEqual({ revoked: true })
+    await expect(
+      fixture.supervisor.answerUserAction({
+        operationId: 'operation-answer',
+        ...bound,
+        requestId: 'question-1',
+        userActionId: 'user-action-4',
+        answer: { confirmed: true },
+      }),
+    ).resolves.toMatchObject({ action: { status: 'answered' } })
     await expect(
       fixture.supervisor.forkSession({
         operationId: '44444444-4444-4444-8444-444444444444',

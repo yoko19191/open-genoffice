@@ -83,6 +83,21 @@ function fixture(connect = vi.fn(async () => receipt())) {
           acceptedCursor: 'cursor-5',
         }
       }
+      if (command.type === 'answerUserAction') {
+        return {
+          sessionId,
+          documentId,
+          action: {
+            requestId: command.requestId,
+            runId,
+            mode: 'confirm' as const,
+            question: 'Continue?',
+            requestedAt: '2026-08-11T00:00:00.000Z',
+            status: 'answered' as const,
+          },
+          acceptedCursor: 'cursor-6',
+        }
+      }
       return { runId, state: 'cancelling', acceptedCursor: 'cursor-3' }
     }),
     disconnect: vi.fn(),
@@ -259,6 +274,62 @@ describe('AgentSessionController', () => {
     )
     await expect(controller.revokeMutation('missing')).rejects.toThrowError(
       'mutation_grant_not_active',
+    )
+  })
+
+  it('answers only a projected pending question and never supplies a renderer receipt', async () => {
+    const connect = vi.fn(async () => ({
+      ...receipt(),
+      snapshot: {
+        ...receipt().snapshot,
+        userActions: [
+          {
+            requestId: 'question-1',
+            runId,
+            mode: 'confirm' as const,
+            question: 'Continue?',
+            requestedAt: '2026-08-11T00:00:00.000Z',
+            status: 'pending' as const,
+          },
+          {
+            requestId: 'question-2',
+            runId,
+            mode: 'input' as const,
+            question: 'Name this section',
+            maxLength: 80,
+            requestedAt: '2026-08-11T00:00:00.000Z',
+            status: 'pending' as const,
+          },
+        ],
+      },
+    }))
+    const test = fixture(connect)
+    const controller = new AgentSessionController(test.client, { randomUUID: () => operationId })
+    await controller.connect()
+    await controller.answerUserAction('question-1', { confirmed: true })
+    expect(test.commands.at(-1)).toEqual({
+      type: 'answerUserAction',
+      operationId,
+      sessionId,
+      documentId,
+      requestId: 'question-1',
+      answer: { confirmed: true },
+    })
+    expect(test.commands.at(-1)).not.toHaveProperty('userActionId')
+    await expect(
+      controller.answerUserAction('question-1', { text: 'forged mode' }),
+    ).rejects.toThrowError('user_action_answer_invalid')
+    await expect(
+      controller.answerUserAction('question-2', { confirmed: true }),
+    ).rejects.toThrowError('user_action_answer_invalid')
+    await controller.answerUserAction('question-2', { text: 'Overview' })
+    expect(test.commands.at(-1)).toMatchObject({
+      type: 'answerUserAction',
+      requestId: 'question-2',
+      answer: { text: 'Overview' },
+    })
+    await expect(controller.answerUserAction('missing', { confirmed: true })).rejects.toThrowError(
+      'user_action_not_pending',
     )
   })
 
