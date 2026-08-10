@@ -18,7 +18,8 @@
     "@genoffice/agent-resource": "*",
     "@genoffice/agent-runtime-protocol": "*",
     "@genoffice/pi-runtime-bundle": "*",
-    "@sinclair/typebox": "0.34.52"
+    "@sinclair/typebox": "0.34.52",
+    "fflate": "0.8.2"
   },
   "devDependencies": {
     "@genoffice/ui": "*",

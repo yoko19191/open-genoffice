@@ -18,12 +18,14 @@ import { fileCountKey, visiblePageCount } from './counts'
 import { useI18n } from './locale'
 import type { I18n, StringKey } from './locale'
 import type { PiRuntimeApi } from '../../shared/pi-runtime-api'
+import type { MineruOcrApi, MineruOcrStatusProjection } from '../../shared/mineru-ocr-api'
 
 declare global {
   interface Window {
     aiOffice: HomeApi
     aiOfficeProject?: ProjectHomeApi
     aiOfficeAgent: PiRuntimeApi
+    aiOfficeMineruOcr: MineruOcrApi
   }
 }
 
@@ -443,6 +445,147 @@ const configurableCapabilities: readonly ModelCapability[] = [
   'tool-use',
   'reasoning',
 ]
+
+function MineruOcrDialog({ onClose }: { onClose: () => void }) {
+  const { lang } = useI18n()
+  const zh = lang === 'zh' || lang === 'zh-TW'
+  const [status, setStatus] = useState<MineruOcrStatusProjection>()
+  const [token, setToken] = useState('')
+  const [accepted, setAccepted] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+
+  useEffect(() => {
+    let active = true
+    void window.aiOfficeMineruOcr
+      .status()
+      .then((next) => {
+        if (active) setStatus(next)
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : 'mineru_status_failed')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const enable = async () => {
+    if (!accepted || !token.trim() || busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      setStatus(
+        await window.aiOfficeMineruOcr.enable({
+          disclosureAccepted: true,
+          token,
+        }),
+      )
+      setToken('')
+      setAccepted(false)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mineru_enable_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disable = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      setStatus(await window.aiOfficeMineruOcr.disable())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mineru_disable_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const statusText = !status
+    ? zh
+      ? '正在读取状态…'
+      : 'Loading status…'
+    : status.enabled
+      ? zh
+        ? '已启用；凭据已由系统安全存储保管。'
+        : 'Enabled; the credential is protected by system secure storage.'
+      : status.credential === 'secure_storage_unavailable'
+        ? zh
+          ? '系统安全存储不可用，无法启用。'
+          : 'System secure storage is unavailable; MinerU cannot be enabled.'
+        : zh
+          ? '未启用。'
+          : 'Disabled.'
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form
+        className="modal mineru-ocr-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={zh ? 'MinerU PDF 转 Word' : 'MinerU PDF to Word'}
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault()
+          void enable()
+        }}
+      >
+        <h3>{zh ? 'MinerU PDF 转 Word' : 'MinerU PDF to Word'}</h3>
+        <p className="provider-credential-status" role="status">
+          {statusText}
+        </p>
+        <p className="mineru-disclosure">
+          {zh
+            ? '启用后，只有在你主动选择“导出为 Word”时，当前 PDF 才会上传到 MinerU 云端并使用 VLM 转换。每次只提交一个 PDF，不会切换到其他服务。取消本地任务不能保证远端任务停止。访问令牌只写入系统加密存储，不会显示、同步或写入日志。'
+            : 'After you enable this provider, the current PDF is uploaded to MinerU only when you explicitly choose Export as Word. Each batch contains one PDF, uses VLM, and never falls back to another service. Local cancellation cannot guarantee that remote work stops. The token is write-only in system-encrypted storage and is never displayed, synced, or logged.'}
+        </p>
+        <label className="provider-credential-field">
+          <span>{zh ? 'MinerU 访问令牌（只写）' : 'MinerU access token (write-only)'}</span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={token}
+            disabled={busy}
+            onChange={(event) => setToken(event.target.value)}
+          />
+        </label>
+        <label className="mineru-consent">
+          <input
+            type="checkbox"
+            checked={accepted}
+            disabled={busy}
+            onChange={(event) => setAccepted(event.target.checked)}
+          />
+          <span>
+            {zh
+              ? '我理解并同意上述云端上传说明'
+              : 'I understand and accept the cloud upload disclosure'}
+          </span>
+        </label>
+        {error && <p className="provider-credential-error">{error}</p>}
+        <div className="modal-buttons">
+          {status?.enabled && (
+            <button type="button" className="btn" disabled={busy} onClick={() => void disable()}>
+              {zh ? '禁用' : 'Disable'}
+            </button>
+          )}
+          <button type="button" className="btn" onClick={onClose}>
+            {zh ? '关闭' : 'Close'}
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={busy || !accepted || !token.trim()}
+          >
+            {busy ? (zh ? '保存中…' : 'Saving…') : zh ? '启用并保存令牌' : 'Enable and save token'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
 
 function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const { lang } = useI18n()
@@ -1535,6 +1678,7 @@ function AccountEntry({
   const [loggingOut, setLoggingOut] = useState(false)
   const [appVersion, setAppVersion] = useState('')
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
+  const [mineruDialogOpen, setMineruDialogOpen] = useState(false)
 
   // query login state + app version once on mount
   useEffect(() => {
@@ -1793,6 +1937,23 @@ function AccountEntry({
             </svg>
             <span>{lang === 'zh' || lang === 'zh-TW' ? '模型服务商' : 'Model provider'}</span>
           </button>
+          <button
+            className="account-menu-item"
+            role="menuitem"
+            onClick={() => {
+              closeMenu()
+              setMineruDialogOpen(true)
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M3 2.5h7l3 3v8H3zM10 2.5v3h3M5 9h6M5 11h4"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+            </svg>
+            <span>{lang === 'zh' || lang === 'zh-TW' ? 'PDF 转 Word' : 'PDF to Word'}</span>
+          </button>
           <div className="account-menu-divider" />
           <div
             className="lang-row-wrap"
@@ -2018,6 +2179,7 @@ function AccountEntry({
       {providerDialogOpen && (
         <ProviderCredentialDialog onClose={() => setProviderDialogOpen(false)} />
       )}
+      {mineruDialogOpen && <MineruOcrDialog onClose={() => setMineruDialogOpen(false)} />}
       <button
         className="account-btn"
         onClick={handleClick}

@@ -41,6 +41,12 @@ import {
   asResourceCatalog,
   type PiRuntimeApi,
 } from '../shared/pi-runtime-api'
+import {
+  MINERU_OCR_CHANNELS,
+  asMineruOcrEnableInput,
+  asMineruOcrStatus,
+  type MineruOcrApi,
+} from '../shared/mineru-ocr-api'
 
 const UI_LANGUAGES: readonly UiLanguage[] = [
   'zh',
@@ -461,3 +467,19 @@ const piRuntimeApi: PiRuntimeApi = {
 }
 
 contextBridge.exposeInMainWorld('aiOfficeAgent', piRuntimeApi)
+
+const mineruOcrApi: MineruOcrApi = {
+  async status() {
+    return asMineruOcrStatus(await ipcRenderer.invoke(MINERU_OCR_CHANNELS.status))
+  },
+  async enable(input) {
+    return asMineruOcrStatus(
+      await ipcRenderer.invoke(MINERU_OCR_CHANNELS.enable, asMineruOcrEnableInput(input)),
+    )
+  },
+  async disable() {
+    return asMineruOcrStatus(await ipcRenderer.invoke(MINERU_OCR_CHANNELS.disable))
+  },
+}
+
+contextBridge.exposeInMainWorld('aiOfficeMineruOcr', mineruOcrApi)

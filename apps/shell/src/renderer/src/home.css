@@ -1092,6 +1092,31 @@ body.vib .home {
   overflow-y: auto;
 }
 
+.mineru-ocr-modal {
+  width: min(500px, 90vw);
+}
+
+.mineru-disclosure {
+  margin-top: 14px !important;
+  padding: 12px;
+  border-radius: var(--radius-6);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.mineru-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mineru-consent input {
+  margin-top: 2px;
+}
+
 .provider-credential-provider {
   font-weight: 600;
 }

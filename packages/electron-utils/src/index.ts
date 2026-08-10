@@ -23,6 +23,32 @@ export {
 } from './safe-remote-url'
 export { fetchRemoteImage, remoteImageHeaders } from './remote-image'
 export {
+  MineruError,
+  assertMineruHttpsUrl,
+  classifyMineruError,
+  createMineruClient,
+  waitForMineruResult,
+  type MineruActiveState,
+  type MineruBatchProjection,
+  type MineruClient,
+  type MineruErrorKind,
+} from './mineru-client'
+export {
+  downloadMineruDocx,
+  selectDocxFromMineruArchive,
+  validateDocx,
+  type MineruArchiveLimits,
+} from './mineru-archive'
+export {
+  MineruOcrService,
+  MineruOcrServiceError,
+  type MineruCredentialBroker,
+  type MineruCredentialStatus,
+  type MineruOcrResult,
+  type MineruOcrServiceOptions,
+  type MineruOcrStatus,
+} from './mineru-ocr-service'
+export {
   PiRuntimeManager,
   PiRuntimeManagerError,
   createPrivateRuntimeEndpoint,
@@ -119,6 +145,7 @@ export {
   type CredentialMetadata,
   type CredentialStatus,
   type CredentialWrite,
+  type OperationCapsuleWrite,
   type SafeStorageAdapter,
   type SecureStorageBackend,
   type SecureStorageBrokerOptions,

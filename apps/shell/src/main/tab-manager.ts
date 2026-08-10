@@ -61,6 +61,7 @@ export class TabManager {
   private nextId = 1
   /** tab whose page entered HTML fullscreen (e.g. slides slideshow) — its view covers the tab strip */
   private htmlFullScreenId: string | null = null
+  private comparison: { leftId: string; rightId: string } | undefined
   /** tabs mid unsaved-changes prompt, so a second close click doesn't stack dialogs */
   private readonly closingIds = new Set<string>()
   private readonly agentDocumentOwners = new Map<string, number>()
@@ -105,6 +106,8 @@ export class TabManager {
   private trackHtmlFullScreen(id: string, view: WebContentsView): void {
     view.webContents.on('enter-html-full-screen', () => {
       this.htmlFullScreenId = id
+      this.comparison = undefined
+      for (const tab of this.tabs) tab.view?.setVisible(tab.id === id)
       this.layout()
     })
     view.webContents.on('leave-html-full-screen', () => {
@@ -117,6 +120,22 @@ export class TabManager {
   layout(): void {
     // Deferred resize layouts can land after the shell window was closed.
     if (this.shellWindow.isDestroyed()) return
+    if (this.comparison) {
+      const left = this.tabs.find((tab) => tab.id === this.comparison?.leftId)?.view
+      const right = this.tabs.find((tab) => tab.id === this.comparison?.rightId)?.view
+      if (left && right) {
+        const bounds = this.contentBounds()
+        const leftWidth = Math.floor(bounds.width / 2)
+        left.setBounds({ ...bounds, width: leftWidth })
+        right.setBounds({
+          ...bounds,
+          x: bounds.x + leftWidth,
+          width: bounds.width - leftWidth,
+        })
+        return
+      }
+      this.comparison = undefined
+    }
     const active = this.tabs.find((t) => t.id === this.activeId)
     if (active?.view) active.view.setBounds(this.contentBounds())
   }
@@ -209,9 +228,24 @@ export class TabManager {
     return id
   }
 
+  openDocsBesidePdf(pdfTabId: string, openPath: string): string {
+    const pdf = this.tabs.find((tab) => tab.id === pdfTabId && tab.kind === 'pdf')
+    if (!pdf?.view) return this.openDocsTab(openPath)
+    const docsId = this.openDocsTab(openPath)
+    const docs = this.tabs.find((tab) => tab.id === docsId)
+    if (!docs?.view) return docsId
+    this.comparison = { leftId: pdfTabId, rightId: docsId }
+    pdf.view.setVisible(true)
+    docs.view.setVisible(true)
+    this.layout()
+    this.onChanged()
+    return docsId
+  }
+
   activateTab(id: string): void {
     const target = this.tabs.find((t) => t.id === id)
     if (!target) return
+    this.comparison = undefined
     for (const t of this.tabs) t.view?.setVisible(t.id === id)
     if (target.view) target.view.setBounds(this.contentBounds())
     this.activeId = id
@@ -363,9 +397,13 @@ export class TabManager {
     if (idx < 0) return
     if (this.htmlFullScreenId === id) this.htmlFullScreenId = null
     const [removed] = this.tabs.splice(idx, 1)
+    const closedComparison = this.comparison?.leftId === id || this.comparison?.rightId === id
+    if (closedComparison) this.comparison = undefined
     if (this.activeId === id) {
       const fallback = this.tabs[idx - 1] ?? this.tabs[0]
       this.activateTab(fallback.id)
+    } else if (closedComparison) {
+      this.activateTab(this.activeId)
     } else {
       this.onChanged()
     }

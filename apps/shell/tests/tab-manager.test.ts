@@ -250,6 +250,31 @@ describe('activation', () => {
     expect(manager.list()[0].active).toBe(true)
   })
 
+  it('opens a converted DOCX beside its source PDF until normal tab activation', () => {
+    const pdfId = manager.openPdfTab('/tmp/source.pdf')
+    const pdfView = lastCreatedView(createPdfView)
+    const docsId = manager.openDocsBesidePdf(pdfId, '/tmp/result.docx')
+    const docsView = lastCreatedView(createDocsView)
+    expect(manager.list().find((tab) => tab.id === docsId)?.active).toBe(true)
+    expect(pdfView.setVisible).toHaveBeenLastCalledWith(true)
+    expect(docsView.setVisible).toHaveBeenLastCalledWith(true)
+    expect(pdfView.setBounds).toHaveBeenLastCalledWith({
+      x: 0,
+      y: TAB_STRIP_HEIGHT,
+      width: WINDOW_WIDTH / 2,
+      height: WINDOW_HEIGHT - TAB_STRIP_HEIGHT,
+    })
+    expect(docsView.setBounds).toHaveBeenLastCalledWith({
+      x: WINDOW_WIDTH / 2,
+      y: TAB_STRIP_HEIGHT,
+      width: WINDOW_WIDTH / 2,
+      height: WINDOW_HEIGHT - TAB_STRIP_HEIGHT,
+    })
+    manager.activateTab('home')
+    expect(pdfView.setVisible).toHaveBeenLastCalledWith(false)
+    expect(docsView.setVisible).toHaveBeenLastCalledWith(false)
+  })
+
   it('routes the active webContents to the matching module', () => {
     manager.openSheetsTab()
     const sheetsView = lastCreatedView(createSheetsView)

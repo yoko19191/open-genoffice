@@ -44,6 +44,13 @@ export type CredentialWrite = {
   secretPayload: string
 }
 
+export type OperationCapsuleWrite = {
+  operationId: string
+  expectedGeneration: number
+  generation: number
+  payload: string
+}
+
 export type SecureStorageBrokerOptions = {
   rootDirectory: string
   runtimeVersion: string
@@ -76,6 +83,9 @@ const SecureStorageIndexSchema = Type.Object(
 )
 
 type SecureStorageIndex = Static<typeof SecureStorageIndexSchema>
+
+const OPERATION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 export class SecureStorageBrokerError extends Error {
   readonly code: string
@@ -194,6 +204,56 @@ export class SecureStorageBroker {
     })
   }
 
+  async putOperationCapsule(
+    input: OperationCapsuleWrite,
+  ): Promise<{ operationId: string; generation: number }> {
+    this.assertOperationId(input.operationId)
+    return this.withSlot(`capsule:${input.operationId}`, async () => {
+      await this.requirePersistentStorage()
+      const current = await this.readOperationCapsule(input.operationId)
+      if (
+        (current?.generation ?? 0) !== input.expectedGeneration ||
+        input.generation !== input.expectedGeneration + 1 ||
+        typeof input.payload !== 'string'
+      ) {
+        throw new SecureStorageBrokerError('operation_capsule_generation_conflict')
+      }
+      await this.writeOperationCapsule(input.operationId, input.generation, input.payload)
+      return { operationId: input.operationId, generation: input.generation }
+    })
+  }
+
+  async getOperationCapsule(
+    operationId: string,
+  ): Promise<{ operationId: string; generation: number; payload: string } | undefined> {
+    this.assertOperationId(operationId)
+    return this.withSlot(`capsule:${operationId}`, async () => {
+      await this.requirePersistentStorage()
+      const capsule = await this.readOperationCapsule(operationId)
+      if (!capsule) return undefined
+      if (capsule.shouldReEncrypt) {
+        await this.writeOperationCapsule(operationId, capsule.generation, capsule.payload)
+      }
+      return { operationId, generation: capsule.generation, payload: capsule.payload }
+    })
+  }
+
+  async deleteOperationCapsule(
+    operationId: string,
+    expectedGeneration: number,
+  ): Promise<{ operationId: string; generation: number; status: 'deleted' }> {
+    this.assertOperationId(operationId)
+    return this.withSlot(`capsule:${operationId}`, async () => {
+      await this.requirePersistentStorage()
+      const current = await this.readOperationCapsule(operationId)
+      if (!current || current.generation !== expectedGeneration) {
+        throw new SecureStorageBrokerError('operation_capsule_generation_conflict')
+      }
+      await unlink(this.operationCapsulePath(operationId))
+      return { operationId, generation: expectedGeneration, status: 'deleted' }
+    })
+  }
+
   private async commit(input: CredentialWrite): Promise<CredentialMetadata> {
     await this.requirePersistentStorage()
     return this.withIndex(async () => {
@@ -250,6 +310,65 @@ export class SecureStorageBroker {
 
   private blobPath(credentialId: string): string {
     return join(this.home.credentialBlobsDirectory, `${credentialId}.bin`)
+  }
+
+  private operationCapsulePath(operationId: string): string {
+    return join(this.home.operationCapsulesDirectory, `${operationId}.bin`)
+  }
+
+  private assertOperationId(operationId: string): void {
+    if (!OPERATION_ID_PATTERN.test(operationId)) {
+      throw new SecureStorageBrokerError('operation_capsule_invalid')
+    }
+  }
+
+  private async readOperationCapsule(
+    operationId: string,
+  ): Promise<{ generation: number; payload: string; shouldReEncrypt: boolean } | undefined> {
+    let ciphertext: Buffer
+    try {
+      ciphertext = await readFile(this.operationCapsulePath(operationId))
+    } catch (error) {
+      if (isMissingFile(error)) return undefined
+      throw new SecureStorageBrokerError('operation_capsule_decrypt_failed')
+    }
+    try {
+      const decrypted = await this.safeStorage.decryptStringAsync(ciphertext)
+      const parsed: unknown = JSON.parse(decrypted.result)
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        !Number.isInteger((parsed as { generation?: unknown }).generation) ||
+        (parsed as { generation: number }).generation < 1 ||
+        typeof (parsed as { payload?: unknown }).payload !== 'string'
+      ) {
+        throw new Error('invalid_capsule')
+      }
+      return {
+        generation: (parsed as { generation: number }).generation,
+        payload: (parsed as { payload: string }).payload,
+        shouldReEncrypt: decrypted.shouldReEncrypt,
+      }
+    } catch {
+      throw new SecureStorageBrokerError('operation_capsule_decrypt_failed')
+    }
+  }
+
+  private async writeOperationCapsule(
+    operationId: string,
+    generation: number,
+    payload: string,
+  ): Promise<void> {
+    try {
+      const encrypted = await this.safeStorage.encryptStringAsync(
+        JSON.stringify({ generation, payload }),
+      )
+      await atomicWriteFile(this.operationCapsulePath(operationId), encrypted, {
+        platform: this.platform,
+      })
+    } catch {
+      throw new SecureStorageBrokerError('operation_capsule_persist_failed')
+    }
   }
 
   private async removeBlob(credentialId: string): Promise<void> {

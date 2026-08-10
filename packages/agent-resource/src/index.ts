@@ -122,3 +122,9 @@ export {
   type PackageToolDescriptor,
   type ResolvedPackage,
 } from './package-lock'
+export {
+  ProviderOperationRecordSchema,
+  ProviderOperationStore,
+  ProviderOperationStoreError,
+  type ProviderOperationRecord,
+} from './provider-operation-store'

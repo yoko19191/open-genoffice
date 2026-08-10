@@ -79,6 +79,50 @@ async function createBroker(options: {
 }
 
 describe('Electron main SecureStorageBroker', () => {
+  it('stores operation Resume Capsules by generation without plaintext or traversal', async () => {
+    const { broker, rootDirectory } = await createBroker({ platform: 'darwin' })
+    const operationId = '11111111-1111-4111-8111-111111111111'
+    const privateCapsule = JSON.stringify({
+      batchId: 'private-batch-id',
+      uploadUrl: 'https://signed.example/private',
+      resultUrl: 'https://result.example/private',
+    })
+    await expect(
+      broker.putOperationCapsule({
+        operationId,
+        expectedGeneration: 0,
+        generation: 1,
+        payload: privateCapsule,
+      }),
+    ).resolves.toEqual({ operationId, generation: 1 })
+    await expect(broker.getOperationCapsule(operationId)).resolves.toEqual({
+      operationId,
+      generation: 1,
+      payload: privateCapsule,
+    })
+    await expect(
+      broker.putOperationCapsule({
+        operationId,
+        expectedGeneration: 0,
+        generation: 2,
+        payload: privateCapsule,
+      }),
+    ).rejects.toEqual(new SecureStorageBrokerError('operation_capsule_generation_conflict'))
+    const bytes = await readFile(
+      join(rootDirectory, 'state/secure-store/operation-capsules', `${operationId}.bin`),
+    )
+    expect(bytes.toString()).not.toContain('private-batch-id')
+    await expect(broker.getOperationCapsule('../escape')).rejects.toEqual(
+      new SecureStorageBrokerError('operation_capsule_invalid'),
+    )
+    await expect(broker.deleteOperationCapsule(operationId, 1)).resolves.toEqual({
+      operationId,
+      generation: 1,
+      status: 'deleted',
+    })
+    await expect(broker.getOperationCapsule(operationId)).resolves.toBeUndefined()
+  })
+
   it.each(['darwin', 'win32'] as const)(
     'persists and reads an API key through system storage on %s without plaintext files',
     async (platform) => {
