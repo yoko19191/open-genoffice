@@ -164,6 +164,36 @@ describe('legacy acceptance evidence recertification', () => {
     ).rejects.toThrow('summary_source_report_hash_mismatch')
   })
 
+  it('keeps status-only native package reports valid through recertification and summary', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-recertify-native-report-'))
+    const { manifestPath } = await sourceEvidence(root, {
+      report: { schemaVersion: 1, status: 'passed' },
+    })
+    const outputPath = join(root, 'evidence', 'recertified', 'evidence.json')
+    await recertifyAcceptanceEvidence({
+      repoRoot: root,
+      sourceManifestPath: manifestPath,
+      outputPath,
+      expectedCommit: 'b'.repeat(40),
+      ancestorPolicy: 'allow',
+      isAncestor: async () => true,
+    })
+    const catalogPath = join(root, 'catalog.json')
+    await writeFile(catalogPath, JSON.stringify(catalog()))
+
+    await expect(
+      collectAcceptanceSummary({
+        repoRoot: root,
+        outputPath: join(root, 'summary.json'),
+        expectedCommit: 'b'.repeat(40),
+        requiredAcceptanceIds: ['SA-001'],
+        requiredCatalogNames: ['docs'],
+        catalogPath,
+        manifestPaths: [outputPath],
+      }),
+    ).resolves.toMatchObject({ status: 'passed' })
+  })
+
   it('records unverifiable legacy fixture claims without treating them as fixtures', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-recertify-omitted-'))
     const { manifestPath } = await sourceEvidence(root, { fixtureSource: false })

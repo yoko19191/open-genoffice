@@ -91,7 +91,9 @@ function validateManifestShape(manifest) {
 
 function assertPassedReport(report, code) {
   if (
-    report.success !== true ||
+    (report.success !== true && report.status !== 'passed') ||
+    report.success === false ||
+    (report.status !== undefined && report.status !== 'passed') ||
     (report.numFailedTests ?? 0) !== 0 ||
     (report.numFailedTestSuites ?? 0) !== 0
   ) {
