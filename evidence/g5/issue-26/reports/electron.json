@@ -1,0 +1,685 @@
+{
+  "numTotalTestSuites": 5,
+  "numPassedTestSuites": 5,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 53,
+  "numPassedTests": 53,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786380032422,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService validates a native WAV locally and returns the same scope-bound ArtifactRef",
+          "status": "passed",
+          "title": "validates a native WAV locally and returns the same scope-bound ArtifactRef",
+          "duration": 1.5288340000000034,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService extracts bounded deterministic PNG frames and registers only run-scoped refs",
+          "status": "passed",
+          "title": "extracts bounded deterministic PNG frames and registers only run-scoped refs",
+          "duration": 1.8675000000000068,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects malformed WAV deterministically",
+          "status": "passed",
+          "title": "rejects malformed WAV deterministically",
+          "duration": 0.2710000000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects MIME mismatch deterministically",
+          "status": "passed",
+          "title": "rejects MIME mismatch deterministically",
+          "duration": 0.0992080000000044,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects oversize deterministically",
+          "status": "passed",
+          "title": "rejects oversize deterministically",
+          "duration": 0.09241699999999753,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService aborts local extraction without registering a partial frame",
+          "status": "passed",
+          "title": "aborts local extraction without registering a partial frame",
+          "duration": 0.4010409999999922,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService prepares a scope-verified image without opening media bytes",
+          "status": "passed",
+          "title": "prepares a scope-verified image without opening media bytes",
+          "duration": 0.18045899999999904,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects wrong image strategy",
+          "status": "passed",
+          "title": "rejects wrong image strategy",
+          "duration": 0.21416699999998912,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects image ref mismatch",
+          "status": "passed",
+          "title": "rejects image ref mismatch",
+          "duration": 0.2902910000000105,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService supports MP4 mvhd version 1 and enforces the duration ceiling",
+          "status": "passed",
+          "title": "supports MP4 mvhd version 1 and enforces the duration ceiling",
+          "duration": 0.34199999999999875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects unsupported frame routes and invalid extractor output",
+          "status": "passed",
+          "title": "rejects unsupported frame routes and invalid extractor output",
+          "duration": 0.5647500000000036,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rolls back registered frames when a later registration fails",
+          "status": "passed",
+          "title": "rolls back registered frames when a later registration fails",
+          "duration": 0.2679169999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService normalizes unexpected store failures and honors a pre-aborted request",
+          "status": "passed",
+          "title": "normalizes unexpected store failures and honors a pre-aborted request",
+          "duration": 0.12649999999999295,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects malformed WAV chunk and format variants",
+          "status": "passed",
+          "title": "rejects malformed WAV chunk and format variants",
+          "duration": 0.8588749999999976,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects malformed MP4 box and movie-header variants",
+          "status": "passed",
+          "title": "rejects malformed MP4 box and movie-header variants",
+          "duration": 0.5155420000000106,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MediaPreparationService"
+          ],
+          "fullName": "MediaPreparationService rejects a mismatched media ref and excessive frames, and uses a safe fallback frame name",
+          "status": "passed",
+          "title": "rejects a mismatched media ref and excessive frames, and uses a safe fallback frame name",
+          "duration": 0.22645800000000804,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786380032555,
+      "endTime": 1786380032563.5156,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/media-preparation-service.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager dispatches only Runtime-initiated credential methods to the main-process broker",
+          "status": "passed",
+          "title": "dispatches only Runtime-initiated credential methods to the main-process broker",
+          "duration": 4.260791999999981,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager dispatches one validated Runtime Office Tool request to the main-process host",
+          "status": "passed",
+          "title": "dispatches one validated Runtime Office Tool request to the main-process host",
+          "duration": 1.584875000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager dispatches validated media prepare and Stop requests to the main-process host",
+          "status": "passed",
+          "title": "dispatches validated media prepare and Stop requests to the main-process host",
+          "duration": 1.1156250000000227,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager fails closed when the media preparation host is unavailable",
+          "status": "passed",
+          "title": "fails closed when the media preparation host is unavailable",
+          "duration": 0.7223749999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager starts only the verified executable, authenticates, serves health, and shuts down",
+          "status": "passed",
+          "title": "starts only the verified executable, authenticates, serves health, and shuts down",
+          "duration": 0.998457999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager uses narrow typed Session methods and forwards validated native events in socket order",
+          "status": "passed",
+          "title": "uses narrow typed Session methods and forwards validated native events in socket order",
+          "duration": 2.921707999999967,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager uses write-only credential management methods and validates redacted status results",
+          "status": "passed",
+          "title": "uses write-only credential management methods and validates redacted status results",
+          "duration": 0.7390419999999835,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager uses typed model catalog, selection, OAuth, and logout methods",
+          "status": "passed",
+          "title": "uses typed model catalog, selection, OAuth, and logout methods",
+          "duration": 0.8110419999999863,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates resource catalog and Project Trust projections at the Electron boundary",
+          "status": "passed",
+          "title": "validates resource catalog and Project Trust projections at the Electron boundary",
+          "duration": 2.2947920000000295,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates Package projections and preserves Package Runtime errors",
+          "status": "passed",
+          "title": "validates Package projections and preserves Package Runtime errors",
+          "duration": 1.2800420000000372,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates MCP projections and preserves stable MCP Runtime errors",
+          "status": "passed",
+          "title": "validates MCP projections and preserves stable MCP Runtime errors",
+          "duration": 1.744542000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates model projections and preserves stable Runtime errors",
+          "status": "passed",
+          "title": "validates model projections and preserves stable Runtime errors",
+          "duration": 0.6997499999999945,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid putCredential result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid putCredential result to a stable redacted error",
+          "duration": 1.0289579999999887,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid credentialStatus result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid credentialStatus result to a stable redacted error",
+          "duration": 0.28554200000002083,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid deleteCredential result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid deleteCredential result to a stable redacted error",
+          "duration": 0.20229199999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager preserves stable Runtime errors across every credential management method",
+          "status": "passed",
+          "title": "preserves stable Runtime errors across every credential management method",
+          "duration": 0.47666599999996606,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager starts Windows Runtime through the kill-on-close Job Object launcher",
+          "status": "passed",
+          "title": "starts Windows Runtime through the kill-on-close Job Object launcher",
+          "duration": 0.28958299999999326,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid createSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid createSession result to a stable redacted error",
+          "duration": 0.23075000000000045,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid openSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid openSession result to a stable redacted error",
+          "duration": 0.17133300000000418,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid promptSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid promptSession result to a stable redacted error",
+          "duration": 0.15874999999999773,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid abortSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid abortSession result to a stable redacted error",
+          "duration": 0.1588750000000232,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid resumeSubagent result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid resumeSubagent result to a stable redacted error",
+          "duration": 0.17958300000003646,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid forkSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid forkSession result to a stable redacted error",
+          "duration": 0.15345800000000054,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid navigateSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid navigateSession result to a stable redacted error",
+          "duration": 0.15170799999998508,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid snapshotSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid snapshotSession result to a stable redacted error",
+          "duration": 0.15112500000003593,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid subscribeSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid subscribeSession result to a stable redacted error",
+          "duration": 0.19733300000001464,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps invalid and Runtime-error Mutation Grant receipts to stable errors",
+          "status": "passed",
+          "title": "maps invalid and Runtime-error Mutation Grant receipts to stable errors",
+          "duration": 0.5121669999999767,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager preserves stable Runtime errors across every narrow Session method",
+          "status": "passed",
+          "title": "preserves stable Runtime errors across every narrow Session method",
+          "duration": 0.540458000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager fails closed on a mismatched hello and kills the child without leaking the token",
+          "status": "passed",
+          "title": "fails closed on a mismatched hello and kills the child without leaking the token",
+          "duration": 0.3569999999999709,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps raw startup errors and unavailable status to stable manager errors",
+          "status": "passed",
+          "title": "maps raw startup errors and unavailable status to stable manager errors",
+          "duration": 0.3086249999999495,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects 'an invalid status payload' without corrupting the manager",
+          "status": "passed",
+          "title": "rejects 'an invalid status payload' without corrupting the manager",
+          "duration": 0.20537500000000364,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects 'a Runtime error response' without corrupting the manager",
+          "status": "passed",
+          "title": "rejects 'a Runtime error response' without corrupting the manager",
+          "duration": 0.17537500000003092,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects 'an invalid protocol frame' without corrupting the manager",
+          "status": "passed",
+          "title": "rejects 'an invalid protocol frame' without corrupting the manager",
+          "duration": 0.20545900000001893,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects an in-flight request when the socket errors or the child crashes",
+          "status": "passed",
+          "title": "rejects an in-flight request when the socket errors or the child crashes",
+          "duration": 0.28300000000001546,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager marks an unexpected child exit as crashed",
+          "status": "passed",
+          "title": "marks an unexpected child exit as crashed",
+          "duration": 52.600915999999984,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "private Runtime endpoints"
+          ],
+          "fullName": "private Runtime endpoints creates a 0700 POSIX instance directory and removes it",
+          "status": "passed",
+          "title": "creates a 0700 POSIX instance directory and removes it",
+          "duration": 6.712958000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "private Runtime endpoints"
+          ],
+          "fullName": "private Runtime endpoints creates a 96-bit Windows Named Pipe without a temp directory",
+          "status": "passed",
+          "title": "creates a 96-bit Windows Named Pipe without a temp directory",
+          "duration": 0.1209580000000301,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786380032793,
+      "endTime": 1786380032878.713,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/pi-runtime-manager.test.ts"
+    }
+  ]
+}
