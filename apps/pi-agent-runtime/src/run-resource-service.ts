@@ -30,7 +30,12 @@ import {
   type McpExecutionContext,
   type McpToolDescriptor,
 } from './mcp-connection-supervisor'
-import { OpenGenOfficeMcpConfigResolver, type McpConfigScope } from './mcp-config-resolver'
+import {
+  OpenGenOfficeMcpConfigResolver,
+  type McpConfigScope,
+  type ResolvedMcpServer,
+} from './mcp-config-resolver'
+import { McpOAuthController, type McpOAuthStartResult } from './mcp-oauth-controller'
 
 export type RunModelMetadata = {
   providerId: string
@@ -77,7 +82,7 @@ export type PackageDiagnostic = {
 
 export type McpDiagnostic = {
   serverId: string
-  code: 'connection_failed' | 'needs_credentials' | 'tool_alias_collision'
+  code: 'auth_required' | 'connection_failed' | 'needs_credentials' | 'tool_alias_collision'
 }
 
 export type RunResourceServiceOptions = {
@@ -86,7 +91,7 @@ export type RunResourceServiceOptions = {
   permissionVersion?: () => string
   isToolEnabled?: (toolId: string) => boolean
   packageSourceResolver?: Pick<PackageSourceResolver, 'resolve'>
-  credentials?: Pick<CredentialStore, 'read'>
+  credentials?: Pick<CredentialStore, 'read' | 'modify' | 'delete'>
   environment?: Readonly<Record<string, string | undefined>>
   artifactBroker?: McpConnectionSupervisorOptions['artifactBroker']
   mcpResolver?: Pick<
@@ -96,7 +101,9 @@ export type RunResourceServiceOptions = {
   createMcpSupervisor?: (
     server: ActiveMcpServer,
     authorize: ConstructorParameters<typeof McpConnectionSupervisor>[0]['authorize'],
+    oauthProvider?: McpOAuthController,
   ) => McpConnectionSupervisor
+  createMcpOAuthController?: (server: ResolvedMcpServer) => McpOAuthController
 }
 
 export type PackageScope = {
@@ -114,7 +121,8 @@ export type PackageInstall = PackageMutation & {
   expectedPreviousContentSha256?: string
 }
 
-export type RunResourceServiceErrorCode = 'package_scope_invalid' | 'package_project_untrusted'
+export type RunResourceServiceErrorCode =
+  'mcp_oauth_not_configured' | 'package_scope_invalid' | 'package_project_untrusted'
 
 export class RunResourceServiceError extends Error {
   constructor(readonly code: RunResourceServiceErrorCode) {
@@ -129,12 +137,14 @@ export class RunResourceService {
   private readonly permissionVersion: () => string
   private readonly isToolEnabled: (toolId: string) => boolean
   private readonly packageSourceResolver: Pick<PackageSourceResolver, 'resolve'>
+  private readonly credentials: Pick<CredentialStore, 'read' | 'modify' | 'delete'>
   private readonly mcpResolver: Pick<
     OpenGenOfficeMcpConfigResolver,
     'resolve' | 'activate' | 'setServerEnabled' | 'setToolEnabled'
   >
   private readonly mcpAuthorization: McpAuthorizationBroker
   private readonly supervisors = new Map<string, McpConnectionSupervisor>()
+  private readonly oauthControllers = new Map<string, McpOAuthController>()
   private readonly preparedMcpRuns = new Map<
     string,
     {
@@ -158,6 +168,11 @@ export class RunResourceService {
     this.packageSourceResolver =
       options.packageSourceResolver ??
       new PackageSourceResolver({ resourceHome: options.resourceHome })
+    this.credentials = options.credentials ?? {
+      read: async () => undefined,
+      modify: async () => undefined,
+      delete: async () => undefined,
+    }
     this.mcpResolver =
       options.mcpResolver ??
       new OpenGenOfficeMcpConfigResolver({
@@ -375,11 +390,13 @@ export class RunResourceService {
         )
           ? 'tool_alias_collision'
           : server.state === 'eligible'
-            ? diagnostic === 'needs_credentials'
-              ? 'needs_credentials'
-              : diagnostic
-                ? 'failed'
-                : 'ready'
+            ? diagnostic === 'auth_required'
+              ? 'auth_required'
+              : diagnostic === 'needs_credentials'
+                ? 'needs_credentials'
+                : diagnostic
+                  ? 'failed'
+                  : 'ready'
             : server.state
         return {
           namespace: server.namespace,
@@ -398,13 +415,15 @@ export class RunResourceService {
               ? 'activate'
               : state === 'disabled'
                 ? 'enable'
-                : state === 'needs_credentials'
-                  ? 'configure_credentials'
-                  : state === 'failed'
-                    ? 'retry'
-                    : state === 'server_id_collision' || state === 'tool_alias_collision'
-                      ? 'fix_collision'
-                      : 'disable',
+                : state === 'auth_required'
+                  ? 'login'
+                  : state === 'needs_credentials'
+                    ? 'configure_credentials'
+                    : state === 'failed'
+                      ? 'retry'
+                      : state === 'server_id_collision' || state === 'tool_alias_collision'
+                        ? 'fix_collision'
+                        : 'disable',
         }
       }),
     }
@@ -441,6 +460,39 @@ export class RunResourceService {
     return this.mcpCatalog(scope.namespace === 'project' ? scope.projectRoot : undefined)
   }
 
+  async startMcpOAuth(
+    scope: McpConfigScope,
+    serverId: string,
+    operationId: string,
+    redirectUrl: string,
+  ): Promise<McpOAuthStartResult> {
+    const server = await this.requireOAuthServer(scope, serverId)
+    await this.closeMcpServer(scope.namespace, serverId)
+    return this.oauthController(server).begin(operationId, redirectUrl)
+  }
+
+  async completeMcpOAuth(
+    scope: McpConfigScope,
+    serverId: string,
+    operationId: string,
+    callbackUrl: string,
+  ): Promise<McpCatalogProjection> {
+    const server = await this.requireOAuthServer(scope, serverId)
+    await this.oauthController(server).complete(operationId, callbackUrl)
+    await this.closeMcpServer(scope.namespace, serverId)
+    return this.mcpCatalog(scope.namespace === 'project' ? scope.projectRoot : undefined)
+  }
+
+  async cancelMcpOAuth(
+    scope: McpConfigScope,
+    serverId: string,
+    operationId: string,
+  ): Promise<McpCatalogProjection> {
+    const server = await this.requireOAuthServer(scope, serverId)
+    this.oauthController(server).cancel(operationId)
+    return this.mcpCatalog(scope.namespace === 'project' ? scope.projectRoot : undefined)
+  }
+
   releaseRun(runId: string): void {
     this.preparedMcpRuns.delete(runId)
   }
@@ -449,6 +501,7 @@ export class RunResourceService {
     this.preparedMcpRuns.clear()
     await Promise.allSettled([...this.supervisors.values()].map((supervisor) => supervisor.close()))
     this.supervisors.clear()
+    this.oauthControllers.clear()
   }
 
   async catalog(projectRoot?: string): Promise<ResourceCatalogProjection> {
@@ -688,28 +741,51 @@ export class RunResourceService {
     const selected = new Map<string, McpConnectionSupervisor>()
     for (const server of servers) {
       const key = this.mcpSupervisorKey(server.namespace, server.serverId, server.contentSha256)
+      const oauthProvider =
+        server.transport !== 'stdio' && server.credentialRef?.kind === 'oauth'
+          ? this.oauthController(server)
+          : undefined
+      if (oauthProvider && !(await oauthProvider.tokens())) {
+        diagnostics.push({ serverId: server.serverId, code: 'auth_required' })
+        continue
+      }
       let supervisor = this.supervisors.get(key)
       if (!supervisor) {
-        const active: ActiveMcpServer = {
+        const common = {
           namespace: server.namespace,
           serverId: server.serverId,
-          command: server.command,
-          args: server.args,
-          inheritedEnv: server.inheritedEnv,
-          credentialEnvironment: server.credentialEnvironment,
           enabledToolIds: server.enabledToolIds,
           timeoutMs: server.timeoutMs,
           contentSha256: server.contentSha256,
         }
+        const active: ActiveMcpServer =
+          server.transport === 'stdio'
+            ? {
+                ...common,
+                transport: 'stdio',
+                command: server.command,
+                args: server.args,
+                inheritedEnv: server.inheritedEnv,
+                credentialEnvironment: server.credentialEnvironment,
+              }
+            : {
+                ...common,
+                transport: server.transport,
+                endpoint: server.endpoint,
+                ...(server.credentialRef ? { credentialRef: server.credentialRef } : {}),
+              }
         supervisor = this.options.createMcpSupervisor
-          ? this.options.createMcpSupervisor(active, (input) =>
-              this.mcpAuthorization.authorize(input),
+          ? this.options.createMcpSupervisor(
+              active,
+              (input) => this.mcpAuthorization.authorize(input),
+              oauthProvider,
             )
           : new McpConnectionSupervisor({
               server: active,
-              credentials: this.options.credentials ?? { read: async () => undefined },
+              credentials: this.credentials,
               environment: this.options.environment,
               artifactBroker: this.options.artifactBroker,
+              oauthProvider,
               authorize: (input) => this.mcpAuthorization.authorize(input),
             })
         this.supervisors.set(key, supervisor)
@@ -730,7 +806,9 @@ export class RunResourceService {
           code:
             error instanceof Error && error.message === 'mcp_credential_missing'
               ? 'needs_credentials'
-              : 'connection_failed',
+              : error instanceof Error && error.message === 'mcp_oauth_required'
+                ? 'auth_required'
+                : 'connection_failed',
         })
       }
     }
@@ -758,6 +836,57 @@ export class RunResourceService {
     contentSha256: string,
   ): string {
     return `${namespace}/${serverId}/${contentSha256}`
+  }
+
+  private async requireOAuthServer(
+    scope: McpConfigScope,
+    serverId: string,
+  ): Promise<ResolvedMcpServer> {
+    const servers = await this.mcpResolver.resolve(
+      scope.namespace === 'project' ? scope.projectRoot : undefined,
+    )
+    const server = servers.find(
+      (candidate) =>
+        candidate.namespace === scope.namespace &&
+        candidate.serverId === serverId &&
+        candidate.state === 'eligible',
+    )
+    if (
+      !server ||
+      server.transport === 'stdio' ||
+      !server.credentialRef ||
+      server.credentialRef.kind !== 'oauth'
+    ) {
+      throw new RunResourceServiceError('mcp_oauth_not_configured')
+    }
+    return server
+  }
+
+  private oauthController(server: ResolvedMcpServer): McpOAuthController {
+    if (
+      server.transport === 'stdio' ||
+      !server.credentialRef ||
+      server.credentialRef.kind !== 'oauth'
+    ) {
+      throw new RunResourceServiceError('mcp_oauth_not_configured')
+    }
+    const key = this.mcpSupervisorKey(server.namespace, server.serverId, server.contentSha256)
+    let controller = this.oauthControllers.get(key)
+    if (!controller) {
+      controller = this.options.createMcpOAuthController
+        ? this.options.createMcpOAuthController(server)
+        : new McpOAuthController({
+            serverId: server.serverId,
+            serverUrl: server.endpoint,
+            credentialProviderId: server.credentialRef.slot.slice(
+              'model/'.length,
+              -'/default'.length,
+            ),
+            credentials: this.credentials,
+          })
+      this.oauthControllers.set(key, controller)
+    }
+    return controller
   }
 
   private async closeMcpServer(namespace: 'global' | 'project', serverId: string): Promise<void> {

@@ -171,6 +171,23 @@ export type McpToolMutationRequest = Extract<
   ResourceManagementRequest,
   { method: 'mcp.tool.enable' | 'mcp.tool.disable' }
 >['params']
+export type McpOAuthStartRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'mcp.oauth.start' }
+>['params']
+export type McpOAuthCompleteRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'mcp.oauth.complete' }
+>['params']
+export type McpOAuthOperationRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'mcp.oauth.cancel' }
+>['params']
+export type McpOAuthStartProjection = {
+  operationId: string
+  authorizationUrl: string
+  expiresAt: number
+}
 
 type ClientRuntimeMethod =
   | 'runtime.hello'
@@ -211,6 +228,9 @@ type ClientRuntimeMethod =
   | 'mcp.enable'
   | 'mcp.disable'
   | 'mcp.retry'
+  | 'mcp.oauth.start'
+  | 'mcp.oauth.complete'
+  | 'mcp.oauth.cancel'
   | 'mcp.tool.enable'
   | 'mcp.tool.disable'
 
@@ -228,6 +248,50 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null
     ? (value as Record<string, unknown>)
     : undefined
+}
+
+function parseMcpOAuthStartProjection(value: unknown): McpOAuthStartProjection {
+  const record = asRecord(value)
+  if (
+    !record ||
+    Object.keys(record).some(
+      (key) => !['operationId', 'authorizationUrl', 'expiresAt'].includes(key),
+    ) ||
+    typeof record.operationId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      record.operationId,
+    ) ||
+    typeof record.authorizationUrl !== 'string' ||
+    record.authorizationUrl.length > 4096 ||
+    /[\r\n]/.test(record.authorizationUrl) ||
+    typeof record.expiresAt !== 'number' ||
+    !Number.isFinite(record.expiresAt) ||
+    record.expiresAt <= 0
+  ) {
+    throw new PiRuntimeManagerError('mcp_oauth_start_invalid')
+  }
+  try {
+    const url = new URL(record.authorizationUrl)
+    const loopback =
+      url.protocol === 'http:' &&
+      (url.hostname === '127.0.0.1' || url.hostname === '[::1]' || url.hostname === 'localhost')
+    if (
+      (url.protocol !== 'https:' && !loopback) ||
+      url.username ||
+      url.password ||
+      url.hash ||
+      !url.searchParams.get('state')
+    ) {
+      throw new Error('invalid')
+    }
+  } catch {
+    throw new PiRuntimeManagerError('mcp_oauth_start_invalid')
+  }
+  return {
+    operationId: record.operationId,
+    authorizationUrl: record.authorizationUrl,
+    expiresAt: record.expiresAt,
+  }
 }
 
 const CREDENTIAL_BROKER_ERROR_CODES = new Set([
@@ -454,6 +518,9 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('mcp.enable') ||
         !hello.capabilities.includes('mcp.disable') ||
         !hello.capabilities.includes('mcp.retry') ||
+        !hello.capabilities.includes('mcp.oauth.start') ||
+        !hello.capabilities.includes('mcp.oauth.complete') ||
+        !hello.capabilities.includes('mcp.oauth.cancel') ||
         !hello.capabilities.includes('mcp.tool.enable') ||
         !hello.capabilities.includes('mcp.tool.disable')
       ) {
@@ -736,6 +803,19 @@ export class PiRuntimeManager {
     return this.mcpManagementRequest('mcp.retry', input)
   }
 
+  async startMcpOAuth(input: McpOAuthStartRequest): Promise<McpOAuthStartProjection> {
+    this.assertReady()
+    return parseMcpOAuthStartProjection(await this.request('mcp.oauth.start', input))
+  }
+
+  async completeMcpOAuth(input: McpOAuthCompleteRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.oauth.complete', input)
+  }
+
+  async cancelMcpOAuth(input: McpOAuthOperationRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.oauth.cancel', input)
+  }
+
   async enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {
     return this.mcpManagementRequest('mcp.tool.enable', input)
   }
@@ -790,9 +870,16 @@ export class PiRuntimeManager {
       | 'mcp.enable'
       | 'mcp.disable'
       | 'mcp.retry'
+      | 'mcp.oauth.complete'
+      | 'mcp.oauth.cancel'
       | 'mcp.tool.enable'
       | 'mcp.tool.disable',
-    input: McpCatalogRequest | McpMutationRequest | McpToolMutationRequest,
+    input:
+      | McpCatalogRequest
+      | McpMutationRequest
+      | McpToolMutationRequest
+      | McpOAuthCompleteRequest
+      | McpOAuthOperationRequest,
   ): Promise<McpCatalogProjection> {
     this.assertReady()
     try {

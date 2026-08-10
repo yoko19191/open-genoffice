@@ -150,6 +150,13 @@ function manager(overrides: Record<string, unknown> = {}) {
     enableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
     disableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
     retryMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    startMcpOAuth: vi.fn(async (input) => ({
+      operationId: input.operationId,
+      authorizationUrl: 'https://issuer.example.test/authorize?state=safe-state',
+      expiresAt: 123_456,
+    })),
+    completeMcpOAuth: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    cancelMcpOAuth: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
     enableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
     disableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
     ...overrides,
@@ -427,6 +434,15 @@ describe('installed Pi Runtime service', () => {
     await fixture.instance.enableMcp(mcpMutation)
     await fixture.instance.disableMcp(mcpMutation)
     await fixture.instance.retryMcp(mcpMutation)
+    await fixture.instance.startMcpOAuth({
+      ...mcpMutation,
+      redirectUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${mcpMutation.operationId}`,
+    })
+    await fixture.instance.completeMcpOAuth({
+      ...mcpMutation,
+      callbackUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${mcpMutation.operationId}?code=x&state=y&iss=https%3A%2F%2Fissuer.example.test`,
+    })
+    await fixture.instance.cancelMcpOAuth(mcpMutation)
     await fixture.instance.enableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
     await fixture.instance.disableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
     expect(fixture.runtimeManager.mcpCatalog).toHaveBeenCalledWith({})
@@ -434,6 +450,7 @@ describe('installed Pi Runtime service', () => {
       ...mcpMutation,
       toolName: 'read_fixture',
     })
+    expect(fixture.runtimeManager.cancelMcpOAuth).toHaveBeenCalledWith(mcpMutation)
   })
 
   it('passes the main-process credential broker only to the owned Runtime manager', async () => {

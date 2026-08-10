@@ -1,22 +1,43 @@
 import type { CredentialStore } from '@earendil-works/pi-ai'
-import { Client } from '@modelcontextprotocol/client'
+import {
+  Client,
+  SSEClientTransport,
+  StreamableHTTPClientTransport,
+  UnauthorizedError,
+  type AuthProvider,
+  type FetchLike,
+  type OAuthClientProvider,
+  type Transport,
+} from '@modelcontextprotocol/client'
 import {
   DEFAULT_INHERITED_ENV_VARS,
   StdioClientTransport,
 } from '@modelcontextprotocol/client/stdio'
 import type { McpCredentialEnvironment } from './mcp-config-resolver'
 
-export type ActiveMcpServer = {
+type ActiveMcpServerBase = {
   namespace: 'global' | 'project'
   serverId: string
-  command: string
-  args: readonly string[]
-  inheritedEnv: readonly string[]
-  credentialEnvironment: readonly McpCredentialEnvironment[]
   enabledToolIds: readonly string[]
   timeoutMs: number
   contentSha256: string
 }
+
+export type ActiveStdioMcpServer = ActiveMcpServerBase & {
+  transport: 'stdio'
+  command: string
+  args: readonly string[]
+  inheritedEnv: readonly string[]
+  credentialEnvironment: readonly McpCredentialEnvironment[]
+}
+
+export type ActiveHttpMcpServer = ActiveMcpServerBase & {
+  transport: 'streamable-http' | 'legacy-sse'
+  endpoint: string
+  credentialRef?: { slot: string; kind: 'api_key' | 'oauth' }
+}
+
+export type ActiveMcpServer = ActiveStdioMcpServer | ActiveHttpMcpServer
 
 export type McpToolDescriptor = {
   canonicalToolId: string
@@ -56,12 +77,14 @@ export type McpToolResult = {
 }
 
 type McpClient = Pick<Client, 'connect' | 'listTools' | 'callTool' | 'close' | 'onclose'>
-type McpTransport = StdioClientTransport
+type McpTransport = Transport & Partial<Pick<StdioClientTransport, 'pid' | 'stderr'>>
 
 export type McpConnectionSupervisorOptions = {
   server: ActiveMcpServer
   credentials: Pick<CredentialStore, 'read'>
   environment?: Readonly<Record<string, string | undefined>>
+  oauthProvider?: OAuthClientProvider
+  fetch?: FetchLike
   authorize: (input: {
     actorId: string
     documentId: string
@@ -87,7 +110,11 @@ export type McpConnectionSupervisorOptions = {
       byteLength: number
     }>
   }
-  createConnection?: (input: { command: string; args: string[]; env: Record<string, string> }) => {
+  createConnection?: (input: {
+    server: ActiveMcpServer
+    env?: Record<string, string>
+    authProvider?: AuthProvider | OAuthClientProvider
+  }) => {
     client: McpClient
     transport: McpTransport
   }
@@ -102,6 +129,7 @@ export type McpExecutionErrorCode =
   | 'artifact_invalid'
   | 'mcp_unavailable'
   | 'mcp_credential_missing'
+  | 'mcp_oauth_required'
 
 export class McpExecutionError extends Error {
   constructor(readonly code: McpExecutionErrorCode) {
@@ -110,7 +138,8 @@ export class McpExecutionError extends Error {
   }
 }
 
-type SupervisorState = 'disabled' | 'connecting' | 'ready' | 'degraded' | 'failed' | 'stopping'
+type SupervisorState =
+  'disabled' | 'connecting' | 'auth_required' | 'ready' | 'degraded' | 'failed' | 'stopping'
 
 function providerIdFromSlot(slot: string): string {
   return slot.slice('model/'.length, -'/default'.length)
@@ -169,21 +198,15 @@ export class McpConnectionSupervisor {
     this.state = 'connecting'
     try {
       await this.closeConnection()
-      const env = await this.resolveEnvironment()
-      const connection = this.options.createConnection?.({
-        command: this.options.server.command,
-        args: [...this.options.server.args],
-        env,
-      }) ?? {
-        client: new Client({ name: 'open-genoffice', version: '0.1.0' }),
-        transport: new StdioClientTransport({
-          command: this.options.server.command,
-          args: [...this.options.server.args],
+      const env =
+        this.options.server.transport === 'stdio' ? await this.resolveEnvironment() : undefined
+      const authProvider = await this.resolveHttpAuthProvider()
+      const connection =
+        this.options.createConnection?.({
+          server: this.options.server,
           env,
-          stderr: 'pipe',
-          maxBufferSize: 1024 * 1024,
-        }),
-      }
+          authProvider,
+        }) ?? this.createConnection(env, authProvider)
       this.client = connection.client
       this.transport = connection.transport
       connection.client.onclose = () => {
@@ -219,9 +242,14 @@ export class McpConnectionSupervisor {
       this.state = 'ready'
       return tools
     } catch (error) {
-      this.state = 'failed'
+      this.state =
+        error instanceof UnauthorizedError ||
+        (error instanceof McpExecutionError && error.code === 'mcp_oauth_required')
+          ? 'auth_required'
+          : 'failed'
       await this.closeConnection()
       if (error instanceof McpExecutionError) throw error
+      if (error instanceof UnauthorizedError) throw new McpExecutionError('mcp_oauth_required')
       throw new McpExecutionError('mcp_unavailable')
     }
   }
@@ -324,6 +352,7 @@ export class McpConnectionSupervisor {
   }
 
   private async resolveEnvironment(): Promise<Record<string, string>> {
+    if (this.options.server.transport !== 'stdio') return {}
     // The official transport always merges a small ambient baseline. Override every
     // non-whitelisted baseline name with an empty value so no host value reaches MCP.
     const env: Record<string, string> = Object.fromEntries(
@@ -345,6 +374,65 @@ export class McpConnectionSupervisor {
     }
     this.secrets = secrets
     return env
+  }
+
+  private async resolveHttpAuthProvider(): Promise<AuthProvider | OAuthClientProvider | undefined> {
+    if (this.options.server.transport === 'stdio' || !this.options.server.credentialRef) {
+      return undefined
+    }
+    if (this.options.server.credentialRef.kind === 'oauth') {
+      if (!this.options.oauthProvider) throw new McpExecutionError('mcp_oauth_required')
+      return this.options.oauthProvider
+    }
+    const providerId = providerIdFromSlot(this.options.server.credentialRef.slot)
+    const credential = await this.options.credentials.read(providerId)
+    if (credential?.type !== 'api_key' || !credential.key) {
+      throw new McpExecutionError('mcp_credential_missing')
+    }
+    this.secrets = [credential.key]
+    return { token: async () => credential.key }
+  }
+
+  private createConnection(
+    env: Record<string, string> | undefined,
+    authProvider: AuthProvider | OAuthClientProvider | undefined,
+  ): { client: McpClient; transport: McpTransport } {
+    const client = new Client({ name: 'open-genoffice', version: '0.1.0' })
+    if (this.options.server.transport === 'stdio') {
+      return {
+        client,
+        transport: new StdioClientTransport({
+          command: this.options.server.command,
+          args: [...this.options.server.args],
+          env: env ?? {},
+          stderr: 'pipe',
+          maxBufferSize: 1024 * 1024,
+        }),
+      }
+    }
+    const url = new URL(this.options.server.endpoint)
+    if (this.options.server.transport === 'legacy-sse') {
+      return {
+        client,
+        transport: new SSEClientTransport(url, {
+          authProvider,
+          fetch: this.options.fetch,
+        }),
+      }
+    }
+    return {
+      client,
+      transport: new StreamableHTTPClientTransport(url, {
+        authProvider,
+        fetch: this.options.fetch,
+        reconnectionOptions: {
+          initialReconnectionDelay: 100,
+          maxReconnectionDelay: 1_000,
+          reconnectionDelayGrowFactor: 2,
+          maxRetries: 2,
+        },
+      }),
+    }
   }
 
   private captureStderr(value: string): void {

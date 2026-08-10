@@ -49,6 +49,21 @@ function server(serverId: string) {
   }
 }
 
+function httpServer(
+  serverId: string,
+  transport: 'streamable-http' | 'legacy-sse' = 'streamable-http',
+) {
+  return {
+    serverId,
+    transport,
+    endpoint: 'https://mcp.example.test/v1',
+    credentialRef: { slot: `model/mcp-${serverId}/default`, kind: 'oauth' },
+    enabledToolIds: ['read_fixture'],
+    timeoutMs: 2_000,
+    enabled: true,
+  }
+}
+
 async function fixture() {
   const resourceHome = await root('genoffice-mcp-home-')
   const projectRoot = await root('genoffice-mcp-project-')
@@ -147,6 +162,76 @@ describe('OpenGenOfficeMcpConfigResolver', () => {
     await expect(resolver.resolve()).rejects.toMatchObject({ code: 'mcp_config_invalid' })
     await writeFile(path, '{not-json}\n')
     await expect(resolver.resolve()).rejects.toMatchObject({ code: 'mcp_config_invalid' })
+  })
+
+  it('accepts Streamable HTTP by default and legacy SSE only when explicitly configured', async () => {
+    const resourceHome = await root('genoffice-mcp-http-')
+    await initializeAgentResourceHome({
+      rootDirectory: resourceHome,
+      runtimeVersion: 'test',
+      randomUUID: () => deviceId,
+    })
+    const path = join(resourceHome, 'mcp', 'servers.json')
+    await write(path, {
+      schemaVersion: 1,
+      servers: [
+        httpServer('streamable'),
+        httpServer('legacy', 'legacy-sse'),
+        {
+          ...httpServer('ipv6-loopback'),
+          endpoint: 'http://[::1]:3456/mcp',
+          credentialRef: undefined,
+        },
+        {
+          ...httpServer('loopback'),
+          endpoint: 'http://127.0.0.1:3456/mcp',
+          credentialRef: undefined,
+        },
+      ],
+    })
+    const resolver = new OpenGenOfficeMcpConfigResolver({ resourceHome, deviceId })
+    const resolved = await resolver.resolve()
+    expect(resolved).toMatchObject([
+      {
+        serverId: 'ipv6-loopback',
+        transport: 'streamable-http',
+        endpoint: 'http://[::1]:3456/mcp',
+      },
+      {
+        serverId: 'legacy',
+        transport: 'legacy-sse',
+        endpoint: 'https://mcp.example.test/v1',
+        activation: { capabilities: ['network'] },
+      },
+      {
+        serverId: 'loopback',
+        transport: 'streamable-http',
+        endpoint: 'http://127.0.0.1:3456/mcp',
+      },
+      {
+        serverId: 'streamable',
+        transport: 'streamable-http',
+        credentialRef: {
+          slot: 'model/mcp-streamable/default',
+          kind: 'oauth',
+        },
+      },
+    ])
+
+    for (const invalid of [
+      { ...httpServer('bad'), endpoint: 'http://mcp.example.test/v1' },
+      { ...httpServer('bad'), endpoint: 'https://user:secret@mcp.example.test/v1' },
+      { ...httpServer('bad'), endpoint: 'https://mcp.example.test/v1?token=secret' },
+      { ...httpServer('bad'), endpoint: 'https://mcp.example.test/v1#fragment' },
+      { ...httpServer('bad'), endpoint: 'https://${MCP_HOST}/v1' },
+      { ...httpServer('bad'), transport: 'http' },
+      { ...httpServer('bad'), command: process.execPath },
+      { ...httpServer('bad'), credentialRef: { slot: 'invalid', kind: 'oauth' } },
+      { ...httpServer('bad'), credentialRef: { slot: 'model/mcp-bad/default', kind: 'secret' } },
+    ]) {
+      await write(path, { schemaVersion: 1, servers: [invalid] })
+      await expect(resolver.resolve()).rejects.toMatchObject({ code: 'mcp_config_invalid' })
+    }
   })
 
   it('isolates both servers when global and trusted project IDs collide', async () => {

@@ -144,6 +144,9 @@ class FakeRuntimeSocket extends Duplex {
               'mcp.enable',
               'mcp.disable',
               'mcp.retry',
+              'mcp.oauth.start',
+              'mcp.oauth.complete',
+              'mcp.oauth.cancel',
               'mcp.tool.enable',
               'mcp.tool.disable',
             ],
@@ -171,84 +174,94 @@ class FakeRuntimeSocket extends Duplex {
                 }
               : request.method.startsWith('package.')
                 ? { globalGeneration: 1, packages: [] }
-                : request.method.startsWith('mcp.')
-                  ? { projectState: 'none', servers: [] }
-                  : request.method.startsWith('model.')
-                    ? {
-                        providers: [],
-                        selections:
-                          request.method === 'model.select'
-                            ? {
-                                [request.params.role]: {
-                                  providerId: request.params.providerId,
-                                  modelId: request.params.modelId,
-                                  capabilities: ['text-input'],
-                                },
-                              }
-                            : {},
-                      }
-                    : request.method === 'credential.put'
+                : request.method === 'mcp.oauth.start'
+                  ? {
+                      operationId: request.params.operationId,
+                      authorizationUrl: 'https://issuer.example.test/authorize?state=safe-state',
+                      expiresAt: 123_456,
+                    }
+                  : request.method.startsWith('mcp.')
+                    ? { projectState: 'none', servers: [] }
+                    : request.method.startsWith('model.')
                       ? {
-                          providerId: request.params.providerId,
-                          persistence: request.params.persistence,
-                          status: 'available',
-                          kind: 'api_key',
+                          providers: [],
+                          selections:
+                            request.method === 'model.select'
+                              ? {
+                                  [request.params.role]: {
+                                    providerId: request.params.providerId,
+                                    modelId: request.params.modelId,
+                                    capabilities: ['text-input'],
+                                  },
+                                }
+                              : {},
                         }
-                      : request.method === 'credential.status'
+                      : request.method === 'credential.put'
                         ? {
                             providerId: request.params.providerId,
-                            persistence: 'persistent',
-                            status: 'missing',
+                            persistence: request.params.persistence,
+                            status: 'available',
+                            kind: 'api_key',
                           }
-                        : request.method === 'credential.delete'
+                        : request.method === 'credential.status'
                           ? {
                               providerId: request.params.providerId,
                               persistence: 'persistent',
                               status: 'missing',
                             }
-                          : request.method === 'session.create' || request.method === 'session.open'
+                          : request.method === 'credential.delete'
                             ? {
-                                sessionId: snapshot.sessionId,
-                                documentId: snapshot.documentId,
-                                snapshot,
-                                cursor: snapshot.cursor,
+                                providerId: request.params.providerId,
+                                persistence: 'persistent',
+                                status: 'missing',
                               }
-                            : request.method === 'session.prompt'
-                              ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
-                              : request.method === 'session.abort'
-                                ? {
-                                    runId: 'run-1',
-                                    state: 'cancelling',
-                                    acceptedCursor: 'cursor-2',
-                                  }
-                                : request.method === 'session.fork'
+                            : request.method === 'session.create' ||
+                                request.method === 'session.open'
+                              ? {
+                                  sessionId: snapshot.sessionId,
+                                  documentId: snapshot.documentId,
+                                  snapshot,
+                                  cursor: snapshot.cursor,
+                                }
+                              : request.method === 'session.prompt'
+                                ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
+                                : request.method === 'session.abort'
                                   ? {
-                                      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                      parentSessionId: snapshot.sessionId,
-                                      documentId: snapshot.documentId,
-                                      snapshot: {
-                                        ...snapshot,
-                                        sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                        branch: { parentSessionId: snapshot.sessionId, nodes: [] },
-                                      },
-                                      cursor: snapshot.cursor,
+                                      runId: 'run-1',
+                                      state: 'cancelling',
+                                      acceptedCursor: 'cursor-2',
                                     }
-                                  : request.method === 'session.navigate'
+                                  : request.method === 'session.fork'
                                     ? {
-                                        sessionId: snapshot.sessionId,
+                                        sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                        parentSessionId: snapshot.sessionId,
                                         documentId: snapshot.documentId,
-                                        activeLeafId: 'navigation-leaf',
                                         snapshot: {
                                           ...snapshot,
-                                          branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                          sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                          branch: {
+                                            parentSessionId: snapshot.sessionId,
+                                            nodes: [],
+                                          },
                                         },
                                         cursor: snapshot.cursor,
                                       }
-                                    : request.method === 'session.snapshot'
-                                      ? snapshot
-                                      : request.method === 'session.subscribe'
-                                        ? { resetRequired: false, snapshot, events: [] }
-                                        : { shuttingDown: true }
+                                    : request.method === 'session.navigate'
+                                      ? {
+                                          sessionId: snapshot.sessionId,
+                                          documentId: snapshot.documentId,
+                                          activeLeafId: 'navigation-leaf',
+                                          snapshot: {
+                                            ...snapshot,
+                                            branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                          },
+                                          cursor: snapshot.cursor,
+                                        }
+                                      : request.method === 'session.snapshot'
+                                        ? snapshot
+                                        : request.method === 'session.subscribe'
+                                          ? { resetRequired: false, snapshot, events: [] }
+                                          : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
@@ -877,6 +890,23 @@ describe('PiRuntimeManager', () => {
     await expect(manager.disableMcp(mutation)).resolves.toMatchObject({ servers: [] })
     await expect(manager.retryMcp(mutation)).resolves.toMatchObject({ servers: [] })
     await expect(
+      manager.startMcpOAuth({
+        ...mutation,
+        redirectUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${operationId}`,
+      }),
+    ).resolves.toEqual({
+      operationId,
+      authorizationUrl: 'https://issuer.example.test/authorize?state=safe-state',
+      expiresAt: 123_456,
+    })
+    await expect(
+      manager.completeMcpOAuth({
+        ...mutation,
+        callbackUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${operationId}?code=x&state=y&iss=https%3A%2F%2Fissuer.example.test`,
+      }),
+    ).resolves.toMatchObject({ servers: [] })
+    await expect(manager.cancelMcpOAuth(mutation)).resolves.toMatchObject({ servers: [] })
+    await expect(
       manager.enableMcpTool({ ...mutation, toolName: 'read_fixture' }),
     ).resolves.toMatchObject({ servers: [] })
     await expect(
@@ -893,6 +923,25 @@ describe('PiRuntimeManager', () => {
       new PiRuntimeManagerError('mcp_catalog_invalid'),
     )
     await invalid.shutdown()
+
+    const invalidOAuth = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness({
+        mcpResult: {
+          operationId,
+          authorizationUrl: 'http://attacker.example.test/authorize?state=unsafe',
+          expiresAt: 123_456,
+        },
+      }).dependencies,
+    )
+    await invalidOAuth.start()
+    await expect(
+      invalidOAuth.startMcpOAuth({
+        ...mutation,
+        redirectUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${operationId}`,
+      }),
+    ).rejects.toEqual(new PiRuntimeManagerError('mcp_oauth_start_invalid'))
+    await invalidOAuth.shutdown()
 
     const failed = new PiRuntimeManager(
       { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },

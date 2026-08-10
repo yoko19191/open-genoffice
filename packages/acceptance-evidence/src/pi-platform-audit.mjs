@@ -42,7 +42,10 @@ const FORBIDDEN_SOURCE = [
 
 const FORBIDDEN_IMPLICIT_NETWORK_SOURCE = [/\bfetch\s*\(/, /node:https?/, /https?:\/\//]
 
-const EXPLICIT_NETWORK_SOURCE = new Set(['apps/pi-agent-runtime/src/package-source-resolver.ts'])
+const EXPLICIT_NETWORK_SOURCE = new Set([
+  'apps/pi-agent-runtime/src/mcp-oauth-controller.ts',
+  'apps/pi-agent-runtime/src/package-source-resolver.ts',
+])
 
 const SKIP_DIRECTORIES = new Set([
   '.git',

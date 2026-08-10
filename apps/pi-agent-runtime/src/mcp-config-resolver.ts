@@ -28,14 +28,9 @@ export type McpCredentialEnvironment = {
 
 export type McpServerState = 'eligible' | 'activation_required' | 'disabled' | 'server_id_collision'
 
-export type ResolvedMcpServer = {
+type ResolvedMcpServerBase = {
   namespace: 'global' | 'project'
   serverId: string
-  transport: 'stdio'
-  command: string
-  args: readonly string[]
-  inheritedEnv: readonly string[]
-  credentialEnvironment: readonly McpCredentialEnvironment[]
   enabledToolIds: readonly string[]
   timeoutMs: number
   enabled: boolean
@@ -44,10 +39,51 @@ export type ResolvedMcpServer = {
   state: McpServerState
 }
 
-type StoredMcpServer = Omit<
-  ResolvedMcpServer,
-  'namespace' | 'inheritedEnv' | 'credentialEnvironment' | 'contentSha256' | 'activation' | 'state'
-> & {
+export type ResolvedMcpServer = ResolvedMcpServerBase &
+  (
+    | {
+        transport: 'stdio'
+        command: string
+        args: readonly string[]
+        inheritedEnv: readonly string[]
+        credentialEnvironment: readonly McpCredentialEnvironment[]
+      }
+    | {
+        transport: 'streamable-http' | 'legacy-sse'
+        endpoint: string
+        credentialRef?: McpCredentialReference
+      }
+  )
+
+type StoredMcpServerBase = {
+  serverId: string
+  enabledToolIds: string[]
+  timeoutMs: number
+  enabled: boolean
+}
+
+type StoredMcpServer = StoredMcpServerBase &
+  (
+    | {
+        transport: 'stdio'
+        command: string
+        args: string[]
+        environment: {
+          inherit: string[]
+          credentials: McpCredentialEnvironment[]
+        }
+      }
+    | {
+        transport: 'streamable-http' | 'legacy-sse'
+        endpoint: string
+        credentialRef?: McpCredentialReference
+      }
+  )
+
+type StoredStdioMcpServer = StoredMcpServerBase & {
+  transport: 'stdio'
+  command: string
+  args: string[]
   environment: {
     inherit: string[]
     credentials: McpCredentialEnvironment[]
@@ -87,37 +123,66 @@ function unique(values: readonly string[]): boolean {
   return new Set(values).size === values.length
 }
 
+function parseCredentialReference(value: unknown): McpCredentialReference {
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, ['slot', 'kind']) ||
+    typeof value.slot !== 'string' ||
+    !CREDENTIAL_SLOT.test(value.slot) ||
+    (value.kind !== 'api_key' && value.kind !== 'oauth')
+  ) {
+    throw new McpConfigError('mcp_config_invalid')
+  }
+  return { slot: value.slot, kind: value.kind }
+}
+
 function parseCredentialEnvironment(value: unknown): McpCredentialEnvironment[] {
   if (!Array.isArray(value) || value.length > 128) throw new McpConfigError('mcp_config_invalid')
   const parsed = value.map((entry) => {
     if (!isRecord(entry) || !exactKeys(entry, ['name', 'credentialRef'])) {
       throw new McpConfigError('mcp_config_invalid')
     }
-    const reference = entry.credentialRef
     if (
       typeof entry.name !== 'string' ||
       !ENVIRONMENT_NAME.test(entry.name) ||
-      !isRecord(reference) ||
-      !exactKeys(reference, ['slot', 'kind']) ||
-      typeof reference.slot !== 'string' ||
-      !CREDENTIAL_SLOT.test(reference.slot) ||
-      (reference.kind !== 'api_key' && reference.kind !== 'oauth')
+      entry.credentialRef === undefined
     ) {
       throw new McpConfigError('mcp_config_invalid')
     }
-    const kind: McpCredentialReference['kind'] = reference.kind
     return {
       name: entry.name,
-      credentialRef: { slot: reference.slot, kind },
+      credentialRef: parseCredentialReference(entry.credentialRef),
     }
   })
   if (!unique(parsed.map(({ name }) => name))) throw new McpConfigError('mcp_config_invalid')
   return parsed
 }
 
-function parseServer(value: unknown): StoredMcpServer {
+function parseCommonServer(value: Record<string, unknown>): StoredMcpServerBase {
   if (
-    !isRecord(value) ||
+    typeof value.serverId !== 'string' ||
+    !SERVER_ID.test(value.serverId) ||
+    !Array.isArray(value.enabledToolIds) ||
+    value.enabledToolIds.length > 512 ||
+    value.enabledToolIds.some((id) => typeof id !== 'string' || !TOOL_ID.test(id)) ||
+    !unique(value.enabledToolIds as string[]) ||
+    !Number.isInteger(value.timeoutMs) ||
+    (value.timeoutMs as number) < 100 ||
+    (value.timeoutMs as number) > 300_000 ||
+    typeof value.enabled !== 'boolean'
+  ) {
+    throw new McpConfigError('mcp_config_invalid')
+  }
+  return {
+    serverId: value.serverId,
+    enabledToolIds: value.enabledToolIds as string[],
+    timeoutMs: value.timeoutMs as number,
+    enabled: value.enabled,
+  }
+}
+
+function parseStdioServer(value: Record<string, unknown>): StoredStdioMcpServer {
+  if (
     !exactKeys(value, [
       'serverId',
       'transport',
@@ -128,9 +193,6 @@ function parseServer(value: unknown): StoredMcpServer {
       'timeoutMs',
       'enabled',
     ]) ||
-    typeof value.serverId !== 'string' ||
-    !SERVER_ID.test(value.serverId) ||
-    value.transport !== 'stdio' ||
     typeof value.command !== 'string' ||
     !isAbsolute(value.command) ||
     INTERPOLATION.test(value.command) ||
@@ -150,33 +212,80 @@ function parseServer(value: unknown): StoredMcpServer {
     value.environment.inherit.some(
       (name) => typeof name !== 'string' || !ENVIRONMENT_NAME.test(name),
     ) ||
-    !unique(value.environment.inherit as string[]) ||
-    !Array.isArray(value.enabledToolIds) ||
-    value.enabledToolIds.length > 512 ||
-    value.enabledToolIds.some((id) => typeof id !== 'string' || !TOOL_ID.test(id)) ||
-    !unique(value.enabledToolIds as string[]) ||
-    !Number.isInteger(value.timeoutMs) ||
-    (value.timeoutMs as number) < 100 ||
-    (value.timeoutMs as number) > 300_000 ||
-    typeof value.enabled !== 'boolean'
+    !unique(value.environment.inherit as string[])
   ) {
     throw new McpConfigError('mcp_config_invalid')
   }
+  const common = parseCommonServer(value)
   const credentials = parseCredentialEnvironment(value.environment.credentials)
   const inherited = value.environment.inherit as string[]
   if (!unique([...inherited, ...credentials.map(({ name }) => name)])) {
     throw new McpConfigError('mcp_config_invalid')
   }
   return {
-    serverId: value.serverId,
+    ...common,
     transport: 'stdio',
     command: value.command,
     args: value.args as string[],
     environment: { inherit: inherited, credentials },
-    enabledToolIds: value.enabledToolIds as string[],
-    timeoutMs: value.timeoutMs as number,
-    enabled: value.enabled,
   }
+}
+
+function parseHttpEndpoint(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 2048 || INTERPOLATION.test(value)) {
+    throw new McpConfigError('mcp_config_invalid')
+  }
+  try {
+    const url = new URL(value)
+    const loopback =
+      url.protocol === 'http:' &&
+      (url.hostname === '127.0.0.1' || url.hostname === '[::1]' || url.hostname === 'localhost')
+    if (
+      (url.protocol !== 'https:' && !loopback) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      url.pathname === '/'
+    ) {
+      throw new Error('invalid')
+    }
+    return url.toString()
+  } catch {
+    throw new McpConfigError('mcp_config_invalid')
+  }
+}
+
+function parseHttpServer(value: Record<string, unknown>): StoredMcpServer {
+  if (
+    !exactKeys(value, [
+      'serverId',
+      'transport',
+      'endpoint',
+      'credentialRef',
+      'enabledToolIds',
+      'timeoutMs',
+      'enabled',
+    ]) ||
+    (value.transport !== 'streamable-http' && value.transport !== 'legacy-sse')
+  ) {
+    throw new McpConfigError('mcp_config_invalid')
+  }
+  const common = parseCommonServer(value)
+  return {
+    ...common,
+    transport: value.transport,
+    endpoint: parseHttpEndpoint(value.endpoint),
+    ...(value.credentialRef === undefined
+      ? {}
+      : { credentialRef: parseCredentialReference(value.credentialRef) }),
+  }
+}
+
+function parseServer(value: unknown): StoredMcpServer {
+  if (!isRecord(value)) throw new McpConfigError('mcp_config_invalid')
+  if (value.transport === 'stdio') return parseStdioServer(value)
+  return parseHttpServer(value)
 }
 
 function canonicalJson(value: unknown): string {
@@ -267,26 +376,45 @@ export class OpenGenOfficeMcpConfigResolver {
             resourceId: `mcp/${server.serverId}`,
             source: `${namespace}:mcp/${server.serverId}`,
             contentSha256,
-            capabilities: ['executable'],
+            capabilities: [server.transport === 'stdio' ? 'executable' : 'network'],
           }
           const active = server.enabled && (await this.activation.isActive(activation))
-          return Object.freeze({
+          const state: McpServerState = !server.enabled
+            ? 'disabled'
+            : active
+              ? 'eligible'
+              : 'activation_required'
+          const common = {
             namespace,
             serverId: server.serverId,
-            transport: 'stdio',
-            command: server.command,
-            args: Object.freeze([...server.args]),
-            inheritedEnv: Object.freeze([...server.environment.inherit]),
-            credentialEnvironment: Object.freeze(
-              server.environment.credentials.map((entry) => Object.freeze(entry)),
-            ),
             enabledToolIds: Object.freeze([...server.enabledToolIds]),
             timeoutMs: server.timeoutMs,
             enabled: server.enabled,
             contentSha256,
             activation,
-            state: !server.enabled ? 'disabled' : active ? 'eligible' : 'activation_required',
-          })
+            state,
+          }
+          return Object.freeze(
+            server.transport === 'stdio'
+              ? {
+                  ...common,
+                  transport: 'stdio' as const,
+                  command: server.command,
+                  args: Object.freeze([...server.args]),
+                  inheritedEnv: Object.freeze([...server.environment.inherit]),
+                  credentialEnvironment: Object.freeze(
+                    server.environment.credentials.map((entry) => Object.freeze(entry)),
+                  ),
+                }
+              : {
+                  ...common,
+                  transport: server.transport,
+                  endpoint: server.endpoint,
+                  ...(server.credentialRef
+                    ? { credentialRef: Object.freeze(server.credentialRef) }
+                    : {}),
+                },
+          )
         }),
       ),
     )

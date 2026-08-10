@@ -192,6 +192,13 @@ function harness(
       enableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
       disableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
       retryMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      startMcpOAuth: vi.fn(async (input) => ({
+        operationId: input.operationId,
+        authorizationUrl: 'https://issuer.example.test/authorize?state=safe-state',
+        expiresAt: 123_456,
+      })),
+      completeMcpOAuth: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      cancelMcpOAuth: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
       enableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
       disableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
       onSessionEvent: vi.fn((listener: (event: EventEnvelope) => void) => {
@@ -453,6 +460,15 @@ describe('PiRuntimeSupervisor', () => {
     await fixture.supervisor.enableMcp(mcpMutation)
     await fixture.supervisor.disableMcp(mcpMutation)
     await fixture.supervisor.retryMcp(mcpMutation)
+    await fixture.supervisor.startMcpOAuth({
+      ...mcpMutation,
+      redirectUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${mcpMutation.operationId}`,
+    })
+    await fixture.supervisor.completeMcpOAuth({
+      ...mcpMutation,
+      callbackUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${mcpMutation.operationId}?code=x&state=y&iss=https%3A%2F%2Fissuer.example.test`,
+    })
+    await fixture.supervisor.cancelMcpOAuth(mcpMutation)
     await fixture.supervisor.enableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
     await fixture.supervisor.disableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
     expect(fixture.managers[0]!.installLocalPackage).toHaveBeenCalledWith({
@@ -463,6 +479,7 @@ describe('PiRuntimeSupervisor', () => {
       ...mcpMutation,
       toolName: 'read_fixture',
     })
+    expect(fixture.managers[0]!.cancelMcpOAuth).toHaveBeenCalledWith(mcpMutation)
     const emitted = {
       protocolVersion: '1',
       kind: 'event',

@@ -198,7 +198,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(46)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(49)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -849,7 +849,7 @@ describe('renderer-safe resource catalog projection', () => {
         params: { operationId, projectRoot: '/selected/project' },
       },
     ]
-    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(18)
+    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(21)
     for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
     expect(() =>
       parseResourceManagementRequest({
@@ -884,6 +884,18 @@ describe('renderer-safe MCP management contract', () => {
 
   it('accepts only path-free and secret-free server and tool state', () => {
     expect(parseMcpCatalogProjection(catalog)).toEqual(catalog)
+    expect(
+      parseMcpCatalogProjection({
+        ...catalog,
+        servers: [{ ...catalog.servers[0], state: 'auth_required', action: 'login' }],
+      }),
+    ).toBeDefined()
+    expect(
+      parseMcpCatalogProjection({
+        ...catalog,
+        servers: [{ ...catalog.servers[0], state: 'connecting', action: 'disable' }],
+      }),
+    ).toBeDefined()
     expect(McpCatalogProjectionSchema).toBeDefined()
     for (const unsafe of [
       { command: process.execPath },
@@ -926,6 +938,23 @@ describe('renderer-safe MCP management contract', () => {
         method,
         params: { ...mutation, toolName: 'read_fixture' },
       })),
+      {
+        ...base,
+        method: 'mcp.oauth.start',
+        params: {
+          ...mutation,
+          redirectUrl: `http://127.0.0.1:43210/mcp/oauth/callback/${operationId}`,
+        },
+      },
+      {
+        ...base,
+        method: 'mcp.oauth.complete',
+        params: {
+          ...mutation,
+          callbackUrl: `http://127.0.0.1:43210/mcp/oauth/callback/${operationId}?code=write-only&state=opaque&iss=https%3A%2F%2Fissuer.test%2F`,
+        },
+      },
+      { ...base, method: 'mcp.oauth.cancel', params: mutation },
     ]
     for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
     expect(() =>
@@ -934,6 +963,23 @@ describe('renderer-safe MCP management contract', () => {
         params: { projectRoot: '/selected/project', command: '/bin/secret' },
       }),
     ).toThrowError('resource_management_request_invalid')
+    for (const unsafe of [
+      {
+        ...requests.at(-3),
+        params: { ...mutation, redirectUrl: 'https://attacker.test/callback' },
+      },
+      {
+        ...requests.at(-2),
+        params: {
+          ...mutation,
+          callbackUrl: `http://127.0.0.1:43210/mcp/oauth/callback/${operationId}?code=x\r\nInjected`,
+        },
+      },
+    ]) {
+      expect(() => parseResourceManagementRequest(unsafe)).toThrowError(
+        'resource_management_request_invalid',
+      )
+    }
   })
 })
 
@@ -1033,7 +1079,7 @@ describe('renderer-safe Package management contract', () => {
         params: { namespace: 'global', operationId, packageId: 'safe-extension' },
       })),
     ]
-    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(18)
+    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(21)
     for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
     for (const request of [
       { ...requests[2], params: { ...requests[2]!.params, version: '^1.2.3' } },

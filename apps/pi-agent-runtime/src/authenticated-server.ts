@@ -18,6 +18,7 @@ import {
 import { PackageLockError, initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
 import { McpConfigError } from './mcp-config-resolver'
+import { McpOAuthError } from './mcp-oauth-controller'
 import {
   loadModelCatalogSettings,
   saveModelSelection,
@@ -250,6 +251,9 @@ export async function createAuthenticatedRuntimeServer(
                 'mcp.enable',
                 'mcp.disable',
                 'mcp.retry',
+                'mcp.oauth.start',
+                'mcp.oauth.complete',
+                'mcp.oauth.cancel',
                 'mcp.tool.enable',
                 'mcp.tool.disable',
               ],
@@ -353,6 +357,55 @@ export async function createAuthenticatedRuntimeServer(
       }
       if (command.method === 'mcp.catalog') {
         socket.write(response(request, await runResources.mcpCatalog(command.params.projectRoot)))
+        return
+      }
+      if (
+        command.method === 'mcp.oauth.start' ||
+        command.method === 'mcp.oauth.complete' ||
+        command.method === 'mcp.oauth.cancel'
+      ) {
+        const scope = {
+          namespace: command.params.namespace,
+          ...(command.params.projectRoot ? { projectRoot: command.params.projectRoot } : {}),
+        }
+        if (command.method === 'mcp.oauth.start') {
+          socket.write(
+            response(
+              request,
+              await runResources.startMcpOAuth(
+                scope,
+                command.params.serverId,
+                command.params.operationId,
+                command.params.redirectUrl,
+              ),
+            ),
+          )
+          return
+        }
+        if (command.method === 'mcp.oauth.complete') {
+          socket.write(
+            response(
+              request,
+              await runResources.completeMcpOAuth(
+                scope,
+                command.params.serverId,
+                command.params.operationId,
+                command.params.callbackUrl,
+              ),
+            ),
+          )
+          return
+        }
+        socket.write(
+          response(
+            request,
+            await runResources.cancelMcpOAuth(
+              scope,
+              command.params.serverId,
+              command.params.operationId,
+            ),
+          ),
+        )
         return
       }
       if (
@@ -488,7 +541,8 @@ export async function createAuthenticatedRuntimeServer(
         error instanceof PackageLockError ||
         error instanceof PackageSourceResolverError ||
         error instanceof RunResourceServiceError ||
-        error instanceof McpConfigError
+        error instanceof McpConfigError ||
+        error instanceof McpOAuthError
           ? error.code
           : 'invalid_request'
       socket.write(errorResponse(request, code))

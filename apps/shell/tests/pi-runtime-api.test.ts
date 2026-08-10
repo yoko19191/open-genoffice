@@ -104,6 +104,8 @@ describe('typed Pi Runtime preload health contract', () => {
       enableMcp: 'pi-runtime:mcp-enable',
       disableMcp: 'pi-runtime:mcp-disable',
       retryMcp: 'pi-runtime:mcp-retry',
+      loginMcp: 'pi-runtime:mcp-login',
+      cancelMcpLogin: 'pi-runtime:mcp-login-cancel',
       enableMcpTool: 'pi-runtime:mcp-tool-enable',
       disableMcpTool: 'pi-runtime:mcp-tool-disable',
     })

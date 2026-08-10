@@ -6,15 +6,18 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import {
   McpConnectionSupervisor,
   McpExecutionError,
-  type ActiveMcpServer,
+  type ActiveHttpMcpServer,
+  type ActiveStdioMcpServer,
+  type McpConnectionSupervisorOptions,
 } from '../src/mcp-connection-supervisor'
 
 const fixture = fileURLToPath(new URL('../fixtures/mcp-stdio-server.mjs', import.meta.url))
 
-function server(overrides: Partial<ActiveMcpServer> = {}): ActiveMcpServer {
+function server(overrides: Partial<ActiveStdioMcpServer> = {}): ActiveStdioMcpServer {
   return {
     namespace: 'global',
     serverId: 'stdio-fixture',
+    transport: 'stdio',
     command: process.execPath,
     args: [fixture],
     inheritedEnv: ['LANG'],
@@ -40,6 +43,20 @@ function credentials(secret = 'mcp-secret-canary'): CredentialStore {
   }
 }
 
+function httpServer(overrides: Partial<ActiveHttpMcpServer> = {}): ActiveHttpMcpServer {
+  return {
+    namespace: 'global',
+    serverId: 'http-fixture',
+    transport: 'streamable-http',
+    endpoint: 'https://mcp.example.test/v1',
+    credentialRef: { slot: 'model/mcp-http/default', kind: 'api_key' },
+    enabledToolIds: ['read_fixture'],
+    timeoutMs: 2_000,
+    contentSha256: 'b'.repeat(64),
+    ...overrides,
+  }
+}
+
 async function eventuallyGone(pid: number): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
@@ -53,6 +70,55 @@ async function eventuallyGone(pid: number): Promise<void> {
 }
 
 describe('McpConnectionSupervisor', () => {
+  it('selects Streamable HTTP without implicit SSE fallback and keeps OAuth auth-required', async () => {
+    const createConnection = vi.fn(
+      (_input: Parameters<NonNullable<McpConnectionSupervisorOptions['createConnection']>>[0]) => ({
+        client: {
+          onclose: undefined as (() => void) | undefined,
+          connect: vi.fn(async () => undefined),
+          listTools: vi.fn(async () => ({
+            tools: [
+              {
+                name: 'read_fixture',
+                inputSchema: { type: 'object' as const },
+                annotations: { readOnlyHint: true },
+              },
+            ],
+          })),
+          callTool: vi.fn(),
+          close: vi.fn(async () => undefined),
+        },
+        transport: new StdioClientTransport({ command: process.execPath }),
+      }),
+    )
+    const apiKey = new McpConnectionSupervisor({
+      server: httpServer(),
+      credentials: credentials('http-api-key'),
+      authorize: async () => true,
+      createConnection,
+    })
+    await expect(apiKey.connect()).resolves.toMatchObject([{ toolName: 'read_fixture' }])
+    const input = createConnection.mock.calls[0]![0]
+    expect(input).toMatchObject({
+      server: { transport: 'streamable-http', endpoint: 'https://mcp.example.test/v1' },
+    })
+    expect(input.env).toBeUndefined()
+    if (!input.authProvider || !('token' in input.authProvider)) throw new Error('missing auth')
+    await expect(input.authProvider.token()).resolves.toBe('http-api-key')
+    await apiKey.close()
+
+    const oauth = new McpConnectionSupervisor({
+      server: httpServer({
+        credentialRef: { slot: 'model/mcp-http/default', kind: 'oauth' },
+      }),
+      credentials: credentials(),
+      authorize: async () => true,
+      createConnection,
+    })
+    await expect(oauth.connect()).rejects.toMatchObject({ code: 'mcp_oauth_required' })
+    expect(oauth.diagnostics().state).toBe('auth_required')
+    expect(createConnection).toHaveBeenCalledTimes(1)
+  })
   it('uses the official stdio client to discover and call whitelisted read tools with provenance', async () => {
     await access(fixture)
     const supervisor = new McpConnectionSupervisor({

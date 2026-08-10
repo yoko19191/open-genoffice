@@ -711,6 +711,32 @@ describe('authenticated Runtime socket', () => {
     expect(JSON.stringify(catalog)).not.toContain(mcpFixture)
     expect(JSON.stringify(catalog)).not.toContain('command')
 
+    for (const method of ['mcp.oauth.start', 'mcp.oauth.complete', 'mcp.oauth.cancel']) {
+      client.write(
+        `${request(
+          method,
+          {
+            namespace: 'global',
+            operationId: randomUUID(),
+            serverId: 'socket-fixture',
+            ...(method === 'mcp.oauth.start'
+              ? { redirectUrl: `http://127.0.0.1:53682/mcp/oauth/callback/${randomUUID()}` }
+              : {}),
+            ...(method === 'mcp.oauth.complete'
+              ? {
+                  callbackUrl:
+                    'http://127.0.0.1:53682/mcp/oauth/callback/33333333-3333-4333-8333-333333333333?code=x&state=y&iss=https%3A%2F%2Fissuer.example.test',
+                }
+              : {}),
+          },
+          method,
+        )}\n`,
+      )
+      expect(
+        await reader.next((frame) => frame.kind === 'response' && frame.id === method),
+      ).toMatchObject({ error: { code: 'mcp_oauth_not_configured' } })
+    }
+
     client.write(
       `${request(
         'mcp.tool.disable',
@@ -806,6 +832,9 @@ describe('authenticated Runtime socket', () => {
           'mcp.enable',
           'mcp.disable',
           'mcp.retry',
+          'mcp.oauth.start',
+          'mcp.oauth.complete',
+          'mcp.oauth.cancel',
           'mcp.tool.enable',
           'mcp.tool.disable',
         ],

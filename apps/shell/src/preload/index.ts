@@ -438,6 +438,16 @@ const piRuntimeApi: PiRuntimeApi = {
       await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.retryMcp, asMcpMutationInput(input)),
     )
   },
+  async loginMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.loginMcp, asMcpMutationInput(input)),
+    )
+  },
+  async cancelMcpLogin(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.cancelMcpLogin, asMcpMutationInput(input)),
+    )
+  },
   async enableMcpTool(input) {
     return asMcpCatalog(
       await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.enableMcpTool, asMcpToolMutationInput(input)),

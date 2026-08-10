@@ -48,6 +48,10 @@ import type {
   McpCatalogRequest,
   McpMutationRequest,
   McpToolMutationRequest,
+  McpOAuthStartRequest,
+  McpOAuthCompleteRequest,
+  McpOAuthOperationRequest,
+  McpOAuthStartProjection,
 } from './pi-runtime-manager'
 
 export type PiRuntimeServiceOptions = {
@@ -99,6 +103,9 @@ type OwnedPiRuntimeManager = Pick<
   | 'enableMcp'
   | 'disableMcp'
   | 'retryMcp'
+  | 'startMcpOAuth'
+  | 'completeMcpOAuth'
+  | 'cancelMcpOAuth'
   | 'enableMcpTool'
   | 'disableMcpTool'
 >
@@ -293,6 +300,18 @@ export class PiRuntimeService {
 
   async retryMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
     return (await this.readyManager()).retryMcp(input)
+  }
+
+  async startMcpOAuth(input: McpOAuthStartRequest): Promise<McpOAuthStartProjection> {
+    return (await this.readyManager()).startMcpOAuth(input)
+  }
+
+  async completeMcpOAuth(input: McpOAuthCompleteRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).completeMcpOAuth(input)
+  }
+
+  async cancelMcpOAuth(input: McpOAuthOperationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).cancelMcpOAuth(input)
   }
 
   async enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {

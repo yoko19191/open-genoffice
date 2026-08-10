@@ -18,6 +18,7 @@ import {
   asPackageNpmInstallInput,
   type PackageNamespace,
 } from '../shared/pi-runtime-api'
+import type { McpOAuthLoopback } from './mcp-oauth-loopback'
 
 type IpcMainLike = {
   handle(channel: string, handler: (event: { sender: object }, value: unknown) => unknown): unknown
@@ -60,6 +61,7 @@ export function installModelManagementIpc(
   openAuthUrl: (url: string) => Promise<void>,
   selectProjectRoot: () => Promise<string | undefined>,
   selectPackageRoot: () => Promise<string | undefined>,
+  mcpOAuth: Pick<McpOAuthLoopback, 'start' | 'cancel'>,
 ): void {
   const openedInteractions = new Set<string>()
   let selectedProjectRoot: string | undefined
@@ -211,6 +213,22 @@ export function installModelManagementIpc(
     return service.mcpCatalog(
       selectedProjectRoot ? { projectRoot: selectedProjectRoot } : undefined,
     )
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.loginMcp, async (event, value) => {
+    assertTrusted(event)
+    const input = asMcpMutationInput(value)
+    return mcpOAuth.start({
+      ...packageScope(input.namespace),
+      serverId: input.serverId,
+    })
+  })
+  ipcMain.handle(PI_RUNTIME_CHANNELS.cancelMcpLogin, async (event, value) => {
+    assertTrusted(event)
+    const input = asMcpMutationInput(value)
+    return mcpOAuth.cancel({
+      ...packageScope(input.namespace),
+      serverId: input.serverId,
+    })
   })
   for (const [channel, method] of [
     [PI_RUNTIME_CHANNELS.activateMcp, 'activateMcp'],

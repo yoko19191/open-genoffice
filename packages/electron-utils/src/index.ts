@@ -59,6 +59,10 @@ export {
   type McpCatalogRequest,
   type McpMutationRequest,
   type McpToolMutationRequest,
+  type McpOAuthStartRequest,
+  type McpOAuthCompleteRequest,
+  type McpOAuthOperationRequest,
+  type McpOAuthStartProjection,
 } from './pi-runtime-manager'
 export {
   connectRuntimeEndpoint,

@@ -42,6 +42,10 @@ import type {
   McpCatalogRequest,
   McpMutationRequest,
   McpToolMutationRequest,
+  McpOAuthStartRequest,
+  McpOAuthCompleteRequest,
+  McpOAuthOperationRequest,
+  McpOAuthStartProjection,
 } from './pi-runtime-manager'
 
 export type SupervisedPiRuntimeManager = {
@@ -83,6 +87,9 @@ export type SupervisedPiRuntimeManager = {
   enableMcp(input: McpMutationRequest): Promise<McpCatalogProjection>
   disableMcp(input: McpMutationRequest): Promise<McpCatalogProjection>
   retryMcp(input: McpMutationRequest): Promise<McpCatalogProjection>
+  startMcpOAuth(input: McpOAuthStartRequest): Promise<McpOAuthStartProjection>
+  completeMcpOAuth(input: McpOAuthCompleteRequest): Promise<McpCatalogProjection>
+  cancelMcpOAuth(input: McpOAuthOperationRequest): Promise<McpCatalogProjection>
   enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection>
   disableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection>
 }
@@ -344,6 +351,18 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async retryMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
     return (await this.readyManager()).retryMcp(input)
+  }
+
+  async startMcpOAuth(input: McpOAuthStartRequest): Promise<McpOAuthStartProjection> {
+    return (await this.readyManager()).startMcpOAuth(input)
+  }
+
+  async completeMcpOAuth(input: McpOAuthCompleteRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).completeMcpOAuth(input)
+  }
+
+  async cancelMcpOAuth(input: McpOAuthOperationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).cancelMcpOAuth(input)
   }
 
   async enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {

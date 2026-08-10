@@ -151,6 +151,7 @@ import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
 import { PI_RUNTIME_CHANNELS } from '../shared/pi-runtime-api'
 import { installProviderCredentialIpc } from './provider-credential-ipc'
 import { installModelManagementIpc } from './model-management-ipc'
+import { McpOAuthLoopback } from './mcp-oauth-loopback'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -2358,6 +2359,14 @@ ipcMain.handle(PI_RUNTIME_CHANNELS.health, () => piRuntimeService.health())
 installProviderCredentialIpc(ipcMain, piRuntimeService, () =>
   shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null,
 )
+const mcpOAuthLoopback = new McpOAuthLoopback({
+  service: piRuntimeService,
+  openAuthorizationUrl: async (url) => {
+    const safeUrl = safeExternalUrl(url)
+    if (!safeUrl) throw new Error('mcp_oauth_url_invalid')
+    await shell.openExternal(safeUrl)
+  },
+})
 installModelManagementIpc(
   ipcMain,
   piRuntimeService,
@@ -2389,6 +2398,7 @@ installModelManagementIpc(
     })
     return result.canceled ? undefined : result.filePaths[0]
   },
+  mcpOAuthLoopback,
 )
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here
@@ -2439,7 +2449,9 @@ app.on('before-quit', (event) => {
   if (!piRuntimeShutdownStarted && piRuntimeService.health().state !== 'stopped') {
     piRuntimeShutdownStarted = true
     event.preventDefault()
-    void disposeAgentSessionIpc()
+    void mcpOAuthLoopback
+      .shutdown()
+      .then(() => disposeAgentSessionIpc())
       .then(() => piRuntimeService.shutdown())
       .finally(() => app.quit())
   }

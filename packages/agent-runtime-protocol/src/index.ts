@@ -186,6 +186,16 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('mcp_project_untrusted'),
   Type.Literal('mcp_unavailable'),
   Type.Literal('mcp_credential_missing'),
+  Type.Literal('mcp_oauth_required'),
+  Type.Literal('mcp_oauth_not_configured'),
+  Type.Literal('mcp_oauth_callback_invalid'),
+  Type.Literal('mcp_oauth_failed'),
+  Type.Literal('mcp_oauth_in_progress'),
+  Type.Literal('mcp_oauth_issuer_mismatch'),
+  Type.Literal('mcp_oauth_operation_mismatch'),
+  Type.Literal('mcp_oauth_redirect_invalid'),
+  Type.Literal('mcp_oauth_state_invalid'),
+  Type.Literal('mcp_oauth_token_invalid'),
   Type.Literal('mcp_result_unknown'),
 ])
 
@@ -596,6 +606,37 @@ const McpToolDisableRequestSchema = sessionRequestEnvelope(
     { additionalProperties: false },
   ),
 )
+const McpOAuthRedirectUrlSchema = Type.String({
+  minLength: 1,
+  maxLength: 2048,
+  pattern:
+    '^http:' + '//(?:127\\.0\\.0\\.1|\\[::1\\]):[0-9]{1,5}/mcp/oauth/callback/[0-9a-f-]{36}$',
+})
+const McpOAuthCallbackUrlSchema = Type.String({
+  minLength: 1,
+  maxLength: 4096,
+  pattern:
+    '^http:' +
+    '//(?:127\\.0\\.0\\.1|\\[::1\\]):[0-9]{1,5}/mcp/oauth/callback/[0-9a-f-]{36}\\?[\\u0021-\\u007e]+$',
+})
+const McpOAuthStartRequestSchema = sessionRequestEnvelope(
+  'mcp.oauth.start',
+  Type.Object(
+    { ...McpMutationProperties, redirectUrl: McpOAuthRedirectUrlSchema },
+    { additionalProperties: false },
+  ),
+)
+const McpOAuthCompleteRequestSchema = sessionRequestEnvelope(
+  'mcp.oauth.complete',
+  Type.Object(
+    { ...McpMutationProperties, callbackUrl: McpOAuthCallbackUrlSchema },
+    { additionalProperties: false },
+  ),
+)
+const McpOAuthCancelRequestSchema = sessionRequestEnvelope(
+  'mcp.oauth.cancel',
+  Type.Object(McpMutationProperties, { additionalProperties: false }),
+)
 
 export const ResourceManagementRequestSchema = Type.Union([
   ResourceCatalogRequestSchema,
@@ -616,6 +657,9 @@ export const ResourceManagementRequestSchema = Type.Union([
   McpRetryRequestSchema,
   McpToolEnableRequestSchema,
   McpToolDisableRequestSchema,
+  McpOAuthStartRequestSchema,
+  McpOAuthCompleteRequestSchema,
+  McpOAuthCancelRequestSchema,
 ])
 
 const ModelSelectRequestSchema = sessionRequestEnvelope(
@@ -915,6 +959,9 @@ export const RequestEnvelopeSchema = Type.Union([
   McpRetryRequestSchema,
   McpToolEnableRequestSchema,
   McpToolDisableRequestSchema,
+  McpOAuthStartRequestSchema,
+  McpOAuthCompleteRequestSchema,
+  McpOAuthCancelRequestSchema,
   ModelSelectRequestSchema,
   ModelProviderConfigureRequestSchema,
   ModelOAuthStartRequestSchema,

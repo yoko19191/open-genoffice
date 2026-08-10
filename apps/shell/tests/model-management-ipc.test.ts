@@ -78,6 +78,10 @@ function harness(options: { selectedProjectRoot?: string; trustedSenderAvailable
       : '/selected/project',
   )
   const selectPackageRoot = vi.fn(async () => '/main-selected/package')
+  const mcpOAuth = {
+    start: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
+    cancel: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
+  }
   installModelManagementIpc(
     ipcMain,
     service,
@@ -85,6 +89,7 @@ function harness(options: { selectedProjectRoot?: string; trustedSenderAvailable
     openAuthUrl,
     selectProjectRoot,
     selectPackageRoot,
+    mcpOAuth,
   )
   return {
     handlers,
@@ -94,6 +99,7 @@ function harness(options: { selectedProjectRoot?: string; trustedSenderAvailable
     openAuthUrl,
     selectProjectRoot,
     selectPackageRoot,
+    mcpOAuth,
   }
 }
 
@@ -192,6 +198,8 @@ describe('model management IPC', () => {
       PI_RUNTIME_CHANNELS.enableMcp,
       PI_RUNTIME_CHANNELS.disableMcp,
       PI_RUNTIME_CHANNELS.retryMcp,
+      PI_RUNTIME_CHANNELS.loginMcp,
+      PI_RUNTIME_CHANNELS.cancelMcpLogin,
       PI_RUNTIME_CHANNELS.enableMcpTool,
       PI_RUNTIME_CHANNELS.disableMcpTool,
     ]) {
@@ -363,5 +371,22 @@ describe('model management IPC', () => {
     expect(JSON.stringify(fixture.service.disableMcpTool.mock.calls)).not.toContain(
       '/selected/project',
     )
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.loginMcp)!(sender, {
+      namespace: 'project',
+      serverId: 'oauth-http',
+    })
+    expect(fixture.mcpOAuth.start).toHaveBeenCalledWith({
+      namespace: 'project',
+      projectRoot: '/selected/project',
+      serverId: 'oauth-http',
+    })
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.cancelMcpLogin)!(sender, {
+      namespace: 'global',
+      serverId: 'oauth-http',
+    })
+    expect(fixture.mcpOAuth.cancel).toHaveBeenCalledWith({
+      namespace: 'global',
+      serverId: 'oauth-http',
+    })
   })
 })

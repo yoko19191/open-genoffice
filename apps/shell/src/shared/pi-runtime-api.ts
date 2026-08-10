@@ -52,6 +52,8 @@ export const PI_RUNTIME_CHANNELS = {
   enableMcp: 'pi-runtime:mcp-enable',
   disableMcp: 'pi-runtime:mcp-disable',
   retryMcp: 'pi-runtime:mcp-retry',
+  loginMcp: 'pi-runtime:mcp-login',
+  cancelMcpLogin: 'pi-runtime:mcp-login-cancel',
   enableMcpTool: 'pi-runtime:mcp-tool-enable',
   disableMcpTool: 'pi-runtime:mcp-tool-disable',
 } as const
@@ -413,6 +415,8 @@ export interface PiRuntimeApi {
   enableMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
   disableMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
   retryMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
+  loginMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
+  cancelMcpLogin(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
   enableMcpTool(input: McpToolMutationInput): Promise<Readonly<McpCatalogProjection>>
   disableMcpTool(input: McpToolMutationInput): Promise<Readonly<McpCatalogProjection>>
 }

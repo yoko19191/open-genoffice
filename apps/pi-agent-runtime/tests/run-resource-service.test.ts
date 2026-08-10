@@ -105,7 +105,87 @@ function mcpServer(
   }
 }
 
+function httpMcpServer(serverId: string): ResolvedMcpServer {
+  const base = mcpServer(serverId)
+  return {
+    namespace: base.namespace,
+    serverId: base.serverId,
+    transport: 'streamable-http',
+    endpoint: 'https://mcp.example.test/rpc',
+    credentialRef: { slot: 'model/mcp-example/default', kind: 'oauth' },
+    enabledToolIds: base.enabledToolIds,
+    timeoutMs: base.timeoutMs,
+    enabled: base.enabled,
+    contentSha256: base.contentSha256,
+    activation: { ...base.activation, capabilities: ['network'] },
+    state: base.state,
+  }
+}
+
 describe('RunResourceService', () => {
+  it('keeps OAuth transport disconnected until login and owns the exact operation lifecycle', async () => {
+    const { resourceHome } = await fixture()
+    const server = httpMcpServer('oauth-http')
+    const operationId = '33333333-3333-4333-8333-333333333333'
+    const redirectUrl = `http://127.0.0.1:53682/mcp/oauth/callback/${operationId}`
+    let authenticated = false
+    const controller = {
+      tokens: vi.fn(async () => (authenticated ? { access_token: 'redacted' } : undefined)),
+      begin: vi.fn(async () => ({
+        operationId,
+        authorizationUrl: 'https://issuer.example.test/authorize?state=redacted',
+        expiresAt: 123_456,
+      })),
+      complete: vi.fn(async () => {
+        authenticated = true
+      }),
+      cancel: vi.fn(),
+    }
+    const supervisor = {
+      connect: vi.fn(async () => []),
+      catalogTools: vi.fn(() => []),
+      close: vi.fn(async () => undefined),
+    }
+    const service = new RunResourceService({
+      resourceHome,
+      deviceId,
+      mcpResolver: {
+        resolve: vi.fn(async () => [server]),
+        activate: vi.fn(),
+        setServerEnabled: vi.fn(),
+        setToolEnabled: vi.fn(),
+      },
+      createMcpOAuthController: () => controller as never,
+      createMcpSupervisor: () => supervisor as never,
+    })
+
+    await expect(service.mcpCatalog()).resolves.toMatchObject({
+      servers: [{ serverId: 'oauth-http', state: 'auth_required', action: 'login' }],
+    })
+    expect(supervisor.connect).not.toHaveBeenCalled()
+    await expect(
+      service.startMcpOAuth({ namespace: 'global' }, server.serverId, operationId, redirectUrl),
+    ).resolves.toEqual({
+      operationId,
+      authorizationUrl: 'https://issuer.example.test/authorize?state=redacted',
+      expiresAt: 123_456,
+    })
+    expect(controller.begin).toHaveBeenCalledWith(operationId, redirectUrl)
+
+    const callbackUrl = `${redirectUrl}?code=redacted&state=redacted&iss=https%3A%2F%2Fissuer.example.test`
+    await expect(
+      service.completeMcpOAuth({ namespace: 'global' }, server.serverId, operationId, callbackUrl),
+    ).resolves.toMatchObject({
+      servers: [{ serverId: 'oauth-http', state: 'ready', action: 'disable' }],
+    })
+    expect(controller.complete).toHaveBeenCalledWith(operationId, callbackUrl)
+    expect(supervisor.connect).toHaveBeenCalledTimes(1)
+
+    await service.startMcpOAuth({ namespace: 'global' }, server.serverId, operationId, redirectUrl)
+    await service.cancelMcpOAuth({ namespace: 'global' }, server.serverId, operationId)
+    expect(controller.cancel).toHaveBeenCalledWith(operationId)
+  })
+
   it('manages fixed Packages through a path-free catalog and requires Project Trust', async () => {
     const { resourceHome, projectRoot } = await fixture()
     const service = new RunResourceService({ resourceHome, deviceId })

@@ -451,6 +451,7 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const [resourceCatalog, setResourceCatalog] = useState<ResourceCatalog>()
   const [packageCatalog, setPackageCatalog] = useState<PackageCatalog>()
   const [mcpCatalog, setMcpCatalog] = useState<McpCatalog>()
+  const [mcpLoginKey, setMcpLoginKey] = useState<string>()
   const [packageNamespace, setPackageNamespace] = useState<PackageNamespace>('global')
   const [packageId, setPackageId] = useState('')
   const [npmPackageName, setNpmPackageName] = useState('')
@@ -519,6 +520,30 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     void refreshPackageCatalog()
     void refreshMcpCatalog()
   }, [refreshCatalog, refreshMcpCatalog, refreshPackageCatalog, refreshResourceCatalog])
+
+  useEffect(() => {
+    if (!mcpLoginKey) return
+    let active = true
+    const poll = async () => {
+      try {
+        const next = await window.aiOfficeAgent.mcpCatalog()
+        if (!active) return
+        setMcpCatalog(next)
+        const target = next.servers.find(
+          (server) => `${server.namespace}/${server.serverId}` === mcpLoginKey,
+        )
+        if (!target || target.state !== 'auth_required') setMcpLoginKey(undefined)
+      } catch {
+        // A transient Runtime restart is surfaced by the next regular poll.
+      }
+    }
+    const timer = window.setInterval(() => void poll(), 1_000)
+    void poll()
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [mcpLoginKey])
 
   useEffect(() => {
     if (
@@ -814,6 +839,26 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
       )
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'mcp_mutation_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const loginMcp = async (namespace: PackageNamespace, serverId: string, cancel = false) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    const key = `${namespace}/${serverId}`
+    try {
+      setMcpCatalog(
+        cancel
+          ? await window.aiOfficeAgent.cancelMcpLogin({ namespace, serverId })
+          : await window.aiOfficeAgent.loginMcp({ namespace, serverId }),
+      )
+      setMcpLoginKey(cancel ? undefined : key)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_oauth_failed')
+      if (cancel) setMcpLoginKey(undefined)
     } finally {
       setBusy(false)
     }
@@ -1205,7 +1250,19 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
               >
                 <strong>{server.serverId}</strong>
                 <span>
-                  {server.namespace} · {server.state}
+                  {server.namespace} ·{' '}
+                  {{
+                    disabled: zh ? '已停用' : 'Disabled',
+                    activation_required: zh ? '等待授权激活' : 'Activation required',
+                    connecting: zh ? '正在连接' : 'Connecting',
+                    auth_required: zh ? '需要登录' : 'Sign-in required',
+                    ready: zh ? '已就绪' : 'Ready',
+                    degraded: zh ? '连接已降级' : 'Degraded',
+                    failed: zh ? '连接失败' : 'Failed',
+                    server_id_collision: zh ? '服务 ID 冲突' : 'Server ID collision',
+                    tool_alias_collision: zh ? '工具别名冲突' : 'Tool alias collision',
+                    needs_credentials: zh ? '需要凭据' : 'Credentials required',
+                  }[server.state] ?? server.state}
                 </span>
                 <code>sha256:{server.contentSha256}</code>
                 <div className="provider-resource-actions">
@@ -1247,6 +1304,28 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
                       onClick={() => void mutateMcp('retry', server.namespace, server.serverId)}
                     >
                       {zh ? '重新连接' : 'Reconnect'}
+                    </button>
+                  )}
+                  {server.action === 'login' && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy}
+                      onClick={() =>
+                        void loginMcp(
+                          server.namespace,
+                          server.serverId,
+                          mcpLoginKey === `${server.namespace}/${server.serverId}`,
+                        )
+                      }
+                    >
+                      {mcpLoginKey === `${server.namespace}/${server.serverId}`
+                        ? zh
+                          ? '取消登录'
+                          : 'Cancel sign-in'
+                        : zh
+                          ? '登录'
+                          : 'Sign in'}
                     </button>
                   )}
                 </div>
