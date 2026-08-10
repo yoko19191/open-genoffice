@@ -813,6 +813,24 @@ export class SessionRegistry {
     await record.eventQueue
   }
 
+  async withCommittedReadBarrier<T>(
+    input: BoundInput,
+    read: (sessionFile: string) => Promise<T>,
+  ): Promise<T> {
+    const binding = await this.readBoundBinding(input)
+    const record = await this.loadRecord(binding)
+    await this.renewLease(record)
+    await this.assertIdle(record)
+    await record.eventQueue
+    const handle = await open(binding.sessionFile, 'r')
+    try {
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    return read(binding.sessionFile)
+  }
+
   async reconcileSubagents(): Promise<void> {
     const coordinator = this.options.subagents
     if (!coordinator?.reconcile) return
@@ -984,6 +1002,7 @@ export class SessionRegistry {
   }
 
   private async loadNewRecord(binding: Binding): Promise<SessionRecord> {
+    await this.ensureRoots()
     const lease = await this.acquireLease(binding.sessionId)
     let pi: PiSessionHandle
     try {

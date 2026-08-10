@@ -235,3 +235,16 @@ export {
   type ResourceReadBoundaryOptions,
   type ResourceReadConfiguration,
 } from './resource-read-boundary'
+export {
+  ProjectSessionSyncBundleSchema,
+  ProjectSessionSyncError,
+  ProjectSessionSyncService,
+  type ProjectSessionSyncBundle,
+  type ProjectSessionSyncEntry,
+  type ProjectSessionSyncServiceOptions,
+  type SessionForkCandidate,
+  type SessionRestoreResult,
+  type SessionSyncCredentialRequirement,
+  type SessionSyncDescriptor,
+  type SessionSyncResourceRequirement,
+} from './project-session-sync'
