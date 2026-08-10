@@ -1,0 +1,199 @@
+name: Pi Platform Unsigned Native Packages
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/pi-package-native.yml'
+      - 'apps/pi-agent-runtime/**'
+      - 'apps/shell/**'
+      - 'apps/sheets/native/**'
+      - 'packages/pi-runtime-bundle/**'
+      - 'tools/acquire-official-node.mjs'
+      - 'tools/build-pi-runtime-bundle.mjs'
+      - 'tools/generate-sbom.mjs'
+      - 'tools/hash-release-artifacts.mjs'
+      - 'tools/verify-packaged-pi-platform.mjs'
+      - 'package-lock.json'
+      - 'package.json'
+  workflow_dispatch:
+
+concurrency:
+  group: pi-package-native-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned-package:
+    name: ${{ matrix.evidence-platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      GENOFFICE_UNSIGNED_BUILD: '1'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            platform: darwin
+            evidence-platform: macos
+            arch: arm64
+            node-executable: bin/node
+            dist: mac
+          - runner: windows-2025
+            platform: win32
+            evidence-platform: windows
+            arch: x64
+            node-executable: node.exe
+            dist: win
+          - runner: ubuntu-22.04
+            platform: linux
+            evidence-platform: linux
+            arch: x64
+            node-executable: bin/node
+            dist: linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup build Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.19.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch, 2026-07
+        with:
+          toolchain: stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native Windows Runtime launchers
+        if: matrix.platform == 'win32'
+        run: cargo build --release --manifest-path apps/pi-agent-runtime/native/windows-job-launcher/Cargo.toml
+
+      - name: Generate notices and CycloneDX SBOM
+        run: |
+          npm run notices
+          npm run sbom
+
+      - name: Acquire pinned official Node distribution
+        shell: bash
+        run: >-
+          npm run acquire:official-node --
+          --output apps/shell/build/node-distribution
+          --platform ${{ matrix.platform }}
+          --arch ${{ matrix.arch }}
+
+      - name: Build complete Pi Runtime tree
+        shell: bash
+        run: |
+          windows_args=()
+          if [ '${{ matrix.platform }}' = 'win32' ]; then
+            windows_args=(
+              --windows-job-launcher apps/pi-agent-runtime/native/windows-job-launcher/target/release/open-genoffice-job-launcher.exe
+              --windows-pi-launcher apps/pi-agent-runtime/native/windows-job-launcher/target/release/pi-cli-launcher.exe
+              --windows-native-addon node_modules/@earendil-works/pi-tui/native/win32/prebuilds/win32-x64/win32-console-mode.node
+            )
+          fi
+          npm run build:pi-runtime-bundle -- \
+            --output apps/shell/build/pi-runtime \
+            --node-executable apps/shell/build/node-distribution/${{ matrix.node-executable }} \
+            --node-license apps/shell/build/node-distribution/LICENSE \
+            --entry apps/pi-agent-runtime/src/main.ts \
+            --capability-smoke-entry apps/pi-agent-runtime/fixtures/native-capability-smoke.ts \
+            --capability-extension apps/pi-agent-runtime/fixtures/native-smoke-extension.mjs \
+            --mcp-smoke-server apps/pi-agent-runtime/fixtures/mcp-stdio-server.mjs \
+            --lockfile package-lock.json \
+            --notices apps/shell/build/THIRD-PARTY-NOTICES.txt \
+            --platform ${{ matrix.platform }} \
+            --arch ${{ matrix.arch }} \
+            "${windows_args[@]}"
+
+      - name: Build application modules
+        run: npm run build:all
+
+      - name: Build explicitly unsigned native package
+        run: npm run dist:${{ matrix.dist }} --workspace @genoffice/shell
+
+      - name: Expand macOS ZIP for install-tree smoke
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          mkdir -p apps/shell/package-smoke
+          ditto -x -k apps/shell/release/GenOffice-*-unsigned.zip apps/shell/package-smoke
+
+      - name: Extract Linux AppImage without FUSE
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          chmod +x apps/shell/release/GenOffice-*-unsigned.AppImage
+          mkdir -p apps/shell/package-smoke
+          cd apps/shell/package-smoke
+          ../release/GenOffice-*-unsigned.AppImage --appimage-extract >/dev/null
+          test -f squashfs-root/genoffice.desktop
+
+      - name: Verify unpacked installed resources and native smoke paths
+        shell: bash
+        run: |
+          case '${{ matrix.platform }}' in
+            darwin) resources='apps/shell/package-smoke/GenOffice.app/Contents/Resources' ;;
+            win32) resources='apps/shell/release/win-unpacked/resources' ;;
+            linux) resources='apps/shell/release/linux-unpacked/resources' ;;
+          esac
+          npm run verify:packaged-pi-platform -- \
+            --resources "$resources" \
+            --platform ${{ matrix.platform }} \
+            --arch ${{ matrix.arch }} \
+            --output evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
+
+      - name: Hash the exact unsigned release artifact set
+        run: >-
+          node tools/hash-release-artifacts.mjs
+          --directory apps/shell/release
+          --platform ${{ matrix.platform }}
+          --output evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json
+
+      - name: Collect acceptance mapping
+        run: >-
+          npm run acceptance:evidence --
+          --acceptance AR-003,AR-009,AR-010,PK-001,PK-002
+          --fixture packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
+          --fixture artifacts=evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json
+          --command unsigned-native-package-${{ matrix.evidence-platform }}
+          --protocol 1
+          --runtime 1.0.0
+          --output evidence/g9/native-package/${{ matrix.evidence-platform }}/evidence.json
+
+      - name: Upload unsigned package and redacted evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: genoffice-unsigned-${{ matrix.evidence-platform }}-${{ matrix.arch }}-${{ github.sha }}
+          path: |
+            apps/shell/release/*-unsigned.dmg
+            apps/shell/release/*-unsigned.zip
+            apps/shell/release/*-unsigned.exe
+            apps/shell/release/*-unsigned.AppImage
+            evidence/g9/native-package/${{ matrix.evidence-platform }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload failure reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: genoffice-unsigned-failure-${{ matrix.evidence-platform }}-${{ github.sha }}
+          path: |
+            apps/pi-agent-runtime/reports
+            packages/pi-runtime-bundle/reports
+            apps/shell/release/builder-debug.yml
+            apps/shell/release/builder-effective-config.yaml
+            evidence/g9/native-package/${{ matrix.evidence-platform }}
+          if-no-files-found: warn
+          retention-days: 7

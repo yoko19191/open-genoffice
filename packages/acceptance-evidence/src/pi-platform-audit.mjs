@@ -50,6 +50,7 @@ const EXPLICIT_NETWORK_SOURCE = new Set([
 const CODEX_IMAGE_PROVIDER_SOURCE = 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts'
 const CODEX_RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
 const PLATFORM_SEARCH_SOURCE = 'apps/pi-agent-runtime/src/platform-tool-service.ts'
+const OFFICIAL_NODE_ACQUISITION_SOURCE = 'packages/pi-runtime-bundle/src/node-distribution.ts'
 const PLATFORM_TOOL_SCHEMA_SOURCE = 'packages/agent-runtime-protocol/src/platform-tool-catalog.ts'
 const PLATFORM_SEARCH_ENDPOINTS = [
   'https://google.serper.dev/search',
@@ -78,6 +79,13 @@ function containsForbiddenNetworkSource(relativePath, content) {
     }
     const calls = inspected.split('this.fetch(url,').length - 1
     if (calls === 1) inspected = inspected.replace('this.fetch(url,', 'approvedPlatformRequest(')
+  }
+  if (relativePath === OFFICIAL_NODE_ACQUISITION_SOURCE) {
+    inspected = inspected
+      .split('https://nodejs.org/dist/v${NODE_VERSION}')
+      .join('approved-official-node-distribution')
+      .split('fetchImpl: (url) => fetch(url)')
+      .join('approvedOfficialNodeDownload(url)')
   }
   return FORBIDDEN_IMPLICIT_NETWORK_SOURCE.some((pattern) => pattern.test(inspected))
 }

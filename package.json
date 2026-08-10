@@ -27,6 +27,7 @@
     "acquire:official-node": "node tools/acquire-official-node.mjs",
     "audit:pi-platform": "node tools/audit-pi-platform.mjs",
     "verify:pi-runtime-bundle": "node tools/verify-pi-runtime-bundle.mjs",
+    "verify:packaged-pi-platform": "node tools/verify-packaged-pi-platform.mjs",
     "audit:retired-vendor": "node tools/audit-retired-vendor.mjs --mode baseline",
     "audit:retired-vendor:zero": "node tools/audit-retired-vendor.mjs --mode zero",
     "lint": "eslint .",
@@ -40,10 +41,11 @@
     "shell": "npm run build:all && electron apps/shell",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "notices": "node tools/gen-third-party-notices.mjs",
+    "sbom": "node tools/generate-sbom.mjs",
     "licenses": "node tools/check-licenses.mjs",
-    "dist:mac": "npm run notices && npm run build:all && npm run dist:mac -w @genoffice/shell",
-    "dist:win": "npm run notices && npm run build:all && npm run dist:win -w @genoffice/shell",
-    "dist:linux": "npm run notices && npm run build:all && npm run dist:linux -w @genoffice/shell"
+    "dist:mac": "npm run notices && npm run sbom && npm run build:all && npm run dist:mac -w @genoffice/shell",
+    "dist:win": "npm run notices && npm run sbom && npm run build:all && npm run dist:win -w @genoffice/shell",
+    "dist:linux": "npm run notices && npm run sbom && npm run build:all && npm run dist:linux -w @genoffice/shell"
   },
   "dependencies": {
     "ws": "^8.21.1"

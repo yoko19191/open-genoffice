@@ -14,12 +14,13 @@
  * app-update.yml into the app and in-app auto-update stays disabled.
  */
 
-const { existsSync } = require('node:fs')
+const { existsSync, readFileSync } = require('node:fs')
 const { execFileSync } = require('node:child_process')
 const { join } = require('node:path')
 const { Arch } = require('builder-util')
 
 const updateUrl = process.env.GENOFFICE_UPDATE_URL
+const unsignedBuild = process.env.GENOFFICE_UNSIGNED_BUILD === '1'
 
 // LICENSES.chromium.html only exists after the Electron binary download —
 // since Electron 42 that no longer happens during `npm ci` (the postinstall
@@ -50,6 +51,27 @@ function assertModuleTreesPresent() {
         `electron-builder extraResources source missing: ${rel} (run npm run build:all first)`,
       )
     }
+  }
+}
+
+function assertSbomPresent() {
+  const path = join(__dirname, 'build/sbom.cdx.json')
+  let sbom
+  try {
+    sbom = JSON.parse(readFileSync(path, 'utf8'))
+  } catch {
+    throw new Error('electron-builder SBOM source missing or invalid (run npm run sbom first)')
+  }
+  const componentNames = new Set(
+    Array.isArray(sbom.components) ? sbom.components.map((component) => component?.name) : [],
+  )
+  if (
+    sbom.bomFormat !== 'CycloneDX' ||
+    sbom.specVersion !== '1.5' ||
+    !componentNames.has('node') ||
+    !componentNames.has('pi-agent-runtime')
+  ) {
+    throw new Error('electron-builder SBOM contract invalid')
   }
 }
 
@@ -89,6 +111,10 @@ const config = {
     {
       from: 'build/THIRD-PARTY-NOTICES.txt',
       to: 'THIRD-PARTY-NOTICES.txt',
+    },
+    {
+      from: 'build/sbom.cdx.json',
+      to: 'sbom.cdx.json',
     },
     {
       from: '../../node_modules/electron/dist/LICENSES.chromium.html',
@@ -181,7 +207,7 @@ const config = {
     ],
     extraResources: [
       {
-        from: '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe',
+        from: '../sheets/native/xlsx-engine/target/release/xlsx-sidecar.exe',
         to: 'native/xlsx-sidecar.exe',
       },
     ],
@@ -228,15 +254,23 @@ const config = {
   },
   beforePack: async (context) => {
     assertModuleTreesPresent()
+    assertSbomPresent()
     assertPiRuntimeBundle(context)
   },
   dmg: {
-    sign: true,
+    sign: !unsignedBuild,
   },
-  afterAllArtifactBuild: 'build/notarize-dmg.js',
 }
 
-if (updateUrl) {
+if (unsignedBuild) {
+  config.artifactName = 'GenOffice-${version}-${os}-${arch}-unsigned.${ext}'
+  config.mac.identity = null
+  config.mac.notarize = false
+} else {
+  config.afterAllArtifactBuild = 'build/notarize-dmg.js'
+}
+
+if (updateUrl && !unsignedBuild) {
   config.publish = [
     {
       provider: 'generic',
