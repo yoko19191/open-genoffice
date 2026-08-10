@@ -172,6 +172,7 @@ import {
   installChromiumPackageNetworkAudit,
   packageNetworkAuditEnabled,
 } from './package-network-audit'
+import { installPackageAuditControl } from './package-audit-control'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -2530,6 +2531,15 @@ registerDocsIpc()
 registerAgentArtifactIpc()
 registerHomeIpc()
 registerTabsIpc()
+if (packageNetworkAuditConfig) {
+  installPackageAuditControl(ipcMain, {
+    isPackaged: app.isPackaged,
+    userData: app.getPath('userData'),
+    expectedUserData: shellUserDataPath ?? '',
+    schedule: (callback) => setImmediate(callback),
+    quit: () => app.quit(),
+  })
+}
 const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker, {
   documentIdFor: (webContentsId) => {
     if (!tabManager) throw new Error('document_binding_not_found')

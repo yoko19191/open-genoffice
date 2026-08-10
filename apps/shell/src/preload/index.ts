@@ -44,6 +44,7 @@ import {
   asMineruOcrStatus,
   type MineruOcrApi,
 } from '../shared/mineru-ocr-api'
+import type { PackageAuditApi } from '../shared/package-audit-api'
 
 const UI_LANGUAGES: readonly UiLanguage[] = [
   'zh',
@@ -430,3 +431,15 @@ const mineruOcrApi: MineruOcrApi = {
 }
 
 contextBridge.exposeInMainWorld('aiOfficeMineruOcr', mineruOcrApi)
+
+if (
+  process.env.GENOFFICE_PACKAGE_NETWORK_AUDIT === '1' &&
+  process.env.GENOFFICE_NETWORK_REPORT &&
+  process.env.GENOFFICE_NETWORK_SURFACE
+) {
+  const packageAuditApi: PackageAuditApi = {
+    state: () => ipcRenderer.invoke('package-audit:state'),
+    shutdown: () => ipcRenderer.invoke('package-audit:shutdown'),
+  }
+  contextBridge.exposeInMainWorld('aiOfficePackageAudit', packageAuditApi)
+}

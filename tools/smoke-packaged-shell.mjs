@@ -148,15 +148,10 @@ async function launchShell(env) {
   const page = await waitForCdpPage(browser, 30_000)
   return {
     page,
-    readPaths: async () => {
-      const version = await page.evaluate(() => globalThis.aiOffice?.getAppVersion?.())
-      return {
-        installed: typeof version === 'string' && version.length > 0,
-        userDataIsolated: (await readdir(userData)).length > 0,
-      }
-    },
+    readPaths: () => page.evaluate(() => globalThis.aiOfficePackageAudit.state()),
     close: async () => {
-      await page.close()
+      const accepted = await page.evaluate(() => globalThis.aiOfficePackageAudit.shutdown())
+      if (accepted !== true) throw new Error('package_shell_shutdown_rejected')
       const result = await exited
       if (result.code !== 0 || result.signal !== null) {
         throw new Error('package_shell_process_exit_invalid')
