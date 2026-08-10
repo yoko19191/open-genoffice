@@ -1,0 +1,2515 @@
+{
+  "numTotalTestSuites": 52,
+  "numPassedTestSuites": 52,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 195,
+  "numPassedTests": 195,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786343685247,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PDF Agent Session cutover"
+          ],
+          "fullName": "PDF Agent Session cutover uses only the shared Agent Session controller and narrow preload bridge",
+          "status": "passed",
+          "title": "uses only the shared Agent Session controller and narrow preload bridge",
+          "duration": 2.23170899999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF Agent Session cutover"
+          ],
+          "fullName": "PDF Agent Session cutover has no legacy model settings, stream transport, or branded provider path",
+          "status": "passed",
+          "title": "has no legacy model settings, stream transport, or branded provider path",
+          "duration": 1.7538749999999936,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685910,
+      "endTime": 1786343685913.754,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/agent-session-cutover.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PDF catalog executor completeness"
+          ],
+          "fullName": "PDF catalog executor completeness handles every alias from the shared product-owned catalog",
+          "status": "passed",
+          "title": "handles every alias from the shared product-owned catalog",
+          "duration": 2.0319580000000315,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "read_pages"
+          ],
+          "fullName": "read_pages reads a page range with [Page N] markers",
+          "status": "passed",
+          "title": "reads a page range with [Page N] markers",
+          "duration": 0.38912500000003547,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "read_pages"
+          ],
+          "fullName": "read_pages rejects an out-of-range start page",
+          "status": "passed",
+          "title": "rejects an out-of-range start page",
+          "duration": 0.13124999999990905,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "read_pages"
+          ],
+          "fullName": "read_pages errors when the document is not loaded",
+          "status": "passed",
+          "title": "errors when the document is not loaded",
+          "duration": 0.078125,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "search_text"
+          ],
+          "fullName": "search_text returns page numbers with context excerpts",
+          "status": "passed",
+          "title": "returns page numbers with context excerpts",
+          "duration": 0.18183399999998073,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "search_text"
+          ],
+          "fullName": "search_text rejects an empty query",
+          "status": "passed",
+          "title": "rejects an empty query",
+          "duration": 0.07483400000000984,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "search_text"
+          ],
+          "fullName": "search_text reports no matches without erroring",
+          "status": "passed",
+          "title": "reports no matches without erroring",
+          "duration": 0.16112499999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "goto_page"
+          ],
+          "fullName": "goto_page scrolls to a valid page",
+          "status": "passed",
+          "title": "scrolls to a valid page",
+          "duration": 0.48233299999992596,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "goto_page"
+          ],
+          "fullName": "goto_page rejects out-of-range and deleted pages",
+          "status": "passed",
+          "title": "rejects out-of-range and deleted pages",
+          "duration": 0.35891700000001947,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "markup_text"
+          ],
+          "fullName": "markup_text marks the first occurrence and jumps to the page",
+          "status": "passed",
+          "title": "marks the first occurrence and jumps to the page",
+          "duration": 0.5594580000000633,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "markup_text"
+          ],
+          "fullName": "markup_text marks every occurrence with all=true",
+          "status": "passed",
+          "title": "marks every occurrence with all=true",
+          "duration": 0.21166699999992034,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "markup_text"
+          ],
+          "fullName": "markup_text rejects text not present on the target page",
+          "status": "passed",
+          "title": "rejects text not present on the target page",
+          "duration": 0.09787500000004457,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "markup_text"
+          ],
+          "fullName": "markup_text rejects invalid types and read-only documents",
+          "status": "passed",
+          "title": "rejects invalid types and read-only documents",
+          "duration": 0.1272910000000138,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "markup_text"
+          ],
+          "fullName": "markup_text does not mutate when AbortSignal fires while text lookup is pending",
+          "status": "passed",
+          "title": "does not mutate when AbortSignal fires while text lookup is pending",
+          "duration": 0.5992909999999938,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "form tools"
+          ],
+          "fullName": "form tools lists fields with kinds, aggregated radio options, and skips read-only widgets",
+          "status": "passed",
+          "title": "lists fields with kinds, aggregated radio options, and skips read-only widgets",
+          "duration": 0.1922500000000582,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "form tools"
+          ],
+          "fullName": "form tools shows pending unsaved edits instead of stored values",
+          "status": "passed",
+          "title": "shows pending unsaved edits instead of stored values",
+          "duration": 0.1314159999999447,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "form tools"
+          ],
+          "fullName": "form tools fills a text field and jumps to its page",
+          "status": "passed",
+          "title": "fills a text field and jumps to its page",
+          "duration": 0.325917000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "form tools"
+          ],
+          "fullName": "form tools requires checked for checkboxes and validates choice options",
+          "status": "passed",
+          "title": "requires checked for checkboxes and validates choice options",
+          "duration": 0.16562499999997726,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "form tools"
+          ],
+          "fullName": "form tools rejects unknown field names",
+          "status": "passed",
+          "title": "rejects unknown field names",
+          "duration": 0.05670799999995779,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rotate_page / delete_page"
+          ],
+          "fullName": "rotate_page / delete_page maps direction to a signed 90-degree delta",
+          "status": "passed",
+          "title": "maps direction to a signed 90-degree delta",
+          "duration": 0.20162500000003547,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rotate_page / delete_page"
+          ],
+          "fullName": "rotate_page / delete_page deletes a page and reports failure when the last page must remain",
+          "status": "passed",
+          "title": "deletes a page and reports failure when the last page must remain",
+          "duration": 0.14250000000004093,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rotate_page / delete_page"
+          ],
+          "fullName": "rotate_page / delete_page blocks mutations on read-only documents",
+          "status": "passed",
+          "title": "blocks mutations on read-only documents",
+          "duration": 0.09962500000006003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rotate_page / delete_page"
+          ],
+          "fullName": "rotate_page / delete_page does not dispatch a synchronous mutation when already aborted",
+          "status": "passed",
+          "title": "does not dispatch a synchronous mutation when already aborted",
+          "duration": 0.11283300000002328,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "get_outline / unknown tools"
+          ],
+          "fullName": "get_outline / unknown tools renders the outline tree with indentation",
+          "status": "passed",
+          "title": "renders the outline tree with indentation",
+          "duration": 0.07345799999995961,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "get_outline / unknown tools"
+          ],
+          "fullName": "get_outline / unknown tools reports when the document has no outline",
+          "status": "passed",
+          "title": "reports when the document has no outline",
+          "duration": 0.04270900000005895,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "get_outline / unknown tools"
+          ],
+          "fullName": "get_outline / unknown tools errors on unknown tool names",
+          "status": "passed",
+          "title": "errors on unknown tool names",
+          "duration": 0.045415999999931955,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343686076,
+      "endTime": 1786343686084.0735,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/ai-tools.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "geomDispSize"
+          ],
+          "fullName": "geomDispSize keeps width/height at 0 and 180 degrees",
+          "status": "passed",
+          "title": "keeps width/height at 0 and 180 degrees",
+          "duration": 1.0006250000000136,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "geomDispSize"
+          ],
+          "fullName": "geomDispSize swaps width/height at 90 and 270 degrees",
+          "status": "passed",
+          "title": "swaps width/height at 90 and 270 degrees",
+          "duration": 0.16200000000003456,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "geomDispSize"
+          ],
+          "fullName": "geomDispSize normalizes negative and >360 rotations",
+          "status": "passed",
+          "title": "normalizes negative and >360 rotations",
+          "duration": 0.16291700000010678,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "viewToPdf / pdfToView"
+          ],
+          "fullName": "viewToPdf / pdfToView maps top-left display origin to PDF space at rot 0",
+          "status": "passed",
+          "title": "maps top-left display origin to PDF space at rot 0",
+          "duration": 0.158457999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "viewToPdf / pdfToView"
+          ],
+          "fullName": "viewToPdf / pdfToView handles each rotation quadrant",
+          "status": "passed",
+          "title": "handles each rotation quadrant",
+          "duration": 0.09291699999994307,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "viewToPdf / pdfToView"
+          ],
+          "fullName": "viewToPdf / pdfToView pdfToView is the inverse of viewToPdf for every rotation",
+          "status": "passed",
+          "title": "pdfToView is the inverse of viewToPdf for every rotation",
+          "duration": 0.09245799999996507,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "pdfRectToCss"
+          ],
+          "fullName": "pdfRectToCss converts a PDF rect to a scaled CSS box at rot 0",
+          "status": "passed",
+          "title": "converts a PDF rect to a scaled CSS box at rot 0",
+          "duration": 0.11395900000002257,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "pdfRectToCss"
+          ],
+          "fullName": "pdfRectToCss produces a non-negative box regardless of corner order",
+          "status": "passed",
+          "title": "produces a non-negative box regardless of corner order",
+          "duration": 0.07570900000007441,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "quadToRect"
+          ],
+          "fullName": "quadToRect returns the bounding rect of corners in any order",
+          "status": "passed",
+          "title": "returns the bounding rect of corners in any order",
+          "duration": 0.28070900000000165,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MARKUP_COLORS"
+          ],
+          "fullName": "MARKUP_COLORS defines a normalized rgb triple for every markup type",
+          "status": "passed",
+          "title": "defines a normalized rgb triple for every markup type",
+          "duration": 0.5590839999999844,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "selectionQuadsByPage"
+          ],
+          "fullName": "selectionQuadsByPage returns null when there is no selection or it is collapsed",
+          "status": "passed",
+          "title": "returns null when there is no selection or it is collapsed",
+          "duration": 2.4647089999999707,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "selectionQuadsByPage"
+          ],
+          "fullName": "selectionQuadsByPage returns null when the selection is outside the scroll container",
+          "status": "passed",
+          "title": "returns null when the selection is outside the scroll container",
+          "duration": 0.725208000000066,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "selectionQuadsByPage"
+          ],
+          "fullName": "selectionQuadsByPage maps a client rect to a PDF-space quad on the containing page",
+          "status": "passed",
+          "title": "maps a client rect to a PDF-space quad on the containing page",
+          "duration": 16.88129099999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "selectionQuadsByPage"
+          ],
+          "fullName": "selectionQuadsByPage drops rects that fully contain other rects and dedupes identical boxes",
+          "status": "passed",
+          "title": "drops rects that fully contain other rects and dedupes identical boxes",
+          "duration": 1.135417000000075,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "selectionQuadsByPage"
+          ],
+          "fullName": "selectionQuadsByPage ignores rects whose center falls outside every page",
+          "status": "passed",
+          "title": "ignores rects whose center falls outside every page",
+          "duration": 0.5524169999999913,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "selectionQuadsByPage"
+          ],
+          "fullName": "selectionQuadsByPage divides coordinates by the display scale",
+          "status": "passed",
+          "title": "divides coordinates by the display scale",
+          "duration": 0.3741669999999431,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685962,
+      "endTime": 1786343685987.3743,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/annotations.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "autosave scheduling"
+          ],
+          "fullName": "autosave scheduling saves on each 30s tick while there are pending changes",
+          "status": "passed",
+          "title": "saves on each 30s tick while there are pending changes",
+          "duration": 2.56254100000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "autosave scheduling"
+          ],
+          "fullName": "autosave scheduling skips ticks while shouldSave reports nothing to persist",
+          "status": "passed",
+          "title": "skips ticks while shouldSave reports nothing to persist",
+          "duration": 0.690291000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "autosave scheduling"
+          ],
+          "fullName": "autosave scheduling saves on window blur only when there are pending changes",
+          "status": "passed",
+          "title": "saves on window blur only when there are pending changes",
+          "duration": 0.6828340000000708,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "autosave scheduling"
+          ],
+          "fullName": "autosave scheduling stop detaches both the interval and the blur listener",
+          "status": "passed",
+          "title": "stop detaches both the interval and the blur listener",
+          "duration": 0.19916699999998855,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685973,
+      "endTime": 1786343685977.1992,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/autosave.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables provides a dictionary for every supported language and nothing else",
+          "status": "passed",
+          "title": "provides a dictionary for every supported language and nothing else",
+          "duration": 0.9077919999999722,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale zh has exactly the zh key set",
+          "status": "passed",
+          "title": "locale zh has exactly the zh key set",
+          "duration": 0.3139170000000604,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale en has exactly the zh key set",
+          "status": "passed",
+          "title": "locale en has exactly the zh key set",
+          "duration": 0.10574999999994361,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ja has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ja has exactly the zh key set",
+          "duration": 0.12279200000000401,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ko has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ko has exactly the zh key set",
+          "duration": 0.09245899999996254,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale fr has exactly the zh key set",
+          "status": "passed",
+          "title": "locale fr has exactly the zh key set",
+          "duration": 0.08166700000003857,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale de has exactly the zh key set",
+          "status": "passed",
+          "title": "locale de has exactly the zh key set",
+          "duration": 0.11712500000010095,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale es has exactly the zh key set",
+          "status": "passed",
+          "title": "locale es has exactly the zh key set",
+          "duration": 0.08116600000005292,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale th has exactly the zh key set",
+          "status": "passed",
+          "title": "locale th has exactly the zh key set",
+          "duration": 0.40162499999996726,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale id has exactly the zh key set",
+          "status": "passed",
+          "title": "locale id has exactly the zh key set",
+          "duration": 0.11624999999992269,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ru has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ru has exactly the zh key set",
+          "duration": 0.14370799999994688,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ar has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ar has exactly the zh key set",
+          "duration": 0.07524999999998272,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale pt has exactly the zh key set",
+          "status": "passed",
+          "title": "locale pt has exactly the zh key set",
+          "duration": 0.05762500000003001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale it has exactly the zh key set",
+          "status": "passed",
+          "title": "locale it has exactly the zh key set",
+          "duration": 0.05437500000005002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale pl has exactly the zh key set",
+          "status": "passed",
+          "title": "locale pl has exactly the zh key set",
+          "duration": 0.05329199999994216,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale nl has exactly the zh key set",
+          "status": "passed",
+          "title": "locale nl has exactly the zh key set",
+          "duration": 0.08824999999990268,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ms has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ms has exactly the zh key set",
+          "duration": 0.05595800000003237,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale he has exactly the zh key set",
+          "status": "passed",
+          "title": "locale he has exactly the zh key set",
+          "duration": 0.05220899999994799,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale hi has exactly the zh key set",
+          "status": "passed",
+          "title": "locale hi has exactly the zh key set",
+          "duration": 0.05529100000001108,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale zh-TW has exactly the zh key set",
+          "status": "passed",
+          "title": "locale zh-TW has exactly the zh key set",
+          "duration": 0.05366700000001856,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale zh has no empty values",
+          "status": "passed",
+          "title": "locale zh has no empty values",
+          "duration": 1.802291000000082,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale en has no empty values",
+          "status": "passed",
+          "title": "locale en has no empty values",
+          "duration": 1.3038340000000517,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ja has no empty values",
+          "status": "passed",
+          "title": "locale ja has no empty values",
+          "duration": 1.3217080000000578,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ko has no empty values",
+          "status": "passed",
+          "title": "locale ko has no empty values",
+          "duration": 2.2732919999999694,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale fr has no empty values",
+          "status": "passed",
+          "title": "locale fr has no empty values",
+          "duration": 3.347332999999935,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale de has no empty values",
+          "status": "passed",
+          "title": "locale de has no empty values",
+          "duration": 3.584875000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale es has no empty values",
+          "status": "passed",
+          "title": "locale es has no empty values",
+          "duration": 1.306291999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale th has no empty values",
+          "status": "passed",
+          "title": "locale th has no empty values",
+          "duration": 3.839375000000018,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale id has no empty values",
+          "status": "passed",
+          "title": "locale id has no empty values",
+          "duration": 1.2412080000000287,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ru has no empty values",
+          "status": "passed",
+          "title": "locale ru has no empty values",
+          "duration": 2.558791999999926,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ar has no empty values",
+          "status": "passed",
+          "title": "locale ar has no empty values",
+          "duration": 2.264458999999988,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale pt has no empty values",
+          "status": "passed",
+          "title": "locale pt has no empty values",
+          "duration": 1.2263339999999516,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale it has no empty values",
+          "status": "passed",
+          "title": "locale it has no empty values",
+          "duration": 1.1509159999999383,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale pl has no empty values",
+          "status": "passed",
+          "title": "locale pl has no empty values",
+          "duration": 1.1364589999999453,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale nl has no empty values",
+          "status": "passed",
+          "title": "locale nl has no empty values",
+          "duration": 1.086416999999983,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ms has no empty values",
+          "status": "passed",
+          "title": "locale ms has no empty values",
+          "duration": 1.0837920000000167,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale he has no empty values",
+          "status": "passed",
+          "title": "locale he has no empty values",
+          "duration": 1.1352919999999358,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale hi has no empty values",
+          "status": "passed",
+          "title": "locale hi has no empty values",
+          "duration": 1.075749999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale zh-TW has no empty values",
+          "status": "passed",
+          "title": "locale zh-TW has no empty values",
+          "duration": 1.0646669999999858,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale zh keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale zh keeps the same placeholders as zh",
+          "duration": 2.0347090000000208,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale en keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale en keeps the same placeholders as zh",
+          "duration": 0.7272500000000264,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ja keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale ja keeps the same placeholders as zh",
+          "duration": 0.7202499999999645,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ko keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale ko keeps the same placeholders as zh",
+          "duration": 0.7117500000000518,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale fr keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale fr keeps the same placeholders as zh",
+          "duration": 0.6753750000000309,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale de keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale de keeps the same placeholders as zh",
+          "duration": 0.6771249999999327,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale es keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale es keeps the same placeholders as zh",
+          "duration": 0.6706249999999727,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale th keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale th keeps the same placeholders as zh",
+          "duration": 0.6920830000000251,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale id keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale id keeps the same placeholders as zh",
+          "duration": 2.5067920000000186,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ru keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale ru keeps the same placeholders as zh",
+          "duration": 0.6758750000000191,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ar keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale ar keeps the same placeholders as zh",
+          "duration": 0.6692500000000337,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale pt keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale pt keeps the same placeholders as zh",
+          "duration": 0.6490000000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale it keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale it keeps the same placeholders as zh",
+          "duration": 0.6539169999999785,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale pl keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale pl keeps the same placeholders as zh",
+          "duration": 0.6460000000000719,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale nl keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale nl keeps the same placeholders as zh",
+          "duration": 0.6597080000000233,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale ms keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale ms keeps the same placeholders as zh",
+          "duration": 3.419375000000059,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale he keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale he keeps the same placeholders as zh",
+          "duration": 4.936917000000108,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale hi keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale hi keeps the same placeholders as zh",
+          "duration": 1.6722919999999704,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "i18n string tables"
+          ],
+          "fullName": "i18n string tables locale zh-TW keeps the same placeholders as zh",
+          "status": "passed",
+          "title": "locale zh-TW keeps the same placeholders as zh",
+          "duration": 0.6507500000000164,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685946,
+      "endTime": 1786343686006.6724,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/i18n-strings.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "navAction"
+          ],
+          "fullName": "navAction steps a whole page on ArrowDown/ArrowUp when focus is in the thumbnail sidebar",
+          "status": "passed",
+          "title": "steps a whole page on ArrowDown/ArrowUp when focus is in the thumbnail sidebar",
+          "duration": 6.771166999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "navAction"
+          ],
+          "fullName": "navAction scrolls by 60px on ArrowDown/ArrowUp when focus is outside the sidebar",
+          "status": "passed",
+          "title": "scrolls by 60px on ArrowDown/ArrowUp when focus is outside the sidebar",
+          "duration": 2.53024999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "navAction"
+          ],
+          "fullName": "navAction steps a whole page on ArrowRight/ArrowLeft regardless of focus",
+          "status": "passed",
+          "title": "steps a whole page on ArrowRight/ArrowLeft regardless of focus",
+          "duration": 0.36495800000000145,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "navAction"
+          ],
+          "fullName": "navAction scrolls a viewport on PageDown/Space/PageUp",
+          "status": "passed",
+          "title": "scrolls a viewport on PageDown/Space/PageUp",
+          "duration": 10.528249999999957,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "navAction"
+          ],
+          "fullName": "navAction jumps to the edges on Home/End",
+          "status": "passed",
+          "title": "jumps to the edges on Home/End",
+          "duration": 0.1290000000000191,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "navAction"
+          ],
+          "fullName": "navAction returns null for keys it does not handle",
+          "status": "passed",
+          "title": "returns null for keys it does not handle",
+          "duration": 0.08262500000000728,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685972,
+      "endTime": 1786343685993.129,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/key-nav.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PDF Office Tool preload schemas"
+          ],
+          "fullName": "PDF Office Tool preload schemas accepts every exact main-to-renderer request kind",
+          "status": "passed",
+          "title": "accepts every exact main-to-renderer request kind",
+          "duration": 0.8463329999999587,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF Office Tool preload schemas"
+          ],
+          "fullName": "PDF Office Tool preload schemas accepts exact renderer responses and rejects nested or outer expansion fields",
+          "status": "passed",
+          "title": "accepts exact renderer responses and rejects nested or outer expansion fields",
+          "duration": 0.3822499999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343686287,
+      "endTime": 1786343686288.3823,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/office-tool-ipc.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter returns model context and serializable run snapshots without exposing Runtime identity",
+          "status": "passed",
+          "title": "returns model context and serializable run snapshots without exposing Runtime identity",
+          "duration": 2.088624999999979,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter executes reads at the current version and commits a fresh mutation exactly once",
+          "status": "passed",
+          "title": "executes reads at the current version and commits a fresh mutation exactly once",
+          "duration": 0.5172919999999976,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter rejects stale view and mutation calls before touching the editor",
+          "status": "passed",
+          "title": "rejects stale view and mutation calls before touching the editor",
+          "duration": 0.389583000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter rejects unknown tools and missing mutation freshness before execution",
+          "status": "passed",
+          "title": "rejects unknown tools and missing mutation freshness before execution",
+          "duration": 0.5789159999999356,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter aborts an active read and reports whether an operation was present",
+          "status": "passed",
+          "title": "aborts an active read and reports whether an operation was present",
+          "duration": 0.8509589999999889,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter restores a snapshot, advances freshness, and reports uncertain mutation failures",
+          "status": "passed",
+          "title": "restores a snapshot, advances freshness, and reports uncertain mutation failures",
+          "duration": 0.8424999999999727,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter preserves stable executor errors as not-started mutations",
+          "status": "passed",
+          "title": "preserves stable executor errors as not-started mutations",
+          "duration": 0.4574170000000777,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF passive Office Tool renderer adapter"
+          ],
+          "fullName": "PDF passive Office Tool renderer adapter normalizes missing and thrown readonly executor errors without mutation state",
+          "status": "passed",
+          "title": "normalizes missing and thrown readonly executor errors without mutation state",
+          "duration": 0.27350000000001273,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343686041,
+      "endTime": 1786343686047.4575,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/office-tool-renderer-adapter.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PDF main to renderer Office Tool request client"
+          ],
+          "fullName": "PDF main to renderer Office Tool request client correlates concurrent responses and ignores other renderer/request identities",
+          "status": "passed",
+          "title": "correlates concurrent responses and ignores other renderer/request identities",
+          "duration": 2.375541999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main to renderer Office Tool request client"
+          ],
+          "fullName": "PDF main to renderer Office Tool request client fails closed before send when the renderer is gone",
+          "status": "passed",
+          "title": "fails closed before send when the renderer is gone",
+          "duration": 0.6876670000000331,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main to renderer Office Tool request client"
+          ],
+          "fullName": "PDF main to renderer Office Tool request client rejects pending requests on timeout or renderer close without leaking late responses",
+          "status": "passed",
+          "title": "rejects pending requests on timeout or renderer close without leaking late responses",
+          "duration": 1.9234169999999722,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main to renderer Office Tool request client"
+          ],
+          "fullName": "PDF main to renderer Office Tool request client rejects malformed response identities without consuming the pending request",
+          "status": "passed",
+          "title": "rejects malformed response identities without consuming the pending request",
+          "duration": 0.24529099999995196,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685979,
+      "endTime": 1786343685984.2454,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/office-tool-renderer-client.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "pdf open-path lifecycle"
+          ],
+          "fullName": "pdf open-path lifecycle consume-pending returns the path again after a reload (second consume)",
+          "status": "passed",
+          "title": "consume-pending returns the path again after a reload (second consume)",
+          "duration": 1.6707499999999982,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "pdf open-path lifecycle"
+          ],
+          "fullName": "pdf open-path lifecycle drops the path when the view is destroyed",
+          "status": "passed",
+          "title": "drops the path when the view is destroyed",
+          "duration": 0.4594160000000329,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343686388,
+      "endTime": 1786343686390.4595,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/open-path.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host maps a renderer read into a provenance receipt with freshness",
+          "status": "passed",
+          "title": "maps a renderer read into a provenance receipt with freshness",
+          "duration": 8.641542000000072,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host rejects invalid input before snapshot capture or renderer execution",
+          "status": "passed",
+          "title": "rejects invalid input before snapshot capture or renderer execution",
+          "duration": 0.4043330000000651,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host rejects an unknown catalog tool through the broker boundary",
+          "status": "passed",
+          "title": "rejects an unknown catalog tool through the broker boundary",
+          "duration": 0.7859999999999445,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host normalizes missing renderer and snapshot capture failures before mutation execution",
+          "status": "passed",
+          "title": "normalizes missing renderer and snapshot capture failures before mutation execution",
+          "duration": 0.4522910000000593,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host aborts before mutation dispatch without creating a rollback point",
+          "status": "passed",
+          "title": "aborts before mutation dispatch without creating a rollback point",
+          "duration": 0.7077909999999292,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host captures one pre-commit snapshot and restores the whole parent run",
+          "status": "passed",
+          "title": "captures one pre-commit snapshot and restores the whole parent run",
+          "duration": 1.0801249999999527,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host uses the parent run rollback point for an exact granted Subagent mutation",
+          "status": "passed",
+          "title": "uses the parent run rollback point for an exact granted Subagent mutation",
+          "duration": 0.3294579999999314,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host preserves stable renderer failures and does not register an empty rollback point",
+          "status": "passed",
+          "title": "preserves stable renderer failures and does not register an empty rollback point",
+          "duration": 0.25616600000000744,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host marks a renderer reload during mutation unknown and blocks every later mutation",
+          "status": "passed",
+          "title": "marks a renderer reload during mutation unknown and blocks every later mutation",
+          "duration": 0.5498749999999291,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host normalizes readonly response failures, wrong result kinds, and absent details",
+          "status": "passed",
+          "title": "normalizes readonly response failures, wrong result kinds, and absent details",
+          "duration": 0.37941699999998946,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host drops a non-committed snapshot and fails a malformed restore response closed",
+          "status": "passed",
+          "title": "drops a non-committed snapshot and fails a malformed restore response closed",
+          "duration": 0.29016699999999673,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host fails closed on forged internal rollback boundaries",
+          "status": "passed",
+          "title": "fails closed on forged internal rollback boundaries",
+          "duration": 0.12320799999997689,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PDF main Office Tool host"
+          ],
+          "fullName": "PDF main Office Tool host denies view effects to readonly Subagents before renderer dispatch",
+          "status": "passed",
+          "title": "denies view effects to readonly Subagents before renderer dispatch",
+          "duration": 0.11895900000001802,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343686235,
+      "endTime": 1786343686249.1233,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/pdf-office-tool-host.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "printPdf"
+          ],
+          "fullName": "printPdf renders one image per page into a print root and opens the print dialog",
+          "status": "passed",
+          "title": "renders one image per page into a print root and opens the print dialog",
+          "duration": 8.596000000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "printPdf"
+          ],
+          "fullName": "printPdf removes the print root after the dialog closes",
+          "status": "passed",
+          "title": "removes the print root after the dialog closes",
+          "duration": 11.6875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "printPdf"
+          ],
+          "fullName": "printPdf waits for afterprint before resolving",
+          "status": "passed",
+          "title": "waits for afterprint before resolving",
+          "duration": 52.711291000000074,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "printPdf"
+          ],
+          "fullName": "printPdf cleans up the print root even when image decoding fails",
+          "status": "passed",
+          "title": "cleans up the print root even when image decoding fails",
+          "duration": 1.2941669999999021,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685963,
+      "endTime": 1786343686037.2942,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/print.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "extractPagesBytes"
+          ],
+          "fullName": "extractPagesBytes extracts the requested pages in the given order",
+          "status": "passed",
+          "title": "extracts the requested pages in the given order",
+          "duration": 7.939166999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "extractPagesBytes"
+          ],
+          "fullName": "extractPagesBytes silently drops out-of-range page indices",
+          "status": "passed",
+          "title": "silently drops out-of-range page indices",
+          "duration": 1.9432919999999285,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "insertPdfBytes"
+          ],
+          "fullName": "insertPdfBytes inserts all pages at the front when afterPageIndex is -1",
+          "status": "passed",
+          "title": "inserts all pages at the front when afterPageIndex is -1",
+          "duration": 1.4500829999999496,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "insertPdfBytes"
+          ],
+          "fullName": "insertPdfBytes clamps an out-of-range afterPageIndex to the document end",
+          "status": "passed",
+          "title": "clamps an out-of-range afterPageIndex to the document end",
+          "duration": 1.0737080000000105,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "savePdfToPath"
+          ],
+          "fullName": "savePdfToPath Save As writes the edits to the target only and never mutates the source",
+          "status": "passed",
+          "title": "Save As writes the edits to the target only and never mutates the source",
+          "duration": 10.619707999999946,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "savePdfToPath"
+          ],
+          "fullName": "savePdfToPath in-place save (target === source) replaces the file atomically",
+          "status": "passed",
+          "title": "in-place save (target === source) replaces the file atomically",
+          "duration": 10.605166999999938,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "savePdfToPath"
+          ],
+          "fullName": "savePdfToPath a failed save leaves the source and target untouched and cleans up temp files",
+          "status": "passed",
+          "title": "a failed save leaves the source and target untouched and cleans up temp files",
+          "duration": 7.0070839999999635,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest applies page rotation deltas on top of the existing rotation",
+          "status": "passed",
+          "title": "applies page rotation deltas on top of the existing rotation",
+          "duration": 0.621167000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest writes markup annotations with an appearance stream",
+          "status": "passed",
+          "title": "writes markup annotations with an appearance stream",
+          "duration": 0.9448750000000246,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest writes note and shape drawing annotations",
+          "status": "passed",
+          "title": "writes note and shape drawing annotations",
+          "duration": 0.8894159999999829,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest ignores markups and drawings addressing missing pages",
+          "status": "passed",
+          "title": "ignores markups and drawings addressing missing pages",
+          "duration": 1.096416999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest writes an image drawing as a Stamp annotation with an image appearance",
+          "status": "passed",
+          "title": "writes an image drawing as a Stamp annotation with an image appearance",
+          "duration": 4.523000000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest counter-rotates the image appearance on rotated pages",
+          "status": "passed",
+          "title": "counter-rotates the image appearance on rotated pages",
+          "duration": 2.3908330000000433,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest embeds PNG stamps without failing",
+          "status": "passed",
+          "title": "embeds PNG stamps without failing",
+          "duration": 3.246334000000047,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest applies metadata and splits keywords on mixed separators",
+          "status": "passed",
+          "title": "applies metadata and splits keywords on mixed separators",
+          "duration": 1.37987499999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest deletes pages by original index but never removes the last page",
+          "status": "passed",
+          "title": "deletes pages by original index but never removes the last page",
+          "duration": 0.815291000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest reorders pages by original index",
+          "status": "passed",
+          "title": "reorders pages by original index",
+          "duration": 0.47362499999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest applies the reorder when combined with deletions",
+          "status": "passed",
+          "title": "applies the reorder when combined with deletions",
+          "duration": 0.4905829999999014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest skips the reorder when deleting every page leaves the guarded last page",
+          "status": "passed",
+          "title": "skips the reorder when deleting every page leaves the guarded last page",
+          "duration": 0.3034589999999753,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest fills text fields and checkboxes",
+          "status": "passed",
+          "title": "fills text fields and checkboxes",
+          "duration": 9.91229199999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "applySaveRequest"
+          ],
+          "fullName": "applySaveRequest falls back to NeedAppearances when form values cannot be WinAnsi-encoded",
+          "status": "passed",
+          "title": "falls back to NeedAppearances when form values cannot be WinAnsi-encoded",
+          "duration": 1.3480829999999742,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685993,
+      "endTime": 1786343686062.3481,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/save-pdf.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "buildSearchIndex"
+          ],
+          "fullName": "buildSearchIndex concatenates item text per page and records char ranges",
+          "status": "passed",
+          "title": "concatenates item text per page and records char ranges",
+          "duration": 7.351083000000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildSearchIndex"
+          ],
+          "fullName": "buildSearchIndex inserts newlines for hasEOL and skips empty/invalid items",
+          "status": "passed",
+          "title": "inserts newlines for hasEOL and skips empty/invalid items",
+          "duration": 2.574124999999981,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildSearchIndex"
+          ],
+          "fullName": "buildSearchIndex derives height from the transform when height is missing",
+          "status": "passed",
+          "title": "derives height from the transform when height is missing",
+          "duration": 0.3410840000000235,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "searchInIndex"
+          ],
+          "fullName": "searchInIndex returns empty for an empty query",
+          "status": "passed",
+          "title": "returns empty for an empty query",
+          "duration": 0.23941600000000562,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "searchInIndex"
+          ],
+          "fullName": "searchInIndex finds case-insensitive matches with interpolated rects",
+          "status": "passed",
+          "title": "finds case-insensitive matches with interpolated rects",
+          "duration": 0.2986670000000231,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "searchInIndex"
+          ],
+          "fullName": "searchInIndex spans multiple items with one rect per item",
+          "status": "passed",
+          "title": "spans multiple items with one rect per item",
+          "duration": 0.20799999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "searchInIndex"
+          ],
+          "fullName": "searchInIndex reports every occurrence and the correct page index",
+          "status": "passed",
+          "title": "reports every occurrence and the correct page index",
+          "duration": 0.16104199999995217,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "searchInIndex"
+          ],
+          "fullName": "searchInIndex skips matches falling in EOL-only gaps with no item coverage",
+          "status": "passed",
+          "title": "skips matches falling in EOL-only gaps with no item coverage",
+          "duration": 0.16120899999998528,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "searchInIndex"
+          ],
+          "fullName": "searchInIndex caps results at 1000 matches",
+          "status": "passed",
+          "title": "caps results at 1000 matches",
+          "duration": 0.4844580000000178,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685964,
+      "endTime": 1786343685978.4844,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/search.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "spreadRows"
+          ],
+          "fullName": "spreadRows gives every page its own row in single mode",
+          "status": "passed",
+          "title": "gives every page its own row in single mode",
+          "duration": 1.0168750000000273,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "spreadRows"
+          ],
+          "fullName": "spreadRows pairs 1+2, 3+4, … in two-page mode (mainstream default, no cover row)",
+          "status": "passed",
+          "title": "pairs 1+2, 3+4, … in two-page mode (mainstream default, no cover row)",
+          "duration": 0.18291700000003175,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "spreadRows"
+          ],
+          "fullName": "spreadRows leaves a trailing odd page alone in two-page mode",
+          "status": "passed",
+          "title": "leaves a trailing odd page alone in two-page mode",
+          "duration": 0.08041600000001381,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "spreadRows"
+          ],
+          "fullName": "spreadRows handles empty and single-page lists",
+          "status": "passed",
+          "title": "handles empty and single-page lists",
+          "duration": 0.11487499999998363,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "stepPage"
+          ],
+          "fullName": "stepPage steps one page at a time in single mode, clamped at the ends",
+          "status": "passed",
+          "title": "steps one page at a time in single mode, clamped at the ends",
+          "duration": 0.17387500000000955,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "stepPage"
+          ],
+          "fullName": "stepPage steps a whole row in two-page mode so paired pages are never a dead end",
+          "status": "passed",
+          "title": "steps a whole row in two-page mode so paired pages are never a dead end",
+          "duration": 0.14837499999998727,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rowOfVisIdx"
+          ],
+          "fullName": "rowOfVisIdx is the identity in single mode",
+          "status": "passed",
+          "title": "is the identity in single mode",
+          "duration": 0.08920799999998508,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rowOfVisIdx"
+          ],
+          "fullName": "rowOfVisIdx maps pairs to the same row in two-page mode",
+          "status": "passed",
+          "title": "maps pairs to the same row in two-page mode",
+          "duration": 0.0714580000000069,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343686246,
+      "endTime": 1786343686248.1738,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/spread.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "renderWatermark"
+          ],
+          "fullName": "renderWatermark returns null for empty or whitespace-only text",
+          "status": "passed",
+          "title": "returns null for empty or whitespace-only text",
+          "duration": 3.049792000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "renderWatermark"
+          ],
+          "fullName": "renderWatermark renders trimmed text and returns the base64 payload without the data prefix",
+          "status": "passed",
+          "title": "renders trimmed text and returns the base64 payload without the data prefix",
+          "duration": 11.176250000000095,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "renderWatermark"
+          ],
+          "fullName": "renderWatermark returns null when the 2d context is unavailable",
+          "status": "passed",
+          "title": "returns null when the 2d context is unavailable",
+          "duration": 0.5905830000000378,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps watermark"
+          ],
+          "fullName": "buildStamps watermark emits one full-page stamp per page with the configured opacity",
+          "status": "passed",
+          "title": "emits one full-page stamp per page with the configured opacity",
+          "duration": 0.8375839999999926,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps watermark"
+          ],
+          "fullName": "buildStamps watermark reuses one rendered bitmap for same-size pages but not across sizes",
+          "status": "passed",
+          "title": "reuses one rendered bitmap for same-size pages but not across sizes",
+          "duration": 0.7191659999999729,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps watermark"
+          ],
+          "fullName": "buildStamps watermark emits nothing for a blank watermark and no header/footer",
+          "status": "passed",
+          "title": "emits nothing for a blank watermark and no header/footer",
+          "duration": 0.13183300000002873,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps header/footer"
+          ],
+          "fullName": "buildStamps header/footer renders an auto page-number footer positioned at the bottom margin",
+          "status": "passed",
+          "title": "renders an auto page-number footer positioned at the bottom margin",
+          "duration": 0.4595409999999447,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps header/footer"
+          ],
+          "fullName": "buildStamps header/footer honors startAt for page numbering",
+          "status": "passed",
+          "title": "honors startAt for page numbering",
+          "duration": 0.25120799999990595,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps header/footer"
+          ],
+          "fullName": "buildStamps header/footer places headers at the top and fills {page}/{total} placeholders",
+          "status": "passed",
+          "title": "places headers at the top and fills {page}/{total} placeholders",
+          "duration": 0.46916700000008404,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps header/footer"
+          ],
+          "fullName": "buildStamps header/footer uses footerCenter text when pageNumber is disabled",
+          "status": "passed",
+          "title": "uses footerCenter text when pageNumber is disabled",
+          "duration": 0.18637499999999818,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps header/footer"
+          ],
+          "fullName": "buildStamps header/footer emits no bars when all segments are blank and pageNumber is off",
+          "status": "passed",
+          "title": "emits no bars when all segments are blank and pageNumber is off",
+          "duration": 0.10500000000001819,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "buildStamps header/footer"
+          ],
+          "fullName": "buildStamps header/footer combines watermark, header, and footer stamps for one page",
+          "status": "passed",
+          "title": "combines watermark, header, and footer stamps for one page",
+          "duration": 0.19020799999998417,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786343685983,
+      "endTime": 1786343686001.1902,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pdf/tests/stamps.test.ts"
+    }
+  ]
+}

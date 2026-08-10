@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "commit": "0740190f55aedd5b5b404efe97c9c0494c2282a0",
+  "acceptanceIds": [
+    "AR-001",
+    "AR-008",
+    "GX-001",
+    "GX-002",
+    "GX-003",
+    "GX-004",
+    "OTC-009",
+    "OTC-010"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "catalogHashes": {
+    "pdf": "c7df023595cbfa4780424841dd03f18cc21156c534fb24fc6e6b225571956e82",
+    "docs": "8981cc5f0b46f5483102d01e0dc8f2620b0c4a84db7627b47648a4e84672be9f",
+    "sheets": "0904d366ddf21423a9a01b0709d508c9cb74b620db11c8e2881fa0115d3d04a8",
+    "slides": "f97ef27d662ffd344c604b5aa427697f5b6a9fffd6e2a8dc8d9abbd4c07cfb2b"
+  },
+  "fixtureHashes": {
+    "fakeProvider": "a90f5f074074d07e91dc044c8e2bb893a19b7bd2f1d0f32f2f68dbaf51ebb05f",
+    "officeCatalog": "1244db204e7c6b4da94efbd4412d054924fce587f9ee0115e1e4b18a5e8150b6"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build:all",
+    "npm run lint -- --quiet",
+    "npm run format:check",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero",
+    "scan production bundles and installed dependencies for retired vendor paths"
+  ],
+  "results": [
+    {
+      "suite": "evidence",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/evidence.json"
+    },
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/protocol.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/runtime.json"
+    },
+    {
+      "suite": "docs",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/docs.json"
+    },
+    {
+      "suite": "sheets",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/sheets.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/shell.json"
+    },
+    {
+      "suite": "slides",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/slides.json"
+    },
+    {
+      "suite": "pdf",
+      "status": "passed",
+      "report": "evidence/g8/issue-36/reports/pdf.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
