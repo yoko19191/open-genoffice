@@ -273,7 +273,7 @@ export class PiSubagentEngine implements SubagentExecutionEngine {
   ): AsyncIterable<SubagentEngineEvent> {
     let previousUsage: SubagentUsage | undefined
     while (true) {
-      if (signal.aborted) {
+      if (signal.aborted || state.cancelRequested) {
         yield { type: 'cancelled' }
         return
       }

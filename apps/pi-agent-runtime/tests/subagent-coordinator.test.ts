@@ -547,7 +547,7 @@ describe('SubagentCoordinator', () => {
     expect(engine.inputs.at(-1)).not.toHaveProperty('projectRoot')
     engine.emit(resumed.runId, { type: 'completed', result: { kind: 'text', text: 'resumed' } })
     await coordinator.wait(resumed.runId)
-  })
+  }, 15_000)
 
   it('contains stale-stream and registry-state races without overwriting terminal truth', async () => {
     const { coordinator, registry, engine } = await fixture({

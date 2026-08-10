@@ -109,12 +109,15 @@ describe('PackageSourceResolver', () => {
   })
 
   it.each([
-    { type: 'npm', name: 'safe-extension', version: '^1.2.3' },
-    { type: 'npm', name: 'safe-extension', version: 'latest' },
-    { type: 'git', url: 'https://example.com/repo.git', commit: 'main' },
-    { type: 'git', url: 'http://example.com/repo.git', commit: 'a'.repeat(40) },
-    { type: 'git', url: 'not-a-url', commit: 'a'.repeat(40) },
-  ])('rejects a floating or insecure source before network access: %o', async (source) => {
+    ['floating npm range', { type: 'npm', name: 'safe-extension', version: '^1.2.3' }],
+    ['floating npm tag', { type: 'npm', name: 'safe-extension', version: 'latest' }],
+    ['floating git ref', { type: 'git', url: 'https://example.com/repo.git', commit: 'main' }],
+    [
+      'insecure git transport',
+      { type: 'git', url: 'http://example.com/repo.git', commit: 'a'.repeat(40) },
+    ],
+    ['invalid git URL', { type: 'git', url: 'not-a-url', commit: 'a'.repeat(40) }],
+  ])('rejects a floating or insecure source before network access: %s', async (_case, source) => {
     const fetch = vi.fn<typeof globalThis.fetch>()
     const git = vi.fn<GitCommandRunner>()
     const resolver = new PackageSourceResolver({

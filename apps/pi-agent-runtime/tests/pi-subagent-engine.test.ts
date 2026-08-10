@@ -351,24 +351,17 @@ describe('PiSubagentEngine', () => {
 
   it('keeps provider interruption authoritative when native Windows tree cleanup is unavailable', async () => {
     const resourceHome = await root('genoffice-subagent-engine-windows-fallback-')
-    let interrupted = false
     const api = {
       runSubagent: vi.fn(async () => ({
         runId: 'provider-run-fallback',
         attemptId: 'provider-attempt-fallback',
       })),
-      getSubagentStatus: vi.fn(async () =>
-        interrupted
-          ? { status: 'cancelled' }
-          : {
-              attempts: [{ attemptId: 'provider-attempt-fallback', pid: Number.MAX_SAFE_INTEGER }],
-            },
-      ),
+      getSubagentStatus: vi.fn(async () => ({
+        status: 'running',
+        attempts: [{ attemptId: 'provider-attempt-fallback', pid: Number.MAX_SAFE_INTEGER }],
+      })),
       getSubagentLogs: vi.fn(),
-      interruptSubagent: vi.fn(async () => {
-        interrupted = true
-        return { status: 'interrupt-requested' }
-      }),
+      interruptSubagent: vi.fn(async () => ({ status: 'interrupt-requested' })),
       reconcileSubagentRun: vi.fn(),
     }
     const engine = new PiSubagentEngine({ resourceHome, api, platform: 'win32' })
