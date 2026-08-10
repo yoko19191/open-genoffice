@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "commit": "cb738da424824b8c7e292543112f9c6c51e0e160",
+  "acceptanceIds": [
+    "AR-002",
+    "GX-003",
+    "MD-002",
+    "OT-005",
+    "OTC-002",
+    "OTC-009"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "userActionRegistry": "0c2f7136be3ef3cf292711c0e2c77bbe8f1e139cd1fe3f3f7e1dd4bff2546aa8",
+    "userActionUi": "faf0c11f5c9b10272f9ee881ce551af87081987ea0e39706f6cbdbdb1c0caa8c"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint -- --quiet",
+    "npm run format:check",
+    "npm run build:all",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/protocol.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/runtime.json"
+    },
+    {
+      "suite": "electron",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/electron.json"
+    },
+    {
+      "suite": "ui",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/ui.json"
+    },
+    {
+      "suite": "docs",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/docs.json"
+    },
+    {
+      "suite": "pdf",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/pdf.json"
+    },
+    {
+      "suite": "sheets",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/sheets.json"
+    },
+    {
+      "suite": "slides",
+      "status": "passed",
+      "report": "evidence/g4/issue-33/reports/slides.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
