@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -104,6 +105,109 @@ describe('ScopedArtifactStore', () => {
     ).rejects.toMatchObject({ code: 'artifact_invalid' })
   })
 
+  it('rejects invalid text registration scope, empty content, duplicates and invalid roots', async () => {
+    const { store } = await createStore()
+    const valid = {
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      text: 'safe text',
+      mediaType: 'text/plain' as const,
+    }
+    await expect(store.registerText({ ...valid, documentId: 'bad' })).rejects.toMatchObject({
+      code: 'artifact_scope_invalid',
+    })
+    await expect(store.registerText({ ...valid, text: '' })).rejects.toMatchObject({
+      code: 'artifact_invalid',
+    })
+    await store.registerText(valid)
+    await expect(store.registerText(valid)).rejects.toMatchObject({ code: 'artifact_exists' })
+
+    const parent = await mkdtemp(join(tmpdir(), 'genoffice-invalid-text-store-'))
+    roots.push(parent)
+    const rootFile = join(parent, 'not-a-directory')
+    await writeFile(rootFile, 'file')
+    await expect(
+      new ScopedArtifactStore({ rootDirectory: rootFile }).registerText({
+        ...valid,
+        artifactId: '44444444-4444-4444-8444-444444444444',
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+  })
+
+  it('cleans a partial text write and normalizes unexpected read failures', async () => {
+    const failingRoot = await mkdtemp(join(tmpdir(), 'genoffice-failing-text-store-'))
+    roots.push(failingRoot)
+    const failingStore = new ScopedArtifactStore({
+      rootDirectory: failingRoot,
+      atomicWriteOptions: { failAt: 'after_rename' },
+    })
+    await expect(
+      failingStore.registerText({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: RUN_ID,
+        text: 'safe text',
+        mediaType: 'text/plain',
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+    await expect(readFile(join(failingRoot, `${ARTIFACT_ID}.txt`))).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+
+    const invalidRoot = join(failingRoot, 'not-a-directory')
+    await writeFile(invalidRoot, 'file')
+    await expect(
+      new ScopedArtifactStore({ rootDirectory: invalidRoot }).readText({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: RUN_ID,
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+  })
+
+  it('rejects malformed text metadata and externally introduced NUL content', async () => {
+    const { root, store } = await createStore()
+    const register = () =>
+      store.registerText({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: RUN_ID,
+        text: 'safe text',
+        mediaType: 'text/plain',
+      })
+    const read = () =>
+      store.readText({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID })
+    await register()
+    const metadataPath = join(root, `${ARTIFACT_ID}.json`)
+    const textPath = join(root, `${ARTIFACT_ID}.txt`)
+    const metadata = JSON.parse(await readFile(metadataPath, 'utf8')) as Record<string, unknown>
+    for (const value of [
+      [],
+      { ...metadata, extra: true },
+      { ...metadata, documentId: 'bad' },
+      Object.fromEntries(
+        Object.entries({ ...metadata, scope: 'other' }).filter(([key]) => key !== 'runId'),
+      ),
+      { ...metadata, schemaVersion: 2 },
+    ]) {
+      await writeFile(metadataPath, JSON.stringify(value))
+      await expect(read()).rejects.toMatchObject({ code: expect.stringMatching(/^artifact_/) })
+    }
+
+    const corrupt = Buffer.from('safe\0text')
+    await writeFile(textPath, corrupt)
+    await writeFile(
+      metadataPath,
+      JSON.stringify({
+        ...metadata,
+        byteLength: corrupt.length,
+        sha256: createHash('sha256').update(corrupt).digest('hex'),
+      }),
+    )
+    await expect(read()).rejects.toMatchObject({ code: 'artifact_invalid' })
+  })
+
   it('allows a document-scoped attachment across runs but never across documents', async () => {
     const { store } = await createStore()
     await store.registerText({
@@ -208,6 +312,11 @@ describe('ScopedArtifactStore', () => {
     ).rejects.toMatchObject({ code: 'artifact_invalid' })
 
     await writeFile(join(root, `${ARTIFACT_ID}.json`), '{"extra":true}')
+    await expect(
+      store.openImage({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+
+    await writeFile(join(root, `${ARTIFACT_ID}.json`), '{')
     await expect(
       store.openImage({ artifactId: ARTIFACT_ID, documentId: DOCUMENT_ID, runId: RUN_ID }),
     ).rejects.toMatchObject({ code: 'artifact_invalid' })
