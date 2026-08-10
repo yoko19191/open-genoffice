@@ -58,9 +58,10 @@ export const ProjectManifestEntrySchema = Type.Object(
   {
     canonicalPath: Type.String({ minLength: 1 }),
     kind: ProjectSyncKindSchema,
-    contentHash: HashSchema,
+    contentHash: Type.Optional(HashSchema),
     size: Type.Integer({ minimum: 0 }),
     revisionId: HashSchema,
+    tombstone: Type.Boolean(),
     executable: Type.Boolean(),
     network: Type.Boolean(),
   },

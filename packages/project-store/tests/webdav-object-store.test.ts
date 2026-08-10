@@ -6,6 +6,12 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { WebDavObjectStore } from '../src/sync/webdav-object-store.js'
 import { ProjectSyncReconciler } from '../src/sync/project-sync-reconciler.js'
+import {
+  EXPECTED_PROVIDER_HEADS,
+  projectSyncFixture,
+  PROVIDER_CONTRACT_SCOPE,
+  tombstoneDocument,
+} from './fixtures/project-sync-fixture.js'
 
 type StoredObject = { bytes: Buffer; generation: number }
 
@@ -213,59 +219,53 @@ describe('WebDavObjectStore', () => {
     const publisherStore = new WebDavObjectStore({ endpoint, allowLoopbackHttpForTests: true })
     const publisher = new ProjectSyncReconciler({
       store: publisherStore,
-      scopeId: 'project-loopback',
+      scopeId: PROVIDER_CONTRACT_SCOPE,
       authorDeviceId: 'device-a',
     })
-    const published = await publisher.publish([
-      {
-        canonicalPath: 'documents/report.docx',
-        kind: 'office-document',
-        bytes: new TextEncoder().encode('office-content'),
-      },
-      {
-        canonicalPath: '.open-genoffice/project.json',
-        kind: 'project-metadata',
-        bytes: new TextEncoder().encode('{"projectId":"project-loopback"}'),
-      },
-      {
-        canonicalPath: '.open-genoffice/resources/skill.md',
-        kind: 'project-resource',
-        bytes: new TextEncoder().encode('# Project Skill'),
-        executable: true,
-      },
-      {
-        canonicalPath: '.open-genoffice/sessions/document-a/session-a.jsonl',
-        kind: 'pi-session-snapshot',
-        bytes: new TextEncoder().encode('{"type":"session"}\n'),
-      },
-      {
-        canonicalPath: '.open-genoffice/credentials/model-a.json',
-        kind: 'credential-slot',
-        credentialSlot: { slotId: 'model-a', providerId: 'openai-compatible' },
-      },
-    ])
+    const published = await publisher.publish(projectSyncFixture(PROVIDER_CONTRACT_SCOPE))
     expect(published.status).toBe('published')
     if (published.status !== 'published') throw new Error('publish_failed')
+    expect(published.head).toEqual(EXPECTED_PROVIDER_HEADS.initial)
+
+    const updatedEntries = projectSyncFixture(PROVIDER_CONTRACT_SCOPE, 'office-content-v2')
+    const updated = await publisher.publish(updatedEntries, published.remoteBase)
+    expect(updated.status).toBe('published')
+    if (updated.status !== 'published') throw new Error('incremental_publish_failed')
+    expect(updated.head).toEqual(EXPECTED_PROVIDER_HEADS.updated)
 
     const targetRoot = await mkdtemp(join(tmpdir(), 'project-sync-webdav-'))
     temporaryRoots.push(targetRoot)
     const cleanStore = new WebDavObjectStore({ endpoint, allowLoopbackHttpForTests: true })
     const cleanClient = new ProjectSyncReconciler({
       store: cleanStore,
-      scopeId: 'project-loopback',
+      scopeId: PROVIDER_CONTRACT_SCOPE,
       authorDeviceId: 'device-b',
     })
     const restored = await cleanClient.restore(targetRoot)
     expect(restored).toMatchObject({
       status: 'restored',
-      manifestHash: published.head.manifestHash,
+      manifestHash: updated.head.manifestHash,
     })
-    expect(await readFile(join(targetRoot, 'documents/report.docx'), 'utf8')).toBe('office-content')
+    expect(await readFile(join(targetRoot, 'documents/report.docx'), 'utf8')).toBe(
+      'office-content-v2',
+    )
     expect(await readFile(join(targetRoot, '.open-genoffice/resources/skill.md'), 'utf8')).toBe(
       '# Project Skill',
     )
     expect(restored.status === 'restored' ? restored.manifest.entries : []).toEqual(
-      published.manifest.entries,
+      updated.manifest.entries,
+    )
+
+    const deleted = await publisher.publish(tombstoneDocument(updatedEntries), updated.remoteBase)
+    expect(deleted.status).toBe('published')
+    if (deleted.status !== 'published') throw new Error('tombstone_publish_failed')
+    expect(deleted.head).toEqual(EXPECTED_PROVIDER_HEADS.deleted)
+    await expect(cleanClient.restore(targetRoot)).resolves.toMatchObject({
+      status: 'deletion_confirmation_required',
+      canonicalPath: 'documents/report.docx',
+    })
+    expect(await readFile(join(targetRoot, 'documents/report.docx'), 'utf8')).toBe(
+      'office-content-v2',
     )
   })
 

@@ -1,5 +1,5 @@
 import { AuthType, createClient, type WebDAVClient, type WebDAVClientError } from 'webdav'
-import { canonicalJsonBytes, canonicalizeSyncPath } from './canonical.js'
+import { assertSyncObjectKey, canonicalJsonBytes } from './canonical.js'
 import type { ProviderDiagnostics, SyncObjectStore } from './types.js'
 
 type WebDavAuth =
@@ -153,8 +153,6 @@ export class WebDavObjectStore implements SyncObjectStore {
   }
 
   #assertKey(key: string): void {
-    if (canonicalizeSyncPath(key) !== key || !key.startsWith('open-genoffice-sync/v1/')) {
-      throw new Error('sync_object_key_invalid')
-    }
+    assertSyncObjectKey(key)
   }
 }

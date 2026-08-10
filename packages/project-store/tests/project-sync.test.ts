@@ -7,6 +7,7 @@ import {
   FileReconcileIntentStore,
   InMemorySyncObjectStore,
   ProjectSyncReconciler,
+  sha256Hex,
   type ProjectSyncEntry,
   type ProviderDiagnostics,
   type SyncObjectStore,
@@ -155,6 +156,198 @@ describe('ProjectSyncReconciler', () => {
     const second = await reconciler.publish(completeProject(), first.remoteBase)
     expect(second.status).toBe('published')
     expect(store.immutableWriteCount - writesAfterFirst).toBeLessThanOrEqual(2)
+  })
+
+  it('requires an explicit parented tombstone and never deletes Local Current silently', async () => {
+    const store = new InMemorySyncObjectStore()
+    const reconciler = new ProjectSyncReconciler({
+      store,
+      scopeId: 'project-a',
+      authorDeviceId: 'device-a',
+    })
+    const initialEntries = completeProject()
+    const first = await reconciler.publish(initialEntries)
+    if (first.status !== 'published') throw new Error('publish_failed')
+    await expect(reconciler.publish(initialEntries.slice(1), first.remoteBase)).rejects.toThrow(
+      /sync_manifest_path_missing/,
+    )
+    await expect(
+      reconciler.publish(
+        [
+          {
+            canonicalPath: initialEntries[0]!.canonicalPath,
+            kind: 'project-asset',
+            tombstone: true,
+          },
+          ...initialEntries.slice(1),
+        ],
+        first.remoteBase,
+      ),
+    ).rejects.toThrow(/sync_tombstone_kind_mismatch/)
+
+    const deleted = await reconciler.publish(
+      [
+        {
+          canonicalPath: initialEntries[0]!.canonicalPath,
+          kind: initialEntries[0]!.kind,
+          tombstone: true,
+        },
+        ...initialEntries.slice(1),
+      ],
+      first.remoteBase,
+    )
+    expect(deleted.status).toBe('published')
+    if (deleted.status !== 'published') throw new Error('delete_publish_failed')
+    const tombstone = deleted.manifest.entries.find(
+      (entry) => entry.canonicalPath === initialEntries[0]!.canonicalPath,
+    )
+    expect(tombstone).toMatchObject({
+      canonicalPath: initialEntries[0]!.canonicalPath,
+      tombstone: true,
+      size: 0,
+    })
+    expect(tombstone).not.toHaveProperty('contentHash')
+
+    const targetRoot = await tempRoot()
+    await mkdir(join(targetRoot, 'documents'), { recursive: true })
+    await writeFile(join(targetRoot, 'documents/report.docx'), 'local-current')
+    await expect(reconciler.restore(targetRoot)).resolves.toMatchObject({
+      status: 'deletion_confirmation_required',
+      canonicalPath: 'documents/report.docx',
+    })
+    expect(await readFile(join(targetRoot, 'documents/report.docx'), 'utf8')).toBe('local-current')
+
+    await rm(join(targetRoot, 'documents/report.docx'))
+    await expect(reconciler.restore(targetRoot)).resolves.toMatchObject({ status: 'restored' })
+    await expect(readFile(join(targetRoot, 'documents/report.docx'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+
+    const repeated = await reconciler.publish(
+      [
+        {
+          canonicalPath: initialEntries[0]!.canonicalPath,
+          kind: initialEntries[0]!.kind,
+          tombstone: true,
+        },
+        ...initialEntries.slice(1),
+      ],
+      deleted.remoteBase,
+    )
+    expect(repeated).toMatchObject({ status: 'published', head: deleted.head })
+    await expect(reconciler.publish(initialEntries, deleted.remoteBase)).rejects.toThrow(
+      /sync_tombstone_requires_resolution/,
+    )
+    await expect(
+      reconciler.publish(
+        [
+          {
+            canonicalPath: initialEntries[0]!.canonicalPath,
+            kind: initialEntries[0]!.kind,
+            tombstone: true,
+            bytes: new Uint8Array([1]),
+          },
+          ...initialEntries.slice(1),
+        ],
+        deleted.remoteBase,
+      ),
+    ).rejects.toThrow(/sync_tombstone_invalid/)
+    const empty = new ProjectSyncReconciler({
+      store: new InMemorySyncObjectStore(),
+      scopeId: 'project-b',
+      authorDeviceId: 'device-a',
+    })
+    await expect(
+      empty.publish([
+        { canonicalPath: 'documents/missing.docx', kind: 'office-document', tombstone: true },
+      ]),
+    ).rejects.toThrow(/sync_tombstone_without_parent/)
+  })
+
+  it('rejects a remote tombstone without delete ancestry semantics', async () => {
+    const store = new InMemorySyncObjectStore()
+    const scopeId = 'project-malicious'
+    const prefix = `open-genoffice-sync/v1/project/${scopeId}`
+    const entryRevision = {
+      schemaVersion: 1,
+      namespace: 'project',
+      scopeId,
+      canonicalPath: 'documents/report.docx',
+      kind: 'office-document',
+      size: 0,
+      tombstone: true,
+      parents: [],
+      authorDeviceId: 'device-remote',
+      event: 'update',
+      executable: false,
+      network: false,
+    }
+    const entryRevisionBytes = canonicalJsonBytes(entryRevision)
+    const entryRevisionId = sha256Hex(entryRevisionBytes)
+    const manifest = {
+      schemaVersion: 1,
+      namespace: 'project',
+      scopeId,
+      entries: [
+        {
+          canonicalPath: entryRevision.canonicalPath,
+          kind: entryRevision.kind,
+          size: 0,
+          revisionId: entryRevisionId,
+          tombstone: true,
+          executable: false,
+          network: false,
+        },
+      ],
+    }
+    const manifestBytes = canonicalJsonBytes(manifest)
+    const manifestHash = sha256Hex(manifestBytes)
+    const rootRevision = {
+      schemaVersion: 1,
+      namespace: 'project',
+      scopeId,
+      canonicalPath: '.open-genoffice',
+      kind: 'project-manifest',
+      contentHash: manifestHash,
+      size: manifestBytes.byteLength,
+      tombstone: false,
+      parents: [],
+      authorDeviceId: 'device-remote',
+      event: 'create',
+      executable: false,
+      network: false,
+    }
+    const rootRevisionBytes = canonicalJsonBytes(rootRevision)
+    const rootRevisionId = sha256Hex(rootRevisionBytes)
+    await store.putImmutable(
+      `${prefix}/revisions/sha256/${entryRevisionId.slice(0, 2)}/${entryRevisionId}.json`,
+      entryRevisionBytes,
+    )
+    await store.putImmutable(
+      `${prefix}/blobs/sha256/${manifestHash.slice(0, 2)}/${manifestHash}`,
+      manifestBytes,
+    )
+    await store.putImmutable(
+      `${prefix}/revisions/sha256/${rootRevisionId.slice(0, 2)}/${rootRevisionId}.json`,
+      rootRevisionBytes,
+    )
+    await store.compareAndSwap(
+      `${prefix}/head.json`,
+      canonicalJsonBytes({
+        schemaVersion: 1,
+        scopeId,
+        revisionId: rootRevisionId,
+        manifestHash,
+      }),
+      'absent',
+    )
+
+    const reconciler = new ProjectSyncReconciler({
+      store,
+      scopeId,
+      authorDeviceId: 'device-local',
+    })
+    await expect(reconciler.restore(await tempRoot())).rejects.toThrow(/sync_revision_invalid/)
   })
 
   it('never silently overwrites a diverged remote head or local target', async () => {
@@ -463,7 +656,7 @@ describe('ProjectSyncReconciler', () => {
       {
         name: 'missing content blob',
         hook: async (key, next) =>
-          key.includes(published.manifest.entries[0]!.contentHash) ? null : next(),
+          key.includes(published.manifest.entries[0]!.contentHash!) ? null : next(),
         error: /sync_blob_invalid/,
       },
     ]

@@ -7,6 +7,8 @@ export {
 export { InMemorySyncObjectStore } from './memory-object-store.js'
 export { ProjectSyncReconciler } from './project-sync-reconciler.js'
 export { FileReconcileIntentStore } from './reconcile-intent-store.js'
+export { S3ObjectStore } from './s3-object-store.js'
+export type { S3ClientPort, S3ObjectStoreOptions } from './s3-object-store.js'
 export {
   CredentialSlotDescriptionSchema,
   ProjectManifestEntrySchema,

@@ -37,6 +37,7 @@ export interface ProjectSyncEntry {
   canonicalPath: string
   kind: ProjectSyncKind
   bytes?: Uint8Array
+  tombstone?: boolean
   executable?: boolean
   network?: boolean
   credentialSlot?: CredentialSlotDescription

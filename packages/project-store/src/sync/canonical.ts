@@ -47,6 +47,14 @@ export function assertCanonicalPathSet(paths: string[]): string[] {
   return normalized
 }
 
+export function assertSyncObjectKey(key: string): string {
+  const canonical = canonicalizeSyncPath(key)
+  if (canonical !== key || !key.startsWith('open-genoffice-sync/v1/')) {
+    throw new Error('sync_object_key_invalid')
+  }
+  return canonical
+}
+
 function canonicalValue(value: unknown): unknown {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value
   if (typeof value === 'number') {

@@ -36,8 +36,9 @@ const ALLOWED_KINDS = new Set<ProjectSyncKind>([
 interface PreparedEntry {
   canonicalPath: string
   kind: ProjectSyncKind
-  bytes: Uint8Array
-  contentHash: string
+  bytes?: Uint8Array
+  contentHash?: string
+  tombstone: boolean
   executable: boolean
   network: boolean
 }
@@ -62,6 +63,7 @@ export type PublishResult =
 export type RestoreResult =
   | { status: 'restored'; head: SyncHead; manifestHash: string; manifest: ProjectSyncManifest }
   | { status: 'conflict'; canonicalPath: string }
+  | { status: 'deletion_confirmation_required'; canonicalPath: string; revisionId: string }
   | { status: 'empty' }
 
 function parseJson(bytes: Uint8Array): unknown {
@@ -85,7 +87,13 @@ function parseRevision(bytes: Uint8Array, expectedId: string, scopeId: string): 
     sha256Hex(bytes) !== expectedId ||
     !Value.Check(SyncRevisionSchema, value) ||
     value.namespace !== 'project' ||
-    value.scopeId !== scopeId
+    value.scopeId !== scopeId ||
+    (value.tombstone
+      ? value.contentHash !== undefined ||
+        value.size !== 0 ||
+        value.event !== 'delete' ||
+        value.parents.length === 0
+      : value.contentHash === undefined || value.event === 'delete')
   ) {
     throw new Error('sync_revision_invalid')
   }
@@ -101,7 +109,12 @@ function parseManifest(
   if (
     sha256Hex(bytes) !== expectedHash ||
     !Value.Check(ProjectSyncManifestSchema, value) ||
-    value.scopeId !== scopeId
+    value.scopeId !== scopeId ||
+    value.entries.some((entry) =>
+      entry.tombstone
+        ? entry.contentHash !== undefined || entry.size !== 0
+        : entry.contentHash === undefined,
+    )
   ) {
     throw new Error('sync_manifest_invalid')
   }
@@ -157,9 +170,49 @@ export class ProjectSyncReconciler {
       previousManifest?.entries.map((entry) => [entry.canonicalPath, entry]),
     )
     const manifestEntries: ProjectManifestEntry[] = []
+    const preparedPaths = new Set(prepared.map((entry) => entry.canonicalPath))
+    if (previousManifest?.entries.some((entry) => !preparedPaths.has(entry.canonicalPath))) {
+      throw new Error('sync_manifest_path_missing')
+    }
 
     for (const entry of prepared) {
       const previous = previousByPath.get(entry.canonicalPath)
+      if (entry.tombstone) {
+        if (!previous) throw new Error('sync_tombstone_without_parent')
+        if (entry.kind !== previous.kind) throw new Error('sync_tombstone_kind_mismatch')
+        if (previous.tombstone) {
+          manifestEntries.push(previous)
+          continue
+        }
+        const revision: SyncRevision = {
+          schemaVersion: 1,
+          namespace: 'project',
+          scopeId: this.#scopeId,
+          canonicalPath: entry.canonicalPath,
+          kind: entry.kind,
+          size: 0,
+          tombstone: true,
+          parents: [previous.revisionId],
+          authorDeviceId: this.#authorDeviceId,
+          event: 'delete',
+          executable: previous.executable,
+          network: previous.network,
+        }
+        const revisionBytes = canonicalJsonBytes(revision)
+        const revisionId = sha256Hex(revisionBytes)
+        await this.#putContentAddressed(this.#revisionKey(revisionId), revisionBytes, revisionId)
+        manifestEntries.push({
+          canonicalPath: entry.canonicalPath,
+          kind: entry.kind,
+          size: 0,
+          revisionId,
+          tombstone: true,
+          executable: previous.executable,
+          network: previous.network,
+        })
+        continue
+      }
+      if (previous?.tombstone) throw new Error('sync_tombstone_requires_resolution')
       if (
         previous &&
         previous.contentHash === entry.contentHash &&
@@ -170,19 +223,17 @@ export class ProjectSyncReconciler {
         manifestEntries.push(previous)
         continue
       }
-      await this.#putContentAddressed(
-        this.#blobKey(entry.contentHash),
-        entry.bytes,
-        entry.contentHash,
-      )
+      const contentHash = entry.contentHash!
+      const bytes = entry.bytes!
+      await this.#putContentAddressed(this.#blobKey(contentHash), bytes, contentHash)
       const revision: SyncRevision = {
         schemaVersion: 1,
         namespace: 'project',
         scopeId: this.#scopeId,
         canonicalPath: entry.canonicalPath,
         kind: entry.kind,
-        contentHash: entry.contentHash,
-        size: entry.bytes.byteLength,
+        contentHash,
+        size: bytes.byteLength,
         tombstone: false,
         parents: previous ? [previous.revisionId] : [],
         authorDeviceId: this.#authorDeviceId,
@@ -196,9 +247,10 @@ export class ProjectSyncReconciler {
       manifestEntries.push({
         canonicalPath: entry.canonicalPath,
         kind: entry.kind,
-        contentHash: entry.contentHash,
-        size: entry.bytes.byteLength,
+        contentHash,
+        size: bytes.byteLength,
         revisionId,
+        tombstone: false,
         executable: entry.executable,
         network: entry.network,
       })
@@ -304,22 +356,40 @@ export class ProjectSyncReconciler {
         revision.kind !== entry.kind ||
         revision.contentHash !== entry.contentHash ||
         revision.size !== entry.size ||
-        revision.tombstone ||
+        revision.tombstone !== entry.tombstone ||
         revision.executable !== entry.executable ||
         revision.network !== entry.network
       ) {
         throw new Error('sync_manifest_revision_mismatch')
       }
-      const object = await this.#store.get(this.#blobKey(entry.contentHash))
+      const target = join(targetRoot, ...entry.canonicalPath.split('/'))
+      await this.#assertNoSymlink(targetRoot, entry.canonicalPath)
+      if (entry.tombstone) {
+        if (entry.contentHash !== undefined || entry.size !== 0) {
+          throw new Error('sync_manifest_revision_mismatch')
+        }
+        const current = await readFile(target).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return null
+          throw error
+        })
+        if (current) {
+          return {
+            status: 'deletion_confirmation_required',
+            canonicalPath: entry.canonicalPath,
+            revisionId: entry.revisionId,
+          }
+        }
+        continue
+      }
+      const contentHash = entry.contentHash!
+      const object = await this.#store.get(this.#blobKey(contentHash))
       if (
         !object ||
         object.bytes.byteLength !== entry.size ||
-        sha256Hex(object.bytes) !== entry.contentHash
+        sha256Hex(object.bytes) !== contentHash
       ) {
         throw new Error('sync_blob_invalid')
       }
-      const target = join(targetRoot, ...entry.canonicalPath.split('/'))
-      await this.#assertNoSymlink(targetRoot, entry.canonicalPath)
       const current = await readFile(target).catch((error: NodeJS.ErrnoException) => {
         if (error.code === 'ENOENT') return null
         throw error
@@ -334,7 +404,7 @@ export class ProjectSyncReconciler {
       const current = await readFile(item.target).catch(() => null)
       if (current) continue
       await mkdir(dirname(item.target), { recursive: true })
-      const temporary = `${item.target}.open-genoffice-sync-${item.entry.contentHash.slice(0, 12)}.tmp`
+      const temporary = `${item.target}.open-genoffice-sync-${item.entry.contentHash!.slice(0, 12)}.tmp`
       try {
         await writeFile(temporary, item.bytes, { flag: 'wx' })
         await rename(temporary, item.target)
@@ -356,6 +426,18 @@ export class ProjectSyncReconciler {
     return entries.map((entry, index) => {
       if (!ALLOWED_KINDS.has(entry.kind)) throw new Error('sync_kind_excluded')
       if (paths[index] === ROOT_MANIFEST_PATH) throw new Error('sync_path_reserved')
+      if (entry.tombstone) {
+        if (entry.bytes || entry.credentialSlot || entry.executable || entry.network) {
+          throw new Error('sync_tombstone_invalid')
+        }
+        return {
+          canonicalPath: paths[index]!,
+          kind: entry.kind,
+          tombstone: true,
+          executable: false,
+          network: false,
+        }
+      }
       let bytes: Uint8Array
       if (entry.kind === 'credential-slot') {
         if (entry.bytes) throw new Error('sync_credential_secret_forbidden')
@@ -373,6 +455,7 @@ export class ProjectSyncReconciler {
         kind: entry.kind,
         bytes: bytes.slice(),
         contentHash: sha256Hex(bytes),
+        tombstone: false,
         executable: entry.executable ?? false,
         network: entry.network ?? false,
       }
