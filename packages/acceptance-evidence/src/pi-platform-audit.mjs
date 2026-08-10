@@ -47,6 +47,22 @@ const EXPLICIT_NETWORK_SOURCE = new Set([
   'apps/pi-agent-runtime/src/package-source-resolver.ts',
 ])
 
+const CODEX_IMAGE_PROVIDER_SOURCE = 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts'
+const CODEX_RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
+
+function containsForbiddenNetworkSource(relativePath, content) {
+  if (EXPLICIT_NETWORK_SOURCE.has(relativePath)) return false
+  let inspected = content
+  if (relativePath === CODEX_IMAGE_PROVIDER_SOURCE) {
+    inspected = inspected
+      .split(CODEX_RESPONSES_ENDPOINT)
+      .join('approved-codex-responses-endpoint')
+      .split('this.fetch(RESPONSES_ENDPOINT,')
+      .join('approvedCodexResponsesRequest(')
+  }
+  return FORBIDDEN_IMPLICIT_NETWORK_SOURCE.some((pattern) => pattern.test(inspected))
+}
+
 const SKIP_DIRECTORIES = new Set([
   '.git',
   '.scratch',
@@ -184,8 +200,7 @@ export async function auditPiPlatformBoundary(repoRootInput) {
     const relativePath = relative(repoRoot, path).split('\\').join('/')
     if (
       FORBIDDEN_SOURCE.some((pattern) => pattern.test(content)) ||
-      (!EXPLICIT_NETWORK_SOURCE.has(relativePath) &&
-        FORBIDDEN_IMPLICIT_NETWORK_SOURCE.some((pattern) => pattern.test(content)))
+      containsForbiddenNetworkSource(relativePath, content)
     ) {
       violations.push({
         code: 'production_source_forbidden',

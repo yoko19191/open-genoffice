@@ -30,6 +30,90 @@ afterEach(async () => {
 })
 
 describe('deterministic Pi Session factory', () => {
+  it('executes Codex image generation inside Runtime and persists only the opaque ArtifactRef', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-image-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-image-faux',
+      provider: 'genoffice-image-faux',
+      models: [{ id: 'image-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    provider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'generate_image',
+            { prompt: 'private image prompt' },
+            { id: 'image-tool-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('Image ready'),
+    ])
+    const generateImage = vi.fn(async () => ({
+      artifact: {
+        artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        mediaType: 'image/png',
+        byteLength: 68,
+        sha256: 'f'.repeat(64),
+        displayName: 'generated-image.png',
+      },
+      width: 1,
+      height: 1,
+      usage: { inputTokens: 4, outputTokens: 8, totalTokens: 12 },
+    }))
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-image-faux',
+        modelId: 'image-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources: new RunResourceService({
+        resourceHome: root,
+        deviceId: '33333333-3333-4333-8333-333333333333',
+      }),
+      generateImage,
+    })
+
+    await handle.prompt('create an image', new AbortController().signal, {
+      runId: '44444444-4444-4444-8444-444444444444',
+    })
+
+    expect(handle.session.getActiveToolNames()).toEqual(['generate_image'])
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        documentId: '22222222-2222-4222-8222-222222222222',
+        runId: '44444444-4444-4444-8444-444444444444',
+        prompt: 'private image prompt',
+      }),
+      expect.any(AbortSignal),
+    )
+    const persisted = await readFile(handle.sessionManager.getSessionFile()!, 'utf8')
+    expect(persisted).not.toContain('private image prompt')
+    expect(persisted).not.toContain('oauth-secret')
+    expect(persisted).not.toContain('base64')
+    expect(persisted).toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+    expect(persisted).toContain('f'.repeat(64))
+    handle.dispose()
+  })
+
   it('exposes the bound PDF catalog as Pi proxies with run capability provenance', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-office-'))
     roots.push(root)

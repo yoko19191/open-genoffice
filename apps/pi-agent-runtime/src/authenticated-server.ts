@@ -30,6 +30,7 @@ import { createDeterministicPiSession } from './pi-session-factory'
 import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-client'
 import { RuntimeCredentialStore } from './runtime-credential-store'
 import { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
+import { CodexOAuthImageProvider } from './codex-oauth-image-provider'
 import { PackageSourceResolverError } from './package-source-resolver'
 import { RunResourceService, RunResourceServiceError } from './run-resource-service'
 import { PiSubagentEngine } from './pi-subagent-engine'
@@ -140,6 +141,10 @@ export async function createAuthenticatedRuntimeServer(
     modelsStore: new InMemoryModelsStore(),
     allowModelNetwork: false,
   })
+  const imageProvider = new CodexOAuthImageProvider({
+    rootDirectory: options.resourceHome,
+    modelRuntime,
+  })
   const ownedModelCatalog = options.modelCatalog
     ? undefined
     : new ModelCatalogService(modelRuntime, await loadModelCatalogSettings(options.resourceHome))
@@ -221,6 +226,7 @@ export async function createAuthenticatedRuntimeServer(
                 resolveModelMetadata: () => ownedModelCatalog.selectedModelMetadata('conversation'),
                 runResources,
                 officeToolHost: officeTools,
+                generateImage: (input, signal) => imageProvider.generate(input, signal),
                 spawnSubagent: (request) => sessionRegistry.spawnSubagent(request),
               }),
           }

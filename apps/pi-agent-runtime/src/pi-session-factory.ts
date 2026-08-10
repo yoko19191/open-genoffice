@@ -31,6 +31,10 @@ import {
   type OfficeToolDefinition,
 } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import type { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
+import type {
+  CodexImageGenerateInput,
+  CodexImageGenerateResult,
+} from './codex-oauth-image-provider'
 import type { RunResourceService, RunModelMetadata } from './run-resource-service'
 import { ControlledResourceLoader } from './controlled-resource-loader'
 import { ResourceReadBoundary } from './resource-read-boundary'
@@ -72,6 +76,10 @@ type CreatePiSessionBaseOptions = {
   documentId: string
   officeToolCatalog?: OfficeToolCatalogBinding
   officeToolHost?: Pick<RuntimeOfficeToolHostClient, 'invoke'>
+  generateImage?: (
+    input: CodexImageGenerateInput,
+    signal: AbortSignal,
+  ) => Promise<CodexImageGenerateResult>
   credentials?: CredentialStore
   spawnSubagent?: (request: SpawnSubagentRequest) => Promise<SubagentRunProjection>
 }
@@ -104,6 +112,21 @@ const contractProbe = defineTool({
     }
   },
 })
+
+function redactImagePromptForPersistence<T extends { role: string; content?: unknown }>(
+  message: T,
+): T {
+  if (message.role !== 'assistant' || !Array.isArray(message.content)) return message
+  const content = message.content.map((item: unknown) =>
+    typeof item === 'object' &&
+    item !== null &&
+    (item as { type?: unknown }).type === 'toolCall' &&
+    (item as { name?: unknown }).name === 'generate_image'
+      ? { ...item, arguments: {} }
+      : item,
+  )
+  return { ...message, content } as T
+}
 
 async function repairJsonlTail(path: string): Promise<void> {
   const content = await readFile(path)
@@ -218,7 +241,7 @@ export async function createDeterministicPiSession(
               actorId: options.sessionId,
               documentId: options.documentId,
               runId: extensionExecution.runId,
-              signal,
+              signal: signal ?? new AbortController().signal,
             })
           },
         }
@@ -320,6 +343,51 @@ export async function createDeterministicPiSession(
           },
         })
       : undefined
+  const imageTool =
+    managedModel && options.generateImage
+      ? defineTool({
+          name: 'generate_image',
+          label: 'Generate image',
+          description:
+            'Generate one image through the configured Codex OAuth image provider. The result is an opaque ArtifactRef; insert it with an Office image tool.',
+          promptSnippet: 'Generate an image as an ArtifactRef before inserting it into a document.',
+          parameters: Type.Object(
+            { prompt: Type.String({ minLength: 1, maxLength: 16_000 }) },
+            { additionalProperties: false },
+          ),
+          async execute(_toolCallId, input, signal) {
+            if (!extensionExecution) throw new Error('image_parent_context_required')
+            if (!extensionExecution.snapshot.toolIds.includes('platform:image:generate')) {
+              throw new Error('image_generation_not_authorized')
+            }
+            const result = await options.generateImage!(
+              {
+                operationId: randomUUID(),
+                documentId: options.documentId,
+                runId: extensionExecution.runId,
+                prompt: input.prompt,
+              },
+              signal ?? new AbortController().signal,
+            )
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    artifactId: result.artifact.artifactId,
+                    mediaType: result.artifact.mediaType,
+                    byteLength: result.artifact.byteLength,
+                    sha256: result.artifact.sha256,
+                    width: result.width,
+                    height: result.height,
+                  }),
+                },
+              ],
+              details: result,
+            }
+          },
+        })
+      : undefined
   const officeTools = officeToolDefinitions.map((definition) =>
     defineTool({
       name: definition.modelAlias,
@@ -412,6 +480,9 @@ export async function createDeterministicPiSession(
       ...(options.officeToolCatalog ? { officeToolCatalog: options.officeToolCatalog } : {}),
     })
   }
+  const appendMessage = sessionManager.appendMessage.bind(sessionManager)
+  sessionManager.appendMessage = (message) =>
+    appendMessage(redactImagePromptForPersistence(message))
   const { session } = await createAgentSession({
     cwd: options.cwd,
     agentDir: options.agentDir,
@@ -423,7 +494,7 @@ export async function createDeterministicPiSession(
     resourceLoader,
     ...(managedModel ? {} : { noTools: 'all' as const, tools: ['genoffice_contract_probe'] }),
     customTools: managedModel
-      ? [resourceReadTool, subagentTool, ...officeTools].filter(
+      ? [resourceReadTool, subagentTool, imageTool, ...officeTools].filter(
           (tool): tool is NonNullable<typeof tool> => tool !== undefined,
         )
       : [contractProbe],
@@ -449,9 +520,13 @@ export async function createDeterministicPiSession(
           toolIds: [
             'platform:resource:read',
             ...(options.spawnSubagent ? ['platform:subagent:spawn'] : []),
+            ...(options.generateImage ? ['platform:image:generate'] : []),
             ...officeToolDefinitions.map(({ id }) => id),
           ],
-          reservedToolAliases: officeToolDefinitions.map(({ modelAlias }) => modelAlias),
+          reservedToolAliases: [
+            ...(options.generateImage ? ['generate_image'] : []),
+            ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
+          ],
         })
         resourceLoader.configure({
           skillPaths: prepared.skillPaths,
@@ -473,6 +548,7 @@ export async function createDeterministicPiSession(
         session.setActiveToolsByName([
           ...(prepared.skillPaths.length > 0 ? ['read'] : []),
           ...(options.spawnSubagent ? ['subagent'] : []),
+          ...(options.generateImage ? ['generate_image'] : []),
           ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ...prepared.extensionTools.map(({ name }) => name),
           ...prepared.mcpTools.map(({ modelAlias }) => modelAlias),

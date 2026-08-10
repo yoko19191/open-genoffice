@@ -148,6 +148,15 @@ export {
   type RuntimeOfficeToolHostClientOptions,
 } from './runtime-office-tool-host-client'
 export {
+  CodexOAuthImageProvider,
+  CodexOAuthImageProviderError,
+  type CodexImageGenerateInput,
+  type CodexImageGenerateResult,
+  type CodexImageUsage,
+  type CodexOAuthImageProviderErrorCode,
+  type CodexOAuthImageProviderOptions,
+} from './codex-oauth-image-provider'
+export {
   planSessionRecovery,
   type RecoveredMutationOutcome,
   type RecoveredTool,

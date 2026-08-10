@@ -39,6 +39,10 @@ describe('Pi platform production boundary audit', () => {
       join(repoRoot, 'apps/pi-agent-runtime/src/index.ts'),
       "fetch('https://www.genspark.ai'); class AgentLoop {}",
     )
+    await writeFile(
+      join(repoRoot, 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts'),
+      "const RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'; this.fetch(RESPONSES_ENDPOINT, {})",
+    )
     await writeFile(join(repoRoot, 'packages/agent-resource/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/agent-runtime-protocol/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/pi-runtime-bundle/src/index.ts'), 'export {}')
@@ -55,6 +59,24 @@ describe('Pi platform production boundary audit', () => {
         'version_mismatch',
       ]),
     )
+    expect(
+      report.violations
+        .filter((violation) => violation.code === 'production_source_forbidden')
+        .map((violation) => violation.path),
+    ).toEqual(['apps/pi-agent-runtime/src/index.ts'])
+
+    await writeFile(
+      join(repoRoot, 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts'),
+      "const RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'; this.fetch(RESPONSES_ENDPOINT, {}); fetch('https://other.example')",
+    )
+    const broadened = await auditPiPlatformBoundary(repoRoot)
+    expect(
+      broadened.violations.some(
+        (violation) =>
+          violation.code === 'production_source_forbidden' &&
+          violation.path === 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts',
+      ),
+    ).toBe(true)
   })
 
   it('fails closed when dependency maps are absent', async () => {
