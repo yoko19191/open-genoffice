@@ -421,6 +421,7 @@ const CHANNEL_OPTIONS = [
 
 const PRIMARY_MODEL_PROVIDER_ID = 'openai'
 type ModelCatalog = Awaited<ReturnType<PiRuntimeApi['modelCatalog']>>
+type RuntimeHealth = Awaited<ReturnType<PiRuntimeApi['health']>>
 type ResourceCatalog = Awaited<ReturnType<PiRuntimeApi['resourceCatalog']>>
 type PackageCatalog = Awaited<ReturnType<PiRuntimeApi['packageCatalog']>>
 type McpCatalog = Awaited<ReturnType<PiRuntimeApi['mcpCatalog']>>
@@ -581,6 +582,7 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const { lang } = useI18n()
   const zh = lang === 'zh' || lang === 'zh-TW'
   const [catalog, setCatalog] = useState<ModelCatalog>()
+  const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealth>()
   const [resourceCatalog, setResourceCatalog] = useState<ResourceCatalog>()
   const [packageCatalog, setPackageCatalog] = useState<PackageCatalog>()
   const [mcpCatalog, setMcpCatalog] = useState<McpCatalog>()
@@ -648,6 +650,10 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   }, [])
 
   useEffect(() => {
+    void window.aiOfficeAgent
+      .health()
+      .then(setRuntimeHealth)
+      .catch(() => undefined)
     void refreshCatalog()
     void refreshResourceCatalog()
     void refreshPackageCatalog()
@@ -1050,6 +1056,13 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
         }}
       >
         <h3>{zh ? '模型服务商' : 'Model provider'}</h3>
+        {runtimeHealth?.diagnosticCode === 'legacy_cleanup_incomplete' && (
+          <p className="provider-credential-error" role="alert">
+            {zh
+              ? '旧 Agent 数据清理尚未完成；应用会在下次启动时重试。Office 文件和自动保存不受影响。'
+              : 'Legacy Agent data cleanup is incomplete and will retry on the next launch. Office files and autosave are unaffected.'}
+          </p>
+        )}
         <label className="provider-credential-field provider-credential-field-first">
           <span>{zh ? '服务商' : 'Provider'}</span>
           <select value={providerId} onChange={(event) => setProviderId(event.target.value)}>

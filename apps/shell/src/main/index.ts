@@ -157,6 +157,7 @@ import { installProviderCredentialIpc } from './provider-credential-ipc'
 import { installModelManagementIpc } from './model-management-ipc'
 import { McpOAuthLoopback } from './mcp-oauth-loopback'
 import { installMineruOcrIpc } from './mineru-ocr-ipc'
+import { LegacyCleanupStartup } from './legacy-cleanup-startup'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -210,6 +211,17 @@ const PI_RUNTIME_ROOT = app.isPackaged
   ? join(process.resourcesPath, 'pi-runtime')
   : (process.env.GENOFFICE_PI_RUNTIME_BUNDLE ?? join(process.resourcesPath, 'pi-runtime'))
 const AGENT_RESOURCE_HOME = join(app.getPath('home'), '.open-genoffice')
+const legacyCleanupStartup = new LegacyCleanupStartup({
+  resourceHome: AGENT_RESOURCE_HOME,
+  userData: app.getPath('userData'),
+  legacyHome: join(app.getPath('home'), '.genoffice'),
+  platform: process.platform,
+  runtimeVersion: RUNTIME_VERSION,
+  audit: (record) => {
+    const write = record.status === 'completed' ? console.info : console.warn
+    write('[legacy-agent-cleanup]', JSON.stringify(record))
+  },
+})
 let secureStorageBrokerPromise: Promise<SecureStorageBroker> | undefined
 function secureStorageBroker(): Promise<SecureStorageBroker> {
   secureStorageBrokerPromise ??= app.whenReady().then(() =>
@@ -260,6 +272,7 @@ const piRuntimeService = createInstalledPiRuntimeService({
   arch: process.arch as 'arm64' | 'x64',
   parentPid: process.pid,
   resourceHome: AGENT_RESOURCE_HOME,
+  ...(app.isPackaged ? { beforeStart: () => legacyCleanupStartup.run() } : {}),
   credentialBroker,
   officeToolHost: {
     invoke: (request) => {
@@ -2393,7 +2406,9 @@ const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroke
     return tabManager.agentDocumentIdFor(webContentsId)
   },
 })
-ipcMain.handle(PI_RUNTIME_CHANNELS.health, () => piRuntimeService.health())
+ipcMain.handle(PI_RUNTIME_CHANNELS.health, () =>
+  legacyCleanupStartup.projectHealth(piRuntimeService.health()),
+)
 installProviderCredentialIpc(ipcMain, piRuntimeService, () =>
   shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null,
 )

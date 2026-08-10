@@ -33,6 +33,9 @@ describe('typed Pi Runtime preload health contract', () => {
       schemaVersion: '1',
     }
     expect(asPiRuntimeHealth(ready)).toEqual(ready)
+    expect(
+      asPiRuntimeHealth({ ...ready, diagnosticCode: 'legacy_cleanup_incomplete' }),
+    ).toMatchObject({ state: 'ready', diagnosticCode: 'legacy_cleanup_incomplete' })
     expect(asPiRuntimeHealth({ ...ready, endpoint: '/private/runtime.sock' })).toMatchObject({
       state: 'unavailable',
       diagnosticCode: 'runtime_bundle_unavailable',

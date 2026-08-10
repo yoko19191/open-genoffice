@@ -268,6 +268,12 @@ describe('renderer-safe Runtime health projection', () => {
         diagnosticCode: 'runtime_bundle_unavailable',
       }),
     ).toMatchObject({ state: 'unavailable' })
+    expect(
+      parseRuntimeHealthProjection({
+        ...health,
+        diagnosticCode: 'legacy_cleanup_incomplete',
+      }),
+    ).toMatchObject({ state: 'ready', diagnosticCode: 'legacy_cleanup_incomplete' })
   })
 })
 

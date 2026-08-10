@@ -92,6 +92,7 @@ import UniverPresetSheetsTableEnUS from '@univerjs/preset-sheets-table/locales/e
 import '@univerjs/preset-sheets-table/lib/index.css'
 import { greenTheme } from '@univerjs/themes'
 import { createUniver } from './create-univer'
+import { removeLegacyAgentStorage } from './legacy-storage-cleanup'
 
 import { type WorkbookOperation } from '../domain/workbook-dsl'
 import { columnIndex, columnLabel, parseAddress, parseRange } from '../domain/cell-address'
@@ -290,6 +291,7 @@ import { ChartFormatPane, SelectDataDialog } from './ChartPanels'
 let pendingCopySource: string | undefined
 
 export function App(): React.JSX.Element {
+  useEffect(() => removeLegacyAgentStorage(), [])
   const adapterRef = useRef(new InMemoryWorkbookAdapter(initialSnapshot))
   const univerRef = useRef<UniverRuntime | null>(null)
   const sheetsOfficeVersionRef = useRef(0)

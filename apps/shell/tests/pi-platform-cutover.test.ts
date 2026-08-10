@@ -55,4 +55,14 @@ describe('Shell Pi Agent Platform cutover', () => {
 
     await expect(access(join(appRoot, 'src/main/cloud-projects.ts'))).rejects.toThrow()
   })
+
+  it('runs packaged legacy cleanup before Runtime and exposes a retryable UI warning', async () => {
+    const main = await source('src/main/index.ts')
+    const home = await source('src/renderer/src/Home.tsx')
+
+    expect(main).toContain('beforeStart: () => legacyCleanupStartup.run()')
+    expect(main).toContain('app.isPackaged')
+    expect(home).toContain("runtimeHealth?.diagnosticCode === 'legacy_cleanup_incomplete'")
+    expect(home).toContain('Office files and autosave are unaffected.')
+  })
 })

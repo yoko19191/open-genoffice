@@ -217,6 +217,7 @@ function service(options: {
   verify?: () => Promise<VerifiedPiRuntimeBundle>
   runtimeManager?: ReturnType<typeof manager>
   resourceHome?: string
+  beforeStart?: () => Promise<void>
   credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
   officeToolHost?: PiRuntimeManagerOptions['officeToolHost']
 }) {
@@ -232,6 +233,7 @@ function service(options: {
         arch: 'arm64',
         parentPid: 123,
         ...(options.resourceHome ? { resourceHome: options.resourceHome } : {}),
+        ...(options.beforeStart ? { beforeStart: options.beforeStart } : {}),
         ...(options.credentialBroker ? { credentialBroker: options.credentialBroker } : {}),
         ...(options.officeToolHost ? { officeToolHost: options.officeToolHost } : {}),
       },
@@ -288,6 +290,58 @@ describe('installed Pi Runtime service', () => {
       diagnosticCode: 'runtime_start_failed',
     })
     expect(JSON.stringify(failed.instance.health())).not.toContain('private')
+  })
+
+  it('runs the reviewed pre-start migration only after bundle verification and before Runtime spawn', async () => {
+    const lifecycle: string[] = []
+    const beforeStart = vi.fn(async () => {
+      lifecycle.push('migration')
+    })
+    const runtimeManager = manager({
+      start: vi.fn(async () => {
+        lifecycle.push('runtime')
+        return {
+          state: 'ready' as const,
+          pid: 42,
+          instanceId: 'private-instance',
+          runtimeVersion: RUNTIME_VERSION,
+        }
+      }),
+    })
+    const fixture = service({
+      verify: async () => {
+        lifecycle.push('verify')
+        return verified
+      },
+      beforeStart,
+      runtimeManager,
+    })
+
+    await expect(fixture.instance.initialize()).resolves.toMatchObject({ state: 'ready' })
+    expect(lifecycle).toEqual(['verify', 'migration', 'runtime'])
+    expect(beforeStart).toHaveBeenCalledOnce()
+
+    const invalidBundleHook = vi.fn(async () => undefined)
+    const invalid = service({
+      verify: async () => {
+        throw new Error('invalid bundle')
+      },
+      beforeStart: invalidBundleHook,
+    })
+    await expect(invalid.instance.initialize()).resolves.toMatchObject({ state: 'unavailable' })
+    expect(invalidBundleHook).not.toHaveBeenCalled()
+
+    const rejected = service({
+      beforeStart: async () => {
+        throw new Error('private migration detail')
+      },
+    })
+    await expect(rejected.instance.initialize()).resolves.toMatchObject({
+      state: 'crashed',
+      diagnosticCode: 'runtime_start_failed',
+    })
+    expect(rejected.createManager).not.toHaveBeenCalled()
+    expect(JSON.stringify(rejected.instance.health())).not.toContain('private')
   })
 
   it('owns the narrow Session client and refuses commands when Runtime is unavailable', async () => {

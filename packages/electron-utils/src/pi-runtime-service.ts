@@ -67,6 +67,7 @@ export type PiRuntimeServiceOptions = {
   arch: 'arm64' | 'x64'
   parentPid: number
   resourceHome?: string
+  beforeStart?: () => Promise<void>
   credentialBroker?: PiRuntimeManagerOptions['credentialBroker']
   officeToolHost?: PiRuntimeManagerOptions['officeToolHost']
 }
@@ -381,6 +382,13 @@ export class PiRuntimeService {
       })
     } catch {
       this.currentHealth = projection('unavailable', 'runtime_bundle_unavailable')
+      return this.currentHealth
+    }
+
+    try {
+      await this.options.beforeStart?.()
+    } catch {
+      this.currentHealth = projection('crashed', 'runtime_start_failed')
       return this.currentHealth
     }
 

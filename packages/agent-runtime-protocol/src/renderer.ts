@@ -375,6 +375,7 @@ export const RuntimeHealthProjectionSchema = Type.Object(
         Type.Literal('runtime_bundle_unavailable'),
         Type.Literal('runtime_start_failed'),
         Type.Literal('runtime_shutdown_failed'),
+        Type.Literal('legacy_cleanup_incomplete'),
       ]),
     ),
   },
