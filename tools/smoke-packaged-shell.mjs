@@ -1,15 +1,16 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { createConnection } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { _electron as electron } from 'playwright'
 import {
+  packageShellAuditEndpoint,
   packageShellLaunchArgs,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   packageShellShutdownTimeout,
-  parsePackageAuditEndpoint,
   validatePackageShellSmoke,
 } from '../packages/acceptance-evidence/src/package-shell-smoke.mjs'
 
@@ -38,7 +39,6 @@ const scratch = await mkdtemp(join(tmpdir(), 'genoffice-package-shell-'))
 const cleanHome = join(scratch, 'home')
 const userData = join(scratch, 'user-data')
 const networkReportPath = join(scratch, 'network.jsonl')
-const auditEndpointPath = join(userData, 'package-audit-endpoint.json')
 const screenshotPath = join(evidenceDirectory, 'first-launch.png')
 await Promise.all([
   mkdir(cleanHome),
@@ -62,41 +62,77 @@ async function within(promise, timeoutMs, code) {
 
 const delay = (timeoutMs) => new Promise((done) => setTimeout(done, timeoutMs))
 
-async function waitForAuditSnapshot(child, token, timeoutMs) {
+function packageAuditRequest(endpoint, token, operation, timeoutMs, onConnect = () => {}) {
+  return new Promise((resolveRequest, rejectRequest) => {
+    const socket = createConnection(endpoint)
+    let body = ''
+    let settled = false
+    const finish = (error, value) => {
+      if (settled) return
+      settled = true
+      socket.destroy()
+      if (error) rejectRequest(error)
+      else resolveRequest(value)
+    }
+    socket.setEncoding('utf8')
+    socket.setTimeout(timeoutMs, () => finish(new Error('package_shell_audit_request_timeout')))
+    socket.once('connect', () => {
+      onConnect()
+      socket.write(`${JSON.stringify({ schemaVersion: 1, token, operation })}\n`)
+    })
+    socket.on('data', (chunk) => {
+      body += chunk
+      if (body.length > 32 * 1024 * 1024) {
+        finish(new Error('package_shell_audit_response_too_large'))
+        return
+      }
+      const newline = body.indexOf('\n')
+      if (newline < 0) return
+      try {
+        finish(undefined, JSON.parse(body.slice(0, newline)))
+      } catch {
+        finish(new Error('package_shell_audit_response_invalid'))
+      }
+    })
+    socket.once('error', (error) => finish(error))
+    socket.once('close', () => {
+      if (!settled) finish(new Error('package_shell_audit_response_missing'))
+    })
+  })
+}
+
+async function waitForAuditSnapshot(child, endpoint, token, timeoutMs) {
   const deadline = Date.now() + timeoutMs
   let endpointObserved = false
   let unavailableObserved = false
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error('package_shell_process_exited')
-    let port
-    try {
-      port = parsePackageAuditEndpoint(await readFile(auditEndpointPath, 'utf8'))
-      endpointObserved = true
-    } catch {
-      await delay(100)
-      continue
-    }
     let response
     try {
-      response = await fetch(`http://127.0.0.1:${port}/snapshot`, {
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
-      })
+      response = await packageAuditRequest(
+        endpoint,
+        token,
+        'snapshot',
+        Math.max(1, deadline - Date.now()),
+        () => {
+          endpointObserved = true
+        },
+      )
     } catch {
       await delay(100)
       continue
     }
-    if (response.status === 503) {
+    if (response?.status === 'unavailable') {
       unavailableObserved = true
       await delay(100)
       continue
     }
-    if (!response.ok) throw new Error('package_shell_audit_snapshot_rejected')
-    const snapshot = await response.json().catch(() => undefined)
+    if (response?.status !== 'ok') throw new Error('package_shell_audit_snapshot_rejected')
+    const snapshot = response.snapshot
     if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
       throw new Error('package_shell_audit_snapshot_invalid')
     }
-    return { port, snapshot }
+    return snapshot
   }
   if (!endpointObserved) throw new Error('package_shell_audit_endpoint_timeout')
   if (unavailableObserved) throw new Error('package_shell_audit_unavailable_timeout')
@@ -129,8 +165,17 @@ async function launchShell(env) {
   }
 
   const auditToken = randomBytes(32).toString('hex')
+  const auditEndpoint = packageShellAuditEndpoint(
+    process.platform,
+    process.platform === 'win32' ? scratch : '/tmp',
+    randomBytes(16).toString('hex'),
+  )
   const child = spawn(resolve(executable), packageShellLaunchArgs(platform, userData), {
-    env: { ...env, GENOFFICE_PACKAGE_AUDIT_TOKEN: auditToken },
+    env: {
+      ...env,
+      GENOFFICE_PACKAGE_AUDIT_TOKEN: auditToken,
+      GENOFFICE_PACKAGE_AUDIT_ENDPOINT: auditEndpoint,
+    },
     stdio: 'ignore',
     windowsHide: true,
   })
@@ -154,22 +199,23 @@ async function launchShell(env) {
     }
     child.unref()
     await Promise.race([exited, delay(2_000)])
+    if (process.platform !== 'win32') await rm(auditEndpoint, { force: true })
   }
   try {
-    const { port, snapshot } = await Promise.race([
-      waitForAuditSnapshot(child, auditToken, packageShellLaunchTimeout(platform)),
+    const snapshot = await Promise.race([
+      waitForAuditSnapshot(child, auditEndpoint, auditToken, packageShellLaunchTimeout(platform)),
       failed,
     ])
     return {
       snapshot,
       close: async () => {
-        const response = await fetch(`http://127.0.0.1:${port}/shutdown`, {
-          method: 'POST',
-          headers: { authorization: `Bearer ${auditToken}` },
-          signal: AbortSignal.timeout(5_000),
-        })
-        const acknowledgement = response.ok ? await response.json() : undefined
-        if (acknowledgement?.accepted !== true) {
+        const acknowledgement = await packageAuditRequest(
+          auditEndpoint,
+          auditToken,
+          'shutdown',
+          5_000,
+        )
+        if (acknowledgement?.status !== 'ok' || acknowledgement.accepted !== true) {
           throw new Error('package_shell_shutdown_rejected')
         }
         const exitResult = await exited

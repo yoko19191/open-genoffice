@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  packageShellAuditEndpoint,
   packageShellLaunchArgs,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   packageShellShutdownTimeout,
-  parsePackageAuditEndpoint,
   validatePackageShellSmoke,
 } from '../src/package-shell-smoke.mjs'
 
@@ -51,7 +51,7 @@ describe('validatePackageShellSmoke', () => {
   })
 
   it('uses the fixed audit transport where Playwright cannot attach to packaged Windows Electron', () => {
-    expect(packageShellLaunchStrategy('win32')).toBe('audit-http')
+    expect(packageShellLaunchStrategy('win32')).toBe('audit-pipe')
     expect(packageShellLaunchStrategy('darwin')).toBe('electron')
     expect(packageShellLaunchStrategy('linux')).toBe('electron')
     expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data')).toEqual([
@@ -61,19 +61,20 @@ describe('validatePackageShellSmoke', () => {
     expect(packageShellLaunchArgs('linux', '/tmp/user-data')).toEqual(['--no-sandbox'])
   })
 
-  it('parses only the fixed package audit endpoint schema', () => {
-    expect(parsePackageAuditEndpoint('{"schemaVersion":1,"port":43117}\n')).toBe(43117)
-    for (const value of [
-      '',
-      '{}',
-      '{"schemaVersion":2,"port":43117}',
-      '{"schemaVersion":1,"port":0}',
-      '{"schemaVersion":1,"port":65536}',
-      '{"schemaVersion":1,"port":"43117"}',
-      '{"schemaVersion":1,"port":43117,"host":"0.0.0.0"}',
-    ]) {
-      expect(() => parsePackageAuditEndpoint(value)).toThrow('package_shell_audit_endpoint_invalid')
-    }
+  it('uses a random named pipe on Windows and a private socket on other hosts', () => {
+    const nonce = 'a'.repeat(32)
+    expect(packageShellAuditEndpoint('win32', '/tmp/smoke', nonce)).toBe(
+      `\\\\.\\pipe\\genoffice-package-audit-${nonce}`,
+    )
+    expect(packageShellAuditEndpoint('darwin', '/tmp/smoke', nonce)).toBe(
+      `/tmp/smoke/package-audit-${nonce}.sock`,
+    )
+    expect(() => packageShellAuditEndpoint('win32', '/tmp/smoke', 'short')).toThrow(
+      'package_shell_audit_endpoint_invalid',
+    )
+    expect(() => packageShellAuditEndpoint('linux', 'relative', nonce)).toThrow(
+      'package_shell_audit_endpoint_invalid',
+    )
   })
 
   it('summarizes a clean installed first launch without leaking paths', () => {

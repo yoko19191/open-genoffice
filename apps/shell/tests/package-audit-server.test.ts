@@ -1,18 +1,61 @@
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
+import { createConnection } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  PACKAGE_AUDIT_ENDPOINT_FILE,
+  asPackageAuditEndpoint,
   collectPackageAuditSnapshot,
+  packageAuditSocketNeedsCleanup,
   startPackageAuditServer,
 } from '../src/main/package-audit-server'
 
 const token = 'a'.repeat(64)
 
+function rawRequest(endpoint: string, parts: string[]): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const socket = createConnection(endpoint)
+    let body = ''
+    socket.setEncoding('utf8')
+    socket.once('connect', () => {
+      const writePart = (index: number) => {
+        socket.write(parts[index] ?? '')
+        if (index + 1 < parts.length) setTimeout(() => writePart(index + 1), 10)
+      }
+      writePart(0)
+    })
+    socket.on('data', (chunk: string) => {
+      body += chunk
+      const newline = body.indexOf('\n')
+      if (newline < 0) return
+      socket.destroy()
+      try {
+        resolve(JSON.parse(body.slice(0, newline)))
+      } catch (error) {
+        reject(error)
+      }
+    })
+    socket.once('error', reject)
+  })
+}
+
+function request(endpoint: string, value: unknown): Promise<unknown> {
+  return rawRequest(endpoint, [`${JSON.stringify(value)}\n`])
+}
+
+const validRequest = (operation: string, requestToken = token) => ({
+  schemaVersion: 1,
+  token: requestToken,
+  operation,
+})
+
 describe('package audit server', () => {
-  it('collects only the fixed renderer snapshot and screenshot', async () => {
-    const executeJavaScript = vi.fn(async () => ({ health: { state: 'ready' } }))
+  it('collects only the fixed renderer snapshot and trusted main-process state', async () => {
+    const executeJavaScript = vi.fn(async () => ({
+      health: { state: 'ready' },
+      installed: false,
+      screenshotBase64: 'renderer-value',
+    }))
     const snapshot = await collectPackageAuditSnapshot({
       isPackaged: true,
       userData: '/isolated',
@@ -38,61 +81,120 @@ describe('package audit server', () => {
     ).rejects.toThrowError('package_audit_snapshot_invalid')
   })
 
-  it('binds only loopback and requires the per-run bearer token', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'genoffice-package-audit-server-'))
+  it('accepts only a fixed Windows pipe or absolute non-Windows socket path', () => {
+    expect(
+      asPackageAuditEndpoint('\\\\.\\pipe\\genoffice-package-audit-' + 'b'.repeat(32), 'win32'),
+    ).toContain('genoffice-package-audit-')
+    expect(asPackageAuditEndpoint('/tmp/package-audit.sock', 'darwin')).toBe(
+      '/tmp/package-audit.sock',
+    )
+    expect(() => asPackageAuditEndpoint('relative.sock', 'linux')).toThrowError(
+      'package_audit_endpoint_invalid',
+    )
+    expect(() => asPackageAuditEndpoint('\\\\.\\pipe\\other', 'win32')).toThrowError(
+      'package_audit_endpoint_invalid',
+    )
+    expect(packageAuditSocketNeedsCleanup('win32')).toBe(false)
+    expect(packageAuditSocketNeedsCleanup('darwin')).toBe(true)
+  })
+
+  it('uses a token-authenticated fixed operation protocol and shuts down cleanly', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'genoffice-package-audit-server-'))
+    const endpoint = join(directory, 'audit.sock')
     const shutdown = vi.fn()
     const audit = await startPackageAuditServer({
       token,
-      userData,
-      collect: async () => ({ installed: true }),
+      endpoint,
+      collect: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return { installed: true }
+      },
       shutdown,
     })
-    const endpoint = JSON.parse(
-      await readFile(join(userData, PACKAGE_AUDIT_ENDPOINT_FILE), 'utf8'),
-    ) as { port: number }
-    const base = `http://127.0.0.1:${endpoint.port}`
-    expect((await fetch(`${base}/snapshot`)).status).toBe(404)
-    const headers = { authorization: `Bearer ${token}` }
-    await expect(
-      fetch(`${base}/snapshot`, { headers }).then((response) => response.json()),
-    ).resolves.toEqual({
-      installed: true,
+    await expect(request(endpoint, validRequest('snapshot', 'b'.repeat(64)))).resolves.toEqual({
+      status: 'not_found',
     })
-    expect((await fetch(`${base}/unknown`, { headers })).status).toBe(404)
+    await expect(request(endpoint, validRequest('snapshot'))).resolves.toEqual({
+      status: 'ok',
+      snapshot: { installed: true },
+    })
     await expect(
-      fetch(`${base}/shutdown`, { method: 'POST', headers }).then((response) => response.json()),
-    ).resolves.toEqual({ accepted: true })
+      rawRequest(endpoint, [`${JSON.stringify(validRequest('snapshot'))}\n`, 'ignored']),
+    ).resolves.toEqual({ status: 'ok', snapshot: { installed: true } })
+    await expect(request(endpoint, validRequest('unknown'))).resolves.toEqual({
+      status: 'not_found',
+    })
+    await expect(rawRequest(endpoint, ['{"schemaVersion":', 'broken}\n'])).resolves.toEqual({
+      status: 'not_found',
+    })
+    await expect(rawRequest(endpoint, ['x'.repeat(1_025)])).resolves.toEqual({
+      status: 'not_found',
+    })
+    await expect(request(endpoint, validRequest('shutdown'))).resolves.toEqual({
+      status: 'ok',
+      accepted: true,
+    })
     expect(shutdown).toHaveBeenCalledOnce()
-    await expect(readFile(join(userData, PACKAGE_AUDIT_ENDPOINT_FILE))).rejects.toMatchObject({
-      code: 'ENOENT',
-    })
     await audit.close()
   })
 
-  it('rejects missing or malformed tokens and redacts collector failures', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'genoffice-package-audit-invalid-'))
+  it('rejects invalid startup data and redacts collector failures', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'genoffice-package-audit-invalid-'))
+    const endpoint = join(directory, 'audit.sock')
     await expect(
-      startPackageAuditServer({ token: undefined, userData, collect: vi.fn(), shutdown: vi.fn() }),
+      startPackageAuditServer({
+        token: undefined,
+        endpoint,
+        collect: vi.fn(),
+        shutdown: vi.fn(),
+      }),
     ).rejects.toThrowError('package_audit_token_invalid')
     await expect(
-      startPackageAuditServer({ token: 'secret', userData, collect: vi.fn(), shutdown: vi.fn() }),
+      startPackageAuditServer({
+        token,
+        endpoint: undefined,
+        collect: vi.fn(),
+        shutdown: vi.fn(),
+      }),
+    ).rejects.toThrowError('package_audit_endpoint_invalid')
+    await expect(
+      startPackageAuditServer({
+        token: 'secret',
+        endpoint,
+        collect: vi.fn(),
+        shutdown: vi.fn(),
+      }),
     ).rejects.toThrowError('package_audit_token_invalid')
     const audit = await startPackageAuditServer({
       token,
-      userData,
+      endpoint,
       collect: async () => {
         throw new Error('private collector detail')
       },
       shutdown: vi.fn(),
     })
-    const endpoint = JSON.parse(
-      await readFile(join(userData, PACKAGE_AUDIT_ENDPOINT_FILE), 'utf8'),
-    ) as { port: number }
-    const response = await fetch(`http://127.0.0.1:${endpoint.port}/snapshot`, {
-      headers: { authorization: `Bearer ${token}` },
+    await expect(request(endpoint, validRequest('snapshot'))).resolves.toEqual({
+      status: 'unavailable',
     })
-    expect(response.status).toBe(503)
-    expect(await response.json()).toEqual({ error: 'package_audit_unavailable' })
+    await expect(request(endpoint, { ...validRequest('snapshot'), extra: true })).resolves.toEqual({
+      status: 'not_found',
+    })
+    for (const invalid of [
+      null,
+      'request',
+      [],
+      { schemaVersion: 2, token, operation: 'snapshot' },
+    ]) {
+      await expect(request(endpoint, invalid)).resolves.toEqual({ status: 'not_found' })
+    }
+    await expect(
+      startPackageAuditServer({
+        token,
+        endpoint,
+        collect: vi.fn(),
+        shutdown: vi.fn(),
+      }),
+    ).rejects.toBeInstanceOf(Error)
     await audit.close()
   })
 })

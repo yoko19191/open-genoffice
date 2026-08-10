@@ -1,4 +1,7 @@
+import { isAbsolute, join } from 'node:path'
+
 const forbiddenUiPattern = /genspark|@genspark|gsk_|credits?/i
+const auditNoncePattern = /^[0-9a-f]{32}$/
 
 export function packageShellLaunchTimeout(platform) {
   return platform === 'win32' ? 60_000 : 30_000
@@ -9,7 +12,7 @@ export function packageShellShutdownTimeout(platform) {
 }
 
 export function packageShellLaunchStrategy(platform) {
-  return platform === 'win32' ? 'audit-http' : 'electron'
+  return platform === 'win32' ? 'audit-pipe' : 'electron'
 }
 
 export function packageShellLaunchArgs(platform, userData) {
@@ -20,26 +23,13 @@ export function packageShellLaunchArgs(platform, userData) {
       : []
 }
 
-export function parsePackageAuditEndpoint(value) {
-  let parsed
-  try {
-    parsed = JSON.parse(value)
-  } catch {
+export function packageShellAuditEndpoint(hostPlatform, scratch, nonce) {
+  if (!isAbsolute(scratch) || !auditNoncePattern.test(nonce)) {
     throw new Error('package_shell_audit_endpoint_invalid')
   }
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    Array.isArray(parsed) ||
-    parsed.schemaVersion !== 1 ||
-    !Number.isInteger(parsed.port) ||
-    parsed.port < 1 ||
-    parsed.port > 65_535 ||
-    Object.keys(parsed).sort().join(',') !== 'port,schemaVersion'
-  ) {
-    throw new Error('package_shell_audit_endpoint_invalid')
-  }
-  return parsed.port
+  return hostPlatform === 'win32'
+    ? `\\\\.\\pipe\\genoffice-package-audit-${nonce}`
+    : join(scratch, `package-audit-${nonce}.sock`)
 }
 
 export function validatePackageShellSmoke(input) {

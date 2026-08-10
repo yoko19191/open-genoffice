@@ -203,7 +203,9 @@ const packageNetworkAuditConfig = packageNetworkAuditEnabled(packageNetworkAudit
   ? packageNetworkAudit
   : undefined
 const packageAuditToken = process.env.GENOFFICE_PACKAGE_AUDIT_TOKEN
+const packageAuditEndpoint = process.env.GENOFFICE_PACKAGE_AUDIT_ENDPOINT
 delete process.env.GENOFFICE_PACKAGE_AUDIT_TOKEN
+delete process.env.GENOFFICE_PACKAGE_AUDIT_ENDPOINT
 if (packageNetworkAuditConfig) {
   createRequire(__filename)(
     join(process.resourcesPath, 'diagnostics', 'package-network-recorder.cjs'),
@@ -2620,7 +2622,7 @@ app.whenReady().then(() => {
   void piRuntimeService.initialize()
   startSheetsCaptureServer()
   createShellWindow()
-  if (packageNetworkAuditConfig && packageAuditToken) {
+  if (packageNetworkAuditConfig && (packageAuditToken || packageAuditEndpoint)) {
     const auditWindow = shellWindow
     if (!auditWindow) {
       console.error('package_audit_window_unavailable')
@@ -2629,7 +2631,7 @@ app.whenReady().then(() => {
     }
     void startPackageAuditServer({
       token: packageAuditToken,
-      userData: app.getPath('userData'),
+      endpoint: packageAuditEndpoint,
       collect: () =>
         collectPackageAuditSnapshot({
           isPackaged: app.isPackaged,

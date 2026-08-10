@@ -1,10 +1,10 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-
-export const PACKAGE_AUDIT_ENDPOINT_FILE = 'package-audit-endpoint.json'
+import { rm } from 'node:fs/promises'
+import { isAbsolute } from 'node:path'
+import { createServer, type Socket } from 'node:net'
 
 const TOKEN_PATTERN = /^[0-9a-f]{64}$/
+const WINDOWS_PIPE_PATTERN = /^\\\\\.\\pipe\\genoffice-package-audit-[0-9a-f]{32}$/
+const REQUEST_LIMIT = 1_024
 
 const PACKAGE_AUDIT_RENDERER_SCRIPT = `
 (async () => {
@@ -43,14 +43,24 @@ const PACKAGE_AUDIT_RENDERER_SCRIPT = `
 })()
 `
 
-function reply(response: ServerResponse, status: number, value: unknown): void {
-  const body = `${JSON.stringify(value)}\n`
-  response.writeHead(status, {
-    'content-type': 'application/json',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  response.end(body)
+function send(socket: Socket, value: unknown): void {
+  socket.end(`${JSON.stringify(value)}\n`)
+}
+
+export function asPackageAuditEndpoint(
+  value: string | undefined,
+  platform = process.platform,
+): string {
+  const valid =
+    platform === 'win32'
+      ? typeof value === 'string' && WINDOWS_PIPE_PATTERN.test(value)
+      : typeof value === 'string' && isAbsolute(value) && value.endsWith('.sock')
+  if (!valid) throw new Error('package_audit_endpoint_invalid')
+  return value as string
+}
+
+export function packageAuditSocketNeedsCleanup(platform = process.platform): boolean {
+  return platform !== 'win32'
 }
 
 export async function collectPackageAuditSnapshot(input: {
@@ -75,49 +85,74 @@ export async function collectPackageAuditSnapshot(input: {
 
 export async function startPackageAuditServer(input: {
   token: string | undefined
-  userData: string
+  endpoint: string | undefined
   collect(): Promise<unknown>
   shutdown(): void
 }): Promise<{ close(): Promise<void> }> {
   if (!input.token || !TOKEN_PATTERN.test(input.token)) {
     throw new Error('package_audit_token_invalid')
   }
-  const endpointPath = join(input.userData, PACKAGE_AUDIT_ENDPOINT_FILE)
-  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
-    void (async () => {
-      if (request.headers.authorization !== `Bearer ${input.token}`) {
-        reply(response, 404, { error: 'not_found' })
+  const endpoint = asPackageAuditEndpoint(input.endpoint)
+  const server = createServer((socket) => {
+    socket.setEncoding('utf8')
+    let requestBody = ''
+    let handled = false
+    socket.on(
+      'error',
+      /* v8 ignore next -- client disconnects have no observable audit result */ () => undefined,
+    )
+    socket.on('data', (chunk: string) => {
+      if (handled) return
+      requestBody += chunk
+      if (requestBody.length > REQUEST_LIMIT) {
+        handled = true
+        send(socket, { status: 'not_found' })
         return
       }
-      if (request.method === 'GET' && request.url === '/snapshot') {
-        reply(response, 200, await input.collect())
-        return
-      }
-      if (request.method === 'POST' && request.url === '/shutdown') {
-        await rm(endpointPath, { force: true })
-        reply(response, 200, { accepted: true })
-        input.shutdown()
-        return
-      }
-      reply(response, 404, { error: 'not_found' })
-    })().catch(() => reply(response, 503, { error: 'package_audit_unavailable' }))
+      const newline = requestBody.indexOf('\n')
+      if (newline < 0) return
+      handled = true
+      void (async () => {
+        let request: unknown
+        try {
+          request = JSON.parse(requestBody.slice(0, newline))
+        } catch {
+          send(socket, { status: 'not_found' })
+          return
+        }
+        if (
+          !request ||
+          typeof request !== 'object' ||
+          Array.isArray(request) ||
+          Object.keys(request).sort().join(',') !== 'operation,schemaVersion,token' ||
+          (request as { schemaVersion?: unknown }).schemaVersion !== 1 ||
+          (request as { token?: unknown }).token !== input.token
+        ) {
+          send(socket, { status: 'not_found' })
+          return
+        }
+        const operation = (request as { operation?: unknown }).operation
+        if (operation === 'snapshot') {
+          send(socket, { status: 'ok', snapshot: await input.collect() })
+          return
+        }
+        if (operation === 'shutdown') {
+          socket.once('finish', input.shutdown)
+          send(socket, { status: 'ok', accepted: true })
+          return
+        }
+        send(socket, { status: 'not_found' })
+      })().catch(() => send(socket, { status: 'unavailable' }))
+    })
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
-  const address = server.address()
-  if (!address || typeof address === 'string') {
-    server.close()
-    throw new Error('package_audit_endpoint_invalid')
-  }
-  await writeFile(endpointPath, `${JSON.stringify({ schemaVersion: 1, port: address.port })}\n`, {
-    mode: 0o600,
+    server.listen(endpoint, resolve)
   })
   return {
     close: async () => {
       await new Promise<void>((resolve) => server.close(() => resolve()))
-      await rm(endpointPath, { force: true })
+      if (packageAuditSocketNeedsCleanup()) await rm(endpoint, { force: true })
     },
   }
 }
