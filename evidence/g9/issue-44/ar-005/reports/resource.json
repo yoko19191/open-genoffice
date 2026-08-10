@@ -1,0 +1,217 @@
+{
+  "numTotalTestSuites": 4,
+  "numPassedTestSuites": 4,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 14,
+  "numPassedTests": 14,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786393408863,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Document current Session index"
+          ],
+          "fullName": "Document current Session index serializes concurrent first connects and restores one current Session after restart",
+          "status": "passed",
+          "title": "serializes concurrent first connects and restores one current Session after restart",
+          "duration": 56.64608300000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Document current Session index"
+          ],
+          "fullName": "Document current Session index asserts the current identity and atomically advances it for fork navigation",
+          "status": "passed",
+          "title": "asserts the current identity and atomically advances it for fork navigation",
+          "duration": 110.85933300000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Document current Session index"
+          ],
+          "fullName": "Document current Session index keeps the index absent or fully committed when persistence fails before_rename",
+          "status": "passed",
+          "title": "keeps the index absent or fully committed when persistence fails before_rename",
+          "duration": 30.374625000000037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Document current Session index"
+          ],
+          "fullName": "Document current Session index keeps the index absent or fully committed when persistence fails after_rename",
+          "status": "passed",
+          "title": "keeps the index absent or fully committed when persistence fails after_rename",
+          "duration": 20.10908299999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Document current Session index"
+          ],
+          "fullName": "Document current Session index does not publish an index when Session creation fails or returns an invalid id",
+          "status": "passed",
+          "title": "does not publish an index when Session creation fails or returns an invalid id",
+          "duration": 12.508375000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Document current Session index"
+          ],
+          "fullName": "Document current Session index fails closed on missing bindings, malformed index data, and invalid identities",
+          "status": "passed",
+          "title": "fails closed on missing bindings, malformed index data, and invalid identities",
+          "duration": 23.83329100000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786393409209,
+      "endTime": 1786393409463.8333,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/agent-resource/tests/document-session-index.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease creates a private lease, heartbeats it, and releases only its own token",
+          "status": "passed",
+          "title": "creates a private lease, heartbeats it, and releases only its own token",
+          "duration": 37.581458999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease rejects a second Runtime while active, then atomically takes over an expired lease",
+          "status": "passed",
+          "title": "rejects a second Runtime while active, then atomically takes over an expired lease",
+          "duration": 42.25883399999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease serializes simultaneous takeover so exactly one Runtime owns the expired lease",
+          "status": "passed",
+          "title": "serializes simultaneous takeover so exactly one Runtime owns the expired lease",
+          "duration": 45.69375000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease takes over before TTL when the previous Runtime process is confirmed dead",
+          "status": "passed",
+          "title": "takes over before TTL when the previous Runtime process is confirmed dead",
+          "duration": 36.548584000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease loses ownership after TTL or removal and creates a missing lease directory",
+          "status": "passed",
+          "title": "loses ownership after TTL or removal and creates a missing lease directory",
+          "duration": 14.155834000000027,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease uses platform defaults without applying POSIX permission changes on Windows",
+          "status": "passed",
+          "title": "uses platform defaults without applying POSIX permission changes on Windows",
+          "duration": 12.59295800000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease does not silently release a corrupted lease",
+          "status": "passed",
+          "title": "does not silently release a corrupted lease",
+          "duration": 15.272291999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Session writer lease"
+          ],
+          "fullName": "Session writer lease fails closed on malformed, symlink, and invalid session lease inputs",
+          "status": "passed",
+          "title": "fails closed on malformed, symlink, and invalid session lease inputs",
+          "duration": 9.401792,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786393409209,
+      "endTime": 1786393409422.4019,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/agent-resource/tests/session-lease.test.ts"
+    }
+  ]
+}

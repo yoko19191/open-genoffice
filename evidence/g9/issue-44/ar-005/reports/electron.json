@@ -1,0 +1,348 @@
+{
+  "numTotalTestSuites": 4,
+  "numPassedTestSuites": 4,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 25,
+  "numPassedTests": 24,
+  "numFailedTests": 0,
+  "numPendingTests": 1,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786393415753,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rolls back an exact document run only after a trusted user gesture",
+          "status": "passed",
+          "title": "rolls back an exact document run only after a trusted user gesture",
+          "duration": 2.9015830000000165,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker fails closed when no product rollback host is installed",
+          "status": "passed",
+          "title": "fails closed when no product rollback host is installed",
+          "duration": 0.33083299999998417,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker issues a precise Mutation Grant only after a one-time real main-process user gesture",
+          "status": "passed",
+          "title": "issues a precise Mutation Grant only after a one-time real main-process user gesture",
+          "duration": 1.6872909999999592,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker attaches a one-time main-owned gesture receipt when answering a Runtime question",
+          "status": "passed",
+          "title": "attaches a one-time main-owned gesture receipt when answering a Runtime question",
+          "duration": 0.6818329999999833,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rejects stale or non-activation input and requires gestures for deny and revoke",
+          "status": "passed",
+          "title": "rejects stale or non-activation input and requires gestures for deny and revoke",
+          "duration": 0.444500000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker atomically merges replay with live events and delivers each event once in sequence",
+          "status": "passed",
+          "title": "atomically merges replay with live events and delivers each event once in sequence",
+          "duration": 53.12912499999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker disconnects only the renderer and survives 50 reloads with one terminal event",
+          "status": "passed",
+          "title": "disconnects only the renderer and survives 50 reloads with one terminal event",
+          "duration": 1.0302919999999745,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker resets on a detected gap and rejects unauthorized documents before Runtime access",
+          "status": "passed",
+          "title": "resets on a detected gap and rejects unauthorized documents before Runtime access",
+          "duration": 52.575874999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker creates a Session when no sessionId is supplied and bounds retained replay events",
+          "status": "passed",
+          "title": "creates a Session when no sessionId is supplied and bounds retained replay events",
+          "duration": 0.5525000000000091,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker restores one persisted current Session and rejects a non-current renderer request",
+          "status": "passed",
+          "title": "restores one persisted current Session and rejects a non-current renderer request",
+          "duration": 0.4213750000000118,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker allows commands only for the connected renderer and exact document binding",
+          "status": "passed",
+          "title": "allows commands only for the connected renderer and exact document binding",
+          "duration": 0.6174159999999915,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker forwards only main-authorized opaque artifacts with a prompt",
+          "status": "passed",
+          "title": "forwards only main-authorized opaque artifacts with a prompt",
+          "duration": 0.2625000000000455,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker attaches the Electron-owned Office catalog to create and open",
+          "status": "passed",
+          "title": "attaches the Electron-owned Office catalog to create and open",
+          "duration": 0.24650000000002592,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker atomically advances the current Session after fork and keeps navigate in that tree",
+          "status": "passed",
+          "title": "atomically advances the current Session after fork and keeps navigate in that tree",
+          "duration": 0.3198340000000144,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker fails closed on Runtime binding mismatches and ignores forged live bindings",
+          "status": "passed",
+          "title": "fails closed on Runtime binding mismatches and ignores forged live bindings",
+          "duration": 0.16795799999999872,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker can close before listening and clamps a zero replay window to one event",
+          "status": "passed",
+          "title": "can close before listening and clamps a zero replay window to one event",
+          "duration": 0.13787500000000819,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker detects transport replay gaps and live sequence gaps without forwarding them",
+          "status": "passed",
+          "title": "detects transport replay gaps and live sequence gaps without forwarding them",
+          "duration": 0.2081670000000031,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker skips events older than a renderer snapshot and routes by Session",
+          "status": "passed",
+          "title": "skips events older than a renderer snapshot and routes by Session",
+          "duration": 0.1379999999999768,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rejects one Session being rebound to another document even if transport echoes it",
+          "status": "passed",
+          "title": "rejects one Session being rebound to another document even if transport echoes it",
+          "duration": 0.12791699999996808,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786393416085,
+      "endTime": 1786393416201.2083,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/agent-session-broker.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "copied Pi Runtime end to end"
+          ],
+          "fullName": "copied Pi Runtime end to end loads Pi ESM, a dynamic Extension, a native addon, and stdio MCP",
+          "status": "skipped",
+          "title": "loads Pi ESM, a dynamic Extension, a native addon, and stdio MCP",
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copied Pi Runtime end to end"
+          ],
+          "fullName": "copied Pi Runtime end to end saves, projects, and removes a Provider credential without returning the secret",
+          "status": "passed",
+          "title": "saves, projects, and removes a Provider credential without returning the secret",
+          "duration": 3924.8016669999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copied Pi Runtime end to end"
+          ],
+          "fullName": "copied Pi Runtime end to end verifies, spawns, authenticates, queries, and shuts down without residue",
+          "status": "passed",
+          "title": "verifies, spawns, authenticates, queries, and shuts down without residue",
+          "duration": 4579.786874999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copied Pi Runtime end to end"
+          ],
+          "fullName": "copied Pi Runtime end to end runs a copied Runtime Office read and mutation through the main-process host",
+          "status": "passed",
+          "title": "runs a copied Runtime Office read and mutation through the main-process host",
+          "duration": 4077.351708,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copied Pi Runtime end to end"
+          ],
+          "fullName": "copied Pi Runtime end to end restarts after a forced process crash and interrupts the persisted run without replay",
+          "status": "passed",
+          "title": "restarts after a forced process crash and interrupts the persisted run without replay",
+          "duration": 3996.0165000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "copied Pi Runtime end to end"
+          ],
+          "fullName": "copied Pi Runtime end to end runs debug stdio with a disposable HOME, fake credentials, and blocked network",
+          "status": "passed",
+          "title": "runs debug stdio with a disposable HOME, fake credentials, and blocked network",
+          "duration": 3190.840500000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786393416085,
+      "endTime": 1786393435854.8406,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/pi-runtime-e2e.test.ts"
+    }
+  ]
+}

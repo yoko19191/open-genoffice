@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "commit": "5f23913222e19798941c09636ee26c818cc02c3c",
+  "acceptanceIds": [
+    "AR-005"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {},
+  "fixtureSources": {},
+  "reportHashes": {
+    "resource": "40ffe235ebde00025003e3323d3e77fdd86362fa68fa89d273b2ba7284e34a1f",
+    "runtime": "fe49bd46aee8284a72194f1fe11b4eebaf81999fad9230b3161242fb31b85ae0",
+    "electron": "e3eb3d7d8856730e502cd4bba667b31e419a27192a3a2d7fea4809cdae9c734b"
+  },
+  "commands": [
+    "npm test -w @genoffice/agent-resource",
+    "npm test -w @genoffice/pi-agent-runtime",
+    "npm test -w @genoffice/electron-utils",
+    "targeted AR-005 integration trace"
+  ],
+  "results": [
+    {
+      "suite": "resource",
+      "status": "passed",
+      "report": "evidence/g9/issue-44/ar-005/reports/resource.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g9/issue-44/ar-005/reports/runtime.json"
+    },
+    {
+      "suite": "electron",
+      "status": "passed",
+      "report": "evidence/g9/issue-44/ar-005/reports/electron.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
