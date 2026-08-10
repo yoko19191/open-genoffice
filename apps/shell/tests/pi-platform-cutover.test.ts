@@ -74,6 +74,10 @@ describe('Shell Pi Agent Platform cutover', () => {
   it('ships a validated CycloneDX SBOM and keeps unsigned artifacts off every update feed', async () => {
     const builder = await source('electron-builder.cjs')
     const sbomTool = await readFile(join(appRoot, '../../tools/generate-sbom.mjs'), 'utf8')
+    const sbomImplementation = await readFile(
+      join(appRoot, '../../packages/acceptance-evidence/src/sbom.mjs'),
+      'utf8',
+    )
 
     expect(builder).toContain("from: 'build/sbom.cdx.json'")
     expect(builder).toContain("componentNames.has('node')")
@@ -85,6 +89,9 @@ describe('Shell Pi Agent Platform cutover', () => {
     expect(builder).toContain('updateUrl && !unsignedBuild')
     expect(builder).toContain("target/release/xlsx-sidecar.exe'")
     expect(builder).not.toContain('x86_64-pc-windows-gnu')
-    expect(sbomTool).toContain("'bom-ref': 'pkg:generic/node@22.19.0'")
+    expect(sbomTool).toContain(
+      "import { generateSbom } from '../packages/acceptance-evidence/src/sbom.mjs'",
+    )
+    expect(sbomImplementation).toContain("'bom-ref': 'pkg:generic/node@22.19.0'")
   })
 })

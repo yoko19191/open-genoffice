@@ -97,10 +97,30 @@ describe('acceptance evidence workspace', () => {
     )
   })
 
+  it('accepts a native verifier report only when its status is passed', async () => {
+    const input = await createInputs({ status: 'passed', platform: 'linux', arch: 'x64' })
+    const evidence = await collectAcceptanceEvidence({
+      repoRoot: input.repoRoot,
+      outputPath: input.outputPath,
+      commit: 'a'.repeat(40),
+      acceptanceIds: ['PK-001'],
+      platform: 'linux',
+      arch: 'x64',
+      fixtures: { packaged: input.reportPath },
+      commands: ['unsigned-native-package-linux'],
+      suites: [{ suite: 'packaged', report: input.reportPath }],
+    })
+    expect(evidence.results).toEqual([
+      { suite: 'packaged', status: 'passed', report: 'evidence/reports/packaged.json' },
+    ])
+  })
+
   it.each([
     ['failed suite', { success: false, numFailedTests: 0, numFailedTestSuites: 0 }],
     ['failed test', { success: true, numFailedTests: 1, numFailedTestSuites: 0 }],
     ['failed test suite', { success: true, numFailedTests: 0, numFailedTestSuites: 1 }],
+    ['failed native verifier', { status: 'failed' }],
+    ['failed contradictory verifier', { success: false, status: 'passed' }],
     ['user path leak', { success: true, numFailedTests: 0, detail: '/Users/alice/private.docx' }],
     ['Windows path leak', { success: true, detail: String.raw`C:\Users\alice\private.docx` }],
     ['token leak', { success: true, numFailedTests: 0, detail: 'Bearer private-token' }],

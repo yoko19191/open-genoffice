@@ -8,6 +8,7 @@ on:
       - 'apps/pi-agent-runtime/**'
       - 'apps/shell/**'
       - 'apps/sheets/native/**'
+      - 'packages/acceptance-evidence/**'
       - 'packages/pi-runtime-bundle/**'
       - 'tools/acquire-official-node.mjs'
       - 'tools/build-pi-runtime-bundle.mjs'
@@ -166,6 +167,7 @@ jobs:
           --acceptance AR-003,AR-009,AR-010,PK-001,PK-002
           --fixture packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
           --fixture artifacts=evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json
+          --suite packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
           --command unsigned-native-package-${{ matrix.evidence-platform }}
           --protocol 1
           --runtime 1.0.0
