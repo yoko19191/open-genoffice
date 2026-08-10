@@ -33,13 +33,17 @@ function sha256(content) {
 }
 
 function assertMetadata(options) {
+  const catalogHashes = Object.entries(options.catalogHashes ?? {})
   if (
     !/^[0-9a-f]{40}$/.test(options.commit) ||
     options.acceptanceIds.length === 0 ||
     options.commands.length === 0 ||
     options.suites.length === 0 ||
     !['linux', 'macos', 'windows'].includes(options.platform) ||
-    !options.arch
+    !options.arch ||
+    catalogHashes.some(
+      ([name, hash]) => !/^[A-Za-z0-9._-]+$/.test(name) || !/^[0-9a-f]{64}$/.test(hash),
+    )
   ) {
     throw new Error('evidence_metadata_invalid')
   }
@@ -91,6 +95,9 @@ export async function collectAcceptanceEvidence(options) {
     arch: options.arch,
     ...(options.protocolVersion ? { protocolVersion: options.protocolVersion } : {}),
     ...(options.runtimeVersion ? { runtimeVersion: options.runtimeVersion } : {}),
+    ...(Object.keys(options.catalogHashes ?? {}).length > 0
+      ? { catalogHashes: options.catalogHashes }
+      : {}),
     fixtureHashes,
     commands: options.commands,
     results,
@@ -113,6 +120,7 @@ function assignment(value) {
 export function parseAcceptanceEvidenceArgs(argv) {
   const parsed = {
     acceptanceIds: [],
+    catalogHashes: {},
     fixtures: {},
     suites: [],
     commands: [],
@@ -124,7 +132,10 @@ export function parseAcceptanceEvidenceArgs(argv) {
     if (!value) throw new Error('evidence_argument_invalid')
 
     if (flag === '--acceptance') parsed.acceptanceIds.push(...value.split(',').filter(Boolean))
-    else if (flag === '--fixture') {
+    else if (flag === '--catalog') {
+      const [name, hash] = assignment(value)
+      parsed.catalogHashes[name] = hash
+    } else if (flag === '--fixture') {
       const [name, path] = assignment(value)
       parsed.fixtures[name] = path
     } else if (flag === '--suite') {

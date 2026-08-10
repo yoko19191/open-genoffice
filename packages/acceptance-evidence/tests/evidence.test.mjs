@@ -33,6 +33,7 @@ describe('acceptance evidence workspace', () => {
       arch: 'x64',
       protocolVersion: '1',
       runtimeVersion: '1.0.0',
+      catalogHashes: { pdf: 'f'.repeat(64) },
       fixtures: { fakeProvider: input.fixturePath },
       commands: ['npm run test -w @genoffice/pi-agent-runtime'],
       suites: [{ suite: 'pi-agent-runtime', report: input.reportPath }],
@@ -47,6 +48,7 @@ describe('acceptance evidence workspace', () => {
       arch: 'x64',
       protocolVersion: '1',
       runtimeVersion: '1.0.0',
+      catalogHashes: { pdf: 'f'.repeat(64) },
       redactionCheck: 'passed',
       results: [
         {
@@ -131,6 +133,24 @@ describe('acceptance evidence workspace', () => {
     ).rejects.toThrow('evidence_path_invalid')
   })
 
+  it('rejects malformed catalog hashes instead of recording unverifiable metadata', async () => {
+    const input = await createInputs()
+    await expect(
+      collectAcceptanceEvidence({
+        repoRoot: input.repoRoot,
+        outputPath: input.outputPath,
+        commit: 'd'.repeat(40),
+        acceptanceIds: ['OT-001'],
+        platform: 'macos',
+        arch: 'arm64',
+        catalogHashes: { pdf: 'not-a-sha256' },
+        fixtures: { fakeProvider: input.fixturePath },
+        commands: ['synthetic-test'],
+        suites: [{ suite: 'runtime', report: input.reportPath }],
+      }),
+    ).rejects.toThrow('evidence_metadata_invalid')
+  })
+
   it('rejects a suite name that cannot be used as an evidence report filename', async () => {
     const input = await createInputs()
     await expect(
@@ -155,6 +175,8 @@ describe('acceptance evidence workspace', () => {
         'AR-001,QA-001',
         '--fixture',
         'fake=fixtures/fake.json',
+        '--catalog',
+        `pdf=${'f'.repeat(64)}`,
         '--suite',
         'runtime=reports/runtime.json',
         '--command',
@@ -169,6 +191,7 @@ describe('acceptance evidence workspace', () => {
     ).toMatchObject({
       acceptanceIds: ['AR-001', 'QA-001'],
       fixtures: { fake: 'fixtures/fake.json' },
+      catalogHashes: { pdf: 'f'.repeat(64) },
       suites: [{ suite: 'runtime', report: 'reports/runtime.json' }],
       commands: ['npm test'],
       outputPath: 'evidence/evidence.json',
