@@ -64,29 +64,42 @@ const delay = (timeoutMs) => new Promise((done) => setTimeout(done, timeoutMs))
 
 async function waitForAuditSnapshot(child, token, timeoutMs) {
   const deadline = Date.now() + timeoutMs
+  let endpointObserved = false
+  let unavailableObserved = false
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error('package_shell_process_exited')
+    let port
     try {
-      const port = parsePackageAuditEndpoint(await readFile(auditEndpointPath, 'utf8'))
-      const response = await fetch(`http://127.0.0.1:${port}/snapshot`, {
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(1_000),
-      })
-      if (response.status === 503) {
-        await delay(100)
-        continue
-      }
-      if (!response.ok) throw new Error('package_shell_audit_snapshot_rejected')
-      const snapshot = await response.json()
-      if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
-        throw new Error('package_shell_audit_snapshot_invalid')
-      }
-      return { port, snapshot }
+      port = parsePackageAuditEndpoint(await readFile(auditEndpointPath, 'utf8'))
+      endpointObserved = true
     } catch {
-      // The packaged app is still starting; retry until the same bounded launch deadline.
+      await delay(100)
+      continue
     }
-    await delay(100)
+    let response
+    try {
+      response = await fetch(`http://127.0.0.1:${port}/snapshot`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+      })
+    } catch {
+      await delay(100)
+      continue
+    }
+    if (response.status === 503) {
+      unavailableObserved = true
+      await delay(100)
+      continue
+    }
+    if (!response.ok) throw new Error('package_shell_audit_snapshot_rejected')
+    const snapshot = await response.json().catch(() => undefined)
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      throw new Error('package_shell_audit_snapshot_invalid')
+    }
+    return { port, snapshot }
   }
+  if (!endpointObserved) throw new Error('package_shell_audit_endpoint_timeout')
+  if (unavailableObserved) throw new Error('package_shell_audit_unavailable_timeout')
   throw new Error('package_shell_audit_snapshot_timeout')
 }
 
