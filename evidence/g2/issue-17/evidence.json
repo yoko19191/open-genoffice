@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "commit": "af7bf10b23658143d551c8e91edceb641d3d0958",
+  "acceptanceIds": [
+    "AR-001",
+    "AR-002",
+    "AR-004",
+    "MD-001",
+    "MD-002",
+    "MD-003",
+    "MD-004",
+    "SS-001",
+    "SS-002"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "pdfPanel": "c193abea00865457cb52c91d31839e20f69ee6b7b0dc893f2d899ce4d61f996c",
+    "modelCatalog": "faa6987c303ec804b76b9c3b01143b397334812bf858f7573beba21f84e886f5",
+    "modelSettings": "2a88ead2bd3fa575b75a1ba4d436afa96e2944514ad0093f08843e541393661e",
+    "sessionController": "cf670a2372efb01ea9dfc0a149badb118f9629c21677e0e20cee306c094186f6"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build:all",
+    "npm run lint (0 errors, 10 pre-existing warnings)",
+    "npm run format:check",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g2/issue-17/reports/runtime.json"
+    },
+    {
+      "suite": "electron",
+      "status": "passed",
+      "report": "evidence/g2/issue-17/reports/electron.json"
+    },
+    {
+      "suite": "ui",
+      "status": "passed",
+      "report": "evidence/g2/issue-17/reports/ui.json"
+    },
+    {
+      "suite": "pdf",
+      "status": "passed",
+      "report": "evidence/g2/issue-17/reports/pdf.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g2/issue-17/reports/shell.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

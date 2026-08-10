@@ -1,0 +1,1048 @@
+{
+  "numTotalTestSuites": 12,
+  "numPassedTestSuites": 12,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 81,
+  "numPassedTests": 81,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786376818603,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rolls back an exact document run only after a trusted user gesture",
+          "status": "passed",
+          "title": "rolls back an exact document run only after a trusted user gesture",
+          "duration": 3.070458999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker fails closed when no product rollback host is installed",
+          "status": "passed",
+          "title": "fails closed when no product rollback host is installed",
+          "duration": 0.35708300000004556,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker issues a precise Mutation Grant only after a one-time real main-process user gesture",
+          "status": "passed",
+          "title": "issues a precise Mutation Grant only after a one-time real main-process user gesture",
+          "duration": 1.4644999999999868,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rejects stale or non-activation input and requires gestures for deny and revoke",
+          "status": "passed",
+          "title": "rejects stale or non-activation input and requires gestures for deny and revoke",
+          "duration": 0.34079200000002174,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker atomically merges replay with live events and delivers each event once in sequence",
+          "status": "passed",
+          "title": "atomically merges replay with live events and delivers each event once in sequence",
+          "duration": 52.54291699999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker disconnects only the renderer and survives 50 reloads with one terminal event",
+          "status": "passed",
+          "title": "disconnects only the renderer and survives 50 reloads with one terminal event",
+          "duration": 0.9182910000000106,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker resets on a detected gap and rejects unauthorized documents before Runtime access",
+          "status": "passed",
+          "title": "resets on a detected gap and rejects unauthorized documents before Runtime access",
+          "duration": 53.18850000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker creates a Session when no sessionId is supplied and bounds retained replay events",
+          "status": "passed",
+          "title": "creates a Session when no sessionId is supplied and bounds retained replay events",
+          "duration": 0.37691699999999173,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker restores one persisted current Session and rejects a non-current renderer request",
+          "status": "passed",
+          "title": "restores one persisted current Session and rejects a non-current renderer request",
+          "duration": 0.8515000000000441,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker allows commands only for the connected renderer and exact document binding",
+          "status": "passed",
+          "title": "allows commands only for the connected renderer and exact document binding",
+          "duration": 0.9203749999999786,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker forwards only main-authorized opaque artifacts with a prompt",
+          "status": "passed",
+          "title": "forwards only main-authorized opaque artifacts with a prompt",
+          "duration": 0.4835830000000101,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker attaches the Electron-owned Office catalog to create and open",
+          "status": "passed",
+          "title": "attaches the Electron-owned Office catalog to create and open",
+          "duration": 0.311916999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker atomically advances the current Session after fork and keeps navigate in that tree",
+          "status": "passed",
+          "title": "atomically advances the current Session after fork and keeps navigate in that tree",
+          "duration": 1.2014169999999922,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker fails closed on Runtime binding mismatches and ignores forged live bindings",
+          "status": "passed",
+          "title": "fails closed on Runtime binding mismatches and ignores forged live bindings",
+          "duration": 0.2966250000000059,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker can close before listening and clamps a zero replay window to one event",
+          "status": "passed",
+          "title": "can close before listening and clamps a zero replay window to one event",
+          "duration": 0.16291700000004994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker detects transport replay gaps and live sequence gaps without forwarding them",
+          "status": "passed",
+          "title": "detects transport replay gaps and live sequence gaps without forwarding them",
+          "duration": 0.3990000000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker skips events older than a renderer snapshot and routes by Session",
+          "status": "passed",
+          "title": "skips events older than a renderer snapshot and routes by Session",
+          "duration": 0.18229199999996126,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rejects one Session being rebound to another document even if transport echoes it",
+          "status": "passed",
+          "title": "rejects one Session being rebound to another document even if transport echoes it",
+          "duration": 0.17962499999998727,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786376818915,
+      "endTime": 1786376819032.1824,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/agent-session-broker.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Agent Session IPC main bridge"
+          ],
+          "fullName": "Agent Session IPC main bridge validates requests, observes a sender once, and routes only safe events",
+          "status": "passed",
+          "title": "validates requests, observes a sender once, and routes only safe events",
+          "duration": 3.7398750000000405,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Session IPC main bridge"
+          ],
+          "fullName": "Agent Session IPC main bridge validates commands and handles explicit disconnect",
+          "status": "passed",
+          "title": "validates commands and handles explicit disconnect",
+          "duration": 0.7547079999999937,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Session IPC main bridge"
+          ],
+          "fullName": "Agent Session IPC main bridge fails closed when the main process resolves a malformed document id",
+          "status": "passed",
+          "title": "fails closed when the main process resolves a malformed document id",
+          "duration": 0.1974580000000401,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Session preload bridge"
+          ],
+          "fullName": "Agent Session preload bridge exposes five typed methods without a raw invoke surface",
+          "status": "passed",
+          "title": "exposes five typed methods without a raw invoke surface",
+          "duration": 1.3395830000000046,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Session preload bridge"
+          ],
+          "fullName": "Agent Session preload bridge rejects malformed main-process receipts",
+          "status": "passed",
+          "title": "rejects malformed main-process receipts",
+          "duration": 0.22100000000000364,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786376818914,
+      "endTime": 1786376818920.3396,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/agent-session-ipc.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager dispatches only Runtime-initiated credential methods to the main-process broker",
+          "status": "passed",
+          "title": "dispatches only Runtime-initiated credential methods to the main-process broker",
+          "duration": 4.6367910000000165,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager dispatches one validated Runtime Office Tool request to the main-process host",
+          "status": "passed",
+          "title": "dispatches one validated Runtime Office Tool request to the main-process host",
+          "duration": 1.6887910000000375,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager starts only the verified executable, authenticates, serves health, and shuts down",
+          "status": "passed",
+          "title": "starts only the verified executable, authenticates, serves health, and shuts down",
+          "duration": 1.0813750000000368,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager uses narrow typed Session methods and forwards validated native events in socket order",
+          "status": "passed",
+          "title": "uses narrow typed Session methods and forwards validated native events in socket order",
+          "duration": 2.124541000000022,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager uses write-only credential management methods and validates redacted status results",
+          "status": "passed",
+          "title": "uses write-only credential management methods and validates redacted status results",
+          "duration": 1.2021669999999745,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager uses typed model catalog, selection, OAuth, and logout methods",
+          "status": "passed",
+          "title": "uses typed model catalog, selection, OAuth, and logout methods",
+          "duration": 1.8732909999999947,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates resource catalog and Project Trust projections at the Electron boundary",
+          "status": "passed",
+          "title": "validates resource catalog and Project Trust projections at the Electron boundary",
+          "duration": 1.78045800000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates Package projections and preserves Package Runtime errors",
+          "status": "passed",
+          "title": "validates Package projections and preserves Package Runtime errors",
+          "duration": 1.8452080000000137,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates MCP projections and preserves stable MCP Runtime errors",
+          "status": "passed",
+          "title": "validates MCP projections and preserves stable MCP Runtime errors",
+          "duration": 1.9923329999999737,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager validates model projections and preserves stable Runtime errors",
+          "status": "passed",
+          "title": "validates model projections and preserves stable Runtime errors",
+          "duration": 1.0328330000000392,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid putCredential result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid putCredential result to a stable redacted error",
+          "duration": 0.321124999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid credentialStatus result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid credentialStatus result to a stable redacted error",
+          "duration": 0.17133299999994733,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid deleteCredential result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid deleteCredential result to a stable redacted error",
+          "duration": 0.1730840000000171,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager preserves stable Runtime errors across every credential management method",
+          "status": "passed",
+          "title": "preserves stable Runtime errors across every credential management method",
+          "duration": 0.295332999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager starts Windows Runtime through the kill-on-close Job Object launcher",
+          "status": "passed",
+          "title": "starts Windows Runtime through the kill-on-close Job Object launcher",
+          "duration": 0.24979100000001608,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid createSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid createSession result to a stable redacted error",
+          "duration": 1.100999999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid openSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid openSession result to a stable redacted error",
+          "duration": 0.3002909999999588,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid promptSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid promptSession result to a stable redacted error",
+          "duration": 0.1990830000000301,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid abortSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid abortSession result to a stable redacted error",
+          "duration": 0.16029099999997243,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid resumeSubagent result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid resumeSubagent result to a stable redacted error",
+          "duration": 0.17637499999995043,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid forkSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid forkSession result to a stable redacted error",
+          "duration": 0.16970800000001418,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid navigateSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid navigateSession result to a stable redacted error",
+          "duration": 0.13987500000001774,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid snapshotSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid snapshotSession result to a stable redacted error",
+          "duration": 0.14724999999998545,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps an invalid subscribeSession result to a stable redacted error",
+          "status": "passed",
+          "title": "maps an invalid subscribeSession result to a stable redacted error",
+          "duration": 0.14699999999999136,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps invalid and Runtime-error Mutation Grant receipts to stable errors",
+          "status": "passed",
+          "title": "maps invalid and Runtime-error Mutation Grant receipts to stable errors",
+          "duration": 0.4566669999999817,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager preserves stable Runtime errors across every narrow Session method",
+          "status": "passed",
+          "title": "preserves stable Runtime errors across every narrow Session method",
+          "duration": 0.5394169999999576,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager fails closed on a mismatched hello and kills the child without leaking the token",
+          "status": "passed",
+          "title": "fails closed on a mismatched hello and kills the child without leaking the token",
+          "duration": 0.24858399999999392,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager maps raw startup errors and unavailable status to stable manager errors",
+          "status": "passed",
+          "title": "maps raw startup errors and unavailable status to stable manager errors",
+          "duration": 0.28737499999999727,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects 'an invalid status payload' without corrupting the manager",
+          "status": "passed",
+          "title": "rejects 'an invalid status payload' without corrupting the manager",
+          "duration": 0.21458300000000463,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects 'a Runtime error response' without corrupting the manager",
+          "status": "passed",
+          "title": "rejects 'a Runtime error response' without corrupting the manager",
+          "duration": 0.17374999999998408,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects 'an invalid protocol frame' without corrupting the manager",
+          "status": "passed",
+          "title": "rejects 'an invalid protocol frame' without corrupting the manager",
+          "duration": 0.16029200000002675,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager rejects an in-flight request when the socket errors or the child crashes",
+          "status": "passed",
+          "title": "rejects an in-flight request when the socket errors or the child crashes",
+          "duration": 0.24295900000004167,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeManager"
+          ],
+          "fullName": "PiRuntimeManager marks an unexpected child exit as crashed",
+          "status": "passed",
+          "title": "marks an unexpected child exit as crashed",
+          "duration": 52.845166000000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "private Runtime endpoints"
+          ],
+          "fullName": "private Runtime endpoints creates a 0700 POSIX instance directory and removes it",
+          "status": "passed",
+          "title": "creates a 0700 POSIX instance directory and removes it",
+          "duration": 1.266375000000039,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "private Runtime endpoints"
+          ],
+          "fullName": "private Runtime endpoints creates a 96-bit Windows Named Pipe without a temp directory",
+          "status": "passed",
+          "title": "creates a 96-bit Windows Named Pipe without a temp directory",
+          "duration": 0.10345799999998917,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786376818915,
+      "endTime": 1786376818995.2664,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/pi-runtime-manager.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service verifies once, starts once, and exposes only a frozen typed health projection",
+          "status": "passed",
+          "title": "verifies once, starts once, and exposes only a frozen typed health projection",
+          "duration": 2.5440419999999904,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service fails closed when the installed bundle is absent or Runtime startup fails",
+          "status": "passed",
+          "title": "fails closed when the installed bundle is absent or Runtime startup fails",
+          "duration": 1.0562499999999773,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service runs the reviewed pre-start migration only after bundle verification and before Runtime spawn",
+          "status": "passed",
+          "title": "runs the reviewed pre-start migration only after bundle verification and before Runtime spawn",
+          "duration": 1.8450829999999883,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service owns the narrow Session client and refuses commands when Runtime is unavailable",
+          "status": "passed",
+          "title": "owns the narrow Session client and refuses commands when Runtime is unavailable",
+          "duration": 1.5533329999999523,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service passes an explicit Resource Home only to the owned Runtime manager",
+          "status": "passed",
+          "title": "passes an explicit Resource Home only to the owned Runtime manager",
+          "duration": 0.4599590000000262,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service forwards only typed credential management commands to the ready Runtime",
+          "status": "passed",
+          "title": "forwards only typed credential management commands to the ready Runtime",
+          "duration": 0.5463750000000118,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service forwards typed model catalog, selection, OAuth control, and logout commands",
+          "status": "passed",
+          "title": "forwards typed model catalog, selection, OAuth control, and logout commands",
+          "duration": 0.7314999999999827,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service keeps resource paths in the main-process service while forwarding trust controls",
+          "status": "passed",
+          "title": "keeps resource paths in the main-process service while forwarding trust controls",
+          "duration": 0.960125000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service passes the main-process credential broker only to the owned Runtime manager",
+          "status": "passed",
+          "title": "passes the main-process credential broker only to the owned Runtime manager",
+          "duration": 0.5464589999999703,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service passes the main-process Office Tool host only to the owned Runtime manager",
+          "status": "passed",
+          "title": "passes the main-process Office Tool host only to the owned Runtime manager",
+          "duration": 1.057875000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service shuts down the owned manager after initialization and remains stopped",
+          "status": "passed",
+          "title": "shuts down the owned manager after initialization and remains stopped",
+          "duration": 0.6850420000000099,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service waits for in-flight verification before shutting down during app exit",
+          "status": "passed",
+          "title": "waits for in-flight verification before shutting down during app exit",
+          "duration": 0.25162499999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786376818914,
+      "endTime": 1786376818926.685,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/pi-runtime-service.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor restarts with fresh managers and the frozen 250ms/1s/4s backoff sequence",
+          "status": "passed",
+          "title": "restarts with fresh managers and the frozen 250ms/1s/4s backoff sequence",
+          "duration": 3.295915999999977,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor opens the circuit after the fourth crash inside 60 seconds",
+          "status": "passed",
+          "title": "opens the circuit after the fourth crash inside 60 seconds",
+          "duration": 2.3202920000000518,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor forwards Session commands and preserves event listeners across a restart",
+          "status": "passed",
+          "title": "forwards Session commands and preserves event listeners across a restart",
+          "duration": 0.8463750000000232,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor forwards every narrow Session method and detaches an event listener",
+          "status": "passed",
+          "title": "forwards every narrow Session method and detaches an event listener",
+          "duration": 2.252667000000031,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor can start and stop 100 times without retaining managers",
+          "status": "passed",
+          "title": "can start and stop 100 times without retaining managers",
+          "duration": 20.012333000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor forgets crashes outside the rolling 60-second window",
+          "status": "passed",
+          "title": "forgets crashes outside the rolling 60-second window",
+          "duration": 0.9715419999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor fails a fresh or restarted manager closed and can shut down without one",
+          "status": "passed",
+          "title": "fails a fresh or restarted manager closed and can shut down without one",
+          "duration": 0.6265000000000214,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor ignores stale, duplicate, and shutdown crash notifications",
+          "status": "passed",
+          "title": "ignores stale, duplicate, and shutdown crash notifications",
+          "duration": 0.32095800000001873,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor stops an in-progress recovery before creating another manager",
+          "status": "passed",
+          "title": "stops an in-progress recovery before creating another manager",
+          "duration": 0.44870800000001054,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor supersedes a shared in-progress start during shutdown without changing stopped state",
+          "status": "passed",
+          "title": "supersedes a shared in-progress start during shutdown without changing stopped state",
+          "duration": 0.2893750000000068,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "PiRuntimeSupervisor"
+          ],
+          "fullName": "PiRuntimeSupervisor rejects new commands racing with shutdown and start after an open circuit",
+          "status": "passed",
+          "title": "rejects new commands racing with shutdown and start after an open circuit",
+          "duration": 0.6332909999999856,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786376818914,
+      "endTime": 1786376818946.6333,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/pi-runtime-supervisor.test.ts"
+    }
+  ]
+}
