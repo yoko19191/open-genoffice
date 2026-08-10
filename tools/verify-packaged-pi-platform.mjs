@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import {
@@ -8,6 +8,7 @@ import {
   SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH,
   verifyPiRuntimeBundle,
 } from '@genoffice/pi-runtime-bundle'
+import { auditPackagedGensparkFree } from '../packages/acceptance-evidence/src/genspark-package-audit.mjs'
 
 const execFileAsync = promisify(execFile)
 const values = new Map()
@@ -56,16 +57,31 @@ async function collectFiles(root) {
   return files
 }
 
-async function run(executable, args) {
+const networkRecorderPath = resolve(import.meta.dirname, 'package-network-recorder.cjs')
+
+async function run(executable, args, surface, networkReportPath) {
+  const preload = `--require=${networkRecorderPath.split('\\').join('/')}`
   return execFileAsync(executable, args, {
     timeout: 30_000,
     maxBuffer: 16 * 1024 * 1024,
     windowsHide: true,
+    env: {
+      ...process.env,
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, preload].filter(Boolean).join(' '),
+      GENOFFICE_NETWORK_REPORT: networkReportPath,
+      GENOFFICE_NETWORK_SURFACE: surface,
+    },
   })
 }
 
 try {
   const resourcesRoot = resolve(resources)
+  const outputPath = resolve(output)
+  const evidenceDirectory = dirname(outputPath)
+  const networkReportPath = join(evidenceDirectory, 'network.jsonl')
+  const retiredVendorFreePath = join(evidenceDirectory, 'retired-vendor-free.json')
+  await mkdir(evidenceDirectory, { recursive: true })
+  await rm(networkReportPath, { force: true })
   const runtimeRoot = join(resourcesRoot, 'pi-runtime')
   const verified = await verifyPiRuntimeBundle(runtimeRoot, { platform, arch })
   const [sbomBytes, files] = await Promise.all([
@@ -98,22 +114,47 @@ try {
   }
 
   const piCommand = join(runtimeRoot, ...piCliCommandRelativePath(platform).split('/'))
-  const piVersion = (await run(piCommand, ['--version'])).stdout.trim()
+  const piVersion = (await run(piCommand, ['--version'], 'agent', networkReportPath)).stdout.trim()
   if (piVersion !== verified.manifest.piVersion) {
     throw new Error('packaged_pi_platform_pi_version_mismatch')
   }
   const capability = JSON.parse(
-    (await run(verified.executablePath, [verified.capabilitySmokeEntryPath])).stdout,
+    (
+      await run(
+        verified.executablePath,
+        [verified.capabilitySmokeEntryPath],
+        'agent',
+        networkReportPath,
+      )
+    ).stdout,
   )
   const subagent = JSON.parse(
     (
-      await run(verified.executablePath, [
-        join(runtimeRoot, ...SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH.split('/')),
-      ])
+      await run(
+        verified.executablePath,
+        [join(runtimeRoot, ...SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH.split('/'))],
+        'agent',
+        networkReportPath,
+      )
+    ).stdout,
+  )
+  const networkSmoke = JSON.parse(
+    (
+      await run(
+        verified.executablePath,
+        [verified.networkSmokeEntryPath],
+        'network-routes',
+        networkReportPath,
+      )
     ).stdout,
   )
   const debugFrames = (
-    await run(verified.executablePath, [verified.entryPath, '--debug-stdio'])
+    await run(
+      verified.executablePath,
+      [verified.entryPath, '--debug-stdio'],
+      'agent',
+      networkReportPath,
+    )
   ).stdout
     .trim()
     .split('\n')
@@ -121,6 +162,7 @@ try {
   if (
     capability.status !== 'passed' ||
     subagent.status !== 'passed' ||
+    networkSmoke.status !== 'passed' ||
     !debugFrames.some((frame) => frame.type === 'session.opened') ||
     debugFrames.at(-1)?.type !== 'run.completed'
   ) {
@@ -130,6 +172,19 @@ try {
     platform === 'linux' ? process.report.getReport().header.glibcVersionRuntime : undefined
   if (platform === 'linux' && !glibcVersion) {
     throw new Error('packaged_pi_platform_glibc_missing')
+  }
+  const retiredVendorFree = await auditPackagedGensparkFree({
+    repoRoot: resolve(import.meta.dirname, '..'),
+    resourcesRoot,
+    recorderText: await readFile(networkReportPath, 'utf8'),
+    networkSmoke,
+    commit: process.env.GITHUB_SHA ?? null,
+    platform,
+    arch,
+  })
+  await writeFile(retiredVendorFreePath, `${JSON.stringify(retiredVendorFree, null, 2)}\n`)
+  if (retiredVendorFree.status !== 'passed') {
+    throw new Error('packaged_pi_platform_genspark_free_failed')
   }
 
   const evidence = {
@@ -142,6 +197,13 @@ try {
     libc: platform === 'linux' ? { family: 'glibc', version: glibcVersion } : null,
     updateFeedEmbedded: false,
     retiredVendorMatches: 0,
+    retiredVendorFree: {
+      reportSha256: sha256(await readFile(retiredVendorFreePath)),
+      installedManifests: retiredVendorFree.scans.installedManifests,
+      packagedFiles: retiredVendorFree.scans.packagedFiles,
+      networkAttempts: retiredVendorFree.network.attempts,
+      networkSurfaces: retiredVendorFree.network.surfaces,
+    },
     runtime: {
       version: verified.manifest.runtimeVersion,
       protocolVersion: verified.manifest.protocolVersion,
@@ -166,8 +228,6 @@ try {
       terminal: debugFrames.at(-1)?.type,
     },
   }
-  const outputPath = resolve(output)
-  await mkdir(dirname(outputPath), { recursive: true })
   await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`)
   process.stdout.write(
     `${JSON.stringify({

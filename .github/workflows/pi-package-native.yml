@@ -14,6 +14,7 @@ on:
       - 'tools/build-pi-runtime-bundle.mjs'
       - 'tools/generate-sbom.mjs'
       - 'tools/hash-release-artifacts.mjs'
+      - 'tools/package-network-recorder.cjs'
       - 'tools/verify-packaged-pi-platform.mjs'
       - 'package-lock.json'
       - 'package.json'
@@ -164,9 +165,10 @@ jobs:
       - name: Collect acceptance mapping
         run: >-
           npm run acceptance:evidence --
-          --acceptance AR-003,AR-009,AR-010,PK-001,PK-002
+          --acceptance AR-003,AR-009,AR-010,GX-001,GX-002,GX-003,GX-004,PK-001,PK-002,OTC-009
           --fixture packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
           --fixture artifacts=evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json
+          --fixture retiredVendorFree=evidence/g9/native-package/${{ matrix.evidence-platform }}/retired-vendor-free.json
           --suite packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
           --command unsigned-native-package-${{ matrix.evidence-platform }}
           --protocol 1

@@ -8,6 +8,7 @@ const defaults = new Map([
   ['--built-in-skills', 'apps/pi-agent-runtime/built-in/skills'],
   ['--subagent-smoke-entry', 'apps/pi-agent-runtime/fixtures/native-subagent-smoke.ts'],
   ['--pi-headless-fixture', 'apps/pi-agent-runtime/fixtures/pi-headless-fixture'],
+  ['--network-smoke-entry', 'apps/pi-agent-runtime/fixtures/native-network-smoke.ts'],
   ['--pi-cli-entry', 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'],
   ['--pi-subagent-api-entry', 'node_modules/@agwab/pi-subagent/src/api.ts'],
   ['--pi-subagent-worker-entry', 'node_modules/@agwab/pi-subagent/src/workers/durable-worker.mjs'],

@@ -36,6 +36,10 @@ async function inputs() {
       import.meta.dirname,
       '../../../apps/pi-agent-runtime/fixtures/native-capability-smoke.ts',
     ),
+    networkSmokeEntryPoint: resolve(
+      import.meta.dirname,
+      '../../../apps/pi-agent-runtime/fixtures/native-network-smoke.ts',
+    ),
     subagentSmokeEntryPoint: resolve(
       import.meta.dirname,
       '../../../apps/pi-agent-runtime/fixtures/native-subagent-smoke.ts',
@@ -115,6 +119,7 @@ describe('Pi Runtime bundle builder', () => {
       `node/pi${process.platform === 'win32' ? '.exe' : ''}`,
       'self-test/mcp-stdio-server.mjs',
       'self-test/native-capability-smoke.mjs',
+      'self-test/native-network-smoke.mjs',
       'self-test/native-smoke-extension.mjs',
       'self-test/native-subagent-smoke.mjs',
       'self-test/pi-headless-fixture.mjs',
@@ -161,6 +166,9 @@ describe('Pi Runtime bundle builder', () => {
     expect(verified.capabilitySmokeEntryPath).toBe(
       join(options.outputDirectory, 'self-test/native-capability-smoke.mjs'),
     )
+    expect(verified.networkSmokeEntryPath).toBe(
+      join(options.outputDirectory, 'self-test/native-network-smoke.mjs'),
+    )
     const capabilitySmoke = await execFileAsync(verified.executablePath, [
       verified.capabilitySmokeEntryPath,
     ])
@@ -171,6 +179,21 @@ describe('Pi Runtime bundle builder', () => {
       extension: 'native_smoke_extension',
       nativeAddon: process.platform === 'win32' ? 'win32-console-mode.node' : null,
       mcp: { tool: 'native_smoke_echo', result: 'mcp:windows-native' },
+    })
+    const networkSmoke = await execFileAsync(verified.executablePath, [
+      verified.networkSmokeEntryPath,
+    ])
+    expect(networkSmoke.stderr).toBe('')
+    expect(JSON.parse(networkSmoke.stdout)).toMatchObject({
+      status: 'passed',
+      routes: [
+        { surface: 'ocr', mode: 'fetch-intercepted', hosts: ['mineru.net'] },
+        { surface: 'search', mode: 'fetch-intercepted', hosts: ['google.serper.dev'] },
+        { surface: 'image', mode: 'fetch-intercepted' },
+        { surface: 'media', mode: 'local-only', hosts: [] },
+        { surface: 'slide', mode: 'local-only', hosts: [] },
+        { surface: 'project', mode: 'local-only', hosts: [] },
+      ],
     })
     const subagentSmoke = await execFileAsync(verified.executablePath, [
       join(options.outputDirectory, 'self-test/native-subagent-smoke.mjs'),
@@ -315,6 +338,8 @@ describe('Pi Runtime bundle builder', () => {
       options.entryPoint,
       '--capability-smoke-entry',
       options.capabilitySmokeEntryPoint,
+      '--network-smoke-entry',
+      options.networkSmokeEntryPoint,
       '--subagent-smoke-entry',
       options.subagentSmokeEntryPoint,
       '--capability-extension',

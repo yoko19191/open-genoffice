@@ -31,6 +31,7 @@ import {
   CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH,
   canonicalRuntimeTreeHash,
   MCP_SMOKE_SERVER_RELATIVE_PATH,
+  NETWORK_SMOKE_ENTRY_RELATIVE_PATH,
   PI_CLI_ENTRY_RELATIVE_PATH,
   PI_PACKAGE_MANIFEST_RELATIVE_PATH,
   PI_HEADLESS_FIXTURE_RELATIVE_PATH,
@@ -64,6 +65,7 @@ export type PiRuntimeBundleBuildOptions = {
   nodeLicense: string
   entryPoint: string
   capabilitySmokeEntryPoint: string
+  networkSmokeEntryPoint: string
   subagentSmokeEntryPoint: string
   capabilityExtension: string
   mcpSmokeServer: string
@@ -349,6 +351,11 @@ export async function buildPiRuntimeBundle(
       ...NODE_BUNDLE_OPTIONS,
     })
     await build({
+      entryPoints: [options.networkSmokeEntryPoint],
+      outfile: join(stagingDirectory, NETWORK_SMOKE_ENTRY_RELATIVE_PATH),
+      ...NODE_BUNDLE_OPTIONS,
+    })
+    await build({
       entryPoints: [options.subagentSmokeEntryPoint],
       outfile: join(stagingDirectory, SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH),
       alias: { '@agwab/pi-subagent/api': options.piSubagentApiEntryPoint },
@@ -405,6 +412,7 @@ export async function buildPiRuntimeBundle(
       PI_CLI_ENTRY_RELATIVE_PATH,
       PI_PACKAGE_MANIFEST_RELATIVE_PATH,
       CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH,
+      NETWORK_SMOKE_ENTRY_RELATIVE_PATH,
       SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH,
       CAPABILITY_EXTENSION_RELATIVE_PATH,
       MCP_SMOKE_SERVER_RELATIVE_PATH,
@@ -481,6 +489,7 @@ export async function runPiRuntimeBundleBuilderCli(
     '--node-license',
     '--entry',
     '--capability-smoke-entry',
+    '--network-smoke-entry',
     '--subagent-smoke-entry',
     '--capability-extension',
     '--mcp-smoke-server',
@@ -508,6 +517,7 @@ export async function runPiRuntimeBundleBuilderCli(
       nodeLicense: values.get('--node-license')!,
       entryPoint: values.get('--entry')!,
       capabilitySmokeEntryPoint: values.get('--capability-smoke-entry')!,
+      networkSmokeEntryPoint: values.get('--network-smoke-entry')!,
       subagentSmokeEntryPoint: values.get('--subagent-smoke-entry')!,
       capabilityExtension: values.get('--capability-extension')!,
       mcpSmokeServer: values.get('--mcp-smoke-server')!,

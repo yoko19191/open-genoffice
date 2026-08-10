@@ -19,6 +19,7 @@ export class RuntimeBundleVerificationError extends Error {
 export const WINDOWS_JOB_LAUNCHER_RELATIVE_PATH = 'node/open-genoffice-job-launcher.exe'
 export const CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH = 'self-test/native-capability-smoke.mjs'
 export const SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH = 'self-test/native-subagent-smoke.mjs'
+export const NETWORK_SMOKE_ENTRY_RELATIVE_PATH = 'self-test/native-network-smoke.mjs'
 export const CAPABILITY_EXTENSION_RELATIVE_PATH = 'self-test/native-smoke-extension.mjs'
 export const MCP_SMOKE_SERVER_RELATIVE_PATH = 'self-test/mcp-stdio-server.mjs'
 export const PI_HEADLESS_FIXTURE_RELATIVE_PATH = 'self-test/pi-headless-fixture.mjs'
@@ -50,6 +51,7 @@ export type VerifiedPiRuntimeBundle = Readonly<{
   executablePath: string
   entryPath: string
   capabilitySmokeEntryPath: string
+  networkSmokeEntryPath: string
   windowsJobLauncherPath?: string
   windowsNativeAddonPath?: string
   manifest: RuntimeBundleManifest
@@ -113,6 +115,7 @@ function validateManifestPaths(manifest: RuntimeBundleManifest) {
   }
   if (
     !paths.has(CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH) ||
+    !paths.has(NETWORK_SMOKE_ENTRY_RELATIVE_PATH) ||
     !paths.has(SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH) ||
     !paths.has(CAPABILITY_EXTENSION_RELATIVE_PATH) ||
     !paths.has(MCP_SMOKE_SERVER_RELATIVE_PATH) ||
@@ -234,6 +237,7 @@ export async function verifyPiRuntimeBundle(
     executablePath: resolve(root, ...manifest.executable.split('/')),
     entryPath: resolve(root, ...manifest.entry.split('/')),
     capabilitySmokeEntryPath: resolve(root, ...CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH.split('/')),
+    networkSmokeEntryPath: resolve(root, ...NETWORK_SMOKE_ENTRY_RELATIVE_PATH.split('/')),
     ...(target.platform === 'win32'
       ? {
           windowsJobLauncherPath: resolve(root, ...WINDOWS_JOB_LAUNCHER_RELATIVE_PATH.split('/')),

@@ -32,6 +32,7 @@ function verifiedBundle(): VerifiedPiRuntimeBundle {
     executablePath: '/installed/pi-agent-runtime/node/open-genoffice-pi-agent-runtime',
     entryPath: '/installed/pi-agent-runtime/app/main.mjs',
     capabilitySmokeEntryPath: '/installed/pi-agent-runtime/self-test/native-capability-smoke.mjs',
+    networkSmokeEntryPath: '/installed/pi-agent-runtime/self-test/native-network-smoke.mjs',
     windowsJobLauncherPath: '/installed/pi-agent-runtime/node/open-genoffice-job-launcher.exe',
     manifest,
     manifestSha256: 'f'.repeat(64),

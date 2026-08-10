@@ -50,6 +50,7 @@ async function fixtureBundle() {
     ['app/package.json', '{"version":"0.84.0"}\n'],
     ['self-test/mcp-stdio-server.mjs', 'export {}\n'],
     ['self-test/native-capability-smoke.mjs', 'export {}\n'],
+    ['self-test/native-network-smoke.mjs', 'export {}\n'],
     ['self-test/native-subagent-smoke.mjs', 'export {}\n'],
     ['self-test/native-smoke-extension.mjs', 'export default () => {}\n'],
     ['self-test/pi-headless-fixture.mjs', 'export {}\n'],
@@ -229,6 +230,7 @@ describe('installed Pi Runtime bundle verifier', () => {
 
   it.each([
     'self-test/native-capability-smoke.mjs',
+    'self-test/native-network-smoke.mjs',
     'self-test/native-subagent-smoke.mjs',
     'self-test/native-smoke-extension.mjs',
     'self-test/mcp-stdio-server.mjs',
