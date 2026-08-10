@@ -44,6 +44,7 @@ describe('validatePackageShellSmoke', () => {
   it('gives packaged Windows Chromium an isolated command-line profile for CDP startup', () => {
     expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data')).toEqual([
       '--user-data-dir=C:\\smoke\\user-data',
+      '--enable-logging',
     ])
     expect(packageShellLaunchArgs('darwin', '/tmp/user-data')).toEqual([])
     expect(packageShellLaunchArgs('linux', '/tmp/user-data')).toEqual(['--no-sandbox'])

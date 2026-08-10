@@ -5,7 +5,7 @@ export function packageShellLaunchTimeout(platform) {
 }
 
 export function packageShellLaunchArgs(platform, userData) {
-  if (platform === 'win32') return [`--user-data-dir=${userData}`]
+  if (platform === 'win32') return [`--user-data-dir=${userData}`, '--enable-logging']
   return platform === 'linux' ? ['--no-sandbox'] : []
 }
 
