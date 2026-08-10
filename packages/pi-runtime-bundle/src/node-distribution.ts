@@ -99,10 +99,17 @@ export async function extractOfficialNodeArchive(
   destination: string,
 ): Promise<void> {
   try {
-    await execFileAsync('tar', ['-xf', archivePath, '-C', destination])
+    await execFileAsync(officialNodeTarExecutable(), ['-xf', archivePath, '-C', destination])
   } catch {
     fail('node_distribution_extract_failed')
   }
+}
+
+export function officialNodeTarExecutable(
+  platform = process.platform,
+  systemRoot = process.env.SystemRoot,
+): string {
+  return platform === 'win32' ? join(systemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
 }
 
 export function officialNodeArchiveSha256(archive: Buffer): string {

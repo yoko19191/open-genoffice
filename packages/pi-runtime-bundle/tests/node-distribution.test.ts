@@ -10,6 +10,7 @@ import {
   acquireOfficialNodeDistributionWithDependencies,
   extractOfficialNodeArchive,
   officialNodeArchiveSha256,
+  officialNodeTarExecutable,
   officialNodeVersion,
   runOfficialNodeDistributionCli,
   type AcquireOfficialNodeDistributionDependencies,
@@ -58,6 +59,17 @@ describe('official Node distribution acquisition', () => {
         sha256: 'c0649af18e6a24f6fe5535a3e86b341dd49a8e71117c8b68bde973ef834f16f2',
       }),
     })
+  })
+
+  it('uses the Windows system libarchive instead of Git Bash GNU tar for ZIP archives', () => {
+    expect(officialNodeTarExecutable('win32', String.raw`D:\Windows`)).toBe(
+      join(String.raw`D:\Windows`, 'System32', 'tar.exe'),
+    )
+    expect(officialNodeTarExecutable('win32', '')).toBe(
+      join(String.raw`C:\Windows`, 'System32', 'tar.exe'),
+    )
+    expect(officialNodeTarExecutable('linux')).toBe('tar')
+    expect(officialNodeTarExecutable('darwin')).toBe('tar')
   })
 
   it('downloads, verifies, extracts, version-checks, and atomically publishes one archive', async () => {
