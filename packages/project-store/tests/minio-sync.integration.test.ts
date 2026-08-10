@@ -11,6 +11,10 @@ import {
   PROVIDER_CONTRACT_SCOPE,
   tombstoneDocument,
 } from './fixtures/project-sync-fixture.js'
+import {
+  EXPECTED_GLOBAL_ASSET_PROVIDER_RESULT,
+  runGlobalAssetProviderContract,
+} from './fixtures/global-asset-sync-contract.js'
 
 const endpoint = process.env.GENOFFICE_TEST_MINIO_ENDPOINT
 const accessKeyId = process.env.GENOFFICE_TEST_MINIO_ACCESS_KEY
@@ -78,6 +82,9 @@ describe.runIf(enabled)('MinIO Project repository contract', () => {
         encryption: { type: 'AES256' },
         allowLoopbackHttpForTests: true,
       })
+    await expect(runGlobalAssetProviderContract(makeStore)).resolves.toEqual(
+      EXPECTED_GLOBAL_ASSET_PROVIDER_RESULT,
+    )
     const scopeId = PROVIDER_CONTRACT_SCOPE
     const publisher = new ProjectSyncReconciler({
       store: makeStore(),

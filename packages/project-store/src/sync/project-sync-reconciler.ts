@@ -24,13 +24,14 @@ import {
   type ReconcileIntentStore,
   type RemoteBase,
   type SyncHead,
+  type SyncKind,
+  type SyncNamespace,
   type SyncObjectStore,
   type SyncRevision,
 } from './types.js'
 
-const ROOT_MANIFEST_PATH = '.open-genoffice'
 const DEFAULT_MAX_OBJECT_BYTES = 256 * 1024 * 1024
-const ALLOWED_KINDS = new Set<ProjectSyncKind>([
+const PROJECT_KINDS = new Set<SyncKind>([
   'office-document',
   'project-asset',
   'project-metadata',
@@ -38,10 +39,19 @@ const ALLOWED_KINDS = new Set<ProjectSyncKind>([
   'pi-session-snapshot',
   'credential-slot',
 ])
+const GLOBAL_KINDS = new Set<SyncKind>([
+  'global-asset',
+  'global-skill',
+  'global-extension',
+  'global-prompt',
+  'global-package-lock',
+  'global-mcp-config',
+  'credential-slot',
+])
 
 interface PreparedEntry {
   canonicalPath: string
-  kind: ProjectSyncKind
+  kind: SyncKind
   bytes?: Uint8Array
   contentHash?: string
   tombstone: boolean
@@ -49,10 +59,11 @@ interface PreparedEntry {
   network: boolean
 }
 
-interface ProjectSyncReconcilerOptions {
+export interface ProjectSyncReconcilerOptions {
   store: SyncObjectStore
   scopeId: string
   authorDeviceId: string
+  namespace?: SyncNamespace
   maxObjectBytes?: number
   intentStore?: ReconcileIntentStore
   conflictFaultInjector?: (stage: ConflictFaultStage) => void | Promise<void>
@@ -121,12 +132,17 @@ function parseHead(bytes: Uint8Array, scopeId: string): SyncHead {
   return value
 }
 
-function parseRevision(bytes: Uint8Array, expectedId: string, scopeId: string): SyncRevision {
+function parseRevision(
+  bytes: Uint8Array,
+  expectedId: string,
+  scopeId: string,
+  namespace: SyncNamespace,
+): SyncRevision {
   const value = parseJson(bytes)
   if (
     sha256Hex(bytes) !== expectedId ||
     !Value.Check(SyncRevisionSchema, value) ||
-    value.namespace !== 'project' ||
+    value.namespace !== namespace ||
     value.scopeId !== scopeId ||
     (value.tombstone
       ? value.contentHash !== undefined ||
@@ -144,12 +160,14 @@ function parseManifest(
   bytes: Uint8Array,
   expectedHash: string,
   scopeId: string,
+  namespace: SyncNamespace,
 ): ProjectSyncManifest {
   const value = parseJson(bytes)
   if (
     sha256Hex(bytes) !== expectedHash ||
     !Value.Check(ProjectSyncManifestSchema, value) ||
     value.scopeId !== scopeId ||
+    value.namespace !== namespace ||
     value.entries.some((entry) =>
       entry.tombstone
         ? entry.contentHash !== undefined || entry.size !== 0
@@ -168,6 +186,7 @@ function parseManifest(
 export class ProjectSyncReconciler {
   readonly #store: SyncObjectStore
   readonly #scopeId: string
+  readonly #namespace: SyncNamespace
   readonly #authorDeviceId: string
   readonly #maxObjectBytes: number
   readonly #intentStore?: ReconcileIntentStore
@@ -176,6 +195,7 @@ export class ProjectSyncReconciler {
   constructor(options: ProjectSyncReconcilerOptions) {
     this.#store = options.store
     this.#scopeId = options.scopeId
+    this.#namespace = options.namespace ?? 'project'
     this.#authorDeviceId = options.authorDeviceId
     this.#maxObjectBytes = options.maxObjectBytes ?? DEFAULT_MAX_OBJECT_BYTES
     this.#intentStore = options.intentStore
@@ -228,7 +248,7 @@ export class ProjectSyncReconciler {
         }
         const revision: SyncRevision = {
           schemaVersion: 1,
-          namespace: 'project',
+          namespace: this.#namespace,
           scopeId: this.#scopeId,
           canonicalPath: entry.canonicalPath,
           kind: entry.kind,
@@ -270,7 +290,7 @@ export class ProjectSyncReconciler {
       await this.#putContentAddressed(this.#blobKey(contentHash), bytes, contentHash)
       const revision: SyncRevision = {
         schemaVersion: 1,
-        namespace: 'project',
+        namespace: this.#namespace,
         scopeId: this.#scopeId,
         canonicalPath: entry.canonicalPath,
         kind: entry.kind,
@@ -301,7 +321,7 @@ export class ProjectSyncReconciler {
     manifestEntries.sort((a, b) => a.canonicalPath.localeCompare(b.canonicalPath, 'en-US'))
     const manifest: ProjectSyncManifest = {
       schemaVersion: 1,
-      namespace: 'project',
+      namespace: this.#namespace,
       scopeId: this.#scopeId,
       entries: manifestEntries,
     }
@@ -314,10 +334,10 @@ export class ProjectSyncReconciler {
 
     const rootRevision: SyncRevision = {
       schemaVersion: 1,
-      namespace: 'project',
+      namespace: this.#namespace,
       scopeId: this.#scopeId,
-      canonicalPath: ROOT_MANIFEST_PATH,
-      kind: 'project-manifest',
+      canonicalPath: this.#rootManifestPath(),
+      kind: this.#rootManifestKind(),
       contentHash: manifestHash,
       size: manifestBytes.byteLength,
       tombstone: false,
@@ -705,9 +725,9 @@ export class ProjectSyncReconciler {
     if (!remoteBase) return { status: 'empty' }
     const rootRevision = await this.#readRevision(remoteBase.head.revisionId)
     if (
-      rootRevision.kind !== 'project-manifest' ||
+      rootRevision.kind !== this.#rootManifestKind() ||
       rootRevision.contentHash !== remoteBase.head.manifestHash ||
-      rootRevision.canonicalPath !== ROOT_MANIFEST_PATH
+      rootRevision.canonicalPath !== this.#rootManifestPath()
     ) {
       throw new Error('sync_head_invalid')
     }
@@ -801,7 +821,7 @@ export class ProjectSyncReconciler {
     if (entry.tombstone && !parentRevisionId) throw new Error('sync_tombstone_without_parent')
     const revision: SyncRevision = {
       schemaVersion: 1,
-      namespace: 'project',
+      namespace: this.#namespace,
       scopeId: this.#scopeId,
       canonicalPath: entry.canonicalPath,
       kind: entry.kind,
@@ -906,7 +926,7 @@ export class ProjectSyncReconciler {
     entries.sort((a, b) => a.canonicalPath.localeCompare(b.canonicalPath, 'en-US'))
     const manifest: ProjectSyncManifest = {
       schemaVersion: 1,
-      namespace: 'project',
+      namespace: this.#namespace,
       scopeId: this.#scopeId,
       entries,
     }
@@ -915,10 +935,10 @@ export class ProjectSyncReconciler {
     await this.#putContentAddressed(this.#blobKey(manifestHash), manifestBytes, manifestHash)
     const rootRevision: SyncRevision = {
       schemaVersion: 1,
-      namespace: 'project',
+      namespace: this.#namespace,
       scopeId: this.#scopeId,
-      canonicalPath: ROOT_MANIFEST_PATH,
-      kind: 'project-manifest',
+      canonicalPath: this.#rootManifestPath(),
+      kind: this.#rootManifestKind(),
       contentHash: manifestHash,
       size: manifestBytes.byteLength,
       tombstone: false,
@@ -1057,9 +1077,10 @@ export class ProjectSyncReconciler {
 
   #prepareEntries(entries: ProjectSyncEntry[]): PreparedEntry[] {
     const paths = assertCanonicalPathSet(entries.map((entry) => entry.canonicalPath))
+    const allowedKinds = this.#namespace === 'project' ? PROJECT_KINDS : GLOBAL_KINDS
     return entries.map((entry, index) => {
-      if (!ALLOWED_KINDS.has(entry.kind)) throw new Error('sync_kind_excluded')
-      if (paths[index] === ROOT_MANIFEST_PATH) throw new Error('sync_path_reserved')
+      if (!allowedKinds.has(entry.kind)) throw new Error('sync_kind_excluded')
+      if (paths[index] === this.#rootManifestPath()) throw new Error('sync_path_reserved')
       if (entry.tombstone) {
         if (entry.bytes || entry.credentialSlot || entry.executable || entry.network) {
           throw new Error('sync_tombstone_invalid')
@@ -1121,13 +1142,13 @@ export class ProjectSyncReconciler {
   async #readManifest(hash: string): Promise<ProjectSyncManifest> {
     const object = await this.#store.get(this.#blobKey(hash))
     if (!object) throw new Error('sync_manifest_missing')
-    return parseManifest(object.bytes, hash, this.#scopeId)
+    return parseManifest(object.bytes, hash, this.#scopeId, this.#namespace)
   }
 
   async #readRevision(revisionId: string): Promise<SyncRevision> {
     const object = await this.#store.get(this.#revisionKey(revisionId))
     if (!object) throw new Error('sync_revision_missing')
-    return parseRevision(object.bytes, revisionId, this.#scopeId)
+    return parseRevision(object.bytes, revisionId, this.#scopeId, this.#namespace)
   }
 
   async #putContentAddressed(key: string, bytes: Uint8Array, expectedHash: string): Promise<void> {
@@ -1139,7 +1160,15 @@ export class ProjectSyncReconciler {
   }
 
   #prefix(): string {
-    return `open-genoffice-sync/v1/project/${this.#scopeId}`
+    return `open-genoffice-sync/v1/${this.#namespace}/${this.#scopeId}`
+  }
+
+  #rootManifestPath(): string {
+    return this.#namespace === 'project' ? '.open-genoffice' : '.open-genoffice-global'
+  }
+
+  #rootManifestKind(): string {
+    return `${this.#namespace}-manifest`
   }
 
   #blobKey(hash: string): string {
@@ -1152,5 +1181,13 @@ export class ProjectSyncReconciler {
 
   #headKey(): string {
     return `${this.#prefix()}/head.json`
+  }
+}
+
+export type GlobalAssetSyncReconcilerOptions = Omit<ProjectSyncReconcilerOptions, 'namespace'>
+
+export class GlobalAssetSyncReconciler extends ProjectSyncReconciler {
+  constructor(options: GlobalAssetSyncReconcilerOptions) {
+    super({ ...options, namespace: 'global' })
   }
 }

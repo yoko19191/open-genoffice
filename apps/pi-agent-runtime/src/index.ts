@@ -248,3 +248,12 @@ export {
   type SessionSyncDescriptor,
   type SessionSyncResourceRequirement,
 } from './project-session-sync'
+export {
+  GlobalAssetSyncError,
+  GlobalAssetSyncService,
+  type GlobalAssetStatus,
+  type GlobalAssetSyncEntry,
+  type GlobalAssetSyncKind,
+  type GlobalResourceProjection,
+  type GlobalResourceState,
+} from './global-asset-sync'

@@ -10,6 +10,10 @@ import {
   EXPECTED_PROVIDER_CONFLICT_RESULT,
   runProviderConflictContract,
 } from './fixtures/project-conflict-contract.js'
+import {
+  EXPECTED_GLOBAL_ASSET_PROVIDER_RESULT,
+  runGlobalAssetProviderContract,
+} from './fixtures/global-asset-sync-contract.js'
 
 class FakeS3Client implements S3ClientPort {
   readonly objects = new Map<string, { bytes: Uint8Array; generation: number }>()
@@ -87,6 +91,12 @@ function makeStore(client: FakeS3Client, overrides: Record<string, unknown> = {}
 }
 
 describe('S3ObjectStore', () => {
+  it('runs the shared Global Asset namespace and incremental contract', async () => {
+    const client = new FakeS3Client()
+    const result = await runGlobalAssetProviderContract(() => makeStore(client))
+    expect(result).toEqual(EXPECTED_GLOBAL_ASSET_PROVIDER_RESULT)
+  })
+
   it('fails closed on insecure endpoints and exposes path-style config only when requested', () => {
     expect(
       () =>

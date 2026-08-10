@@ -62,7 +62,7 @@ type StoredMcpServerBase = {
   enabled: boolean
 }
 
-type StoredMcpServer = StoredMcpServerBase &
+export type StoredMcpServer = StoredMcpServerBase &
   (
     | {
         transport: 'stdio'
@@ -299,7 +299,7 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value)
 }
 
-async function readConfig(path: string): Promise<StoredMcpServer[]> {
+export async function readMcpServerDeclarations(path: string): Promise<StoredMcpServer[]> {
   let content: string
   try {
     content = await readFile(path, 'utf8')
@@ -349,7 +349,9 @@ export class OpenGenOfficeMcpConfigResolver {
     }> = [
       {
         namespace: 'global',
-        servers: await readConfig(join(this.options.resourceHome, 'mcp', 'servers.json')),
+        servers: await readMcpServerDeclarations(
+          join(this.options.resourceHome, 'mcp', 'servers.json'),
+        ),
       },
     ]
     if (projectRoot) {
@@ -358,7 +360,9 @@ export class OpenGenOfficeMcpConfigResolver {
         if (await this.trust.isTrusted(identity)) {
           sources.push({
             namespace: 'project',
-            servers: await readConfig(join(projectRoot, '.open-genoffice', 'mcp', 'servers.json')),
+            servers: await readMcpServerDeclarations(
+              join(projectRoot, '.open-genoffice', 'mcp', 'servers.json'),
+            ),
           })
         }
       } catch (error) {
@@ -464,7 +468,7 @@ export class OpenGenOfficeMcpConfigResolver {
     update: (server: StoredMcpServer) => StoredMcpServer,
   ): Promise<void> {
     const path = await this.configPath(scope)
-    const servers = await readConfig(path)
+    const servers = await readMcpServerDeclarations(path)
     const index = servers.findIndex((server) => server.serverId === serverId)
     if (index < 0) throw new McpConfigError('mcp_server_not_found')
     servers[index] = parseServer(update(servers[index]!))

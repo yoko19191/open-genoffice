@@ -15,24 +15,28 @@ export type {
   ProjectConflictStore,
   ProjectSyncConflict,
 } from './conflict-copy-store.js'
-export { ProjectSyncReconciler } from './project-sync-reconciler.js'
+export { GlobalAssetSyncReconciler, ProjectSyncReconciler } from './project-sync-reconciler.js'
 export type {
   ConflictFaultStage,
   ConflictResolutionResult,
   DivergenceReconcileResult,
   PublishResult,
   RestoreResult,
+  GlobalAssetSyncReconcilerOptions,
+  ProjectSyncReconcilerOptions,
 } from './project-sync-reconciler.js'
 export { FileReconcileIntentStore } from './reconcile-intent-store.js'
 export { S3ObjectStore } from './s3-object-store.js'
 export type { S3ClientPort, S3ObjectStoreOptions } from './s3-object-store.js'
 export {
   CredentialSlotDescriptionSchema,
+  GlobalAssetSyncKindSchema,
   ProjectManifestEntrySchema,
   ProjectSyncKindSchema,
   ProjectSyncManifestSchema,
   ReconcileIntentSchema,
   SyncHeadSchema,
+  SyncKindSchema,
   SyncScopeIdSchema,
   SyncRevisionSchema,
 } from './schema.js'
@@ -48,6 +52,7 @@ export type {
   ReconcileIntentStore,
   RemoteBase,
   SyncHead,
+  SyncKind,
   SyncNamespace,
   SyncObjectStore,
   SyncRevision,

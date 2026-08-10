@@ -12,9 +12,23 @@ export const ProjectSyncKindSchema = Type.Union([
   Type.Literal('credential-slot'),
 ])
 
+export const GlobalAssetSyncKindSchema = Type.Union([
+  Type.Literal('global-asset'),
+  Type.Literal('global-skill'),
+  Type.Literal('global-extension'),
+  Type.Literal('global-prompt'),
+  Type.Literal('global-package-lock'),
+  Type.Literal('global-mcp-config'),
+  Type.Literal('credential-slot'),
+])
+
+export const SyncKindSchema = Type.Union([ProjectSyncKindSchema, GlobalAssetSyncKindSchema])
+
 export const CredentialSlotDescriptionSchema = Type.Object(
   {
-    slotId: SyncScopeIdSchema,
+    slotId: Type.String({
+      pattern: '^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$',
+    }),
     providerId: SyncScopeIdSchema,
   },
   { additionalProperties: false },
@@ -57,7 +71,7 @@ export const SyncRevisionSchema = Type.Object(
 export const ProjectManifestEntrySchema = Type.Object(
   {
     canonicalPath: Type.String({ minLength: 1 }),
-    kind: ProjectSyncKindSchema,
+    kind: SyncKindSchema,
     contentHash: Type.Optional(HashSchema),
     size: Type.Integer({ minimum: 0 }),
     revisionId: HashSchema,
@@ -71,7 +85,7 @@ export const ProjectManifestEntrySchema = Type.Object(
 export const ProjectSyncManifestSchema = Type.Object(
   {
     schemaVersion: Type.Literal(1),
-    namespace: Type.Literal('project'),
+    namespace: Type.Union([Type.Literal('project'), Type.Literal('global')]),
     scopeId: SyncScopeIdSchema,
     entries: Type.Array(ProjectManifestEntrySchema, { maxItems: 10_000 }),
   },

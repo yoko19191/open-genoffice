@@ -16,6 +16,10 @@ import {
   EXPECTED_PROVIDER_CONFLICT_RESULT,
   runProviderConflictContract,
 } from './fixtures/project-conflict-contract.js'
+import {
+  EXPECTED_GLOBAL_ASSET_PROVIDER_RESULT,
+  runGlobalAssetProviderContract,
+} from './fixtures/global-asset-sync-contract.js'
 
 type StoredObject = { bytes: Buffer; generation: number }
 
@@ -271,6 +275,13 @@ describe('WebDavObjectStore', () => {
     expect(await readFile(join(targetRoot, 'documents/report.docx'), 'utf8')).toBe(
       'office-content-v2',
     )
+  })
+
+  it('runs the shared Global Asset namespace and incremental contract', async () => {
+    const result = await runGlobalAssetProviderContract(
+      () => new WebDavObjectStore({ endpoint, allowLoopbackHttpForTests: true }),
+    )
+    expect(result).toEqual(EXPECTED_GLOBAL_ASSET_PROVIDER_RESULT)
   })
 
   it('runs the shared two-client Conflict Copy and resolution contract', async () => {

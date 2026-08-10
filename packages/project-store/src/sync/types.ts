@@ -3,6 +3,7 @@ import type {
   CredentialSlotDescriptionSchema,
   ProjectManifestEntrySchema,
   ProjectSyncKindSchema,
+  SyncKindSchema,
   ProjectSyncManifestSchema,
   ReconcileIntentSchema,
   SyncHeadSchema,
@@ -30,12 +31,13 @@ export interface SyncObjectStore {
 }
 
 export type ProjectSyncKind = Static<typeof ProjectSyncKindSchema>
+export type SyncKind = Static<typeof SyncKindSchema>
 
 export type CredentialSlotDescription = Static<typeof CredentialSlotDescriptionSchema>
 
 export interface ProjectSyncEntry {
   canonicalPath: string
-  kind: ProjectSyncKind
+  kind: SyncKind
   bytes?: Uint8Array
   tombstone?: boolean
   executable?: boolean
