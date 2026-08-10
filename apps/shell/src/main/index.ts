@@ -204,7 +204,10 @@ const packageNetworkAuditConfig = packageNetworkAuditEnabled(packageNetworkAudit
   : undefined
 if (packageNetworkAuditConfig) {
   const cdpPort = packageAuditCdpPort(process.env.GENOFFICE_PACKAGE_CDP_PORT)
-  if (cdpPort) app.commandLine.appendSwitch('remote-debugging-port', cdpPort)
+  if (cdpPort !== undefined) {
+    app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
+    app.commandLine.appendSwitch('remote-debugging-port', cdpPort)
+  }
   createRequire(__filename)(
     join(process.resourcesPath, 'diagnostics', 'package-network-recorder.cjs'),
   )

@@ -1,7 +1,6 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomInt } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { _electron as electron, chromium } from 'playwright'
@@ -62,20 +61,6 @@ async function within(promise, timeoutMs, code) {
 
 const delay = (timeoutMs) => new Promise((done) => setTimeout(done, timeoutMs))
 
-async function reserveLoopbackPort() {
-  const server = createServer()
-  await new Promise((resolveListen, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolveListen)
-  })
-  const address = server.address()
-  await new Promise((resolveClose, reject) =>
-    server.close((error) => (error ? reject(error) : resolveClose())),
-  )
-  if (!address || typeof address === 'string') throw new Error('package_shell_cdp_port_invalid')
-  return address.port
-}
-
 async function waitForCdp(port, child, timeoutMs) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -85,7 +70,7 @@ async function waitForCdp(port, child, timeoutMs) {
         signal: AbortSignal.timeout(1_000),
       })
       const version = response.ok ? await response.json() : undefined
-      if (typeof version?.webSocketDebuggerUrl === 'string') return
+      if (typeof version?.webSocketDebuggerUrl === 'string') return port
     } catch {
       // The packaged app is still starting; retry until the same bounded launch deadline.
     }
@@ -129,53 +114,67 @@ async function launchShell(env) {
     }
   }
 
-  const port = await reserveLoopbackPort()
-  const child = spawn(resolve(executable), packageShellLaunchArgs(platform, userData, port), {
-    env: { ...env, ...packageShellLaunchEnv(platform, port) },
-    stdio: 'ignore',
-    windowsHide: true,
-  })
+  const requestedPort = randomInt(49_152, 65_536)
+  const child = spawn(
+    resolve(executable),
+    packageShellLaunchArgs(platform, userData, requestedPort),
+    {
+      env: { ...env, ...packageShellLaunchEnv(platform, requestedPort) },
+      stdio: 'ignore',
+      windowsHide: true,
+    },
+  )
   const exited = new Promise((resolveExit) =>
     child.once('exit', (code, signal) => resolveExit({ code, signal })),
   )
   const failed = new Promise((_, reject) =>
     child.once('error', () => reject(new Error('package_shell_process_start_failed'))),
   )
-  await Promise.race([waitForCdp(port, child, packageShellLaunchTimeout(platform)), failed])
-  const browser = await within(
-    chromium.connectOverCDP(`http://127.0.0.1:${port}`),
-    packageShellLaunchTimeout(platform),
-    'package_shell_cdp_connect_timeout',
-  )
-  const page = await waitForCdpPage(browser, 30_000)
-  return {
-    page,
-    readPaths: () => page.evaluate(() => globalThis.aiOfficePackageAudit.state()),
-    close: async () => {
-      const accepted = await page.evaluate(() => globalThis.aiOfficePackageAudit.shutdown())
-      if (accepted !== true) throw new Error('package_shell_shutdown_rejected')
-      const result = await exited
-      if (result.code !== 0 || result.signal !== null) {
-        throw new Error('package_shell_process_exit_invalid')
+  let browser
+  const forceClose = async () => {
+    if (child.exitCode === null) {
+      if (process.platform === 'win32' && child.pid) {
+        spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+          stdio: 'ignore',
+          timeout: 5_000,
+          windowsHide: true,
+        })
+      } else {
+        child.kill('SIGKILL')
       }
-      await browser.close().catch(() => undefined)
-    },
-    forceClose: async () => {
-      if (child.exitCode === null) {
-        if (process.platform === 'win32' && child.pid) {
-          spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-            stdio: 'ignore',
-            timeout: 5_000,
-            windowsHide: true,
-          })
-        } else {
-          child.kill('SIGKILL')
+    }
+    child.unref()
+    if (browser) void browser.close().catch(() => undefined)
+    await Promise.race([exited, delay(2_000)])
+  }
+  try {
+    const port = await Promise.race([
+      waitForCdp(requestedPort, child, packageShellLaunchTimeout(platform)),
+      failed,
+    ])
+    browser = await within(
+      chromium.connectOverCDP(`http://127.0.0.1:${port}`),
+      packageShellLaunchTimeout(platform),
+      'package_shell_cdp_connect_timeout',
+    )
+    const page = await waitForCdpPage(browser, 30_000)
+    return {
+      page,
+      readPaths: () => page.evaluate(() => globalThis.aiOfficePackageAudit.state()),
+      close: async () => {
+        const accepted = await page.evaluate(() => globalThis.aiOfficePackageAudit.shutdown())
+        if (accepted !== true) throw new Error('package_shell_shutdown_rejected')
+        const result = await exited
+        if (result.code !== 0 || result.signal !== null) {
+          throw new Error('package_shell_process_exit_invalid')
         }
-      }
-      child.unref()
-      void browser.close().catch(() => undefined)
-      await Promise.race([exited, delay(2_000)])
-    },
+        await browser.close().catch(() => undefined)
+      },
+      forceClose,
+    }
+  } catch (error) {
+    await forceClose()
+    throw error
   }
 }
 
