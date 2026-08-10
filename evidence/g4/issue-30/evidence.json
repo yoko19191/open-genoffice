@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "commit": "c43534fb37c9783ee1867dd8801d6dae474d8edc",
+  "acceptanceIds": [
+    "AR-003",
+    "AR-004",
+    "OT-001",
+    "OT-002",
+    "OT-003",
+    "OT-004",
+    "OT-005",
+    "OTC-001",
+    "OTC-002",
+    "OTC-004"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "catalogHashes": {
+    "docs": "8981cc5f0b46f5483102d01e0dc8f2620b0c4a84db7627b47648a4e84672be9f"
+  },
+  "fixtureHashes": {
+    "officeCatalog": "1244db204e7c6b4da94efbd4412d054924fce587f9ee0115e1e4b18a5e8150b6"
+  },
+  "commands": [
+    "npm run test -w @genoffice/acceptance-evidence",
+    "npm run test -w @genoffice/agent-resource",
+    "npm run test -w @genoffice/agent-runtime-protocol",
+    "npm run test -w @genoffice/pi-agent-runtime",
+    "npm run test -w @genoffice/electron-utils",
+    "npm run test -w @genoffice/ui",
+    "npm run test -w @genoffice/docs",
+    "npm run test -w @genoffice/shell",
+    "npm run audit:pi-platform",
+    "npm run audit:genspark-free"
+  ],
+  "results": [
+    {
+      "suite": "evidence",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/evidence.json"
+    },
+    {
+      "suite": "resource",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/resource.json"
+    },
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/protocol.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/runtime.json"
+    },
+    {
+      "suite": "electron",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/electron.json"
+    },
+    {
+      "suite": "ui",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/ui.json"
+    },
+    {
+      "suite": "docs",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/docs.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g4/issue-30/reports/shell.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
