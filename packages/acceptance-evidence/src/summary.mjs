@@ -5,7 +5,7 @@ import { assertRedacted, inside, sha256, validateReceiptArtifact } from './index
 
 const HASH = /^[0-9a-f]{64}$/
 const COMMIT = /^[0-9a-f]{40}$/
-const ACCEPTANCE_ID = /^(?:AR|OT|MD|RS|MCP|SA|OCR|SY|SL|GX|PK|QA|OTC)-\d{3}$/
+const ACCEPTANCE_ID = /^(?:AR|OT|MD|RS|MCP|SA|OCR|SY|SL|GX|PK|QA|OTC|RT|SS|DS)-\d{3}$/
 
 function object(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined
@@ -101,6 +101,19 @@ async function readJson(repoRoot, path, missingCode) {
   return { file, content, value: JSON.parse(content) }
 }
 
+function gitIsAncestor(repoRoot, ancestor, descendant) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
+      cwd: repoRoot,
+      stdio: 'ignore',
+    })
+    return true
+  } catch (error) {
+    if (error?.status === 1) return false
+    throw new Error('summary_ancestry_check_failed', { cause: error })
+  }
+}
+
 export async function collectAcceptanceSummary(options) {
   if (
     !COMMIT.test(options.expectedCommit ?? '') ||
@@ -109,7 +122,9 @@ export async function collectAcceptanceSummary(options) {
     !Array.isArray(options.requiredCatalogNames) ||
     options.requiredCatalogNames.length === 0 ||
     !Array.isArray(options.manifestPaths) ||
-    options.manifestPaths.length === 0
+    options.manifestPaths.length === 0 ||
+    (options.ancestorPolicy !== undefined && options.ancestorPolicy !== 'allow') ||
+    (options.isAncestor !== undefined && typeof options.isAncestor !== 'function')
   ) {
     throw new Error('summary_metadata_invalid')
   }
@@ -123,6 +138,8 @@ export async function collectAcceptanceSummary(options) {
   const catalogHashes = new Map()
   const manifests = []
   let receiptsChecked = 0
+  let currentManifests = 0
+  let ancestorManifests = 0
 
   for (const manifestPath of options.manifestPaths) {
     const input = await readJson(repoRoot, manifestPath, 'summary_manifest_missing')
@@ -139,7 +156,20 @@ export async function collectAcceptanceSummary(options) {
       reportHashes,
       catalogHashes: hashes,
     } = validateManifestShape(manifest)
-    if (manifest.commit !== options.expectedCommit) throw new Error('summary_commit_mismatch')
+    let relation = 'current'
+    if (manifest.commit !== options.expectedCommit) {
+      if (options.ancestorPolicy !== 'allow') throw new Error('summary_commit_mismatch')
+      const isAncestor =
+        options.isAncestor ??
+        ((ancestor, descendant) => gitIsAncestor(repoRoot, ancestor, descendant))
+      if (!(await isAncestor(manifest.commit, options.expectedCommit))) {
+        throw new Error('summary_commit_not_ancestor')
+      }
+      relation = 'ancestor'
+      ancestorManifests += 1
+    } else {
+      currentManifests += 1
+    }
 
     for (const [name, source] of Object.entries(fixtureSources)) {
       if (!(name in fixtureHashes)) throw new Error('summary_manifest_invalid')
@@ -222,6 +252,8 @@ export async function collectAcceptanceSummary(options) {
     manifests.push({
       path: input.file.relative,
       sha256: sha256(input.content),
+      sourceCommit: manifest.commit,
+      relation,
       platform: manifest.platform,
       arch: manifest.arch,
     })
@@ -248,6 +280,11 @@ export async function collectAcceptanceSummary(options) {
       options.requiredCatalogNames.sort().map((name) => [name, catalogHashes.get(name)]),
     ),
     receipts: { checked: receiptsChecked, unknown: 0 },
+    recertification: {
+      policy: options.ancestorPolicy === 'allow' ? 'ancestor-only' : 'exact-commit',
+      currentManifests,
+      ancestorManifests,
+    },
     manifests: manifests.sort((left, right) => left.path.localeCompare(right.path)),
     redactionCheck: 'passed',
   }
@@ -269,6 +306,7 @@ export function parseAcceptanceSummaryArgs(argv) {
     } else if (flag === '--catalog') parsed.catalogPath = value
     else if (flag === '--manifest') parsed.manifestPaths.push(value)
     else if (flag === '--output') parsed.outputPath = value
+    else if (flag === '--ancestor-policy' && value === 'allow') parsed.ancestorPolicy = value
     else throw new Error('summary_argument_invalid')
   }
   return parsed

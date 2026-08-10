@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
@@ -429,6 +430,109 @@ describe('acceptance evidence summary', () => {
     await expect(collectAcceptanceSummary(options)).rejects.toThrow('summary_catalog_missing')
   })
 
+  it('recertifies only ancestor evidence when the policy is explicitly enabled', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-summary-ancestor-'))
+    const catalogPath = join(root, 'catalog.json')
+    await writeFile(catalogPath, JSON.stringify(catalog()))
+    const sourceCommit = 'a'.repeat(40)
+    const expectedCommit = 'b'.repeat(40)
+    const manifest = await createEvidence(root, 'ancestor', {
+      acceptanceIds: ['OT-001', 'RT-001', 'SS-001', 'DS-001'],
+      commit: sourceCommit,
+    })
+    const ancestryChecks = []
+
+    const summary = await collectAcceptanceSummary({
+      repoRoot: root,
+      outputPath: join(root, 'summary.json'),
+      expectedCommit,
+      ancestorPolicy: 'allow',
+      isAncestor: async (ancestor, descendant) => {
+        ancestryChecks.push([ancestor, descendant])
+        return true
+      },
+      requiredAcceptanceIds: ['OT-001'],
+      requiredCatalogNames: ['docs'],
+      catalogPath,
+      manifestPaths: [manifest],
+    })
+
+    expect(ancestryChecks).toEqual([[sourceCommit, expectedCommit]])
+    expect(summary.recertification).toEqual({
+      policy: 'ancestor-only',
+      currentManifests: 0,
+      ancestorManifests: 1,
+    })
+    expect(summary.manifests).toEqual([
+      expect.objectContaining({ sourceCommit, relation: 'ancestor' }),
+    ])
+    expect(summary.acceptanceIds).toEqual(['OT-001'])
+  })
+
+  it('fails closed when recertification evidence is not an ancestor', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-summary-non-ancestor-'))
+    const catalogPath = join(root, 'catalog.json')
+    await writeFile(catalogPath, JSON.stringify(catalog()))
+    const manifest = await createEvidence(root, 'unrelated', {
+      acceptanceIds: ['OT-001'],
+      commit: 'a'.repeat(40),
+    })
+
+    await expect(
+      collectAcceptanceSummary({
+        repoRoot: root,
+        outputPath: join(root, 'summary.json'),
+        expectedCommit: 'b'.repeat(40),
+        ancestorPolicy: 'allow',
+        isAncestor: async () => false,
+        requiredAcceptanceIds: ['OT-001'],
+        requiredCatalogNames: ['docs'],
+        catalogPath,
+        manifestPaths: [manifest],
+      }),
+    ).rejects.toThrow('summary_commit_not_ancestor')
+  })
+
+  it('checks ancestry against the repository when no test seam is supplied', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-summary-git-ancestor-'))
+    const git = (...args) =>
+      execFileSync('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+    git('init')
+    git('config', 'user.name', 'Acceptance Test')
+    git('config', 'user.email', 'acceptance@example.invalid')
+    const marker = join(root, 'marker.txt')
+    await writeFile(marker, 'ancestor\n')
+    git('add', 'marker.txt')
+    git('commit', '-m', 'ancestor')
+    const sourceCommit = git('rev-parse', 'HEAD').trim()
+    await writeFile(marker, 'current\n')
+    git('commit', '-am', 'current')
+    const expectedCommit = git('rev-parse', 'HEAD').trim()
+    const catalogPath = join(root, 'catalog.json')
+    await writeFile(catalogPath, JSON.stringify(catalog()))
+    const manifest = await createEvidence(root, 'git-ancestor', {
+      acceptanceIds: ['OT-001'],
+      commit: sourceCommit,
+    })
+
+    const summary = await collectAcceptanceSummary({
+      repoRoot: root,
+      outputPath: join(root, 'summary.json'),
+      expectedCommit,
+      ancestorPolicy: 'allow',
+      requiredAcceptanceIds: ['OT-001'],
+      requiredCatalogNames: ['docs'],
+      catalogPath,
+      manifestPaths: [manifest],
+    })
+
+    expect(summary.manifests[0]).toMatchObject({ sourceCommit, relation: 'ancestor' })
+  })
+
   it('parses and executes the summary CLI without accepting a manual status', async () => {
     expect(
       parseAcceptanceSummaryArgs([
@@ -442,6 +546,8 @@ describe('acceptance evidence summary', () => {
         'evidence/one/evidence.json',
         '--output',
         'evidence/summary.json',
+        '--ancestor-policy',
+        'allow',
       ]),
     ).toEqual({
       requiredAcceptanceIds: ['OT-001', 'OTC-001'],
@@ -449,11 +555,15 @@ describe('acceptance evidence summary', () => {
       catalogPath: 'catalog.json',
       manifestPaths: ['evidence/one/evidence.json'],
       outputPath: 'evidence/summary.json',
+      ancestorPolicy: 'allow',
     })
     expect(() => parseAcceptanceSummaryArgs(['--status', 'passed'])).toThrow(
       'summary_argument_invalid',
     )
     expect(() => parseAcceptanceSummaryArgs(['--output'])).toThrow('summary_argument_invalid')
+    expect(() => parseAcceptanceSummaryArgs(['--ancestor-policy', 'ignore'])).toThrow(
+      'summary_argument_invalid',
+    )
 
     const root = await mkdtemp(join(tmpdir(), 'genoffice-summary-cli-'))
     await mkdir(join(root, '.git'), { recursive: true })
