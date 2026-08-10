@@ -1,16 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { Editor } from '@tiptap/core'
-import { AgentLoop, type AgentStreamCallbacks, type AgentTransport } from '@genoffice/agent-core'
 import { editorExtensions } from '../src/renderer/editor/extensions'
-import { createDocsSkill } from '../src/renderer/ai/docs-skill'
 import { buildDocContext, countWords } from '../src/renderer/ai/protocol'
 import { executeTool } from '../src/renderer/ai/tools'
 
 /**
- * End-to-end through the local stack: AgentLoop -> docs skill -> tools ->
- * real tiptap editor. The "model" is scripted, so these tests verify that
- * the capabilities behind typical requests (word count, heading colors,
- * rewrite, insert) actually work when the model picks the right tool.
+ * Docs Office executor tests against a real Tiptap editor. Runtime session,
+ * freshness, rollback and abort behavior live at the Office host/adapter seam.
  */
 
 interface JsonNode {
@@ -59,30 +55,7 @@ const fixture = () => [
   para('This document is for reference only.'),
 ]
 
-function scriptedTransport(script: Array<(cb: AgentStreamCallbacks) => void>): AgentTransport {
-  let turn = 0
-  return {
-    stream(_request, cb) {
-      const step = script[turn++]
-      if (step) queueMicrotask(() => step(cb))
-      return { cancel: () => queueMicrotask(() => cb.onDone()) }
-    },
-  }
-}
-
-const flush = () => new Promise((r) => setTimeout(r, 0))
 const NUM_IDS = { bullet: null, ordered: null }
-
-function makeLoop(editor: Editor, transport: AgentTransport, onDone: (text: string) => void) {
-  return new AgentLoop({
-    transport,
-    skill: createDocsSkill(
-      () => editor,
-      () => NUM_IDS,
-    ),
-    events: { onDone: (r) => onDone(r.text) },
-  })
-}
 
 describe('word-count stats (answer-style requests)', () => {
   it('each turn context carries full-text stats matching the status bar so the model can quote them directly', async () => {
@@ -106,67 +79,33 @@ describe('word-count stats (answer-style requests)', () => {
     expect(exec.output).toContain(`words ${countWords(editor.state.doc.textContent)}`)
     expect(JSON.stringify(editor.getJSON())).toBe(before)
   })
-
-  it('answer-only turn: the model replies with plain text and the document is unchanged', async () => {
-    const editor = createEditor(fixture())
-    const before = JSON.stringify(editor.getJSON())
-    let final = ''
-    const loop = makeLoop(
-      editor,
-      scriptedTransport([
-        (cb) => {
-          cb.onDelta('The document has 17 words.')
-          cb.onDone()
-        },
-      ]),
-      (t) => (final = t),
-    )
-    loop.run('How many words are there now')
-    await flush()
-    expect(final).toBe('The document has 17 words.')
-    expect(JSON.stringify(editor.getJSON())).toBe(before)
-    // The context made it into the user message sent to the model
-    expect((loop.messages[0] as { text: string }).text).toContain('Full-text stats')
-  })
 })
 
 describe('changing heading colors (formatting-command requests)', () => {
-  it('after the model calls apply_commands, all headings turn red with the aiChanged highlight', async () => {
+  it('apply_commands turns all headings red with the aiChanged highlight', async () => {
     const editor = createEditor(fixture())
-    let final = ''
-    const loop = makeLoop(
+    const exec = await executeTool(
       editor,
-      scriptedTransport([
-        (cb) => {
-          cb.onToolCall({
-            id: 't1',
-            name: 'apply_commands',
-            input: {
-              commands: [
-                {
-                  updateTextStyle: {
-                    target: { nodeType: 'docHeading' },
-                    style: { color: 'FF0000' },
-                    fields: ['color'],
-                  },
-                },
-              ],
+      {
+        id: 't1',
+        name: 'apply_commands',
+        input: {
+          commands: [
+            {
+              updateTextStyle: {
+                target: { nodeType: 'docHeading' },
+                style: { color: 'FF0000' },
+                fields: ['color'],
+              },
             },
-          })
-          cb.onDone()
+          ],
         },
-        (cb) => {
-          cb.onDelta('All headings are now red.')
-          cb.onDone()
-        },
-      ]),
-      (t) => (final = t),
+      },
+      NUM_IDS,
     )
-    loop.run('Turn all headings red')
-    await flush()
-    await flush()
 
-    expect(final).toBe('All headings are now red.')
+    expect(exec.isError).toBeUndefined()
+    expect(exec.output).toContain('已更新 2 个块的文字样式')
     for (const blockIndex of [0, 2]) {
       const block = editor.state.doc.child(blockIndex)
       expect(block.attrs.aiChanged).toBe(true)
@@ -180,37 +119,21 @@ describe('changing heading colors (formatting-command requests)', () => {
         .child(0)
         .marks.some((m) => m.type.name === 'docTextStyle'),
     ).toBe(false)
-    // The tool result was passed back to the model
-    const toolMsg = loop.messages[2] as { role: 'tool'; results: Array<{ output: string }> }
-    expect(toolMsg.results[0].output).toContain('已更新 2 个块的文字样式')
   })
 
-  it('invalid commands return an error result, the document is unchanged, and the loop continues', async () => {
+  it('invalid commands return an error result and leave the document unchanged', async () => {
     const editor = createEditor(fixture())
     const before = JSON.stringify(editor.getJSON())
-    const loop = makeLoop(
+    const exec = await executeTool(
       editor,
-      scriptedTransport([
-        (cb) => {
-          cb.onToolCall({
-            id: 't1',
-            name: 'apply_commands',
-            input: { commands: [{ updateTextStyle: { style: {}, fields: [] } }] },
-          })
-          cb.onDone()
-        },
-        (cb) => {
-          cb.onDelta('Invalid command.')
-          cb.onDone()
-        },
-      ]),
-      () => {},
+      {
+        id: 't1',
+        name: 'apply_commands',
+        input: { commands: [{ updateTextStyle: { style: {}, fields: [] } }] },
+      },
+      NUM_IDS,
     )
-    loop.run('Make random edits')
-    await flush()
-    await flush()
-    const toolMsg = loop.messages[2] as { role: 'tool'; results: Array<{ isError?: boolean }> }
-    expect(toolMsg.results[0].isError).toBe(true)
+    expect(exec.isError).toBe(true)
     expect(JSON.stringify(editor.getJSON())).toBe(before)
   })
 })
@@ -321,61 +244,6 @@ describe('content read/write tools', () => {
   })
 })
 
-describe('external-edit guard (document freshness baseline)', () => {
-  const read = (editor: Editor) =>
-    executeTool(editor, { id: 'r', name: 'get_document_context', input: {} }, NUM_IDS)
-  const replace = (editor: Editor) =>
-    executeTool(
-      editor,
-      {
-        id: 'w',
-        name: 'replace_blocks',
-        input: { startBlockIndex: 1, endBlockIndex: 1, html: '<p>rewritten</p>' },
-      },
-      NUM_IDS,
-    )
-
-  it('index-addressed writes fail after a user edit, and succeed again after a re-read', async () => {
-    const editor = createEditor(fixture())
-    await read(editor)
-    // simulate a manual user edit between tool calls
-    editor.view.dispatch(editor.state.tr.insertText('typed by user ', 2))
-    const stale = await executeTool(
-      editor,
-      {
-        id: 'w',
-        name: 'apply_commands',
-        input: { commands: [{ deleteBlocks: { target: { blockIndexes: [3] } } }] },
-      },
-      NUM_IDS,
-    )
-    expect(stale.isError).toBe(true)
-    expect(stale.output).toContain('edited by the user')
-    expect(editor.state.doc.childCount).toBe(4) // nothing deleted
-    await executeTool(
-      editor,
-      { id: 'r2', name: 'read_blocks', input: { startBlockIndex: 0, endBlockIndex: 3 } },
-      NUM_IDS,
-    )
-    const retry = await replace(editor)
-    expect(retry.isError).toBeUndefined()
-    expect(editor.state.doc.child(1).textContent).toBe('rewritten')
-  })
-
-  it("the AI's own consecutive writes do not trip the guard", async () => {
-    const editor = createEditor(fixture())
-    await read(editor)
-    expect((await replace(editor)).isError).toBeUndefined()
-    const second = await executeTool(
-      editor,
-      { id: 'w2', name: 'insert_content', input: { html: '<p>appendix</p>', afterBlockIndex: 3 } },
-      NUM_IDS,
-    )
-    expect(second.isError).toBeUndefined()
-    expect(editor.state.doc.childCount).toBe(5)
-  })
-})
-
 describe('blank-document detection', () => {
   it('an image-only document is not blank: insert_content appends instead of wiping it', async () => {
     const editor = createEditor([
@@ -409,137 +277,32 @@ describe('blank-document detection', () => {
   })
 })
 
-describe('web_search backend failures', () => {
-  it("method 'error' surfaces as a tool error instead of '(no results)'", async () => {
-    const editor = createEditor(fixture())
-    const w = window as unknown as { desktop?: unknown }
-    const saved = w.desktop
-    w.desktop = {
-      webSearch: async () => ({ results: [], method: 'error', error: 'Serper 502' }),
-    }
-    try {
-      const exec = await executeTool(
-        editor,
-        { id: 't', name: 'web_search', input: { query: 'genspark' } },
-        NUM_IDS,
-      )
-      expect(exec.isError).toBe(true)
-      expect(exec.output).toContain('Serper 502')
-      expect(exec.output).not.toContain('(no results)')
-    } finally {
-      w.desktop = saved
-    }
-  })
-})
-
-describe('insert_image freshness baseline', () => {
-  /** jsdom never decodes images; fake one that reports a fixed natural size */
-  class FakeImage {
-    onload: (() => void) | null = null
-    onerror: (() => void) | null = null
-    naturalWidth = 100
-    naturalHeight = 80
-    set src(_v: string) {
-      queueMicrotask(() => this.onload?.())
-    }
-  }
-
-  const withImageStubs = async (fn: (release: () => void) => Promise<void>) => {
-    const w = window as unknown as { desktop?: unknown }
-    const savedDesktop = w.desktop
-    const savedImage = globalThis.Image
-    let release!: () => void
-    w.desktop = {
-      fetchImage: () =>
-        new Promise((resolve) => {
-          release = () => resolve({ mime: 'image/png', base64: 'AAAA' })
-        }),
-    }
-    globalThis.Image = FakeImage as unknown as typeof Image
-    try {
-      await fn(() => release())
-    } finally {
-      w.desktop = savedDesktop
-      globalThis.Image = savedImage
-    }
-  }
-
-  const replaceFirstPara = (editor: Editor) =>
-    executeTool(
-      editor,
-      {
-        id: 'w',
-        name: 'replace_blocks',
-        input: { startBlockIndex: 2, endBlockIndex: 2, html: '<p>rewritten</p>' },
-      },
-      NUM_IDS,
-    )
-
-  // the regression: settling insert_image with markDocSeen after the download
-  // baptized user edits made mid-flight, letting index writes hit shifted blocks
-  it('user edits during the download keep index-addressed writes stale', async () => {
-    const editor = createEditor(fixture())
-    await executeTool(editor, { id: 'r', name: 'get_document_context', input: {} }, NUM_IDS)
-    await withImageStubs(async (release) => {
-      const pending = executeTool(
-        editor,
-        { id: 't', name: 'insert_image', input: { url: 'https://example.com/a.png' } },
-        NUM_IDS,
-      )
-      // the user types while the download is in flight
-      editor.view.dispatch(editor.state.tr.insertText('typed by user ', 2))
-      release()
-      const exec = await pending
-      expect(exec.isError).toBeUndefined()
-      const stale = await replaceFirstPara(editor)
-      expect(stale.isError).toBe(true)
-      expect(stale.output).toContain('edited by the user')
-    })
-  })
-
-  it('an undisturbed insert_image keeps the baseline current (no forced re-read)', async () => {
-    const editor = createEditor(fixture())
-    await executeTool(editor, { id: 'r', name: 'get_document_context', input: {} }, NUM_IDS)
-    await withImageStubs(async (release) => {
-      const pending = executeTool(
-        editor,
-        { id: 't', name: 'insert_image', input: { url: 'https://example.com/a.png' } },
-        NUM_IDS,
-      )
-      release()
-      const exec = await pending
-      expect(exec.isError).toBeUndefined()
-      const write = await replaceFirstPara(editor)
-      expect(write.isError).toBeUndefined()
-    })
-  })
-})
-
 describe('abort during async tools', () => {
-  it('insert_image aborted mid-download writes nothing', async () => {
+  it('insert_image aborted before mutation writes nothing', async () => {
     const editor = createEditor(fixture())
     const before = JSON.stringify(editor.getJSON())
-    const w = window as unknown as { desktop?: { fetchImage(url: string): Promise<unknown> } }
-    const saved = w.desktop
-    w.desktop = {
-      fetchImage: async () => ({ mime: 'image/png', base64: 'AAAA' }),
-    }
-    try {
-      const ctrl = new AbortController()
-      ctrl.abort()
-      const skill = createDocsSkill(
-        () => editor,
-        () => NUM_IDS,
-      )
-      const exec = await skill.executeTool(
-        { id: 't', name: 'insert_image', input: { url: 'https://example.com/a.png' } },
-        ctrl.signal,
-      )
-      expect(exec.isError).toBe(true)
-      expect(exec.output).toContain('stopped by the user')
-      expect(JSON.stringify(editor.getJSON())).toBe(before)
-    } finally {
-      w.desktop = saved
-    }
+    const ctrl = new AbortController()
+    ctrl.abort()
+    const exec = await executeTool(
+      editor,
+      {
+        id: 't',
+        name: 'insert_image',
+        input: { artifactId: '11111111-1111-4111-8111-111111111111' },
+      },
+      NUM_IDS,
+      undefined,
+      ctrl.signal,
+      {
+        bytes: Uint8Array.from([137, 80, 78, 71]),
+        mediaType: 'image/png',
+        width: 1,
+        height: 1,
+        sha256: 'a'.repeat(64),
+      },
+    )
+    expect(exec.isError).toBe(true)
+    expect(exec.output).toContain('stopped by the user')
+    expect(JSON.stringify(editor.getJSON())).toBe(before)
   })
 })

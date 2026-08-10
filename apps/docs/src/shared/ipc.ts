@@ -14,79 +14,6 @@ export interface PickImageResult {
   name: string
 }
 
-// ---- AI provider settings/config/streaming: canonical types live in @genoffice/ai-provider ----
-
-import type {
-  AiChatRequest,
-  AiChatResponse,
-  AiSettings,
-  AiStreamChunk,
-  AiStreamRequest,
-  GenSparkAccountStatus,
-} from '@genoffice/ai-provider'
-
-export type {
-  AiChatRequest,
-  AiChatResponse,
-  AiProviderConfig,
-  AiProviderId,
-  AiProviderMeta,
-  AiSettings,
-  AiStreamChunk,
-  AiStreamRequest,
-  GenSparkAccountStatus,
-} from '@genoffice/ai-provider'
-export { AI_PROVIDERS } from '@genoffice/ai-provider'
-
-// ---- agent protocol: canonical types live in @genoffice/agent-core ----
-
-export type {
-  AgentMessage,
-  AgentToolCall,
-  AgentToolDef,
-  AgentToolResult,
-} from '@genoffice/agent-core'
-
-// ---- chat attachments (local files fed to the agent via tools) ----
-
-/** Image attachment extensions: no text extraction; read as base64 on send and passed to the model as a multimodal image with the user message */
-export const ATTACHMENT_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
-
-export interface AttachmentMeta {
-  /** absolute local path; the file never leaves the machine */
-  path: string
-  name: string
-  /** lowercased extension without the dot */
-  ext: string
-  sizeBytes: number
-}
-
-export interface AttachmentAddResult {
-  accepted: AttachmentMeta[]
-  /** per-file rejection messages (too large / unsupported type / unreadable) */
-  rejected: string[]
-}
-
-export interface AttachmentReadResult {
-  ok: boolean
-  error?: string
-  name?: string
-  /** total characters of the extracted text */
-  totalChars?: number
-  /** requested slice */
-  text?: string
-  offset?: number
-}
-
-/** an image attachment read as raw bytes for multimodal input (files:read-image) */
-export interface AttachmentImageResult {
-  ok: boolean
-  /** raw base64 (no data: URL prefix) */
-  base64?: string
-  mime?: string
-  error?: string
-}
-
 /** an open docs tab, for View → Switch Tab */
 export interface DocsTabInfo {
   id: string
@@ -173,8 +100,6 @@ export interface DesktopApi {
   ): Promise<{ ok: boolean; path?: string; error?: string }>
   getRecentFiles(): Promise<string[]>
   pickImage(): Promise<PickImageResult | null>
-  getAiSettings(): Promise<AiSettings>
-  setAiSettings(settings: AiSettings): Promise<void>
   /** system print dialog for the current window */
   print(): Promise<void>
   /** render the document to PDF and ask where to save; size in twips.
@@ -197,60 +122,11 @@ export interface DesktopApi {
     base64Parts: string[],
     outPath?: string,
   ): Promise<{ ok: boolean; path?: string; error?: string }>
-  aiChat(request: AiChatRequest): Promise<AiChatResponse>
-  /** start a streaming AI call; deltas arrive via onAiStream with the same requestId */
-  aiStream(request: AiStreamRequest): Promise<void>
-  aiStreamCancel(requestId: string): Promise<void>
-  /** Genspark account status (gsk login state); withEmail also returns the email (needs a network request, slower) */
-  aiGskStatus(withEmail?: boolean): Promise<GenSparkAccountStatus>
-  /** Open the browser to log in to Genspark (fire-and-forget; aiGskStatus flips to logged-in when done) */
-  aiGskLogin(): Promise<void>
-  webSearch(
-    query: string,
-    maxResults?: number,
-  ): Promise<{
-    results: Array<{ title: string; url: string; snippet: string }>
-    answer?: string
-    method: string
-    /** failure reason when method === 'error' */
-    error?: string
-  }>
-  imageSearch(
-    query: string,
-    maxResults?: number,
-  ): Promise<{
-    images: Array<{
-      title: string
-      imageUrl: string
-      sourceUrl: string
-      source: string
-      width?: number
-      height?: number
-    }>
-    method: string
-    /** failure reason when method === 'error' */
-    error?: string
-  }>
-  fetchImage(url: string): Promise<{ base64: string; mime: string } | null>
-  /** file picker for chat attachments (multi-select) */
-  pickAttachments(): Promise<AttachmentAddResult | null>
-  /** validate dropped paths and return attachment metadata */
-  addAttachmentPaths(paths: string[]): Promise<AttachmentAddResult>
-  /** persist a pasted clipboard image (no local path) to a temp file and add it as an attachment */
-  addPastedImage(data: ArrayBuffer, ext: string): Promise<AttachmentAddResult>
-  /** read a slice of the extracted text of an attachment */
-  readAttachment(path: string, offset: number, maxChars: number): Promise<AttachmentReadResult>
-  /** read an image attachment as base64 for multimodal input (≤5MB) */
-  readAttachmentImage(path: string): Promise<AttachmentImageResult>
-  /** absolute path of a File dropped onto the window (Electron webUtils) */
-  getPathForFile(file: File): string
   /** View → New Tab: open another docs tab, optionally loading the same document */
   openNewTab(openPath?: string | null): Promise<void>
   /** all open docs tabs, for View → Switch Tab */
   listDocsTabs(): Promise<DocsTabInfo[]>
   focusDocsTab(id: string): Promise<void>
-  /** subscribe to AI stream chunks; returns unsubscribe */
-  onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
   /** subscribe to native menu commands; returns unsubscribe */
   onMenuCommand(handler: (command: MenuCommand, payload?: string) => void): () => void
   /** Close guard: main process queries pre-close state (dirty flag + autosave switch; if autosave is on, save silently without a dialog) */

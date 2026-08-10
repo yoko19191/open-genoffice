@@ -3,34 +3,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Editor } from '@tiptap/core'
-import { editorExtensions } from '../src/renderer/editor/extensions'
 import { AiPanel } from '../src/renderer/ai/AiPanel'
-import { AI_PROVIDERS, type AiSettings } from '../src/shared/ipc'
-
-const settings: AiSettings = {
-  provider: 'anthropic',
-  providers: Object.fromEntries(
-    AI_PROVIDERS.map((p) => [p.id, { apiKey: '', model: p.defaultModel }]),
-  ) as AiSettings['providers'],
-}
-
-function createEditor(): Editor {
-  return new Editor({
-    element: document.createElement('div'),
-    extensions: editorExtensions,
-    content: {
-      type: 'doc',
-      content: [
-        {
-          type: 'docParagraph',
-          attrs: { docxIndex: 0 },
-          content: [{ type: 'text', text: 'EVs market research' }],
-        },
-      ],
-    },
-  })
-}
 
 function mount(element: React.ReactElement): {
   container: HTMLElement
@@ -51,11 +24,8 @@ function mount(element: React.ReactElement): {
   }
 }
 
-function panelProps(editor: Editor, overrides: Record<string, unknown> = {}) {
+function panelProps(overrides: Record<string, unknown> = {}) {
   return {
-    editor,
-    blocks: [],
-    settings,
     open: true,
     onExpand: () => {},
     onCollapse: () => {},
@@ -73,14 +43,23 @@ function typeInto(textarea: HTMLTextAreaElement, text: string) {
 }
 
 beforeAll(() => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   // jsdom has no scrollTo; the panel auto-scrolls its chat log
   Element.prototype.scrollTo ??= () => {}
+  window.agentSession = {
+    documentId: async () => {
+      throw new Error('agent_session_unavailable')
+    },
+    connect: vi.fn(),
+    command: vi.fn(),
+    disconnect: vi.fn(),
+    onEvent: () => () => {},
+  }
 })
 
 describe('AiPanel collapse', () => {
   it('keeps the draft input across a collapse/expand cycle', () => {
-    const editor = createEditor()
-    const { container, root, cleanup } = mount(createElement(AiPanel, panelProps(editor)))
+    const { container, root, cleanup } = mount(createElement(AiPanel, panelProps()))
 
     const textarea = container.querySelector<HTMLTextAreaElement>('.ai-input-box textarea')
     expect(textarea).not.toBeNull()
@@ -88,25 +67,23 @@ describe('AiPanel collapse', () => {
     expect(textarea!.value).toBe('unsent draft')
 
     // collapse: only the rail is rendered, but the component stays mounted
-    act(() => root.render(createElement(AiPanel, panelProps(editor, { open: false }))))
+    act(() => root.render(createElement(AiPanel, panelProps({ open: false }))))
     expect(container.querySelector('.ai-input-box textarea')).toBeNull()
     expect(container.querySelector('.ai-rail')).not.toBeNull()
 
     // expand: the draft is still there
-    act(() => root.render(createElement(AiPanel, panelProps(editor, { open: true }))))
+    act(() => root.render(createElement(AiPanel, panelProps({ open: true }))))
     const restored = container.querySelector<HTMLTextAreaElement>('.ai-input-box textarea')
     expect(restored).not.toBeNull()
     expect(restored!.value).toBe('unsent draft')
 
     cleanup()
-    editor.destroy()
   })
 
   it('expands back through the rail button', () => {
-    const editor = createEditor()
     const onExpand = vi.fn()
     const { container, cleanup } = mount(
-      createElement(AiPanel, panelProps(editor, { open: false, onExpand })),
+      createElement(AiPanel, panelProps({ open: false, onExpand })),
     )
 
     const rail = container.querySelector<HTMLButtonElement>('.ai-rail')
@@ -115,6 +92,5 @@ describe('AiPanel collapse', () => {
     expect(onExpand).toHaveBeenCalledTimes(1)
 
     cleanup()
-    editor.destroy()
   })
 })

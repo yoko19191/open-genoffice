@@ -35,10 +35,14 @@ import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@genoffice/i18n'
 import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
-import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
+import {
+  DOCS_OFFICE_TOOL_CATALOG_BINDING,
+  PDF_OFFICE_TOOL_CATALOG_BINDING,
+} from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import {
   DocumentBindingStore,
   DocumentSessionIndexStore,
+  ScopedArtifactStore,
   findCanonicalProjectRoot,
   type DocumentFormat,
 } from '@genoffice/agent-resource'
@@ -86,7 +90,6 @@ import {
   recordRecentFile,
   removeRecentFiles,
   replaceRecentFile,
-  registerAiIpc,
   registerProjectIpc,
   toggleStarredFile,
   registerDocsIpc,
@@ -98,8 +101,10 @@ import {
   setDocsFileSavedHook,
   setSessionPathResolver,
   defaultSaveDir,
+  docsOfficeToolRendererClient,
   uniquePathIn,
 } from '../../../docs/src/main/docs-main'
+import { DocsOfficeToolHost } from '../../../docs/src/main/agent-tools/docs-office-tool-host'
 import { blankXlsxBuffer } from '../../../sheets/src/gateway/csv-import'
 import {
   configureSheetsRuntime,
@@ -129,6 +134,7 @@ import {
   setSlidesOpenedHook,
   setSlidesShellWindow,
   slidesFileRenamed,
+  registerAiIpc as registerLegacyAiIpc,
 } from '../../../slides/src/main/slides-main'
 import {
   configurePdfRuntime,
@@ -241,6 +247,10 @@ const mineruOcrService = new MineruOcrService({
   credentialBroker,
 })
 const pdfOfficeToolHost = { current: undefined as PdfOfficeToolHost | undefined }
+const docsOfficeToolHost = { current: undefined as DocsOfficeToolHost | undefined }
+const scopedArtifactStore = new ScopedArtifactStore({
+  rootDirectory: join(AGENT_RESOURCE_HOME, 'assets', 'artifacts'),
+})
 const piRuntimeService = createInstalledPiRuntimeService({
   bundleRoot: PI_RUNTIME_ROOT,
   platform: process.platform,
@@ -250,14 +260,22 @@ const piRuntimeService = createInstalledPiRuntimeService({
   credentialBroker,
   officeToolHost: {
     invoke: (request) => {
-      if (pdfOfficeToolHost.current) return pdfOfficeToolHost.current.invoke(request)
+      if (request.toolId.startsWith('office:docs:') && docsOfficeToolHost.current) {
+        return docsOfficeToolHost.current.invoke(request)
+      }
+      if (request.toolId.startsWith('office:pdf:') && pdfOfficeToolHost.current) {
+        return pdfOfficeToolHost.current.invoke(request)
+      }
       return Promise.reject(
         Object.assign(new Error('executor_unavailable'), {
           code: 'executor_unavailable',
         }),
       )
     },
-    abort: (request) => pdfOfficeToolHost.current?.abort(request) ?? Promise.resolve(false),
+    abort: (request) =>
+      tabManager?.agentWebContentsFor(request.documentId, 'docs')
+        ? (docsOfficeToolHost.current?.abort(request) ?? Promise.resolve(false))
+        : (pdfOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)),
   },
 })
 
@@ -1131,11 +1149,15 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
     tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
   randomUUID,
   rollbackRun: (documentId, runId) =>
-    pdfOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false),
+    tabManager?.agentWebContentsFor(documentId, 'docs')
+      ? (docsOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false))
+      : (pdfOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)),
   resolveOfficeToolCatalog: (webContentsId) =>
     tabManager?.agentDocumentKindFor(webContentsId) === 'pdf'
       ? PDF_OFFICE_TOOL_CATALOG_BINDING
-      : undefined,
+      : tabManager?.agentDocumentKindFor(webContentsId) === 'docs'
+        ? DOCS_OFFICE_TOOL_CATALOG_BINDING
+        : undefined,
   resolveProjectRoot: async (documentId) => {
     const binding = await documentBindingStore.get(documentId)
     return binding.state === 'bound' && binding.canonicalPath
@@ -1165,8 +1187,9 @@ pdfOfficeToolHost.current = new PdfOfficeToolHost({
       : false
   },
   validatePermissionSnapshot: async (request) =>
-    request.permissionSnapshot.toolIds.length > 0 &&
-    request.permissionSnapshot.toolIds.every((toolId) => pdfToolIds.has(toolId)),
+    request.permissionSnapshot.toolIds.every((toolId) => pdfToolIds.has(toolId)) &&
+    (request.permissionSnapshot.toolIds.length > 0 ||
+      (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
   authorizeMutationGrant: async (request) =>
     request.actor.type === 'subagent' &&
     request.mutationGrantId !== undefined &&
@@ -1176,6 +1199,34 @@ pdfOfficeToolHost.current = new PdfOfficeToolHost({
       documentId: request.documentId,
       toolId: request.toolId,
     }),
+})
+
+const docsToolIds = new Set(DOCS_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
+docsOfficeToolHost.current = new DocsOfficeToolHost({
+  resolveRenderer: (documentId) => {
+    const contents = tabManager?.agentWebContentsFor(documentId, 'docs')
+    return contents ? docsOfficeToolRendererClient(contents.id) : undefined
+  },
+  validateBinding: async (request) => {
+    const contents = tabManager?.agentWebContentsFor(request.documentId, 'docs')
+    return contents
+      ? (tabManager?.authorizeAgentDocument(contents.id, request.documentId) ?? false)
+      : false
+  },
+  validatePermissionSnapshot: async (request) =>
+    request.permissionSnapshot.toolIds.every((toolId) => docsToolIds.has(toolId)) &&
+    (request.permissionSnapshot.toolIds.length > 0 ||
+      (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
+  authorizeMutationGrant: async (request) =>
+    request.actor.type === 'subagent' &&
+    request.mutationGrantId !== undefined &&
+    agentSessionBroker.authorizeMutationGrant({
+      grantId: request.mutationGrantId,
+      subagentRunId: request.actor.subagentRunId,
+      documentId: request.documentId,
+      toolId: request.toolId,
+    }),
+  openImage: (input) => scopedArtifactStore.openImage(input),
 })
 
 /**
@@ -2280,7 +2331,7 @@ app.on('second-instance', (_event, argv, _cwd, additionalData) => {
 
 installNavigationGuard(app)
 installContextMenu(app, () => contextMenuLabels(currentLang()))
-registerAiIpc()
+registerLegacyAiIpc()
 registerProjectIpc()
 registerDocsIpc()
 registerHomeIpc()

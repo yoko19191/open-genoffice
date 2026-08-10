@@ -8,8 +8,11 @@ import {
   parseOfficeToolCatalogBinding,
 } from '../src'
 import {
+  DOCS_OFFICE_TOOL_CATALOG_BINDING,
+  DOCS_OFFICE_TOOL_DEFINITIONS,
   PDF_OFFICE_TOOL_CATALOG_BINDING,
   PDF_OFFICE_TOOL_DEFINITIONS,
+  parseDocsOfficeToolInput,
   parsePdfOfficeToolInput,
   resolveOfficeToolCatalogMetadata,
   resolveOfficeToolDefinitions,
@@ -23,6 +26,77 @@ async function registrations(sourceFile: string): Promise<string[]> {
 }
 
 describe('frozen four-application tool catalog', () => {
+  it('publishes exactly eight Docs Office executors and excludes three platform aliases', () => {
+    expect(DOCS_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)).toEqual([
+      'get_document_context',
+      'read_blocks',
+      'insert_content',
+      'replace_blocks',
+      'apply_commands',
+      'insert_image',
+      'insert_chart',
+      'edit_chart',
+    ])
+    expect(DOCS_OFFICE_TOOL_CATALOG_BINDING).toMatchObject({
+      app: 'docs',
+      catalogHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+      descriptors: [
+        expect.objectContaining({ effect: 'read', modelAlias: 'get_document_context' }),
+        expect.objectContaining({ effect: 'read', modelAlias: 'read_blocks' }),
+        ...Array.from({ length: 6 }, () => expect.objectContaining({ effect: 'mutation' })),
+      ],
+    })
+    expect(DOCS_OFFICE_TOOL_CATALOG_BINDING.catalogHash).toBe(
+      createHash('sha256')
+        .update(JSON.stringify(DOCS_OFFICE_TOOL_CATALOG_BINDING.descriptors))
+        .digest('hex'),
+    )
+    expect(resolveOfficeToolDefinitions(DOCS_OFFICE_TOOL_CATALOG_BINDING)).toBe(
+      DOCS_OFFICE_TOOL_DEFINITIONS,
+    )
+    expect(DOCS_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)).not.toEqual(
+      expect.arrayContaining(['web_search', 'image_search', 'read_attachment']),
+    )
+  })
+
+  it('validates Docs restricted inputs and the fixed command batch at the catalog boundary', () => {
+    expect(
+      parseDocsOfficeToolInput('office:docs:read_blocks', {
+        startBlockIndex: 0,
+        endBlockIndex: 3,
+        offset: 24_000,
+      }),
+    ).toEqual({ startBlockIndex: 0, endBlockIndex: 3, offset: 24_000 })
+    expect(
+      parseDocsOfficeToolInput('office:docs:insert_image', {
+        artifactId: '11111111-1111-4111-8111-111111111111',
+        maxWidthPx: 480,
+      }),
+    ).toEqual({
+      artifactId: '11111111-1111-4111-8111-111111111111',
+      maxWidthPx: 480,
+    })
+    expect(() =>
+      parseDocsOfficeToolInput('office:docs:insert_image', {
+        artifactId: '11111111-1111-4111-8111-111111111111',
+        url: 'https://example.test/image.png',
+      }),
+    ).toThrowError('invalid_tool_arguments')
+    expect(() =>
+      parseDocsOfficeToolInput('office:docs:apply_commands', {
+        commands: Array.from({ length: 65 }, () => ({ insertToc: { afterBlockIndex: -1 } })),
+      }),
+    ).toThrowError('invalid_tool_arguments')
+    expect(() =>
+      parseDocsOfficeToolInput('office:docs:apply_commands', {
+        commands: [{ runJavascript: { source: 'private' } }],
+      }),
+    ).toThrowError('invalid_tool_arguments')
+    expect(() => parseDocsOfficeToolInput('office:docs:unknown', {})).toThrowError(
+      'tool_not_in_snapshot',
+    )
+  })
+
   it('publishes the exact PDF runtime descriptors and a deterministic binding hash', () => {
     expect(PDF_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)).toEqual([
       'read_pages',
@@ -126,26 +200,29 @@ describe('frozen four-application tool catalog', () => {
     )
   })
 
-  it('matches every current product registration without omissions', async () => {
+  it('matches migrated Office definitions and remaining legacy registrations without omissions', async () => {
     const catalog = parseOfficeToolCatalog(catalogFixture)
     const sourceGroups = new Map<string, string[]>()
     for (const entry of catalog.entries) {
+      if (entry.app === 'docs' || entry.app === 'pdf') continue
       const key = `${entry.app}:${entry.sourceFile}`
       sourceGroups.set(key, [...(sourceGroups.get(key) ?? []), entry.legacyAlias])
     }
 
-    const discovered: string[] = []
     for (const [key, expected] of sourceGroups) {
-      const [app, sourceFile] = key.split(':', 2)
-      const actual =
-        app === 'pdf'
-          ? PDF_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
-          : await registrations(sourceFile)
-      expect(actual.sort(), key).toEqual(expected.sort())
-      discovered.push(...actual.map((alias) => `${app}:${alias}`))
+      const [, sourceFile] = key.split(':', 2)
+      expect((await registrations(sourceFile)).sort(), key).toEqual(expected.sort())
     }
 
-    expect(new Set(discovered).size).toBe(63)
+    for (const [app, definitions] of [
+      ['docs', DOCS_OFFICE_TOOL_DEFINITIONS],
+      ['pdf', PDF_OFFICE_TOOL_DEFINITIONS],
+    ] as const) {
+      const expected = catalog.entries
+        .filter((entry) => entry.app === app && entry.disposition === 'office-executor')
+        .map(({ legacyAlias }) => legacyAlias)
+      expect(definitions.map(({ modelAlias }) => modelAlias).sort(), app).toEqual(expected.sort())
+    }
   })
 
   it('keeps canonical Office IDs unique and all owners Genspark-free', () => {

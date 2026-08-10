@@ -1344,6 +1344,7 @@ export const OfficeToolReceiptSchema = Type.Object(
     errorCode: Type.Optional(
       Type.Union([
         Type.Literal('invalid_tool_arguments'),
+        Type.Literal('artifact_invalid'),
         Type.Literal('stale_context'),
         Type.Literal('mutation_grant_required'),
         Type.Literal('read_only_document'),

@@ -1,15 +1,14 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
-import type {
-  AiChatRequest,
-  AiSettings,
-  AiStreamChunk,
-  AiStreamRequest,
-  DesktopApi,
-  MenuCommand,
-} from '../shared/ipc'
+import type { DesktopApi, MenuCommand } from '../shared/ipc'
 import type { ProjectApi } from '@genoffice/project-store'
 import { createAgentSessionPreloadApi } from '@genoffice/electron-utils/agent-session-preload'
+import {
+  DOCS_OFFICE_TOOL_CHANNELS,
+  isDocsOfficeToolRequest,
+  isDocsOfficeToolResponse,
+  type DocsOfficeToolsApi,
+} from '../shared/docs-office-tools'
 
 const api: DesktopApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
@@ -63,34 +62,9 @@ const api: DesktopApi = {
     ipcRenderer.invoke('docs:print-pdf-buffer', pageWidthTwips, pageHeightTwips),
   saveMergedPdf: (defaultName: string, base64Parts: string[], outPath?: string) =>
     ipcRenderer.invoke('docs:save-merged-pdf', defaultName, base64Parts, outPath),
-  getAiSettings: () => ipcRenderer.invoke('ai:get-settings'),
-  setAiSettings: (settings: AiSettings) => ipcRenderer.invoke('ai:set-settings', settings),
-  aiChat: (request: AiChatRequest) => ipcRenderer.invoke('ai:chat', request),
-  aiStream: (request: AiStreamRequest) => ipcRenderer.invoke('ai:stream', request),
-  aiStreamCancel: (requestId: string) => ipcRenderer.invoke('ai:stream-cancel', requestId),
-  aiGskStatus: (withEmail?: boolean) => ipcRenderer.invoke('ai:gsk-status', withEmail),
-  aiGskLogin: () => ipcRenderer.invoke('ai:gsk-login'),
-  webSearch: (query: string, maxResults?: number) =>
-    ipcRenderer.invoke('ai:web-search', query, maxResults),
-  imageSearch: (query: string, maxResults?: number) =>
-    ipcRenderer.invoke('ai:image-search', query, maxResults),
-  fetchImage: (url: string) => ipcRenderer.invoke('ai:fetch-image', url),
-  pickAttachments: () => ipcRenderer.invoke('files:pick'),
-  addAttachmentPaths: (paths: string[]) => ipcRenderer.invoke('files:add', paths),
-  addPastedImage: (data: ArrayBuffer, ext: string) =>
-    ipcRenderer.invoke('files:add-pasted-image', data, ext),
-  readAttachment: (path: string, offset: number, maxChars: number) =>
-    ipcRenderer.invoke('files:read', path, offset, maxChars),
-  readAttachmentImage: (path: string) => ipcRenderer.invoke('files:read-image', path),
-  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   openNewTab: (openPath?: string | null) => ipcRenderer.invoke('win:new', openPath ?? null),
   listDocsTabs: () => ipcRenderer.invoke('win:list'),
   focusDocsTab: (id: string) => ipcRenderer.invoke('win:focus', id),
-  onAiStream: (handler: (chunk: AiStreamChunk) => void) => {
-    const listener = (_event: IpcRendererEvent, chunk: AiStreamChunk) => handler(chunk)
-    ipcRenderer.on('ai:stream-chunk', listener)
-    return () => ipcRenderer.removeListener('ai:stream-chunk', listener)
-  },
   onMenuCommand: (handler: (command: MenuCommand, payload?: string) => void) => {
     const listener = (_event: IpcRendererEvent, command: MenuCommand, payload?: string) =>
       handler(command, payload)
@@ -130,6 +104,33 @@ const projectApi: ProjectApi = {
   getTimeline: (args) => ipcRenderer.invoke('project:timeline', args),
 }
 
+const officeTools: DocsOfficeToolsApi = {
+  onRequest: (handler) => {
+    const listener = (_event: IpcRendererEvent, request: unknown) => {
+      if (!isDocsOfficeToolRequest(request)) return
+      void Promise.resolve(handler(request))
+        .then((response) => {
+          ipcRenderer.send(
+            DOCS_OFFICE_TOOL_CHANNELS.response,
+            isDocsOfficeToolResponse(response)
+              ? response
+              : { requestId: request.requestId, ok: false, errorCode: 'tool_failed' },
+          )
+        })
+        .catch(() => {
+          ipcRenderer.send(DOCS_OFFICE_TOOL_CHANNELS.response, {
+            requestId: request.requestId,
+            ok: false,
+            errorCode: 'tool_failed',
+          })
+        })
+    }
+    ipcRenderer.on(DOCS_OFFICE_TOOL_CHANNELS.request, listener)
+    return () => ipcRenderer.removeListener(DOCS_OFFICE_TOOL_CHANNELS.request, listener)
+  },
+}
+
 contextBridge.exposeInMainWorld('desktop', api)
 contextBridge.exposeInMainWorld('projectApi', projectApi)
+contextBridge.exposeInMainWorld('docsOfficeTools', officeTools)
 contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))

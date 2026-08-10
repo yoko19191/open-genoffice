@@ -171,10 +171,9 @@ export function registerAiIpc(): void {
 }
 
 // ── ai:* handlers unique to slides ──────────────────────────────────────
-// Must be registered inside registerSlidesIpc (not registerAiIpc): in shell aggregate mode the
-// generic ai:* channels are registered by docs-main.registerAiIpc, and slides' registerAiIpc is
-// never called; docs does not have these channels, so putting them in the wrong place raises
-// "No handler registered".
+// Must be registered inside registerSlidesIpc (not registerAiIpc): the generic
+// legacy ai:* channels are registered once by the shell until Slides itself is
+// migrated, while these handlers are Slides-only.
 export function registerSlidesOnlyAiIpc(): void {
   // gsk (Genspark CLI) capabilities: AI image generation / media analysis. Returns an error prompt when not logged in.
   ipcMain.handle(
