@@ -112,7 +112,7 @@ symlink、hardlink 逃逸、重复归一化路径、绝对路径、错误大小�
 ```text
 tools/build-pi-runtime-bundle.mjs
 tools/verify-pi-runtime-bundle.mjs
-tools/audit-genspark-free.mjs
+tools/audit-retired-vendor.mjs
 tools/collect-acceptance-evidence.mjs
 ```
 
@@ -142,7 +142,7 @@ npm ci
 ```
 
 根 `package.json` 应增加显式、可本地复用的 `runtime:bundle:<platform>`、`runtime:verify`、
-`audit:genspark-free` 和 `acceptance:evidence` scripts。release workflow 调用这些脚本，不在 YAML
+`audit:retired-vendor:zero` 和 `acceptance:evidence` scripts。release workflow 调用这些脚本，不在 YAML
 中复制实现逻辑。缺 secret 的 contributor build 可以生成 unsigned artifact，但必须清楚标记，
 且不能上传到 beta/stable feed。
 

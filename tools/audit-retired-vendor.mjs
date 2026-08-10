@@ -4,7 +4,7 @@ import { auditGensparkProduction } from '../packages/acceptance-evidence/src/gen
 
 const mode = process.argv[2] === '--mode' ? process.argv[3] : undefined
 if (mode !== 'baseline' && mode !== 'zero') {
-  console.error('Usage: node tools/audit-genspark-free.mjs --mode <baseline|zero>')
+  console.error('Usage: node tools/audit-retired-vendor.mjs --mode <baseline|zero>')
   process.exit(2)
 }
 

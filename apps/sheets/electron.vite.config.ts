@@ -9,14 +9,7 @@ export default defineConfig({
     // externalize everything else (Electron, zod, node builtins).
     plugins: [
       externalizeDepsPlugin({
-        exclude: [
-          '@genoffice/ai-provider',
-          '@genoffice/agent-core',
-          '@genoffice/ai-search',
-          '@genoffice/file-parse',
-          '@genoffice/electron-utils',
-          '@genoffice/i18n',
-        ],
+        exclude: ['@genoffice/file-parse', '@genoffice/electron-utils', '@genoffice/i18n'],
       }),
     ],
   },

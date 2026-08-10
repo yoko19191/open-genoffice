@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -6,19 +6,20 @@ import baseline from '../fixtures/genspark-legacy-baseline.json' with { type: 'j
 import { auditGensparkProduction, scanGensparkProduction } from '../src/genspark-audit.mjs'
 
 describe('Genspark production audit', () => {
-  it('allows only a shrinking subset of the hashed legacy baseline', async () => {
+  it('allows the legacy baseline to shrink all the way to zero', async () => {
     const repoRoot = new URL('../../../', import.meta.url).pathname
     const report = await auditGensparkProduction(repoRoot, { mode: 'baseline', baseline })
     expect(report.status).toBe('passed')
-    expect(report.totalOccurrences).toBeGreaterThan(0)
+    expect(report.totalOccurrences).toBe(0)
     expect(report.violations).toEqual([])
   })
 
-  it('shows that zero mode remains closed until G8 removes every occurrence', async () => {
+  it('passes zero mode after G8 removes every production occurrence and retired package', async () => {
     const repoRoot = new URL('../../../', import.meta.url).pathname
     const report = await auditGensparkProduction(repoRoot, { mode: 'zero' })
-    expect(report.status).toBe('failed')
-    expect(report.violations[0].code).toBe('genspark_occurrence_remaining')
+    expect(report).toMatchObject({ status: 'passed', totalOccurrences: 0, violations: [] })
+    await expect(access(join(repoRoot, 'packages/agent-core'))).rejects.toThrow()
+    await expect(access(join(repoRoot, 'packages/ai-provider'))).rejects.toThrow()
   })
 
   it('rejects a new production occurrence even when its category already exists', async () => {
