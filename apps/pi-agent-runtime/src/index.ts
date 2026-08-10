@@ -157,6 +157,15 @@ export {
   type CodexOAuthImageProviderOptions,
 } from './codex-oauth-image-provider'
 export {
+  PlatformToolService,
+  PlatformToolServiceError,
+  type PlatformToolContext,
+  type PlatformToolDetails,
+  type PlatformToolResult,
+  type PlatformToolServiceErrorCode,
+  type PlatformToolServiceOptions,
+} from './platform-tool-service'
+export {
   planSessionRecovery,
   type RecoveredMutationOutcome,
   type RecoveredTool,

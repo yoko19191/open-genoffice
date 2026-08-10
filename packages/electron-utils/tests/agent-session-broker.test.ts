@@ -552,6 +552,47 @@ describe('Electron main Agent Session broker', () => {
     await fixture.broker.close()
   })
 
+  it('forwards only main-authorized opaque artifacts with a prompt', async () => {
+    const fixture = harness()
+    const validateArtifacts = vi.fn(async () => true)
+    const broker = new AgentSessionBroker(fixture.transport, {
+      authorize: async () => true,
+      randomUUID: () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      validateArtifacts,
+    })
+    await broker.connect(7, { documentId, sessionId }, () => {})
+    const artifact = {
+      artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      mediaType: 'text/plain',
+      byteLength: 12,
+      sha256: 'a'.repeat(64),
+      displayName: 'notes.txt',
+    }
+    const command = {
+      type: 'prompt' as const,
+      operationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      sessionId,
+      documentId,
+      text: 'read the attachment',
+      artifacts: [artifact],
+    }
+    await expect(broker.command(7, command)).resolves.toMatchObject({ runId: 'run-1' })
+    expect(validateArtifacts).toHaveBeenCalledWith(7, documentId, [artifact])
+    expect(fixture.transport.promptSession).toHaveBeenCalledWith({
+      operationId: command.operationId,
+      sessionId,
+      documentId,
+      text: command.text,
+      artifacts: [artifact],
+    })
+
+    validateArtifacts.mockResolvedValue(false)
+    await expect(
+      broker.command(7, { ...command, operationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }),
+    ).rejects.toThrowError('artifact_access_denied')
+    await broker.close()
+  })
+
   it('attaches the Electron-owned Office catalog to create and open', async () => {
     const fixture = harness()
     const resolveOfficeToolCatalog = vi.fn(async () => PDF_OFFICE_TOOL_CATALOG_BINDING)

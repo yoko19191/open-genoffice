@@ -750,6 +750,15 @@ describe('document-bound Pi Session registry', () => {
       sessionId: created.sessionId,
       documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       text: 'exercise the native Pi stream',
+      artifacts: [
+        {
+          artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          mediaType: 'text/plain',
+          byteLength: 12,
+          sha256: 'a'.repeat(64),
+          displayName: 'notes.txt',
+        },
+      ],
     })
     await registry.waitForIdle(created.sessionId)
 
@@ -793,6 +802,7 @@ describe('document-bound Pi Session registry', () => {
       'toolResult',
       'assistant',
     ])
+    expect(snapshot.messages[0]?.text).toBe('exercise the native Pi stream')
     expect(snapshot.lastSequence).toBe(journal.length)
     expect(snapshot.cursor).toBe(journal.at(-1)?.cursor)
 
@@ -805,6 +815,8 @@ describe('document-bound Pi Session registry', () => {
     const transcript = await readFile(binding.sessionFile, 'utf8')
     expect(transcript).toContain('"type":"session"')
     expect(transcript).toContain('exercise the native Pi stream')
+    expect(transcript).toContain('<genoffice-artifacts>')
+    expect(transcript).toContain('notes.txt')
     expect(transcript).toContain('genoffice.document-binding')
     expect(transcript).toContain(PDF_OFFICE_TOOL_CATALOG_BINDING.catalogHash)
     expect(transcript).toContain('"type":"compaction"')
@@ -1478,6 +1490,51 @@ describe('document-bound Pi Session registry', () => {
         })
         emit({
           type: 'tool_execution_end',
+          toolCallId: 'platform-image-safe',
+          toolName: 'image_search',
+          result: {
+            details: {
+              platformTool: {
+                toolId: 'platform:image_search',
+                kind: 'image_search',
+                provider: 'serper',
+                images: [
+                  {
+                    artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                    mediaType: 'image/png',
+                    byteLength: 68,
+                    sha256: 'a'.repeat(64),
+                    title: 'Safe image',
+                    sourceUrl: 'https://example.test/page',
+                    source: 'Example',
+                    width: 1,
+                    height: 1,
+                  },
+                ],
+              },
+            },
+          },
+          isError: false,
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'platform-image-forged',
+          toolName: 'image_search',
+          result: {
+            details: {
+              platformTool: {
+                toolId: 'platform:image_search',
+                kind: 'image_search',
+                provider: 'serper',
+                images: [],
+                imageUrl: 'https://private.example/image.png',
+              },
+            },
+          },
+          isError: false,
+        })
+        emit({
+          type: 'tool_execution_end',
           toolCallId: 'tool-outcome-forged',
           toolName: 'probe',
           result: { details: { officeTool: { mutationOutcome: 'forged' } } },
@@ -1572,6 +1629,19 @@ describe('document-bound Pi Session registry', () => {
     expect(journal.find((event) => event.type === 'tool.failed')?.payload).toMatchObject({
       mutationOutcome: 'committed',
     })
+    expect(
+      journal.find(
+        (event) =>
+          event.type === 'tool.completed' &&
+          (event.payload as { toolCallId?: unknown }).toolCallId === 'platform-image-safe',
+      )?.payload,
+    ).toMatchObject({
+      platformTool: {
+        toolId: 'platform:image_search',
+        images: [{ artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
+      },
+    })
+    expect(JSON.stringify(journal)).not.toContain('private.example')
     await registry.shutdown()
   })
 

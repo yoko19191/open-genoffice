@@ -30,6 +30,88 @@ afterEach(async () => {
 })
 
 describe('deterministic Pi Session factory', () => {
+  it('registers the three platform aliases once and executes them with run scope', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-platform-tools-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-platform-faux',
+      provider: 'genoffice-platform-faux',
+      models: [{ id: 'platform-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    provider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'read_attachment',
+            { artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+            { id: 'read-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('Attachment read'),
+    ])
+    const execute = vi.fn(async () => ({
+      content: 'attachment text',
+      details: {
+        kind: 'artifact_text' as const,
+        artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        offset: 0,
+        totalCharacters: 15,
+      },
+    }))
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-platform-faux',
+        modelId: 'platform-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources: new RunResourceService({
+        resourceHome: root,
+        deviceId: '33333333-3333-4333-8333-333333333333',
+      }),
+      platformTools: { execute },
+    })
+    const signal = new AbortController().signal
+    await handle.prompt('read it', signal, {
+      runId: '44444444-4444-4444-8444-444444444444',
+    })
+
+    expect(handle.session.getActiveToolNames()).toEqual([
+      'web_search',
+      'image_search',
+      'read_attachment',
+    ])
+    expect(execute).toHaveBeenCalledWith(
+      'platform:artifact:read_text',
+      { artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+      {
+        documentId: '22222222-2222-4222-8222-222222222222',
+        runId: '44444444-4444-4444-8444-444444444444',
+      },
+      expect.any(AbortSignal),
+    )
+    expect(JSON.stringify(handle.sessionManager.getEntries())).toContain(
+      'platform:artifact:read_text',
+    )
+    handle.dispose()
+  })
+
   it('executes Codex image generation inside Runtime and persists only the opaque ArtifactRef', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-image-'))
     roots.push(root)

@@ -24,6 +24,111 @@ async function createStore(): Promise<{ root: string; store: ScopedArtifactStore
 }
 
 describe('ScopedArtifactStore', () => {
+  it('registers and pages a scope-bound UTF-8 text attachment without exposing its path', async () => {
+    const { store } = await createStore()
+    const text = `${'甲'.repeat(24_000)}tail`
+    const artifact = await store.registerText({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      text,
+      mediaType: 'text/plain',
+      displayName: 'notes.txt',
+    })
+    expect(artifact).toMatchObject({
+      artifactId: ARTIFACT_ID,
+      mediaType: 'text/plain',
+      displayName: 'notes.txt',
+    })
+
+    const first = await store.readText({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      offset: 0,
+    })
+    expect(first).toMatchObject({ artifact, text: '甲'.repeat(24_000), nextOffset: 24_000 })
+    const last = await store.readText({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      offset: first.nextOffset!,
+    })
+    expect(last).toMatchObject({ artifact, text: 'tail' })
+    expect(last.nextOffset).toBeUndefined()
+    expect(JSON.stringify(last)).not.toContain(store.artifactPath(ARTIFACT_ID))
+  })
+
+  it('fails closed for text scope mismatch, invalid content and metadata drift', async () => {
+    const { root, store } = await createStore()
+    await expect(
+      store.registerText({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: RUN_ID,
+        text: 'bad\0text',
+        mediaType: 'text/plain',
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+    await store.registerText({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      runId: RUN_ID,
+      text: 'safe text',
+      mediaType: 'text/plain',
+    })
+    await expect(
+      store.readText({
+        artifactId: ARTIFACT_ID,
+        documentId: '44444444-4444-4444-8444-444444444444',
+        runId: RUN_ID,
+        offset: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_scope_invalid' })
+    await expect(
+      store.readText({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: RUN_ID,
+        offset: -1,
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+    await writeFile(join(root, `${ARTIFACT_ID}.txt`), 'changed')
+    await expect(
+      store.readText({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: RUN_ID,
+        offset: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_invalid' })
+  })
+
+  it('allows a document-scoped attachment across runs but never across documents', async () => {
+    const { store } = await createStore()
+    await store.registerText({
+      artifactId: ARTIFACT_ID,
+      documentId: DOCUMENT_ID,
+      scope: 'document',
+      text: 'document attachment',
+      mediaType: 'text/plain',
+    })
+    await expect(
+      store.readText({
+        artifactId: ARTIFACT_ID,
+        documentId: DOCUMENT_ID,
+        runId: '44444444-4444-4444-8444-444444444444',
+      }),
+    ).resolves.toMatchObject({ text: 'document attachment' })
+    await expect(
+      store.readText({
+        artifactId: ARTIFACT_ID,
+        documentId: '55555555-5555-4555-8555-555555555555',
+        runId: RUN_ID,
+      }),
+    ).rejects.toMatchObject({ code: 'artifact_scope_invalid' })
+  })
+
   it('atomically registers and reopens one scope-bound verified PNG ArtifactRef', async () => {
     const { store } = await createStore()
     const artifact = await store.registerImage({

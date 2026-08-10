@@ -6,6 +6,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { AssistantMessage, CredentialStore, Message } from '@earendil-works/pi-ai'
 import type { AgentSessionEvent, SessionMessageEntry } from '@earendil-works/pi-coding-agent'
 import type {
+  ArtifactRef,
   EventEnvelope,
   MutationGrantProjection,
   MutationGrantReceipt,
@@ -15,6 +16,7 @@ import type {
   SubagentRunProjection as RendererSubagentRunProjection,
 } from '@genoffice/agent-runtime-protocol'
 import { resolveOfficeToolDefinitions } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
+import { parsePlatformToolDetails } from '@genoffice/agent-runtime-protocol/platform-tool-catalog'
 import {
   CapabilitySnapshotError,
   SessionLeaseError,
@@ -52,7 +54,7 @@ type CreateInput = {
   officeToolCatalog?: OfficeToolCatalogBinding
 }
 type OpenInput = CreateInput & { sessionId: string }
-type PromptInput = OpenInput & { text: string; projectRoot?: string }
+type PromptInput = OpenInput & { text: string; projectRoot?: string; artifacts?: ArtifactRef[] }
 type AbortInput = OpenInput & { runId: string }
 type ResumeSubagentInput = OpenInput & { runId: string }
 type IssueMutationGrantInput = OpenInput & {
@@ -193,14 +195,20 @@ function operationHash(method: string, input: unknown): string {
 }
 
 function messageText(message: Message): string {
-  if (typeof message.content === 'string') return message.content
-  return message.content
-    .flatMap((block) => {
-      if (block.type === 'text') return block.text
-      if (block.type === 'thinking') return []
-      return []
-    })
-    .join('')
+  const text =
+    typeof message.content === 'string'
+      ? message.content
+      : message.content
+          .flatMap((block) => {
+            if (block.type === 'text') return block.text
+            if (block.type === 'thinking') return []
+            return []
+          })
+          .join('')
+  if (message.role !== 'user' || !text.startsWith('<genoffice-artifacts>')) return text
+  const marker = '</genoffice-artifacts>\n'
+  const end = text.indexOf(marker)
+  return end === -1 ? text : text.slice(end + marker.length)
 }
 
 function projectMessage(entry: SessionMessageEntry): SessionMessageProjection | undefined {
@@ -531,6 +539,7 @@ export class SessionRegistry {
         .prompt(input.text, abortTree.signal, {
           runId,
           ...(input.projectRoot ? { projectRoot: input.projectRoot } : {}),
+          ...(input.artifacts ? { artifacts: input.artifacts } : {}),
         })
         .then(async (result) => {
           completeModel()
@@ -1136,6 +1145,16 @@ export class SessionRegistry {
         officeTool && typeof officeTool === 'object'
           ? (officeTool as { mutationOutcome?: unknown }).mutationOutcome
           : undefined
+      const platformTool =
+        resultDetails && typeof resultDetails === 'object'
+          ? (resultDetails as { platformTool?: unknown }).platformTool
+          : undefined
+      let safePlatformTool: ReturnType<typeof parsePlatformToolDetails> | undefined
+      try {
+        if (platformTool !== undefined) safePlatformTool = parsePlatformToolDetails(platformTool)
+      } catch {
+        safePlatformTool = undefined
+      }
       void this.appendEvent(
         record,
         event.isError ? 'tool.failed' : 'tool.completed',
@@ -1149,6 +1168,7 @@ export class SessionRegistry {
           mutationOutcome === 'unknown'
             ? { mutationOutcome }
             : {}),
+          ...(safePlatformTool ? { platformTool: safePlatformTool } : {}),
         },
         runId,
       )

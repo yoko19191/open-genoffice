@@ -9,6 +9,7 @@ import type {
   SessionSubagentResumeReceipt,
   SessionMutationGrantReceipt,
   OfficeRollbackReceipt,
+  ArtifactRef,
 } from '@genoffice/agent-runtime-protocol'
 import {
   applyAgentSessionEvent,
@@ -101,7 +102,10 @@ export class AgentSessionController {
     return projection
   }
 
-  async prompt(text: string): Promise<SessionPromptReceipt> {
+  async prompt(
+    text: string,
+    artifacts: readonly ArtifactRef[] = [],
+  ): Promise<SessionPromptReceipt> {
     const projection = this.requireProjection()
     const instruction = text.trim()
     if (!instruction) throw new Error('agent_prompt_empty')
@@ -111,6 +115,7 @@ export class AgentSessionController {
       sessionId: projection.sessionId,
       documentId: projection.documentId,
       text: instruction,
+      ...(artifacts.length > 0 ? { artifacts: [...artifacts] } : {}),
     })) as SessionPromptReceipt
   }
 

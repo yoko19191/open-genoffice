@@ -43,6 +43,10 @@ describe('Pi platform production boundary audit', () => {
       join(repoRoot, 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts'),
       "const RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'; this.fetch(RESPONSES_ENDPOINT, {})",
     )
+    await writeFile(
+      join(repoRoot, 'apps/pi-agent-runtime/src/platform-tool-service.ts'),
+      "const ENDPOINT = 'https://duckduckgo.com/'; function safeHttpsUrl() {}; this.fetch(url, {})",
+    )
     await writeFile(join(repoRoot, 'packages/agent-resource/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/agent-runtime-protocol/src/index.ts'), 'export {}')
     await writeFile(join(repoRoot, 'packages/pi-runtime-bundle/src/index.ts'), 'export {}')
@@ -75,6 +79,19 @@ describe('Pi platform production boundary audit', () => {
         (violation) =>
           violation.code === 'production_source_forbidden' &&
           violation.path === 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts',
+      ),
+    ).toBe(true)
+
+    await writeFile(
+      join(repoRoot, 'apps/pi-agent-runtime/src/platform-tool-service.ts'),
+      "const ENDPOINT = 'https://duckduckgo.com/'; function safeHttpsUrl() {}; this.fetch(url, {}); fetch('https://other.example')",
+    )
+    const broadenedSearch = await auditPiPlatformBoundary(repoRoot)
+    expect(
+      broadenedSearch.violations.some(
+        (violation) =>
+          violation.code === 'production_source_forbidden' &&
+          violation.path === 'apps/pi-agent-runtime/src/platform-tool-service.ts',
       ),
     ).toBe(true)
   })

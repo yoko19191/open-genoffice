@@ -55,6 +55,7 @@ beforeAll(() => {
     disconnect: vi.fn(),
     onEvent: () => () => {},
   }
+  window.agentArtifacts = { pickText: vi.fn(async () => null) }
 })
 
 describe('AiPanel collapse', () => {
@@ -91,6 +92,64 @@ describe('AiPanel collapse', () => {
     act(() => rail!.click())
     expect(onExpand).toHaveBeenCalledTimes(1)
 
+    cleanup()
+  })
+
+  it('sends a picked text attachment only as an opaque ArtifactRef', async () => {
+    const command = vi.fn(async () => ({ runId: 'run-1', acceptedCursor: 'cursor-1' }))
+    window.agentSession = {
+      documentId: async () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      connect: async () => ({
+        connectionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        sessionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        resetRequired: false,
+        snapshot: {
+          sessionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          messages: [],
+          lastSequence: 0,
+          cursor: 'cursor-0',
+        },
+        events: [],
+      }),
+      command,
+      disconnect: vi.fn(),
+      onEvent: () => () => {},
+    }
+    window.agentArtifacts = {
+      pickText: vi.fn(async () => ({
+        artifactId: '11111111-1111-4111-8111-111111111111',
+        mediaType: 'text/plain' as const,
+        byteLength: 12,
+        sha256: 'a'.repeat(64),
+        displayName: 'notes.txt',
+      })),
+    }
+    const { container, cleanup } = mount(createElement(AiPanel, panelProps()))
+    await act(async () => {})
+    const attach = container.querySelector<HTMLButtonElement>('.ai-attach-btn')!
+    await act(async () => attach.click())
+    expect(
+      container.querySelector('[data-testid="agent-text-attachments"]')?.textContent,
+    ).toContain('notes.txt')
+    const textarea = container.querySelector<HTMLTextAreaElement>('.ai-input-box textarea')!
+    typeInto(textarea, 'read it')
+    await act(async () => container.querySelector<HTMLButtonElement>('.ai-send-btn')!.click())
+    expect(command).toHaveBeenCalledWith({
+      type: 'prompt',
+      operationId: expect.any(String),
+      sessionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      text: 'read it',
+      artifacts: [
+        expect.objectContaining({
+          artifactId: '11111111-1111-4111-8111-111111111111',
+          displayName: 'notes.txt',
+        }),
+      ],
+    })
+    expect(JSON.stringify(command.mock.calls)).not.toContain('/private/')
     cleanup()
   })
 })

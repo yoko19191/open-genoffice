@@ -135,4 +135,5 @@ export {
   type ScopedArtifactRef,
   type ScopedArtifactStoreErrorCode,
   type ScopedArtifactStoreOptions,
+  type ScopedTextPage,
 } from './scoped-artifact-store'

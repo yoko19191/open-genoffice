@@ -11,6 +11,9 @@ import { useI18n } from '../i18n/locale'
 import sendEnterOn from '../assets/send-enter-on.png'
 import sendEnterOff from '../assets/send-enter-off.png'
 import sendStop from '../assets/send-stop.png'
+import attachIcon from '../assets/attach-icon.png'
+import fileIcon from '../assets/file-document.png'
+import type { DocsTextArtifact } from '../../shared/agent-artifacts'
 
 const PANEL_WIDTH_KEY = 'docs-ai-panel-width'
 const PANEL_WIDTH_DEFAULT = 360
@@ -45,6 +48,7 @@ export function AiPanel({ preset, open = true, onExpand, onCollapse }: AiPanelPr
   const [prompt, setPrompt] = useState('')
   const [projection, setProjection] = useState<AgentSessionProjection>()
   const [connectionError, setConnectionError] = useState<string>()
+  const [artifacts, setArtifacts] = useState<DocsTextArtifact[]>([])
   const [panelWidth, setPanelWidth] = useState(loadPanelWidth)
   const [resizing, setResizing] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
@@ -85,9 +89,12 @@ export function AiPanel({ preset, open = true, onExpand, onCollapse }: AiPanelPr
     stickToBottomRef.current = true
     setPrompt('')
     setConnectionError(undefined)
-    void controller.prompt(instruction).catch((error: unknown) => {
-      setConnectionError(error instanceof Error ? error.message : 'agent_prompt_failed')
-    })
+    void controller
+      .prompt(instruction, artifacts)
+      .then(() => setArtifacts([]))
+      .catch((error: unknown) => {
+        setConnectionError(error instanceof Error ? error.message : 'agent_prompt_failed')
+      })
   }
 
   useEffect(() => {
@@ -102,6 +109,19 @@ export function AiPanel({ preset, open = true, onExpand, onCollapse }: AiPanelPr
     void controller.abort().catch((error: unknown) => {
       setConnectionError(error instanceof Error ? error.message : 'agent_abort_failed')
     })
+  }
+
+  const pickAttachment = (): void => {
+    if (busy || artifacts.length >= 16) return
+    setConnectionError(undefined)
+    void window.agentArtifacts
+      .pickText()
+      .then((artifact) => {
+        if (artifact) setArtifacts((current) => [...current, artifact].slice(0, 16))
+      })
+      .catch((error: unknown) => {
+        setConnectionError(error instanceof Error ? error.message : 'artifact_invalid')
+      })
   }
 
   const rollbackRun = (): void => {
@@ -235,11 +255,14 @@ export function AiPanel({ preset, open = true, onExpand, onCollapse }: AiPanelPr
         {(projection?.tools.length ?? 0) > 0 && (
           <div className="ai-work-group">
             {projection!.tools.map((tool) => (
-              <div key={tool.toolCallId} className="ai-step-row">
-                <span className={`ai-step-icon ${tool.state}`} aria-hidden>
-                  ·
-                </span>
-                <span className="ai-step-title">{tool.toolName}</span>
+              <div key={tool.toolCallId} className="ai-step-entry">
+                <div className="ai-step-row">
+                  <span className={`ai-step-icon ${tool.state}`} aria-hidden>
+                    ·
+                  </span>
+                  <span className="ai-step-title">{tool.toolName}</span>
+                </div>
+                {tool.details && <PlatformToolDetails details={tool.details} />}
               </div>
             ))}
           </div>
@@ -323,12 +346,88 @@ export function AiPanel({ preset, open = true, onExpand, onCollapse }: AiPanelPr
           sendIconEnabled={<img src={sendEnterOn} alt="" aria-hidden />}
           sendIconDisabled={<img src={sendEnterOff} alt="" aria-hidden />}
           stopIcon={<img src={sendStop} alt="" aria-hidden />}
+          header={
+            artifacts.length > 0 ? (
+              <div className="ai-attachments" data-testid="agent-text-attachments">
+                {artifacts.map((artifact) => (
+                  <span className="ai-attachment-chip" key={artifact.artifactId}>
+                    <img src={fileIcon} width={16} height={16} alt="" aria-hidden />
+                    {artifact.displayName}
+                    <button
+                      type="button"
+                      className="ai-attachment-remove"
+                      title={t('aiRemoveAttachmentTitle')}
+                      onClick={() =>
+                        setArtifacts((current) =>
+                          current.filter(({ artifactId }) => artifactId !== artifact.artifactId),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : undefined
+          }
+          footerStart={
+            <button
+              type="button"
+              className="ai-attach-btn"
+              title={t('aiAttachTitle')}
+              aria-label={t('aiAttachTitle')}
+              disabled={busy || artifacts.length >= 16}
+              onClick={pickAttachment}
+            >
+              <img src={attachIcon} alt="" aria-hidden />
+            </button>
+          }
           onChange={setPrompt}
           onSend={() => send(prompt)}
           onStop={stop}
         />
       </div>
     </aside>
+  )
+}
+
+function PlatformToolDetails({
+  details,
+}: {
+  details: NonNullable<AgentSessionProjection['tools'][number]['details']>
+}): ReactElement {
+  if (details.kind === 'artifact_text') {
+    return (
+      <div className="ai-tool-details" data-testid="artifact-text-details">
+        {details.displayName ?? details.artifactId} · {details.offset}–
+        {details.nextOffset ?? details.totalCharacters} / {details.totalCharacters}
+      </div>
+    )
+  }
+  if (details.kind === 'web_search') {
+    return (
+      <div className="ai-tool-details" data-testid="web_search-details">
+        {details.results.map((item) => (
+          <a key={item.url} href={item.url} target="_blank" rel="noreferrer">
+            {item.title}
+          </a>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div className="ai-tool-details" data-testid="image_search-details">
+      {details.images.map((item) => (
+        <a
+          key={item.artifactId}
+          href={item.sourceUrl || undefined}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {item.title}
+        </a>
+      ))}
+    </div>
   )
 }
 

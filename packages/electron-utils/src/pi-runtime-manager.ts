@@ -26,6 +26,7 @@ import {
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
   type BootstrapRecord,
+  type ArtifactRef,
   type CredentialManagementRequest,
   type EventEnvelope,
   type ModelCatalogProjection,
@@ -128,7 +129,11 @@ export type SessionCreateRequest = {
 }
 export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
 type SessionOperationRequest = Omit<SessionOpenRequest, 'officeToolCatalog'>
-export type SessionPromptRequest = SessionOperationRequest & { text: string; projectRoot?: string }
+export type SessionPromptRequest = SessionOperationRequest & {
+  text: string
+  projectRoot?: string
+  artifacts?: ArtifactRef[]
+}
 export type SessionAbortRequest = SessionOperationRequest & { runId: string }
 export type SessionSubagentResumeRequest = SessionOperationRequest & { runId: string }
 export type SessionMutationGrantIssueRequest = Extract<

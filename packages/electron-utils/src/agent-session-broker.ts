@@ -14,6 +14,7 @@ import type {
   MutationGrantReceipt,
   OfficeToolCatalogBinding,
   OfficeRollbackReceipt,
+  ArtifactRef,
 } from '@genoffice/agent-runtime-protocol'
 
 export type AgentSessionTransport = {
@@ -39,6 +40,7 @@ export type AgentSessionTransport = {
     documentId: string
     text: string
     projectRoot?: string
+    artifacts?: ArtifactRef[]
   }): Promise<SessionPromptReceipt>
   abortSession(input: {
     operationId: string
@@ -114,6 +116,11 @@ export type AgentSessionBrokerOptions<ClientId> = {
   mutationGrantTtlMs?: number
   trustedGestureTtlMs?: number
   rollbackRun?: (documentId: string, runId: string) => Promise<boolean>
+  validateArtifacts?: (
+    clientId: ClientId,
+    documentId: string,
+    artifacts: readonly ArtifactRef[],
+  ) => boolean | Promise<boolean>
 }
 
 type SessionStream = {
@@ -261,12 +268,20 @@ export class AgentSessionBroker<ClientId = number> {
     }
     await this.options.currentSessions?.assertCurrent(command.documentId, command.sessionId)
     if (command.type === 'prompt') {
+      if (
+        command.artifacts?.length &&
+        (!this.options.validateArtifacts ||
+          !(await this.options.validateArtifacts(clientId, command.documentId, command.artifacts)))
+      ) {
+        throw new Error('artifact_access_denied')
+      }
       const projectRoot = await this.options.resolveProjectRoot?.(command.documentId)
       return this.transport.promptSession({
         operationId: command.operationId,
         sessionId: command.sessionId,
         documentId: command.documentId,
         text: command.text,
+        ...(command.artifacts?.length ? { artifacts: [...command.artifacts] } : {}),
         ...(projectRoot ? { projectRoot } : {}),
       })
     }

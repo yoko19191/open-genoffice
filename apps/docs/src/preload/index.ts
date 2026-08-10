@@ -9,6 +9,11 @@ import {
   isDocsOfficeToolResponse,
   type DocsOfficeToolsApi,
 } from '../shared/docs-office-tools'
+import {
+  DOCS_AGENT_ARTIFACT_CHANNELS,
+  isDocsTextArtifact,
+  type DocsAgentArtifactsApi,
+} from '../shared/agent-artifacts'
 
 const api: DesktopApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
@@ -130,7 +135,17 @@ const officeTools: DocsOfficeToolsApi = {
   },
 }
 
+const agentArtifacts: DocsAgentArtifactsApi = {
+  pickText: async () => {
+    const result: unknown = await ipcRenderer.invoke(DOCS_AGENT_ARTIFACT_CHANNELS.pickText)
+    if (result === null) return null
+    if (!isDocsTextArtifact(result)) throw new Error('artifact_invalid')
+    return result
+  },
+}
+
 contextBridge.exposeInMainWorld('desktop', api)
 contextBridge.exposeInMainWorld('projectApi', projectApi)
 contextBridge.exposeInMainWorld('docsOfficeTools', officeTools)
 contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))
+contextBridge.exposeInMainWorld('agentArtifacts', agentArtifacts)

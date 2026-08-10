@@ -1527,8 +1527,23 @@ describe('narrow renderer Agent Session bridge', () => {
       parseAgentSessionConnectRequest({ documentId, sessionId, afterCursor: 'cursor-3' }),
     ).toMatchObject({ documentId, sessionId })
     expect(
-      parseAgentSessionCommand({ type: 'prompt', operationId, sessionId, documentId, text: 'go' }),
-    ).toMatchObject({ type: 'prompt', operationId })
+      parseAgentSessionCommand({
+        type: 'prompt',
+        operationId,
+        sessionId,
+        documentId,
+        text: 'go',
+        artifacts: [
+          {
+            artifactId: operationId,
+            mediaType: 'text/plain',
+            byteLength: 12,
+            sha256: 'a'.repeat(64),
+            displayName: 'notes.txt',
+          },
+        ],
+      }),
+    ).toMatchObject({ type: 'prompt', operationId, artifacts: [{ mediaType: 'text/plain' }] })
     expect(
       parseAgentSessionCommand({
         type: 'abort',

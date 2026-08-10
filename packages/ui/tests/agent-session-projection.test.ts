@@ -168,6 +168,53 @@ describe('shared AI Panel Session projection', () => {
     expect(projection.cursor).toBe('cursor-18')
   })
 
+  it('keeps only validated platform details on the matching tool row', () => {
+    const requested = applyAgentSessionEvent(
+      createAgentSessionProjection(snapshot),
+      event(2, 'tool.started', { toolCallId: 'image-1', toolName: 'image_search' }),
+    )
+    const completed = applyAgentSessionEvent(
+      requested,
+      event(3, 'tool.completed', {
+        toolCallId: 'image-1',
+        toolName: 'image_search',
+        platformTool: {
+          toolId: 'platform:image_search',
+          kind: 'image_search',
+          provider: 'serper',
+          images: [
+            {
+              artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              mediaType: 'image/png',
+              byteLength: 68,
+              sha256: 'a'.repeat(64),
+              title: 'Safe image',
+              sourceUrl: 'https://example.test/page',
+              source: 'Example',
+              width: 1,
+              height: 1,
+            },
+          ],
+        },
+      }),
+    )
+    expect(completed.tools[0]).toMatchObject({
+      state: 'completed',
+      details: { kind: 'image_search', images: [{ artifactId: expect.any(String) }] },
+    })
+
+    const forged = applyAgentSessionEvent(
+      requested,
+      event(3, 'tool.completed', {
+        toolCallId: 'image-1',
+        toolName: 'image_search',
+        platformTool: { kind: 'image_search', imageUrl: 'https://private.example/image.png' },
+      }),
+    )
+    expect(forged.tools[0]).not.toHaveProperty('details')
+    expect(JSON.stringify(forged)).not.toContain('private.example')
+  })
+
   it('ignores exact duplicates, rejects gaps and cross-document events, and bounds dedupe state', () => {
     const initial = createAgentSessionProjection({ ...snapshot, activeRun: undefined })
     const started = applyAgentSessionEvent(initial, event(2, 'run.queued'))

@@ -1393,6 +1393,7 @@ export const AgentSessionCommandSchema = Type.Union([
       sessionId: SessionIdSchema,
       documentId: DocumentIdSchema,
       text: Type.String({ minLength: 1, maxLength: 262_144 }),
+      artifacts: Type.Optional(Type.Array(ArtifactRefSchema, { maxItems: 16 })),
     },
     { additionalProperties: false },
   ),

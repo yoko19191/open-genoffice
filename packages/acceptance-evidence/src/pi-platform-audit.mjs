@@ -49,9 +49,21 @@ const EXPLICIT_NETWORK_SOURCE = new Set([
 
 const CODEX_IMAGE_PROVIDER_SOURCE = 'apps/pi-agent-runtime/src/codex-oauth-image-provider.ts'
 const CODEX_RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
+const PLATFORM_SEARCH_SOURCE = 'apps/pi-agent-runtime/src/platform-tool-service.ts'
+const PLATFORM_TOOL_SCHEMA_SOURCE = 'packages/agent-runtime-protocol/src/platform-tool-catalog.ts'
+const PLATFORM_SEARCH_ENDPOINTS = [
+  'https://google.serper.dev/search',
+  'https://google.serper.dev/images',
+  'https://html.duckduckgo.com/html/',
+  'https://duckduckgo.com/i.js',
+  'https://duckduckgo.com/',
+]
 
 function containsForbiddenNetworkSource(relativePath, content) {
   if (EXPLICIT_NETWORK_SOURCE.has(relativePath)) return false
+  if (relativePath === PLATFORM_TOOL_SCHEMA_SOURCE) {
+    return [/\bfetch\s*\(/, /node:https?/].some((pattern) => pattern.test(content))
+  }
   let inspected = content
   if (relativePath === CODEX_IMAGE_PROVIDER_SOURCE) {
     inspected = inspected
@@ -59,6 +71,13 @@ function containsForbiddenNetworkSource(relativePath, content) {
       .join('approved-codex-responses-endpoint')
       .split('this.fetch(RESPONSES_ENDPOINT,')
       .join('approvedCodexResponsesRequest(')
+  }
+  if (relativePath === PLATFORM_SEARCH_SOURCE && inspected.includes('safeHttpsUrl')) {
+    for (const endpoint of PLATFORM_SEARCH_ENDPOINTS) {
+      inspected = inspected.split(endpoint).join('approved-platform-search-endpoint')
+    }
+    const calls = inspected.split('this.fetch(url,').length - 1
+    if (calls === 1) inspected = inspected.replace('this.fetch(url,', 'approvedPlatformRequest(')
   }
   return FORBIDDEN_IMPLICIT_NETWORK_SOURCE.some((pattern) => pattern.test(inspected))
 }

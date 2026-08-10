@@ -105,6 +105,11 @@ import {
   uniquePathIn,
 } from '../../../docs/src/main/docs-main'
 import { DocsOfficeToolHost } from '../../../docs/src/main/agent-tools/docs-office-tool-host'
+import {
+  DOCS_AGENT_ARTIFACT_CHANNELS,
+  type DocsTextArtifact,
+} from '../../../docs/src/shared/agent-artifacts'
+import { importDocsTextArtifact } from './docs-text-artifact-importer'
 import { blankXlsxBuffer } from '../../../sheets/src/gateway/csv-import'
 import {
   configureSheetsRuntime,
@@ -251,6 +256,10 @@ const docsOfficeToolHost = { current: undefined as DocsOfficeToolHost | undefine
 const scopedArtifactStore = new ScopedArtifactStore({
   rootDirectory: join(AGENT_RESOURCE_HOME, 'assets', 'artifacts'),
 })
+const authorizedTextArtifacts = new Map<
+  string,
+  { documentId: string; artifact: DocsTextArtifact }
+>()
 const piRuntimeService = createInstalledPiRuntimeService({
   bundleRoot: PI_RUNTIME_ROOT,
   platform: process.platform,
@@ -1164,6 +1173,14 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
       ? findCanonicalProjectRoot(binding.canonicalPath)
       : undefined
   },
+  validateArtifacts: (_webContentsId, documentId, artifacts) =>
+    artifacts.every((artifact) => {
+      const authorized = authorizedTextArtifacts.get(artifact.artifactId)
+      return (
+        authorized?.documentId === documentId &&
+        JSON.stringify(authorized.artifact) === JSON.stringify(artifact)
+      )
+    }),
   currentSessions: {
     resolveCurrent: async (documentId, create) =>
       (await documentSessionIndexStore.resolveCurrent(documentId, create)).currentSessionId,
@@ -1173,6 +1190,40 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
       documentSessionIndexStore.advanceCurrent(documentId, expectedSessionId, sessionId),
   },
 })
+
+function registerAgentArtifactIpc(): void {
+  ipcMain.handle(DOCS_AGENT_ARTIFACT_CHANNELS.pickText, async (event) => {
+    const documentId = tabManager ? await tabManager.agentDocumentIdFor(event.sender.id) : undefined
+    if (
+      !documentId ||
+      tabManager?.agentDocumentKindFor(event.sender.id) !== 'docs' ||
+      !tabManager.authorizeAgentDocument(event.sender.id, documentId)
+    ) {
+      throw new Error('document_access_denied')
+    }
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? shellWindow ?? undefined
+    const picked = await showOpenDialogWithMemory(dialog, owner, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择文本附件'
+          : 'Select text attachment',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Text', extensions: ['txt', 'md', 'markdown', 'csv', 'json', 'html', 'htm'] },
+      ],
+    })
+    const path = picked.canceled ? undefined : picked.filePaths[0]
+    if (!path) return null
+    const artifact = await importDocsTextArtifact({
+      path,
+      documentId,
+      artifactStore: scopedArtifactStore,
+      randomUUID,
+    })
+    authorizedTextArtifacts.set(artifact.artifactId, { documentId, artifact })
+    return artifact
+  })
+}
 
 const pdfToolIds = new Set(PDF_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
 pdfOfficeToolHost.current = new PdfOfficeToolHost({
@@ -2334,6 +2385,7 @@ installContextMenu(app, () => contextMenuLabels(currentLang()))
 registerLegacyAiIpc()
 registerProjectIpc()
 registerDocsIpc()
+registerAgentArtifactIpc()
 registerHomeIpc()
 registerTabsIpc()
 const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker, {

@@ -25,12 +25,14 @@ import {
   type AgentSessionEvent,
 } from '@earendil-works/pi-coding-agent'
 import type { CapabilitySnapshot } from '@genoffice/agent-resource'
-import type { OfficeToolCatalogBinding } from '@genoffice/agent-runtime-protocol'
+import type { ArtifactRef, OfficeToolCatalogBinding } from '@genoffice/agent-runtime-protocol'
 import {
   resolveOfficeToolDefinitions,
   type OfficeToolDefinition,
 } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
+import { PLATFORM_TOOL_DEFINITIONS } from '@genoffice/agent-runtime-protocol/platform-tool-catalog'
 import type { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
+import type { PlatformToolService } from './platform-tool-service'
 import type {
   CodexImageGenerateInput,
   CodexImageGenerateResult,
@@ -56,7 +58,7 @@ export type PiSessionHandle = {
   prompt: (
     text: string,
     signal: AbortSignal,
-    context?: { runId: string; projectRoot?: string },
+    context?: { runId: string; projectRoot?: string; artifacts?: ArtifactRef[] },
   ) => Promise<PiPromptResult | undefined>
   abort: () => Promise<void>
   fork: (
@@ -80,6 +82,7 @@ type CreatePiSessionBaseOptions = {
     input: CodexImageGenerateInput,
     signal: AbortSignal,
   ) => Promise<CodexImageGenerateResult>
+  platformTools?: Pick<PlatformToolService, 'execute'>
   credentials?: CredentialStore
   spawnSubagent?: (request: SpawnSubagentRequest) => Promise<SubagentRunProjection>
 }
@@ -112,6 +115,21 @@ const contractProbe = defineTool({
     }
   },
 })
+
+const ARTIFACT_CONTEXT_OPEN = '<genoffice-artifacts>'
+const ARTIFACT_CONTEXT_CLOSE = '</genoffice-artifacts>\n'
+
+function promptWithArtifacts(text: string, artifacts: readonly ArtifactRef[] | undefined): string {
+  if (!artifacts?.length) return text
+  return `${ARTIFACT_CONTEXT_OPEN}${JSON.stringify(
+    artifacts.map(({ artifactId, mediaType, byteLength, displayName }) => ({
+      artifactId,
+      mediaType,
+      byteLength,
+      ...(displayName ? { displayName } : {}),
+    })),
+  )}${ARTIFACT_CONTEXT_CLOSE}${text}`
+}
 
 function redactImagePromptForPersistence<T extends { role: string; content?: unknown }>(
   message: T,
@@ -169,6 +187,7 @@ export async function createDeterministicPiSession(
   ])
 
   const managedModel = options.modelRuntime !== undefined
+  const managedRunResources = options.modelRuntime !== undefined ? options.runResources : undefined
   const officeToolDefinitions: readonly OfficeToolDefinition[] = options.officeToolCatalog
     ? resolveOfficeToolDefinitions(options.officeToolCatalog)
     : []
@@ -219,7 +238,7 @@ export async function createDeterministicPiSession(
             ) {
               throw new Error('extension_tool_not_authorized')
             }
-            await options.runResources!.verify(
+            await managedRunResources!.verify(
               extensionExecution.snapshot,
               extensionExecution.projectRoot,
             )
@@ -388,6 +407,46 @@ export async function createDeterministicPiSession(
           },
         })
       : undefined
+  const platformTools = options.platformTools
+    ? PLATFORM_TOOL_DEFINITIONS.map((definition) =>
+        defineTool({
+          name: definition.modelAlias,
+          label: definition.label,
+          description: definition.description,
+          promptSnippet: definition.description,
+          parameters: definition.parameters,
+          executionMode: 'parallel',
+          async execute(_toolCallId, input, signal) {
+            if (!extensionExecution) throw new Error('platform_tool_run_context_required')
+            if (!extensionExecution.snapshot.toolIds.includes(definition.id)) {
+              throw new Error('platform_tool_not_authorized')
+            }
+            await managedRunResources!.verify(
+              extensionExecution.snapshot,
+              extensionExecution.projectRoot,
+            )
+            const result = await options.platformTools!.execute(
+              definition.id,
+              input,
+              {
+                documentId: options.documentId,
+                runId: extensionExecution.runId,
+              },
+              signal ?? new AbortController().signal,
+            )
+            return {
+              content: [{ type: 'text' as const, text: result.content }],
+              details: {
+                platformTool: {
+                  toolId: definition.id,
+                  ...result.details,
+                },
+              },
+            }
+          },
+        }),
+      )
+    : []
   const officeTools = officeToolDefinitions.map((definition) =>
     defineTool({
       name: definition.modelAlias,
@@ -494,7 +553,7 @@ export async function createDeterministicPiSession(
     resourceLoader,
     ...(managedModel ? {} : { noTools: 'all' as const, tools: ['genoffice_contract_probe'] }),
     customTools: managedModel
-      ? [resourceReadTool, subagentTool, imageTool, ...officeTools].filter(
+      ? [resourceReadTool, subagentTool, imageTool, ...platformTools, ...officeTools].filter(
           (tool): tool is NonNullable<typeof tool> => tool !== undefined,
         )
       : [contractProbe],
@@ -521,10 +580,14 @@ export async function createDeterministicPiSession(
             'platform:resource:read',
             ...(options.spawnSubagent ? ['platform:subagent:spawn'] : []),
             ...(options.generateImage ? ['platform:image:generate'] : []),
+            ...(options.platformTools ? PLATFORM_TOOL_DEFINITIONS.map(({ id }) => id) : []),
             ...officeToolDefinitions.map(({ id }) => id),
           ],
           reservedToolAliases: [
             ...(options.generateImage ? ['generate_image'] : []),
+            ...(options.platformTools
+              ? PLATFORM_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
+              : []),
             ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ],
         })
@@ -549,6 +612,9 @@ export async function createDeterministicPiSession(
           ...(prepared.skillPaths.length > 0 ? ['read'] : []),
           ...(options.spawnSubagent ? ['subagent'] : []),
           ...(options.generateImage ? ['generate_image'] : []),
+          ...(options.platformTools
+            ? PLATFORM_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)
+            : []),
           ...officeToolDefinitions.map(({ modelAlias }) => modelAlias),
           ...prepared.extensionTools.map(({ name }) => name),
           ...prepared.mcpTools.map(({ modelAlias }) => modelAlias),
@@ -558,7 +624,10 @@ export async function createDeterministicPiSession(
         if (signal.aborted) return undefined
         await session.setModel(model)
         try {
-          await session.prompt(text, { expandPromptTemplates: true, source: 'rpc' })
+          await session.prompt(promptWithArtifacts(text, context.artifacts), {
+            expandPromptTemplates: true,
+            source: 'rpc',
+          })
           return undefined
         } finally {
           options.runResources.releaseRun(context.runId)
@@ -576,7 +645,10 @@ export async function createDeterministicPiSession(
         ),
         fauxAssistantMessage('contract probe acknowledged'),
       ])
-      await session.prompt(text, { expandPromptTemplates: false, source: 'rpc' })
+      await session.prompt(promptWithArtifacts(text, context?.artifacts), {
+        expandPromptTemplates: false,
+        source: 'rpc',
+      })
       if (signal.aborted) return undefined
       fixtureProvider!.setResponses([
         fauxAssistantMessage('contract compaction summary'),

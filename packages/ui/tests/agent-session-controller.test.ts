@@ -163,9 +163,34 @@ describe('AgentSessionController', () => {
       documentId,
       text: 'summarize this PDF',
     })
+    await controller.prompt('read the attachment', [
+      {
+        artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        mediaType: 'text/plain',
+        byteLength: 12,
+        sha256: 'a'.repeat(64),
+        displayName: 'notes.txt',
+      },
+    ])
+    expect(test.commands[1]).toEqual({
+      type: 'prompt',
+      operationId,
+      sessionId,
+      documentId,
+      text: 'read the attachment',
+      artifacts: [
+        {
+          artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          mediaType: 'text/plain',
+          byteLength: 12,
+          sha256: 'a'.repeat(64),
+          displayName: 'notes.txt',
+        },
+      ],
+    })
     test.emit(event(2, 'run.started'))
     await expect(controller.abort()).resolves.toMatchObject({ runId, state: 'cancelling' })
-    expect(test.commands[1]).toEqual({
+    expect(test.commands[2]).toEqual({
       type: 'abort',
       operationId,
       sessionId,

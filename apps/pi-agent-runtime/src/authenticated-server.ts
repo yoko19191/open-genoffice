@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
+import { join } from 'node:path'
 import type { CredentialStore } from '@earendil-works/pi-ai'
 import { InMemoryModelsStore } from '@earendil-works/pi-ai'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
@@ -16,7 +17,12 @@ import {
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
 import { resolveOfficeToolCatalogMetadata } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
-import { PackageLockError, initializeAgentResourceHome } from '@genoffice/agent-resource'
+import { resolvePlatformToolDefinition } from '@genoffice/agent-runtime-protocol/platform-tool-catalog'
+import {
+  PackageLockError,
+  ScopedArtifactStore,
+  initializeAgentResourceHome,
+} from '@genoffice/agent-resource'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
 import { McpConfigError } from './mcp-config-resolver'
 import { McpOAuthError } from './mcp-oauth-controller'
@@ -31,6 +37,7 @@ import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-clien
 import { RuntimeCredentialStore } from './runtime-credential-store'
 import { RuntimeOfficeToolHostClient } from './runtime-office-tool-host-client'
 import { CodexOAuthImageProvider } from './codex-oauth-image-provider'
+import { PlatformToolService } from './platform-tool-service'
 import { PackageSourceResolverError } from './package-source-resolver'
 import { RunResourceService, RunResourceServiceError } from './run-resource-service'
 import { PiSubagentEngine } from './pi-subagent-engine'
@@ -145,6 +152,12 @@ export async function createAuthenticatedRuntimeServer(
     rootDirectory: options.resourceHome,
     modelRuntime,
   })
+  const platformTools = new PlatformToolService({
+    artifactStore: new ScopedArtifactStore({
+      rootDirectory: join(options.resourceHome, 'assets', 'artifacts'),
+    }),
+    credentials,
+  })
   const ownedModelCatalog = options.modelCatalog
     ? undefined
     : new ModelCatalogService(modelRuntime, await loadModelCatalogSettings(options.resourceHome))
@@ -227,6 +240,7 @@ export async function createAuthenticatedRuntimeServer(
                 runResources,
                 officeToolHost: officeTools,
                 generateImage: (input, signal) => imageProvider.generate(input, signal),
+                platformTools,
                 spawnSubagent: (request) => sessionRegistry.spawnSubagent(request),
               }),
           }
@@ -732,6 +746,7 @@ export async function createAuthenticatedRuntimeServer(
               documentId: request.params.documentId,
               text: request.params.text,
               ...(request.params.projectRoot ? { projectRoot: request.params.projectRoot } : {}),
+              ...(request.params.artifacts ? { artifacts: request.params.artifacts } : {}),
             }),
           ),
         )
@@ -822,6 +837,14 @@ export function resolveSubagentToolDescriptor(
   }
   if (canonicalToolId === 'platform:resource:read') {
     return { canonicalToolId, modelAlias: 'read', effect: 'read' }
+  }
+  const platform = resolvePlatformToolDefinition(canonicalToolId)
+  if (platform) {
+    return {
+      canonicalToolId,
+      modelAlias: platform.modelAlias,
+      effect: platform.effect,
+    }
   }
   const office = resolveOfficeToolCatalogMetadata(canonicalToolId)
   if (office) {

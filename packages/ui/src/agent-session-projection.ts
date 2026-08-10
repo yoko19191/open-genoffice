@@ -10,11 +10,16 @@ import {
   parseMutationGrantProjection,
   parseSubagentRunProjection,
 } from '@genoffice/agent-runtime-protocol'
+import {
+  parsePlatformToolDetails,
+  type PlatformToolDetails,
+} from '@genoffice/agent-runtime-protocol/platform-tool-catalog'
 
 export type AgentPanelTool = {
   toolCallId: string
   toolName: string
   state: 'requested' | 'running' | 'completed' | 'failed' | 'aborted'
+  details?: PlatformToolDetails
 }
 
 export type AgentSessionProjection = {
@@ -108,6 +113,17 @@ function mutationGrantProjection(event: EventEnvelope): MutationGrantProjection 
   if (event.type !== 'mutation-grant.updated') return undefined
   try {
     return parseMutationGrantProjection(event.payload)
+  } catch {
+    return undefined
+  }
+}
+
+function platformToolDetails(event: EventEnvelope): PlatformToolDetails | undefined {
+  if (event.type !== 'tool.completed') return undefined
+  const payload = event.payload
+  if (typeof payload !== 'object' || payload === null) return undefined
+  try {
+    return parsePlatformToolDetails((payload as { platformTool?: unknown }).platformTool)
   } catch {
     return undefined
   }
@@ -253,6 +269,7 @@ export function applyAgentSessionEvent(
 
   const nextToolState = toolState(event)
   if (nextToolState) {
+    const details = platformToolDetails(event)
     const toolCallId = payloadString(event, 'toolCallId')
     if (toolCallId) {
       const index = next.tools.findIndex((tool) => tool.toolCallId === toolCallId)
@@ -269,6 +286,7 @@ export function applyAgentSessionEvent(
         next.tools[index] = {
           ...next.tools[index]!,
           ...(toolName ? { toolName } : {}),
+          ...(details ? { details } : {}),
           state: nextToolState,
         }
       }
