@@ -97,6 +97,11 @@ describe('isolated debug stdio mode', () => {
     expect(runDebug).toHaveBeenCalledOnce()
     expect(runProduction).not.toHaveBeenCalled()
 
+    await expect(runRuntimeEntrypoint([], { stderr, runDebug, runProduction })).resolves.toBe(
+      RUNTIME_EXIT_CODES.ok,
+    )
+    expect(runProduction).toHaveBeenCalledOnce()
+
     for (const args of [['--debug-stdio', '--use-real-home'], ['--use-real-home'], ['--unknown']]) {
       await expect(runRuntimeEntrypoint(args, { stderr, runDebug, runProduction })).resolves.toBe(
         RUNTIME_EXIT_CODES.bootstrap,
