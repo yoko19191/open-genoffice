@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "commit": "05e0e473c44a361d3ba83fde1101e0d8a9e0f99a",
+  "acceptanceIds": [
+    "GX-001",
+    "GX-002",
+    "GX-003",
+    "GX-004",
+    "OTC-007",
+    "SL-001"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "catalogHashes": {
+    "slides": "f97ef27d662ffd344c604b5aa427697f5b6a9fffd6e2a8dc8d9abbd4c07cfb2b"
+  },
+  "fixtureHashes": {
+    "fakeProvider": "a90f5f074074d07e91dc044c8e2bb893a19b7bd2f1d0f32f2f68dbaf51ebb05f",
+    "officeCatalog": "1244db204e7c6b4da94efbd4412d054924fce587f9ee0115e1e4b18a5e8150b6",
+    "slidePageAccepted": "58a86ee88560fe94f8aa44bf35eabf767f2fc3293f1cf37a8676815f052ac646",
+    "slidePageGolden": "5d832c207f56ed15feff8644560aeabb7f541731bbd843030e8225f72629c37e"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm exec --workspace @genoffice/slides -- vitest run tests/slide-page-renderer.test.ts --coverage --coverage.include=src/main/agent-tools/page-renderer.ts --coverage.thresholds.lines=95 --coverage.thresholds.branches=95 --coverage.thresholds.functions=95 --coverage.thresholds.statements=95",
+    "npm run build --workspace @genoffice/slides",
+    "npm run build --workspace @genoffice/shell",
+    "npm run lint",
+    "npm run audit:pi-platform",
+    "npm run audit:genspark-free"
+  ],
+  "results": [
+    {
+      "suite": "evidence",
+      "status": "passed",
+      "report": "evidence/g7/issue-34/reports/evidence.json"
+    },
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g7/issue-34/reports/protocol.json"
+    },
+    {
+      "suite": "bundle",
+      "status": "passed",
+      "report": "evidence/g7/issue-34/reports/bundle.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g7/issue-34/reports/runtime.json"
+    },
+    {
+      "suite": "slides",
+      "status": "passed",
+      "report": "evidence/g7/issue-34/reports/slides.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g7/issue-34/reports/shell.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
