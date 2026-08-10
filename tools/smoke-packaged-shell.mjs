@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path'
 import { _electron as electron, chromium } from 'playwright'
 import {
   packageShellLaunchArgs,
+  packageShellLaunchEnv,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   packageShellShutdownTimeout,
@@ -130,7 +131,7 @@ async function launchShell(env) {
 
   const port = await reserveLoopbackPort()
   const child = spawn(resolve(executable), packageShellLaunchArgs(platform, userData, port), {
-    env,
+    env: { ...env, ...packageShellLaunchEnv(platform, port) },
     stdio: 'ignore',
     windowsHide: true,
   })

@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { PACKAGE_AUDIT_CHANNELS } from '../src/shared/package-audit-api'
-import { installPackageAuditControl } from '../src/main/package-audit-control'
+import { installPackageAuditControl, packageAuditCdpPort } from '../src/main/package-audit-control'
 
 describe('package audit control', () => {
+  it('accepts only an explicit loopback debugging port', () => {
+    expect(packageAuditCdpPort(undefined)).toBeUndefined()
+    expect(packageAuditCdpPort('43117')).toBe('43117')
+    expect(() => packageAuditCdpPort('0')).toThrow('package_audit_cdp_port_invalid')
+    expect(() => packageAuditCdpPort('65536')).toThrow('package_audit_cdp_port_invalid')
+    expect(() => packageAuditCdpPort('43117.5')).toThrow('package_audit_cdp_port_invalid')
+  })
+
   it('reports only package and profile isolation booleans', async () => {
     const handlers = new Map<string, () => unknown>()
     installPackageAuditControl(

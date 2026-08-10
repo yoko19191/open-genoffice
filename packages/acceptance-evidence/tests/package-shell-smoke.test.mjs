@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   packageShellLaunchArgs,
+  packageShellLaunchEnv,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   packageShellShutdownTimeout,
@@ -54,9 +55,12 @@ describe('validatePackageShellSmoke', () => {
     expect(packageShellLaunchStrategy('darwin')).toBe('electron')
     expect(packageShellLaunchStrategy('linux')).toBe('electron')
     expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data', 43117)).toEqual([
-      '--remote-debugging-port=43117',
       '--user-data-dir=C:\\smoke\\user-data',
     ])
+    expect(packageShellLaunchEnv('win32', 43117)).toEqual({
+      GENOFFICE_PACKAGE_CDP_PORT: '43117',
+    })
+    expect(packageShellLaunchEnv('darwin', 0)).toEqual({})
     expect(packageShellLaunchArgs('darwin', '/tmp/user-data', 0)).toEqual([])
     expect(packageShellLaunchArgs('linux', '/tmp/user-data', 0)).toEqual(['--no-sandbox'])
     expect(() => packageShellLaunchArgs('win32', 'C:\\smoke\\user-data', 0)).toThrow(

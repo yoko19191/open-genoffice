@@ -172,7 +172,7 @@ import {
   installChromiumPackageNetworkAudit,
   packageNetworkAuditEnabled,
 } from './package-network-audit'
-import { installPackageAuditControl } from './package-audit-control'
+import { installPackageAuditControl, packageAuditCdpPort } from './package-audit-control'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -203,6 +203,8 @@ const packageNetworkAuditConfig = packageNetworkAuditEnabled(packageNetworkAudit
   ? packageNetworkAudit
   : undefined
 if (packageNetworkAuditConfig) {
+  const cdpPort = packageAuditCdpPort(process.env.GENOFFICE_PACKAGE_CDP_PORT)
+  if (cdpPort) app.commandLine.appendSwitch('remote-debugging-port', cdpPort)
   createRequire(__filename)(
     join(process.resourcesPath, 'diagnostics', 'package-network-recorder.cjs'),
   )

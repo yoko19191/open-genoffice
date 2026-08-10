@@ -12,14 +12,23 @@ export function packageShellLaunchStrategy(platform) {
   return platform === 'win32' ? 'cdp' : 'electron'
 }
 
+function requireCdpPort(cdpPort) {
+  if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65_535) {
+    throw new Error('package_shell_cdp_port_invalid')
+  }
+  return cdpPort
+}
+
 export function packageShellLaunchArgs(platform, userData, cdpPort) {
   if (platform === 'win32') {
-    if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65_535) {
-      throw new Error('package_shell_cdp_port_invalid')
-    }
-    return [`--remote-debugging-port=${cdpPort}`, `--user-data-dir=${userData}`]
+    requireCdpPort(cdpPort)
+    return [`--user-data-dir=${userData}`]
   }
   return platform === 'linux' ? ['--no-sandbox'] : []
+}
+
+export function packageShellLaunchEnv(platform, cdpPort) {
+  return platform === 'win32' ? { GENOFFICE_PACKAGE_CDP_PORT: String(requireCdpPort(cdpPort)) } : {}
 }
 
 export function validatePackageShellSmoke(input) {
