@@ -9,6 +9,7 @@ import {
   packageShellLaunchArgs,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
+  packageShellShutdownTimeout,
   validatePackageShellSmoke,
 } from '../packages/acceptance-evidence/src/package-shell-smoke.mjs'
 
@@ -159,8 +160,9 @@ async function launchShell(env) {
       await browser.close().catch(() => undefined)
     },
     forceClose: async () => {
-      await browser.close().catch(() => undefined)
       if (child.exitCode === null) child.kill()
+      await Promise.race([exited, delay(5_000)])
+      await browser.close().catch(() => undefined)
     },
   }
 }
@@ -230,7 +232,11 @@ try {
   const screenshotSha256 = createHash('sha256')
     .update(await readFile(screenshotPath))
     .digest('hex')
-  await within(shellDriver.close(), 15_000, 'package_shell_shutdown_timeout')
+  await within(
+    shellDriver.close(),
+    packageShellShutdownTimeout(platform),
+    'package_shell_shutdown_timeout',
+  )
   shellDriver = undefined
 
   const networkEvents = (await readFile(networkReportPath, 'utf8'))
@@ -279,5 +285,5 @@ try {
       () => undefined,
     )
   }
-  await rm(scratch, { recursive: true, force: true })
+  await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 }

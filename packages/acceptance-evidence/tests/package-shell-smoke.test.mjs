@@ -3,6 +3,7 @@ import {
   packageShellLaunchArgs,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
+  packageShellShutdownTimeout,
   validatePackageShellSmoke,
 } from '../src/package-shell-smoke.mjs'
 
@@ -40,6 +41,12 @@ describe('validatePackageShellSmoke', () => {
     expect(packageShellLaunchTimeout('win32')).toBe(60_000)
     expect(packageShellLaunchTimeout('darwin')).toBe(30_000)
     expect(packageShellLaunchTimeout('linux')).toBe(30_000)
+  })
+
+  it('allows the Windows Runtime process tree more time for a graceful shutdown', () => {
+    expect(packageShellShutdownTimeout('win32')).toBe(60_000)
+    expect(packageShellShutdownTimeout('darwin')).toBe(15_000)
+    expect(packageShellShutdownTimeout('linux')).toBe(15_000)
   })
 
   it('uses explicit CDP only where Windows GUI logging cannot expose the dynamic endpoint', () => {

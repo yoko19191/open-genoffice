@@ -4,6 +4,10 @@ export function packageShellLaunchTimeout(platform) {
   return platform === 'win32' ? 60_000 : 30_000
 }
 
+export function packageShellShutdownTimeout(platform) {
+  return platform === 'win32' ? 60_000 : 15_000
+}
+
 export function packageShellLaunchStrategy(platform) {
   return platform === 'win32' ? 'cdp' : 'electron'
 }
