@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
 import logoLockup from './assets/genoffice-logo.svg'
 import iconDocx from './assets/file-docx.svg'
 import iconXlsx from './assets/file-xlsx.svg'
 import iconPptx from './assets/file-pptx.svg'
 import iconPdf from './assets/file-pdf.svg'
 import type {
-  AccountStatus,
-  CloudProjectKind,
-  CloudProjectsSnapshot,
   HomeApi,
   ProjectHomeApi,
   ProjectSummaryEntry,
@@ -392,13 +388,7 @@ function ProjectPanel({ projects, selectedId, onSelect, onRefresh }: ProjectPane
   )
 }
 
-// ── Account entry (bottom-left) ──────────────────────────
-// Currently the Genspark (gsk) login entry; to be upgraded to a signup/account system later.
-// Language switching also lives in this popup menu.
-
-const LOGIN_POLL_MS = 2500
-/** fallback deadline when the CLI does not report expires_in (device codes live ~300s) */
-const LOGIN_MAX_WAIT_MS = 300_000
+// ── Settings entry (bottom-left) ─────────────────────────
 
 // sorted by ISO 639 language code — native-script labels have no natural
 // shared alphabet, so the code is the ordering key
@@ -1641,27 +1631,8 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-function AccountEntry({
-  onStatusChange,
-}: {
-  onStatusChange?: (status: AccountStatus | null) => void
-}) {
+function SettingsEntry() {
   const { lang, setLang, t } = useI18n()
-  const [status, setStatus] = useState<AccountStatus | null>(null)
-
-  useEffect(() => {
-    onStatusChange?.(status)
-  }, [status, onStatusChange])
-  const [waiting, setWaiting] = useState(false)
-  // incremented on login retry, resetting the polling timer
-  const [loginNonce, setLoginNonce] = useState(0)
-  const [loginError, setLoginError] = useState<
-    'timeout' | 'launch' | 'network' | 'expired' | 'failed' | null
-  >(null)
-  // auth URL reported by the login CLI — rescue entry when the browser did not open
-  const [authUrl, setAuthUrl] = useState<string | null>(null)
-  const [urlCopied, setUrlCopied] = useState(false)
-  const loginDeadline = useRef(0)
   const [menuOpen, setMenuOpen] = useState(false)
   // language flyout: opens on hover, fixed-position so it can escape the
   // sidebar's scroll container (same trick as the project row menu)
@@ -1675,17 +1646,13 @@ function AccountEntry({
   const [chanFly, setChanFly] = useState<{ left: number; bottom: number } | null>(null)
   const chanRowRef = useRef<HTMLDivElement>(null)
   const chanCloseTimer = useRef<number | null>(null)
-  const [loggingOut, setLoggingOut] = useState(false)
   const [appVersion, setAppVersion] = useState('')
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [mineruDialogOpen, setMineruDialogOpen] = useState(false)
 
-  // query login state + app version once on mount
+  // Query the version once; the remaining settings read their live state when opened.
   useEffect(() => {
     let alive = true
-    void window.aiOffice.accountStatus?.().then((s) => {
-      if (alive) setStatus(s)
-    })
     void window.aiOffice.getAppVersion?.().then((v) => {
       if (alive && v) setAppVersion(v)
     })
@@ -1693,50 +1660,6 @@ function AccountEntry({
       alive = false
     }
   }, [])
-
-  // login progress pushed from main (gsk login CLI output)
-  useEffect(() => {
-    const off = window.aiOffice.onAccountLogin?.((ev) => {
-      if (ev.phase === 'url') {
-        if (ev.url) setAuthUrl(ev.url)
-        if (ev.expiresInSec) loginDeadline.current = Date.now() + ev.expiresInSec * 1000
-      } else if (ev.phase === 'success') {
-        void window.aiOffice.accountStatus().then((s) => {
-          if (s.loggedIn) {
-            setStatus(s)
-            setWaiting(false)
-            setAuthUrl(null)
-          }
-        })
-      } else if (ev.phase === 'error') {
-        setWaiting(false)
-        setAuthUrl(null)
-        setLoginError(
-          ev.error === 'network' ? 'network' : ev.error === 'expired' ? 'expired' : 'failed',
-        )
-      }
-    })
-    return off
-  }, [])
-
-  // config-file polling stays as the fallback success path (works even if progress events are lost)
-  useEffect(() => {
-    if (!waiting) return
-    const timer = setInterval(() => {
-      void window.aiOffice.accountStatus().then((s) => {
-        if (s.loggedIn) {
-          setStatus(s)
-          setWaiting(false)
-          setAuthUrl(null)
-        } else if (Date.now() > loginDeadline.current) {
-          setWaiting(false)
-          setAuthUrl(null)
-          setLoginError('timeout')
-        }
-      })
-    }, LOGIN_POLL_MS)
-    return () => clearInterval(timer)
-  }, [waiting, loginNonce])
 
   // close the menu on outside click
   useEffect(() => {
@@ -1752,19 +1675,6 @@ function AccountEntry({
     window.addEventListener('pointerdown', handler)
     return () => window.removeEventListener('pointerdown', handler)
   }, [menuOpen])
-
-  const loggedIn = status?.loggedIn ?? false
-  const email = status?.email ?? ''
-  const initial = email ? email[0].toUpperCase() : loggedIn ? 'G' : '?'
-  const errorText = loginError
-    ? {
-        timeout: t('loginTimeout'),
-        launch: t('loginLaunchFailed'),
-        network: t('loginNetworkError'),
-        expired: t('loginExpired'),
-        failed: t('loginFailed'),
-      }[loginError]
-    : null
 
   const closeMenu = () => {
     setMenuOpen(false)
@@ -1842,33 +1752,6 @@ function AccountEntry({
     }
   }, [chanFly])
 
-  const startLogin = () => {
-    // clicking again while waiting = relaunch the login (main kills the stale CLI, so the new device code is the live one)
-    setLoginError(null)
-    setWaiting(true)
-    setAuthUrl(null)
-    setUrlCopied(false)
-    loginDeadline.current = Date.now() + LOGIN_MAX_WAIT_MS
-    setLoginNonce((n) => n + 1)
-    closeMenu()
-    void window.aiOffice.accountLogin().then((launched) => {
-      if (!launched) {
-        setWaiting(false)
-        setLoginError('launch')
-      }
-    })
-  }
-
-  const openLoginUrl = () => void window.aiOffice.openLoginUrl?.()
-
-  const copyLoginUrl = () => {
-    if (!authUrl) return
-    void navigator.clipboard.writeText(authUrl).then(() => {
-      setUrlCopied(true)
-      window.setTimeout(() => setUrlCopied(false), 2000)
-    })
-  }
-
   const handleClick = () => {
     setMenuOpen((v) => {
       if (!v) void window.aiOffice.getUpdateChannel().then(setChannel)
@@ -1882,43 +1765,6 @@ function AccountEntry({
     <div className="account-entry">
       {menuOpen && (
         <div className="account-menu" role="menu">
-          {loggedIn ? (
-            <div className="account-menu-info">
-              <span className="account-menu-email" title={email}>
-                {email || t('loggedIn')}
-              </span>
-            </div>
-          ) : (
-            <>
-              <button
-                className="account-menu-item"
-                role="menuitem"
-                onClick={startLogin}
-                title={waiting ? t('waitingLogin') : undefined}
-              >
-                {waiting ? t('waitingShort') : t('loginGenspark')}
-              </button>
-              {waiting && authUrl && (
-                <>
-                  <button
-                    className="account-menu-item login-rescue"
-                    role="menuitem"
-                    onClick={openLoginUrl}
-                  >
-                    {t('loginOpenManually')}
-                  </button>
-                  <button
-                    className="account-menu-item login-rescue"
-                    role="menuitem"
-                    onClick={copyLoginUrl}
-                  >
-                    {urlCopied ? t('loginCopied') : t('loginCopyUrl')}
-                  </button>
-                </>
-              )}
-            </>
-          )}
-          <div className="account-menu-divider" />
           <button
             className="account-menu-item"
             role="menuitem"
@@ -2132,48 +1978,6 @@ function AccountEntry({
               <span className="version-row-value">{appVersion}</span>
             </div>
           )}
-          {loggedIn && (
-            <button
-              className="account-menu-item danger"
-              role="menuitem"
-              disabled={loggingOut}
-              onClick={() => {
-                setLoggingOut(true)
-                void window.aiOffice.accountLogout().then(() => {
-                  setLoggingOut(false)
-                  closeMenu()
-                  setStatus({ loggedIn: false })
-                })
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M6.2 2H3.7A1.7 1.7 0 0 0 2 3.7v8.6A1.7 1.7 0 0 0 3.7 14h2.5"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M10.7 4.9 13.8 8l-3.1 3.1M13.4 8H6.4"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span>{loggingOut ? t('loggingOut') : t('logout')}</span>
-            </button>
-          )}
-        </div>
-      )}
-      {!menuOpen && waiting && authUrl && (
-        <div className="login-hint" role="status">
-          <button className="login-hint-open" onClick={openLoginUrl}>
-            {t('loginOpenManually')}
-          </button>
-          <button className="login-hint-copy" onClick={copyLoginUrl}>
-            {urlCopied ? t('loginCopied') : t('loginCopyUrl')}
-          </button>
         </div>
       )}
       {providerDialogOpen && (
@@ -2184,401 +1988,32 @@ function AccountEntry({
         className="account-btn"
         onClick={handleClick}
         aria-expanded={menuOpen}
-        title={
-          loggedIn
-            ? email || t('loggedInGenspark')
-            : waiting
-              ? t('waitingLogin')
-              : (errorText ?? t('loginGenspark'))
-        }
-        aria-label={loggedIn ? t('account') : t('login')}
+        title={lang === 'zh' || lang === 'zh-TW' ? '设置' : 'Settings'}
+        aria-label={lang === 'zh' || lang === 'zh-TW' ? '设置' : 'Settings'}
       >
-        <span
-          className={`account-avatar${loggedIn ? ' logged-in' : ''}${waiting ? ' waiting' : ''}`}
-        >
-          {waiting ? (
-            <svg
-              className="account-spinner"
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-            >
-              <circle
-                cx="8"
-                cy="8"
-                r="6"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                fill="none"
-                strokeDasharray="26"
-                strokeDashoffset="18"
-                strokeLinecap="round"
-              />
-            </svg>
-          ) : (
-            initial
-          )}
+        <span className="account-avatar" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.3" />
+            <path
+              d="M8 1.7v1.5M8 12.8v1.5M1.7 8h1.5M12.8 8h1.5M3.55 3.55l1.06 1.06M11.39 11.39l1.06 1.06M12.45 3.55l-1.06 1.06M4.61 11.39l-1.06 1.06"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
+          </svg>
         </span>
         <span className="account-text">
-          {loggedIn ? (
-            <>
-              <span className="account-name">{email ? email.split('@')[0] : t('loggedIn')}</span>
-              <span className="account-sub" title={email}>
-                {email || 'Genspark'}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="account-name">{waiting ? t('waitingShort') : t('login')}</span>
-              <span className={`account-sub${!waiting && errorText ? ' error' : ''}`}>
-                {!waiting && errorText ? errorText : t('accountGenspark')}
-              </span>
-            </>
-          )}
+          <span className="account-name">
+            {lang === 'zh' || lang === 'zh-TW' ? '设置' : 'Settings'}
+          </span>
+          <span className="account-sub">
+            {lang === 'zh' || lang === 'zh-TW'
+              ? '模型、资源与更新'
+              : 'Models, resources, and updates'}
+          </span>
         </span>
       </button>
     </div>
-  )
-}
-
-// ── Cloud (Genspark web) projects view ──────────────────
-
-/** kind filter segments; labels shared with the recents type filter */
-const CLOUD_FILTERS = [
-  { key: 'all', label: 'filterAll' },
-  { key: 'docs', label: 'filterDocs' },
-  { key: 'sheets', label: 'filterSheets' },
-  { key: 'slides', label: 'filterSlides' },
-] as const satisfies readonly { key: 'all' | CloudProjectKind; label: StringKey }[]
-
-/** module kind → file icon extension */
-const CLOUD_KIND_EXT: Record<string, string> = { docs: 'docx', sheets: 'xlsx', slides: 'pptx' }
-
-/** rows revealed per "load more" step; purely client-side over the local snapshot */
-const CLOUD_REVEAL_STEP = 100
-
-function CloudProjectsView() {
-  const i18n = useI18n()
-  const { t } = i18n
-  const [snapshot, setSnapshot] = useState<CloudProjectsSnapshot | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
-  const [loginWaiting, setLoginWaiting] = useState(false)
-  const [kind, setKind] = useState<'all' | CloudProjectKind>('all')
-  const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<'recent' | 'oldest'>('recent')
-  const [sortMenuOpen, setSortMenuOpen] = useState(false)
-  const [revealed, setRevealed] = useState(CLOUD_REVEAL_STEP)
-  const sortRef = useRef<HTMLDivElement>(null)
-
-  // the local store paints instantly; a background sync replaces it when done.
-  // a failed sync keeps whatever is shown; with nothing shown the
-  // !snapshot && !loading branch below renders the retry state
-  const startSync = () => {
-    setSyncing(true)
-    void window.aiOffice.cloudProjectsSync?.().then((synced) => {
-      setSyncing(false)
-      setLoading(false)
-      if (synced) setSnapshot(synced)
-    })
-  }
-  const startSyncRef = useRef(startSync)
-  startSyncRef.current = startSync
-
-  useEffect(() => {
-    let cancelled = false
-    void window.aiOffice.cloudProjectsCached?.().then((stored) => {
-      if (cancelled || !stored) return
-      setSnapshot((prev) => prev ?? stored)
-      setLoading(false)
-    })
-    startSyncRef.current()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // the sign-in button reuses the account login flow; sync once it lands
-  useEffect(() => {
-    const off = window.aiOffice.onAccountLogin?.((ev) => {
-      if (ev.phase === 'success') {
-        setLoginWaiting(false)
-        startSyncRef.current()
-      } else if (ev.phase === 'error') {
-        setLoginWaiting(false)
-      }
-    })
-    return off
-  }, [])
-
-  useEffect(() => {
-    if (!sortMenuOpen) return
-    const handler = (e: PointerEvent) => {
-      if (!sortRef.current?.contains(e.target as Node)) setSortMenuOpen(false)
-    }
-    window.addEventListener('pointerdown', handler)
-    return () => window.removeEventListener('pointerdown', handler)
-  }, [sortMenuOpen])
-
-  const startLogin = () => {
-    setLoginWaiting(true)
-    void window.aiOffice.accountLogin?.().then((ok) => {
-      if (!ok) setLoginWaiting(false)
-    })
-  }
-
-  const changeKind = (k: 'all' | CloudProjectKind) => {
-    if (k === kind) return
-    setKind(k)
-    setRevealed(CLOUD_REVEAL_STEP)
-  }
-
-  const openProject = (projectUrl: string) => {
-    void window.aiOffice.openCloudProject?.(projectUrl)
-  }
-
-  // filter / search / sort are all local over the snapshot — no requests
-  const q = query.trim().toLowerCase()
-  let list = snapshot?.projects.filter((proj) => kind === 'all' || proj.kind === kind) ?? []
-  if (q) list = list.filter((proj) => proj.title.toLowerCase().includes(q))
-  if (sort === 'oldest') list = [...list].reverse()
-  const visible = list.slice(0, revealed)
-
-  /** time-bucket header: this week → earlier this month → month → month + year */
-  const groupLabel = (ctimeMs: number): string => {
-    if (!ctimeMs) return ''
-    const now = Date.now()
-    if (now - ctimeMs < 7 * 86_400_000 && ctimeMs < now + 86_400_000) {
-      return t('cloudGroupThisWeek')
-    }
-    const d = new Date(ctimeMs)
-    const n = new Date()
-    if (d.getFullYear() === n.getFullYear()) {
-      if (d.getMonth() === n.getMonth()) return t('cloudGroupThisMonth')
-      return new Intl.DateTimeFormat(i18n.dateLocale, { month: 'long' }).format(d)
-    }
-    return new Intl.DateTimeFormat(i18n.dateLocale, { year: 'numeric', month: 'long' }).format(d)
-  }
-
-  const renderRows = () => {
-    const items: ReactElement[] = []
-    let prevLabel = ''
-    for (const proj of visible) {
-      const label = groupLabel(proj.ctimeMs)
-      if (label && label !== prevLabel) {
-        prevLabel = label
-        items.push(
-          <li key={`group-${label}`} className="cloud-group-label" aria-hidden="true">
-            {label}
-          </li>,
-        )
-      }
-      items.push(
-        <li key={proj.projectId}>
-          <button
-            className="cloud-row"
-            title={t('cloudOpenInBrowser')}
-            onClick={() => openProject(proj.projectUrl)}
-          >
-            <FileBadge ext={CLOUD_KIND_EXT[proj.kind] ?? ''} size={22} />
-            <span className="cloud-row-main">
-              <span className="cloud-row-title">{proj.title || t('untitled')}</span>
-              <svg
-                className="cloud-row-external"
-                width="13"
-                height="13"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6.5 3.5H4a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 4 13.5h7A1.5 1.5 0 0 0 12.5 12V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="cloud-row-time">
-              {proj.ctimeMs ? formatModified(proj.ctimeMs, i18n) : ''}
-            </span>
-          </button>
-        </li>,
-      )
-    }
-    return items
-  }
-
-  const renderBody = () => {
-    if (snapshot && !snapshot.available) {
-      return (
-        <p className="empty proj-empty">
-          <span className="empty-hint">{t('cloudLoginHint')}</span>
-          <button className="btn btn-secondary" disabled={loginWaiting} onClick={startLogin}>
-            {loginWaiting ? t('waitingShort') : t('loginGenspark')}
-          </button>
-        </p>
-      )
-    }
-    if (!snapshot) {
-      if (loading || syncing) {
-        return (
-          <div className="load-more" aria-hidden="true">
-            <span className="load-more-spinner" />
-          </div>
-        )
-      }
-      return (
-        <p className="empty proj-empty">
-          <span className="empty-hint">{t('cloudError')}</span>
-          <button className="btn btn-secondary" onClick={() => startSync()}>
-            {t('cloudRetry')}
-          </button>
-        </p>
-      )
-    }
-    if (list.length === 0) {
-      return (
-        <p className="empty proj-empty">
-          <span className="empty-hint">
-            {t(q ? 'cloudNoResults' : kind === 'all' ? 'cloudEmpty' : 'emptyFiltered')}
-          </span>
-        </p>
-      )
-    }
-    return (
-      <div className="cloud-scroll">
-        <ul className="cloud-list">{renderRows()}</ul>
-        {list.length > revealed && (
-          <div className="load-more">
-            <button
-              className="btn btn-secondary"
-              onClick={() => setRevealed((n) => n + CLOUD_REVEAL_STEP)}
-            >
-              {t('cloudLoadMore')}
-            </button>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  const sortValueKey = sort === 'recent' ? 'cloudSortRecent' : 'cloudSortOldest'
-  return (
-    <main className="content">
-      <section className="cloud-projects" aria-label={t('navCloud')}>
-        <header className="cloud-hero">
-          <div className="cloud-hero-top">
-            <h1 className="cloud-title">
-              {t('navCloud')}
-              <span className="cloud-chip">
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M4 12L12 4M6 3.5h6.5V10"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {t('cloudOpenInBrowser')}
-              </span>
-            </h1>
-            {snapshot?.available && (
-              <div className="cloud-actions">
-                <button
-                  className={`cloud-refresh-btn${syncing ? ' syncing' : ''}`}
-                  title={t('cloudRefresh')}
-                  aria-label={t('cloudRefresh')}
-                  disabled={syncing}
-                  onClick={() => startSync()}
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path
-                      d="M13.6 8a5.6 5.6 0 1 1-1.64-3.96M13.6 2.4v3.2h-3.2"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-                <div className="cloud-sort" ref={sortRef}>
-                  <button className="cloud-sort-btn" onClick={() => setSortMenuOpen((o) => !o)}>
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path
-                        d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    {t('cloudSortLabel', { v: t(sortValueKey) })}
-                  </button>
-                  {sortMenuOpen && (
-                    <div className="cloud-sort-menu" role="menu">
-                      {(['recent', 'oldest'] as const).map((key) => (
-                        <button
-                          key={key}
-                          className={sort === key ? 'active' : ''}
-                          onClick={() => {
-                            setSort(key)
-                            setSortMenuOpen(false)
-                            setRevealed(CLOUD_REVEAL_STEP)
-                          }}
-                        >
-                          {t(key === 'recent' ? 'cloudSortRecent' : 'cloudSortOldest')}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          <p className="cloud-subtitle">{t('cloudSubtitle')}</p>
-          {snapshot?.available && (
-            <div className="cloud-controls">
-              <div className="cloud-search">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.4" />
-                  <path
-                    d="M10.5 10.5L14 14"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <input
-                  value={query}
-                  placeholder={t('cloudSearchPlaceholder', { n: snapshot.projects.length })}
-                  onChange={(e) => {
-                    setQuery(e.target.value)
-                    setRevealed(CLOUD_REVEAL_STEP)
-                  }}
-                />
-              </div>
-              <div className="cloud-seg" role="tablist" aria-label={t('filterAria')}>
-                {CLOUD_FILTERS.map((f) => (
-                  <button
-                    key={f.key}
-                    className={kind === f.key ? 'active' : ''}
-                    role="tab"
-                    aria-selected={kind === f.key}
-                    onClick={() => changeKind(f.key)}
-                  >
-                    {t(f.label)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </header>
-        {renderBody()}
-      </section>
-    </main>
   )
 }
 
@@ -2595,26 +2030,11 @@ export function Home() {
   const [navCounts, setNavCounts] = useState({ recent: 0, starred: 0 })
   const [loadingMore, setLoadingMore] = useState(false)
   const [view, setView] = useState<'recent' | 'starred'>('recent')
-  // Genspark web projects take over the content area (like a selected project)
-  const [cloudMode, setCloudMode] = useState(false)
   const [filter, setFilter] = useState('all')
   const [rowMenu, setRowMenu] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [renaming, setRenaming] = useState<{ path: string; value: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null)
-  // name in the greeting; omitted when logged out
-  const [accountName, setAccountName] = useState('')
-  // Genspark Projects is web-account data, so its nav entry only shows when logged in
-  const [loggedIn, setLoggedIn] = useState(false)
-  // single source of account state: AccountEntry reports every change (initial
-  // load, login, logout), keeping the greeting name and the nav entry in sync
-  const handleAccountStatus = useCallback((s: AccountStatus | null) => {
-    const on = s?.loggedIn ?? false
-    setLoggedIn(on)
-    if (!on) setCloudMode(false)
-    const name = on ? (s?.email ?? '').split('@')[0] : ''
-    setAccountName(name ? name[0].toUpperCase() + name.slice(1) : '')
-  }, [])
   const [greetAskKey] = useState(
     () => GREET_ASK_KEYS[Math.floor(Math.random() * GREET_ASK_KEYS.length)]!,
   )
@@ -3340,7 +2760,7 @@ export function Home() {
             ? 'greetAfternoon'
             : 'greetEvening'
     const cjk = lang === 'zh' || lang === 'zh-TW' || lang === 'ja'
-    const greeting = `${t(greetKey)}${accountName ? (cjk ? '，' : ', ') + accountName : ''}${cjk ? '。' : '. '}`
+    const greeting = `${t(greetKey)}${cjk ? '。' : '. '}`
     return (
       <main className="content">
         <section className="quick-start" aria-label={t('secQuickStart')}>
@@ -3468,11 +2888,10 @@ export function Home() {
 
         <nav className="sidebar-nav">
           <button
-            className={`nav-item${view === 'recent' && !selectedProjectId && !cloudMode ? ' active' : ''}`}
+            className={`nav-item${view === 'recent' && !selectedProjectId ? ' active' : ''}`}
             onClick={() => {
               changeView('recent')
               setSelectedProjectId(null)
-              setCloudMode(false)
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -3488,11 +2907,10 @@ export function Home() {
             <span className="nav-count">{navCounts.recent}</span>
           </button>
           <button
-            className={`nav-item${view === 'starred' && !selectedProjectId && !cloudMode ? ' active' : ''}`}
+            className={`nav-item${view === 'starred' && !selectedProjectId ? ' active' : ''}`}
             onClick={() => {
               changeView('starred')
               setSelectedProjectId(null)
-              setCloudMode(false)
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -3506,43 +2924,6 @@ export function Home() {
             <span className="nav-label">{t('navStarred')}</span>
             <span className="nav-count">{navCounts.starred}</span>
           </button>
-          {loggedIn && (
-            <button
-              className={`nav-item${cloudMode && !selectedProjectId ? ' active' : ''}`}
-              onClick={() => {
-                setCloudMode(true)
-                setSelectedProjectId(null)
-                setSelected(new Set())
-                setRowMenu(null)
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M8 1.8l1.55 4.65L14.2 8l-4.65 1.55L8 14.2 6.45 9.55 1.8 8l4.65-1.55z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="nav-label">{t('navCloud')}</span>
-              <svg
-                className="nav-external"
-                width="13"
-                height="13"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6.5 3.5H4a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 4 13.5h7A1.5 1.5 0 0 0 12.5 12V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          )}
         </nav>
 
         {/* project sidebar */}
@@ -3564,16 +2945,10 @@ export function Home() {
           </>
         )}
 
-        <AccountEntry onStatusChange={handleAccountStatus} />
+        <SettingsEntry />
       </aside>
 
-      {selectedProjectId ? (
-        renderProjectContent()
-      ) : cloudMode ? (
-        <CloudProjectsView />
-      ) : (
-        renderGlobalContent()
-      )}
+      {selectedProjectId ? renderProjectContent() : renderGlobalContent()}
 
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>

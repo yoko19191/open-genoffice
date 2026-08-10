@@ -66,20 +66,7 @@ import {
   safeExternalUrl,
 } from '@genoffice/electron-utils'
 import { readAppSettings, writeAppSetting } from './app-settings'
-import {
-  clearCloudProjectsStore,
-  cloudProjectExternalUrl,
-  readCloudProjectsStore,
-  syncCloudProjects,
-} from './cloud-projects'
 import { ProjectStore } from '@genoffice/project-store'
-import {
-  genofficeLogout,
-  gskLoginInfo,
-  loadGenofficeAuth,
-  setGskProxyUrl,
-  startGenofficeLogin,
-} from '@genoffice/ai-search'
 
 import {
   buildDocsMenu,
@@ -144,7 +131,6 @@ import {
   setSlidesShellWindow,
   slidesFileRenamed,
   slidesOfficeToolRendererClient,
-  registerAiIpc as registerLegacyAiIpc,
 } from '../../../slides/src/main/slides-main'
 import { SlidesOfficeToolHost } from '../../../slides/src/main/agent-tools/slides-office-tool-host'
 import {
@@ -157,7 +143,7 @@ import {
   pdfOfficeToolRendererClient,
 } from '../../../pdf/src/main/pdf-main'
 import { PdfOfficeToolHost } from '../../../pdf/src/main/agent-tools/pdf-office-tool-host'
-import type { AccountLoginEvent, RecentEntry, RecentPage, RenameResult } from '../shared/home-api'
+import type { RecentEntry, RecentPage, RenameResult } from '../shared/home-api'
 import { HOME_CHANNELS } from '../shared/home-api'
 import type { TabKind } from '../shared/tabs-api'
 import { TABS_CHANNELS } from '../shared/tabs-api'
@@ -364,12 +350,6 @@ function currentUpdateChannel(): UpdateChannel {
   const saved = readAppSettings(APP_SETTINGS_PATH()).updateChannel
   return isUpdateChannel(saved) ? saved : 'stable'
 }
-
-// ---- first-run onboarding ----
-// The GenTeam community page opened from the onboarding's second slide.
-// Stable short link served by the genspark.ai site; it 302s to the tokened
-// invite link, which stays out of this repo and rotates server-side.
-const GENTEAM_URL = 'https://www.genspark.ai/genoffice/join'
 
 const tMain = createI18n({
   zh: {
@@ -1707,51 +1687,6 @@ function statEntries(paths: string[]): RecentEntry[] {
 }
 
 function registerHomeIpc(): void {
-  // signed-in means GenOffice's own device-code login; the shared gsk CLI key
-  // is only a silent fallback, deliberately not shown here to nudge users onto our key
-  ipcMain.handle(HOME_CHANNELS.accountStatus, async () => {
-    if (!loadGenofficeAuth()) return { loggedIn: false }
-    await proxyBootstrap
-    const info = await gskLoginInfo()
-    return info ? { loggedIn: true, email: info.email } : { loggedIn: true }
-  })
-
-  // login progress is streamed to the requesting renderer; the auth URL is
-  // kept main-side so the "open manually" rescue never opens a renderer-supplied URL
-  let pendingLoginUrl = ''
-  ipcMain.handle(HOME_CHANNELS.accountLogin, async (event) => {
-    const sender = event.sender
-    pendingLoginUrl = ''
-    await proxyBootstrap
-    const send = (payload: AccountLoginEvent) => {
-      if (!sender.isDestroyed()) sender.send(HOME_CHANNELS.accountLoginEvent, payload)
-    }
-    // open the browser on the first url event only; later events refresh the rescue URL
-    let opened = false
-    const launched = startGenofficeLogin((progress) => {
-      if (progress.url) {
-        pendingLoginUrl = progress.url
-        if (!opened) {
-          opened = true
-          void shell.openExternal(progress.url)
-        }
-      }
-      send(progress)
-    })
-    if (launched) send({ phase: 'launched' })
-    return launched
-  })
-
-  ipcMain.handle(HOME_CHANNELS.accountLoginOpenUrl, () => {
-    if (pendingLoginUrl) void shell.openExternal(pendingLoginUrl)
-  })
-
-  ipcMain.handle(HOME_CHANNELS.accountLogout, async () => {
-    await genofficeLogout()
-    // the cloud projects cache belongs to the account that just signed out
-    clearCloudProjectsStore(cloudProjectsStorePath())
-  })
-
   ipcMain.handle(HOME_CHANNELS.getAppVersion, (): string => app.getVersion())
 
   ipcMain.handle(HOME_CHANNELS.recents, (_event, query: unknown): RecentPage =>
@@ -1923,25 +1858,6 @@ function registerHomeIpc(): void {
 
   ipcMain.handle(HOME_CHANNELS.setOnboardingSeen, () => {
     writeAppSetting(APP_SETTINGS_PATH(), 'onboardingSeen', true)
-  })
-
-  ipcMain.handle(HOME_CHANNELS.openGenTeam, () => {
-    shell.openExternal(GENTEAM_URL).catch(() => {
-      // no browser handler available; nothing actionable for the user here
-    })
-  })
-
-  const cloudProjectsStorePath = () => join(app.getPath('userData'), 'cloud-projects.json')
-
-  ipcMain.handle(HOME_CHANNELS.cloudProjectsCached, () =>
-    readCloudProjectsStore(cloudProjectsStorePath()),
-  )
-
-  ipcMain.handle(HOME_CHANNELS.cloudProjects, () => syncCloudProjects(cloudProjectsStorePath()))
-
-  ipcMain.handle(HOME_CHANNELS.openCloudProject, (_event, projectUrl: unknown) => {
-    const url = cloudProjectExternalUrl(projectUrl)
-    if (url) void shell.openExternal(url)
   })
 }
 
@@ -2395,7 +2311,6 @@ function installDockMenu(): void {
 // Prefer proxy env vars (terminal launch); a packaged app launched from Finder inherits no shell
 // env vars, so fall back to the system HTTP proxy. The renderer uses Chromium's system proxy and
 // is unaffected. Same bootstrap as slides-main startSlidesStandalone.
-// awaited by login IPC so the first status probe / login click cannot race the proxy resolution
 let proxyBootstrap: Promise<void> = Promise.resolve()
 
 async function installMainProcessProxy(): Promise<void> {
@@ -2409,9 +2324,9 @@ async function installMainProcessProxy(): Promise<void> {
   ].find((v) => v && /^https?:\/\//.test(v))
   if (!proxyUrl) {
     try {
-      // PAC/rule proxies answer per-host: probe the host the login flow, the
-      // Genspark LLM proxy and the gsk CLI actually target
-      const resolved = await session.defaultSession.resolveProxy('https://www.genspark.ai/')
+      // PAC/rule proxies answer per host; use a neutral HTTPS endpoint to
+      // discover the route used by configurable model providers.
+      const resolved = await session.defaultSession.resolveProxy('https://example.com/')
       const m = /PROXY\s+([^;\s]+)/.exec(resolved)
       if (m) proxyUrl = `http://${m[1]}`
     } catch {
@@ -2419,9 +2334,6 @@ async function installMainProcessProxy(): Promise<void> {
     }
   }
   if (!proxyUrl) return
-  // spawned gsk CLI children (login/search/…) do their own fetch and never see
-  // the dispatcher below — forward the proxy to them via env
-  setGskProxyUrl(proxyUrl)
   try {
     const { ProxyAgent, setGlobalDispatcher } = await import('undici')
     setGlobalDispatcher(new ProxyAgent(proxyUrl))
@@ -2470,7 +2382,6 @@ app.on('second-instance', (_event, argv, _cwd, additionalData) => {
 
 installNavigationGuard(app)
 installContextMenu(app, () => contextMenuLabels(currentLang()))
-registerLegacyAiIpc()
 registerProjectIpc()
 registerDocsIpc()
 registerAgentArtifactIpc()
