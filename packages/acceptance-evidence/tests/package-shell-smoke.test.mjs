@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   packageShellLaunchArgs,
+  packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   validatePackageShellSmoke,
 } from '../src/package-shell-smoke.mjs'
@@ -41,13 +42,19 @@ describe('validatePackageShellSmoke', () => {
     expect(packageShellLaunchTimeout('linux')).toBe(30_000)
   })
 
-  it('gives packaged Windows Chromium an isolated command-line profile for CDP startup', () => {
-    expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data')).toEqual([
+  it('uses explicit CDP only where Windows GUI logging cannot expose the dynamic endpoint', () => {
+    expect(packageShellLaunchStrategy('win32')).toBe('cdp')
+    expect(packageShellLaunchStrategy('darwin')).toBe('electron')
+    expect(packageShellLaunchStrategy('linux')).toBe('electron')
+    expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data', 43117)).toEqual([
+      '--remote-debugging-port=43117',
       '--user-data-dir=C:\\smoke\\user-data',
-      '--enable-logging',
     ])
-    expect(packageShellLaunchArgs('darwin', '/tmp/user-data')).toEqual([])
-    expect(packageShellLaunchArgs('linux', '/tmp/user-data')).toEqual(['--no-sandbox'])
+    expect(packageShellLaunchArgs('darwin', '/tmp/user-data', 0)).toEqual([])
+    expect(packageShellLaunchArgs('linux', '/tmp/user-data', 0)).toEqual(['--no-sandbox'])
+    expect(() => packageShellLaunchArgs('win32', 'C:\\smoke\\user-data', 0)).toThrow(
+      'package_shell_cdp_port_invalid',
+    )
   })
 
   it('summarizes a clean installed first launch without leaking paths', () => {

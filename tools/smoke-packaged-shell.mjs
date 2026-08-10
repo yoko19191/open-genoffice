@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto'
+import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { _electron as electron } from 'playwright'
+import { _electron as electron, chromium } from 'playwright'
 import {
   packageShellLaunchArgs,
+  packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   validatePackageShellSmoke,
 } from '../packages/acceptance-evidence/src/package-shell-smoke.mjs'
@@ -55,24 +58,131 @@ async function within(promise, timeoutMs, code) {
   }
 }
 
-let electronApp
-try {
-  electronApp = await electron.launch({
-    executablePath: resolve(executable),
-    args: packageShellLaunchArgs(platform, userData),
-    env: {
-      ...process.env,
-      HOME: cleanHome,
-      USERPROFILE: cleanHome,
-      GENOFFICE_USER_DATA: userData,
-      GENOFFICE_PACKAGE_NETWORK_AUDIT: '1',
-      GENOFFICE_PACKAGE_AGENT_RESOURCE_HOME: join(cleanHome, '.open-genoffice'),
-      GENOFFICE_NETWORK_REPORT: networkReportPath,
-      GENOFFICE_NETWORK_SURFACE: 'shell-first-launch',
-    },
-    timeout: packageShellLaunchTimeout(platform),
+const delay = (timeoutMs) => new Promise((done) => setTimeout(done, timeoutMs))
+
+async function reserveLoopbackPort() {
+  const server = createServer()
+  await new Promise((resolveListen, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolveListen)
   })
-  const page = await electronApp.firstWindow({ timeout: 30_000 })
+  const address = server.address()
+  await new Promise((resolveClose, reject) =>
+    server.close((error) => (error ? reject(error) : resolveClose())),
+  )
+  if (!address || typeof address === 'string') throw new Error('package_shell_cdp_port_invalid')
+  return address.port
+}
+
+async function waitForCdp(port, child, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) throw new Error('package_shell_process_exited')
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+        signal: AbortSignal.timeout(1_000),
+      })
+      const version = response.ok ? await response.json() : undefined
+      if (typeof version?.webSocketDebuggerUrl === 'string') return
+    } catch {
+      // The packaged app is still starting; retry until the same bounded launch deadline.
+    }
+    await delay(100)
+  }
+  throw new Error('package_shell_cdp_timeout')
+}
+
+async function waitForCdpPage(browser, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const page = browser.contexts().flatMap((context) => context.pages())[0]
+    if (page) return page
+    await delay(100)
+  }
+  throw new Error('package_shell_window_timeout')
+}
+
+async function launchShell(env) {
+  if (packageShellLaunchStrategy(platform) === 'electron') {
+    const app = await electron.launch({
+      executablePath: resolve(executable),
+      args: packageShellLaunchArgs(platform, userData),
+      env,
+      timeout: packageShellLaunchTimeout(platform),
+    })
+    return {
+      page: await app.firstWindow({ timeout: 30_000 }),
+      readPaths: () =>
+        app.evaluate(
+          ({ app: electronApplication }, expected) => ({
+            installed: electronApplication.isPackaged,
+            userDataIsolated: electronApplication.getPath('userData') === expected.userData,
+          }),
+          { userData },
+        ),
+      close: () => app.close(),
+      forceClose: async () => {
+        await app.close().catch(() => app.process().kill())
+      },
+    }
+  }
+
+  const port = await reserveLoopbackPort()
+  const child = spawn(resolve(executable), packageShellLaunchArgs(platform, userData, port), {
+    env,
+    stdio: 'ignore',
+    windowsHide: true,
+  })
+  const exited = new Promise((resolveExit) =>
+    child.once('exit', (code, signal) => resolveExit({ code, signal })),
+  )
+  const failed = new Promise((_, reject) =>
+    child.once('error', () => reject(new Error('package_shell_process_start_failed'))),
+  )
+  await Promise.race([waitForCdp(port, child, packageShellLaunchTimeout(platform)), failed])
+  const browser = await within(
+    chromium.connectOverCDP(`http://127.0.0.1:${port}`),
+    packageShellLaunchTimeout(platform),
+    'package_shell_cdp_connect_timeout',
+  )
+  const page = await waitForCdpPage(browser, 30_000)
+  return {
+    page,
+    readPaths: async () => {
+      const version = await page.evaluate(() => globalThis.aiOffice?.getAppVersion?.())
+      return {
+        installed: typeof version === 'string' && version.length > 0,
+        userDataIsolated: (await readdir(userData)).length > 0,
+      }
+    },
+    close: async () => {
+      await page.close()
+      const result = await exited
+      if (result.code !== 0 || result.signal !== null) {
+        throw new Error('package_shell_process_exit_invalid')
+      }
+      await browser.close().catch(() => undefined)
+    },
+    forceClose: async () => {
+      await browser.close().catch(() => undefined)
+      if (child.exitCode === null) child.kill()
+    },
+  }
+}
+
+let shellDriver
+try {
+  shellDriver = await launchShell({
+    ...process.env,
+    HOME: cleanHome,
+    USERPROFILE: cleanHome,
+    GENOFFICE_USER_DATA: userData,
+    GENOFFICE_PACKAGE_NETWORK_AUDIT: '1',
+    GENOFFICE_PACKAGE_AGENT_RESOURCE_HOME: join(cleanHome, '.open-genoffice'),
+    GENOFFICE_NETWORK_REPORT: networkReportPath,
+    GENOFFICE_NETWORK_SURFACE: 'shell-first-launch',
+  })
+  const { page } = shellDriver
   await page.waitForLoadState('domcontentloaded')
   const skip = page.locator('.onb-skip')
   if (await skip.isVisible()) await skip.click()
@@ -87,13 +197,7 @@ try {
     await new Promise((done) => setTimeout(done, 100))
   }
 
-  const paths = await electronApp.evaluate(
-    ({ app }, expected) => ({
-      installed: app.isPackaged,
-      userDataIsolated: app.getPath('userData') === expected.userData,
-    }),
-    { userData },
-  )
+  const paths = await shellDriver.readPaths()
   const quickActions = await page.locator('.quick-card').evaluateAll((buttons) =>
     buttons.map((button) => ({
       label: button.querySelector('.quick-title')?.textContent?.trim() ?? '',
@@ -131,8 +235,8 @@ try {
   const screenshotSha256 = createHash('sha256')
     .update(await readFile(screenshotPath))
     .digest('hex')
-  await within(electronApp.close(), 15_000, 'package_shell_shutdown_timeout')
-  electronApp = undefined
+  await within(shellDriver.close(), 15_000, 'package_shell_shutdown_timeout')
+  shellDriver = undefined
 
   const networkEvents = (await readFile(networkReportPath, 'utf8'))
     .split(/\r?\n/)
@@ -175,10 +279,10 @@ try {
   process.stderr.write(`${error instanceof Error ? error.message : 'package_shell_smoke_failed'}\n`)
   process.exitCode = 1
 } finally {
-  if (electronApp) {
-    await within(electronApp.close(), 5_000, 'package_shell_force_close').catch(() => {
-      electronApp.process().kill()
-    })
+  if (shellDriver) {
+    await within(shellDriver.forceClose(), 5_000, 'package_shell_force_close').catch(
+      () => undefined,
+    )
   }
   await rm(scratch, { recursive: true, force: true })
 }

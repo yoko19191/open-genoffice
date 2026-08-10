@@ -4,8 +4,17 @@ export function packageShellLaunchTimeout(platform) {
   return platform === 'win32' ? 60_000 : 30_000
 }
 
-export function packageShellLaunchArgs(platform, userData) {
-  if (platform === 'win32') return [`--user-data-dir=${userData}`, '--enable-logging']
+export function packageShellLaunchStrategy(platform) {
+  return platform === 'win32' ? 'cdp' : 'electron'
+}
+
+export function packageShellLaunchArgs(platform, userData, cdpPort) {
+  if (platform === 'win32') {
+    if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65_535) {
+      throw new Error('package_shell_cdp_port_invalid')
+    }
+    return [`--remote-debugging-port=${cdpPort}`, `--user-data-dir=${userData}`]
+  }
   return platform === 'linux' ? ['--no-sandbox'] : []
 }
 
