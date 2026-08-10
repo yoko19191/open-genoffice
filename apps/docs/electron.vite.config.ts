@@ -11,7 +11,11 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: ['@genoffice/electron-utils'] })],
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@genoffice/electron-utils'] })],
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ['@genoffice/electron-utils', '@genoffice/agent-runtime-protocol'],
+      }),
+    ],
   },
   renderer: {
     plugins: [react()],

@@ -71,6 +71,15 @@ describe('Shell Pi Agent Platform cutover', () => {
     expect(builder).toContain('deleteAppDataOnUninstall: false')
   })
 
+  it('bundles protocol validators into every sandboxed module preload', async () => {
+    for (const module of ['docs', 'pdf', 'sheets', 'slides']) {
+      const config = await readFile(join(appRoot, `../${module}/electron.vite.config.ts`), 'utf8')
+      expect(config).toMatch(
+        /preload:\s*\{[\s\S]*?exclude:[\s\S]*?'@genoffice\/agent-runtime-protocol'[\s\S]*?\}/,
+      )
+    }
+  })
+
   it('ships a validated CycloneDX SBOM and keeps unsigned artifacts off every update feed', async () => {
     const builder = await source('electron-builder.cjs')
     const sbomTool = await readFile(join(appRoot, '../../tools/generate-sbom.mjs'), 'utf8')
