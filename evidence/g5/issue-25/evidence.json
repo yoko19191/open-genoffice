@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "commit": "f8f946feb9ff72b73fb1074a796d99a36a4eda4c",
+  "acceptanceIds": [
+    "GX-002",
+    "MD-004",
+    "SS-010"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "imageTool": "b62cccdc3f203554ea44851e71093a81f23ec4d52969cb011f579035cbc4d7e5",
+    "artifactStore": "38abfd7941ef225e8bdfaf37be122ffc2f6c0f14eacc47c282ac556f2b0d5549",
+    "docsImageHost": "9c1cc6e2aec7526305b02ff835253b4b79265f0745319ee6607c0defafa8669c"
+  },
+  "commands": [
+    "npm test",
+    "npm run test -w @genoffice/pi-agent-runtime (333 passed; codex-oauth-image-provider 100/98.44/100/100)",
+    "npm run test -w @genoffice/agent-resource (132 passed; scoped-artifact-store 100/100/100/100)",
+    "npm run typecheck",
+    "npm run build:all",
+    "npm run lint (0 errors, 10 pre-existing warnings)",
+    "npm run format:check",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g5/issue-25/reports/runtime.json"
+    },
+    {
+      "suite": "artifact",
+      "status": "passed",
+      "report": "evidence/g5/issue-25/reports/artifact.json"
+    },
+    {
+      "suite": "docs",
+      "status": "passed",
+      "report": "evidence/g5/issue-25/reports/docs.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}
