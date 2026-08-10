@@ -104,36 +104,43 @@ export async function initializeAgentResourceHome(
   if (rootKind === 'symlink') throw new AgentResourceError('resource_home_symlink_forbidden')
   if (rootKind === 'file') throw new AgentResourceError('resource_home_not_directory')
 
+  const schemaPath = join(root, 'schema.json')
+  const schemaKind = rootKind === 'absent' ? 'absent' : await existingKind(schemaPath)
+  if (schemaKind === 'symlink' || schemaKind === 'directory') {
+    throw new AgentResourceError('resource_home_schema_invalid')
+  }
+
+  let schema: AgentResourceHomeSchemaValue
+  if (schemaKind === 'file') {
+    try {
+      const existing: unknown = JSON.parse(await readFile(schemaPath, 'utf8'))
+      if (!Value.Check(AgentResourceHomeSchema, existing)) throw new Error('invalid_schema')
+      schema = existing as AgentResourceHomeSchemaValue
+    } catch {
+      throw new AgentResourceError('resource_home_schema_invalid')
+    }
+  } else {
+    schema = {
+      schemaVersion: 1,
+      createdByRuntimeVersion: options.runtimeVersion,
+      deviceId: (options.randomUUID ?? randomUUID)(),
+    }
+    if (!Value.Check(AgentResourceHomeSchema, schema)) {
+      throw new AgentResourceError('resource_home_schema_invalid')
+    }
+  }
+
   for (const relativePath of RESOURCE_HOME_DIRECTORIES) {
     const directory = relativePath.length === 0 ? root : join(root, ...relativePath.split('/'))
     await mkdir(directory, { recursive: true, mode: 0o700 })
     if (platform !== 'win32') await chmod(directory, 0o700)
   }
 
-  const schemaPath = join(root, 'schema.json')
-  const schemaKind = await existingKind(schemaPath)
-  if (schemaKind === 'symlink' || schemaKind === 'directory') {
-    throw new AgentResourceError('resource_home_schema_invalid')
-  }
   if (schemaKind === 'file') {
-    try {
-      const schema: unknown = JSON.parse(await readFile(schemaPath, 'utf8'))
-      if (!Value.Check(AgentResourceHomeSchema, schema)) throw new Error('invalid_schema')
-      if (platform !== 'win32') await chmod(schemaPath, 0o600)
-      return paths(root, schema as AgentResourceHomeSchemaValue)
-    } catch {
-      throw new AgentResourceError('resource_home_schema_invalid')
-    }
+    if (platform !== 'win32') await chmod(schemaPath, 0o600)
+    return paths(root, schema)
   }
 
-  const schema: AgentResourceHomeSchemaValue = {
-    schemaVersion: 1,
-    createdByRuntimeVersion: options.runtimeVersion,
-    deviceId: (options.randomUUID ?? randomUUID)(),
-  }
-  if (!Value.Check(AgentResourceHomeSchema, schema)) {
-    throw new AgentResourceError('resource_home_schema_invalid')
-  }
   await atomicWriteJson(schemaPath, schema, { platform })
   return paths(root, schema)
 }

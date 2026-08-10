@@ -83,6 +83,7 @@ describe('Agent Resource Home', () => {
       }),
     ).rejects.toEqual(new AgentResourceError('resource_home_schema_invalid'))
     expect(await readFile(schemaPath, 'utf8')).toBe('{"schemaVersion":99}\n')
+    expect(await readdir(join(corruptHome, '.open-genoffice'))).toEqual(['schema.json'])
 
     const symlinkHome = await mkdtemp(join(tmpdir(), 'agent-resource-symlink-'))
     const outside = await mkdtemp(join(tmpdir(), 'agent-resource-outside-'))

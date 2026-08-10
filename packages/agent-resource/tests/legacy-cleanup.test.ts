@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  LEGACY_CLEANUP_MANIFEST,
   LEGACY_RENDERER_STORAGE_KEYS,
   LegacyCleanupError,
   runLegacyAgentCleanup,
@@ -46,6 +47,32 @@ async function fixture() {
 }
 
 describe('legacy Agent cleanup', () => {
+  it('exposes only reviewed relative rules with ownership and sibling-preservation metadata', () => {
+    expect(LEGACY_CLEANUP_MANIFEST).toHaveLength(6)
+    expect(LEGACY_CLEANUP_MANIFEST.map((rule) => rule.category)).toEqual([
+      'project_index',
+      'project_chats',
+      'ai_settings',
+      'cloud_projects',
+      'genoffice_auth',
+      'cli_sidecar',
+    ])
+    for (const rule of LEGACY_CLEANUP_MANIFEST) {
+      expect(rule).toMatchObject({
+        owner: 'open-genoffice-agent',
+        introducedBefore: 'pi-agent-platform-v1',
+        preserveSiblings: true,
+      })
+      expect(rule.relativePath.length).toBeGreaterThan(0)
+      for (const segment of rule.relativePath) {
+        for (const forbidden of ['/', '\\', '~', '*', '?', '[', ']', '{', '}', '(', ')']) {
+          expect(segment).not.toContain(forbidden)
+        }
+        expect(segment).not.toBe('..')
+      }
+    }
+  })
+
   it('deletes only the reviewed Agent/Genspark targets and preserves Office/autosave siblings', async () => {
     const { resourceHome, userData, legacyGenoffice } = await fixture()
     const report = await runLegacyAgentCleanup({ resourceHome, userData, legacyGenoffice })

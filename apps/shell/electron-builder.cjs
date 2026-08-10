@@ -222,6 +222,9 @@ const config = {
   nsis: {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
+    // Product data is not application payload. Removing Resource Home or
+    // credentials requires a separate, explicit in-product confirmation.
+    deleteAppDataOnUninstall: false,
   },
   beforePack: async (context) => {
     assertModuleTreesPresent()

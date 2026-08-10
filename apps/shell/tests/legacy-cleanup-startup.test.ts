@@ -125,7 +125,7 @@ describe('Shell legacy cleanup startup gate', () => {
     expect(JSON.stringify(audit.mock.calls)).not.toContain('/safe/')
   })
 
-  it('turns structural cleanup errors into the same retryable, redacted state', async () => {
+  it('blocks Runtime startup on structural cleanup errors with a stable, redacted failure', async () => {
     const audit = vi.fn()
     const startup = new LegacyCleanupStartup(
       {
@@ -144,10 +144,40 @@ describe('Shell legacy cleanup startup gate', () => {
       },
     )
 
-    await expect(startup.run()).resolves.toBeUndefined()
+    await expect(startup.run()).rejects.toThrow('legacy_cleanup_preflight_failed')
     expect(startup.projectHealth(readyHealth)).toMatchObject({
       diagnosticCode: 'legacy_cleanup_incomplete',
     })
+    expect(audit).toHaveBeenCalledWith({
+      event: 'legacy_agent_cleanup',
+      status: 'incomplete',
+      results: [],
+    })
+    expect(JSON.stringify(audit.mock.calls)).not.toContain('private')
+  })
+
+  it('blocks cleanup and Runtime startup when Resource Home schema validation fails', async () => {
+    const audit = vi.fn()
+    const cleanup = vi.fn(async () => report('completed'))
+    const startup = new LegacyCleanupStartup(
+      {
+        resourceHome: '/safe/resource-home',
+        userData: '/safe/user-data',
+        legacyHome: '/safe/legacy-home',
+        platform: 'linux',
+        runtimeVersion: '1.0.0',
+        audit,
+      },
+      {
+        initializeResourceHome: vi.fn(async () => {
+          throw new Error('private schema detail')
+        }),
+        cleanup,
+      },
+    )
+
+    await expect(startup.run()).rejects.toThrow('legacy_cleanup_preflight_failed')
+    expect(cleanup).not.toHaveBeenCalled()
     expect(audit).toHaveBeenCalledWith({
       event: 'legacy_agent_cleanup',
       status: 'incomplete',

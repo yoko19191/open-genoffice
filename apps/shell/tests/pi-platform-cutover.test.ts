@@ -65,4 +65,9 @@ describe('Shell Pi Agent Platform cutover', () => {
     expect(home).toContain("runtimeHealth?.diagnosticCode === 'legacy_cleanup_incomplete'")
     expect(home).toContain('Office files and autosave are unaffected.')
   })
+
+  it('keeps Agent data on default uninstall so deletion can only be a separate confirmation', async () => {
+    const builder = await source('electron-builder.cjs')
+    expect(builder).toContain('deleteAppDataOnUninstall: false')
+  })
 })

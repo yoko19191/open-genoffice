@@ -9,6 +9,80 @@ export const LEGACY_CLEANUP_MIGRATION_ID = 'pi-agent-platform-v1-cleanup'
 export const LEGACY_CLEANUP_MANIFEST_VERSION = 1
 export const LEGACY_RENDERER_STORAGE_KEYS = Object.freeze(['ai-excel-chat-history'] as const)
 
+export type LegacyCleanupManifestRule = Readonly<{
+  category: LegacyCleanupCategory
+  root: 'electron_user_data' | 'legacy_genoffice'
+  relativePath: readonly string[]
+  owner: 'open-genoffice-agent'
+  introducedBefore: 'pi-agent-platform-v1'
+  action: 'delete_file' | 'delete_owned_project_chat_files'
+  expectedType: 'file' | 'directory'
+  preserveSiblings: true
+}>
+
+export const LEGACY_CLEANUP_MANIFEST: readonly LegacyCleanupManifestRule[] = Object.freeze([
+  Object.freeze({
+    category: 'project_index',
+    root: 'electron_user_data',
+    relativePath: Object.freeze(['projects', 'index.json']),
+    owner: 'open-genoffice-agent',
+    introducedBefore: 'pi-agent-platform-v1',
+    action: 'delete_file',
+    expectedType: 'file',
+    preserveSiblings: true,
+  }),
+  Object.freeze({
+    category: 'project_chats',
+    root: 'electron_user_data',
+    relativePath: Object.freeze(['projects']),
+    owner: 'open-genoffice-agent',
+    introducedBefore: 'pi-agent-platform-v1',
+    action: 'delete_owned_project_chat_files',
+    expectedType: 'directory',
+    preserveSiblings: true,
+  }),
+  Object.freeze({
+    category: 'ai_settings',
+    root: 'electron_user_data',
+    relativePath: Object.freeze(['ai-settings.json']),
+    owner: 'open-genoffice-agent',
+    introducedBefore: 'pi-agent-platform-v1',
+    action: 'delete_file',
+    expectedType: 'file',
+    preserveSiblings: true,
+  }),
+  Object.freeze({
+    category: 'cloud_projects',
+    root: 'electron_user_data',
+    relativePath: Object.freeze(['cloud-projects.json']),
+    owner: 'open-genoffice-agent',
+    introducedBefore: 'pi-agent-platform-v1',
+    action: 'delete_file',
+    expectedType: 'file',
+    preserveSiblings: true,
+  }),
+  Object.freeze({
+    category: 'genoffice_auth',
+    root: 'legacy_genoffice',
+    relativePath: Object.freeze(['auth.json']),
+    owner: 'open-genoffice-agent',
+    introducedBefore: 'pi-agent-platform-v1',
+    action: 'delete_file',
+    expectedType: 'file',
+    preserveSiblings: true,
+  }),
+  Object.freeze({
+    category: 'cli_sidecar',
+    root: 'legacy_genoffice',
+    relativePath: Object.freeze(['bin', 'electron-compat.js']),
+    owner: 'open-genoffice-agent',
+    introducedBefore: 'pi-agent-platform-v1',
+    action: 'delete_file',
+    expectedType: 'file',
+    preserveSiblings: true,
+  }),
+])
+
 const MigrationRecordSchema = Type.Object(
   {
     id: Type.String({ minLength: 1, maxLength: 128 }),
@@ -252,26 +326,20 @@ export async function runLegacyAgentCleanup(
     const journal = await readJournal(journalPath)
     const removeFile = options.removeFile ?? unlink
     const legacyRootRejected = legacyGenoffice === null
-    const results: LegacyCleanupResult[] = [
-      await cleanupFile('project_index', join(userData, 'projects', 'index.json'), removeFile),
-      await cleanupProjectChats(userData, removeFile),
-      await cleanupFile('ai_settings', join(userData, 'ai-settings.json'), removeFile),
-      await cleanupFile('cloud_projects', join(userData, 'cloud-projects.json'), removeFile),
-      legacyRootRejected
-        ? { category: 'genoffice_auth', status: 'rejected', matched: 1 }
-        : await cleanupFile(
-            'genoffice_auth',
-            join(legacyGenoffice ?? options.legacyGenoffice, 'auth.json'),
-            removeFile,
-          ),
-      legacyRootRejected
-        ? { category: 'cli_sidecar', status: 'rejected', matched: 1 }
-        : await cleanupFile(
-            'cli_sidecar',
-            join(legacyGenoffice ?? options.legacyGenoffice, 'bin', 'electron-compat.js'),
-            removeFile,
-          ),
-    ]
+    const results: LegacyCleanupResult[] = []
+    for (const rule of LEGACY_CLEANUP_MANIFEST) {
+      if (rule.action === 'delete_owned_project_chat_files') {
+        results.push(await cleanupProjectChats(userData, removeFile))
+        continue
+      }
+      if (rule.root === 'legacy_genoffice' && legacyRootRejected) {
+        results.push({ category: rule.category, status: 'rejected', matched: 1 })
+        continue
+      }
+      const root =
+        rule.root === 'electron_user_data' ? userData : (legacyGenoffice ?? options.legacyGenoffice)
+      results.push(await cleanupFile(rule.category, join(root, ...rule.relativePath), removeFile))
+    }
     const status = results.every(
       (result) => result.status === 'deleted' || result.status === 'absent',
     )

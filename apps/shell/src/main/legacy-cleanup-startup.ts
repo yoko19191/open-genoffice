@@ -73,6 +73,12 @@ export class LegacyCleanupStartup {
         status: 'incomplete',
         results: Object.freeze([]),
       })
+      try {
+        this.options.audit?.(record)
+      } catch {
+        // Diagnostics must never replace the stable upgrade failure.
+      }
+      throw new Error('legacy_cleanup_preflight_failed')
     }
     try {
       this.options.audit?.(record)
