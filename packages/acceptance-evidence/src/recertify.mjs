@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { assertRedacted, collectAcceptanceEvidence, inside, sha256 } from './index.mjs'
+import { assertRedacted, inside, sha256, validateReceiptArtifact } from './index.mjs'
 
 const HASH = /^[0-9a-f]{64}$/
 const COMMIT = /^[0-9a-f]{40}$/
@@ -128,6 +128,7 @@ export async function recertifyAcceptanceEvidence(options) {
     fixtures[name] = fixture.relative
   }
 
+  const sourceReports = new Map()
   for (const result of source.results) {
     const report = inside(repoRoot, result.report)
     const content = (await readFile(report.absolute, 'utf8')).split(repoRoot).join('<repo>')
@@ -146,14 +147,73 @@ export async function recertifyAcceptanceEvidence(options) {
     if (reportHashes && canonicalHash !== reportHashes[result.suite]) {
       throw new Error('recertify_report_hash_mismatch')
     }
+    sourceReports.set(result.suite, { parsed, canonicalHash })
   }
 
-  const receipts = Object.fromEntries(
-    (source.receipts ?? []).map((receipt) => [receipt.name, receipt.path]),
-  )
-  const recertified = await collectAcceptanceEvidence({
-    repoRoot,
-    outputPath: outputFile.relative,
+  const outputDirectory = dirname(outputFile.absolute)
+  const outputRelativeDirectory = dirname(outputFile.relative)
+  const results = []
+  const recertifiedReportHashes = {}
+  for (const result of source.results) {
+    const verified = sourceReports.get(result.suite)
+    const attestation = {
+      schemaVersion: 1,
+      status: 'passed',
+      success: true,
+      numFailedTests: 0,
+      numFailedTestSuites: 0,
+      sourceReport: { path: result.report, sha256: verified.canonicalHash },
+      counts: {
+        passedTests: verified.parsed.numPassedTests ?? 0,
+        passedTestSuites: verified.parsed.numPassedTestSuites ?? 0,
+      },
+    }
+    const content = `${JSON.stringify(attestation, null, 2)}\n`
+    const path = resolve(outputDirectory, 'reports', `${result.suite}.json`)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, content)
+    recertifiedReportHashes[result.suite] = sha256(content)
+    results.push({
+      suite: result.suite,
+      status: 'passed',
+      report: `${outputRelativeDirectory}/reports/${result.suite}.json`,
+    })
+  }
+
+  const receipts = []
+  for (const receipt of source.receipts ?? []) {
+    if (
+      !object(receipt) ||
+      typeof receipt.name !== 'string' ||
+      typeof receipt.path !== 'string' ||
+      !receipt.path.startsWith(`${sourceDirectory}/receipts/`) ||
+      !HASH.test(receipt.sha256 ?? '') ||
+      !Number.isInteger(receipt.count) ||
+      receipt.count < 1
+    ) {
+      throw new Error('recertify_receipt_invalid')
+    }
+    const sourceReceipt = inside(repoRoot, receipt.path)
+    const content = await readFile(sourceReceipt.absolute, 'utf8')
+    assertRedacted(content)
+    const parsed = validateReceiptArtifact(JSON.parse(content))
+    const canonical = `${JSON.stringify(parsed, null, 2)}\n`
+    if (sha256(canonical) !== receipt.sha256 || parsed.length !== receipt.count) {
+      throw new Error('recertify_receipt_hash_mismatch')
+    }
+    const path = resolve(outputDirectory, 'receipts', `${receipt.name}.json`)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, canonical)
+    receipts.push({
+      name: receipt.name,
+      path: `${outputRelativeDirectory}/receipts/${receipt.name}.json`,
+      sha256: sha256(canonical),
+      count: parsed.length,
+    })
+  }
+
+  const recertified = {
+    schemaVersion: 1,
     commit: options.expectedCommit,
     acceptanceIds: source.acceptanceIds,
     platform: source.platform,
@@ -161,11 +221,16 @@ export async function recertifyAcceptanceEvidence(options) {
     protocolVersion: source.protocolVersion,
     runtimeVersion: source.runtimeVersion,
     catalogHashes,
-    fixtures,
-    receipts,
+    fixtureHashes: Object.fromEntries(
+      Object.keys(fixtures).map((name) => [name, fixtureHashes[name]]),
+    ),
+    fixtureSources: fixtures,
+    reportHashes: recertifiedReportHashes,
+    ...(receipts.length > 0 ? { receipts } : {}),
     commands: [...source.commands, `recertified-from:${sourceFile.relative}`],
-    suites: source.results.map((result) => ({ suite: result.suite, report: result.report })),
-  })
+    results,
+    redactionCheck: 'passed',
+  }
   recertified.recertification = {
     sourcePath: sourceFile.relative,
     sourceManifestSha256: sha256(sourceContent),

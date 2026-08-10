@@ -89,6 +89,16 @@ function validateManifestShape(manifest) {
   return { fixtureHashes, fixtureSources, reportHashes, catalogHashes }
 }
 
+function assertPassedReport(report, code) {
+  if (
+    report.success !== true ||
+    (report.numFailedTests ?? 0) !== 0 ||
+    (report.numFailedTestSuites ?? 0) !== 0
+  ) {
+    throw new Error(code)
+  }
+}
+
 async function readJson(repoRoot, path, missingCode) {
   const file = inside(repoRoot, path)
   let content
@@ -171,6 +181,25 @@ export async function collectAcceptanceSummary(options) {
       currentManifests += 1
     }
 
+    if (manifest.recertification !== undefined) {
+      const recertification = object(manifest.recertification)
+      if (
+        !recertification ||
+        typeof recertification.sourcePath !== 'string' ||
+        !HASH.test(recertification.sourceManifestSha256 ?? '') ||
+        !COMMIT.test(recertification.sourceCommit ?? '') ||
+        !['current', 'ancestor'].includes(recertification.relation) ||
+        !Array.isArray(recertification.omittedFixtureClaims)
+      ) {
+        throw new Error('summary_recertification_invalid')
+      }
+      const sourceManifest = inside(repoRoot, recertification.sourcePath)
+      const sourceContent = await readFile(sourceManifest.absolute)
+      if (sha256(sourceContent) !== recertification.sourceManifestSha256) {
+        throw new Error('summary_source_manifest_hash_mismatch')
+      }
+    }
+
     for (const [name, source] of Object.entries(fixtureSources)) {
       if (!(name in fixtureHashes)) throw new Error('summary_manifest_invalid')
       const fixture = inside(repoRoot, source)
@@ -212,12 +241,30 @@ export async function collectAcceptanceSummary(options) {
       if (sha256(report.content) !== reportHashes[result.suite]) {
         throw new Error('summary_report_hash_mismatch')
       }
-      if (
-        report.value.success !== true ||
-        (report.value.numFailedTests ?? 0) !== 0 ||
-        (report.value.numFailedTestSuites ?? 0) !== 0
-      ) {
-        throw new Error('summary_report_failed')
+      assertPassedReport(report.value, 'summary_report_failed')
+      if (report.value.sourceReport !== undefined) {
+        const sourceReport = object(report.value.sourceReport)
+        const recertification = object(manifest.recertification)
+        if (
+          !sourceReport ||
+          typeof sourceReport.path !== 'string' ||
+          !HASH.test(sourceReport.sha256 ?? '') ||
+          !recertification ||
+          !sourceReport.path.startsWith(`${dirname(recertification.sourcePath)}/reports/`)
+        ) {
+          throw new Error('summary_source_report_invalid')
+        }
+        const source = await readJson(repoRoot, sourceReport.path, 'summary_source_report_missing')
+        try {
+          assertRedacted(source.content)
+        } catch {
+          throw new Error('summary_redaction_failed')
+        }
+        const canonical = `${JSON.stringify(source.value, null, 2)}\n`
+        if (sha256(canonical) !== sourceReport.sha256) {
+          throw new Error('summary_source_report_hash_mismatch')
+        }
+        assertPassedReport(source.value, 'summary_source_report_failed')
       }
     }
 
