@@ -5,7 +5,24 @@ export {
   sha256Hex,
 } from './canonical.js'
 export { InMemorySyncObjectStore } from './memory-object-store.js'
+export { FileConflictCopyStore } from './conflict-copy-store.js'
+export type {
+  ConflictBranch,
+  ConflictChoice,
+  ConflictCopyDescriptor,
+  ConflictSource,
+  OpenConflictInput,
+  ProjectConflictStore,
+  ProjectSyncConflict,
+} from './conflict-copy-store.js'
 export { ProjectSyncReconciler } from './project-sync-reconciler.js'
+export type {
+  ConflictFaultStage,
+  ConflictResolutionResult,
+  DivergenceReconcileResult,
+  PublishResult,
+  RestoreResult,
+} from './project-sync-reconciler.js'
 export { FileReconcileIntentStore } from './reconcile-intent-store.js'
 export { S3ObjectStore } from './s3-object-store.js'
 export type { S3ClientPort, S3ObjectStoreOptions } from './s3-object-store.js'

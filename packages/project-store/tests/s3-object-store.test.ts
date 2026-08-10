@@ -6,6 +6,10 @@ import {
   type S3ClientConfig,
 } from '@aws-sdk/client-s3'
 import { S3ObjectStore, type S3ClientPort } from '../src/sync/s3-object-store.js'
+import {
+  EXPECTED_PROVIDER_CONFLICT_RESULT,
+  runProviderConflictContract,
+} from './fixtures/project-conflict-contract.js'
 
 class FakeS3Client implements S3ClientPort {
   readonly objects = new Map<string, { bytes: Uint8Array; generation: number }>()
@@ -301,5 +305,11 @@ describe('S3ObjectStore', () => {
         'absent',
       ),
     ).rejects.toThrow(/provider unavailable/)
+  })
+
+  it('runs the shared two-client Conflict Copy and resolution contract', async () => {
+    const client = new FakeS3Client()
+    const result = await runProviderConflictContract(() => makeStore(client))
+    expect(result).toEqual(EXPECTED_PROVIDER_CONFLICT_RESULT)
   })
 })

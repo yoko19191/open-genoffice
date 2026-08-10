@@ -12,6 +12,10 @@ import {
   PROVIDER_CONTRACT_SCOPE,
   tombstoneDocument,
 } from './fixtures/project-sync-fixture.js'
+import {
+  EXPECTED_PROVIDER_CONFLICT_RESULT,
+  runProviderConflictContract,
+} from './fixtures/project-conflict-contract.js'
 
 type StoredObject = { bytes: Buffer; generation: number }
 
@@ -267,6 +271,13 @@ describe('WebDavObjectStore', () => {
     expect(await readFile(join(targetRoot, 'documents/report.docx'), 'utf8')).toBe(
       'office-content-v2',
     )
+  })
+
+  it('runs the shared two-client Conflict Copy and resolution contract', async () => {
+    const result = await runProviderConflictContract(
+      () => new WebDavObjectStore({ endpoint, allowLoopbackHttpForTests: true }),
+    )
+    expect(result).toEqual(EXPECTED_PROVIDER_CONFLICT_RESULT)
   })
 
   it('rejects missing or weak ETags', async () => {
