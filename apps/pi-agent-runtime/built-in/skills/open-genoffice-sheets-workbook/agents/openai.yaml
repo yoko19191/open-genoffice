@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Open GenOffice Sheets Workbook'
+  short_description: 'Safely read and atomically edit the active workbook'
+  default_prompt: 'Read the live workbook context, load the relevant references, and use the workbook DSL to make the requested change atomically.'

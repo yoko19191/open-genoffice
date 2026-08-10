@@ -175,7 +175,7 @@ export class TabManager {
 
   openSheetsTab(openPath?: string, options?: { newBlank?: boolean }): string {
     if (options?.newBlank) setSheetsNewBlank()
-    const view = createSheetsView({ includeAiHandlers: false })
+    const view = createSheetsView()
     const id = `t${this.nextId++}`
     this.shellWindow.contentView.addChildView(view)
     view.setVisible(false)

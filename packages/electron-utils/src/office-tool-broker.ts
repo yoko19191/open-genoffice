@@ -166,10 +166,11 @@ export class OfficeToolBroker {
     try {
       const executed = await this.dependencies.execute(request, descriptor, boundary)
       if (descriptor.effect !== 'mutation') {
-        const { mutationOutcome: _mutationOutcome, ...readResult } = executed
+        const { mutationOutcome: _mutationOutcome, errorCode, ...readResult } = executed
         return this.receipt(request, {
-          status: readResult.errorCode ? 'failed' : 'completed',
+          status: errorCode ? 'failed' : 'completed',
           ...readResult,
+          ...(errorCode ? { errorCode } : {}),
         })
       }
       const mutationOutcome = executed.mutationOutcome ?? 'unknown'
@@ -181,11 +182,16 @@ export class OfficeToolBroker {
         this.mutationBoundaries.set(this.boundaryKeyForRequest(request), boundary!)
       }
       if (mutationOutcome === 'unknown') this.blockedDocuments.add(request.documentId)
+      const { errorCode, ...mutationResult } = executed
       return this.receipt(request, {
         status: mutationOutcome === 'unknown' || executed.errorCode ? 'failed' : 'completed',
-        ...executed,
+        ...mutationResult,
         mutationOutcome,
-        ...(mutationOutcome === 'unknown' ? { errorCode: 'mutation_outcome_unknown' } : {}),
+        ...(mutationOutcome === 'unknown'
+          ? { errorCode: 'mutation_outcome_unknown' }
+          : errorCode
+            ? { errorCode }
+            : {}),
       })
     } catch {
       if (descriptor.effect === 'mutation') {

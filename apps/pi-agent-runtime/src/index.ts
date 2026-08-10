@@ -29,6 +29,7 @@ export {
 } from './pi-mcp-extension-factory'
 export {
   createAuthenticatedRuntimeServer,
+  resolveInstalledBuiltInResources,
   resolveSubagentToolDescriptor,
   type AuthenticatedRuntimeServer,
   type AuthenticatedRuntimeServerOptions,

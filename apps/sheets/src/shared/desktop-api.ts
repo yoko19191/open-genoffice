@@ -1,14 +1,6 @@
 import { z } from 'zod'
 
 import { ADDABLE_SHAPE_TYPES } from './shape-types'
-import type {
-  AiChatRequest,
-  AiChatResponse,
-  AiSettings,
-  AiStreamChunk,
-  AiStreamRequest,
-  GenSparkAccountStatus,
-} from '@genoffice/ai-provider'
 
 const MAX_RANGE_CELLS = 20_000
 const cellScalarSchema = z.union([z.string(), z.number().finite(), z.boolean(), z.null()])
@@ -1704,104 +1696,6 @@ export type WorkbookCellStyle = z.infer<typeof cellStyleSchema>
 export type WorkbookRichRun = z.infer<typeof richRunSchema>
 export type WorkbookConditionalRule = z.infer<typeof conditionalRuleSchema>
 
-// ---- AI settings + chat/stream: canonical types live in @genoffice/ai-provider,
-// shared with apps/docs. Validated here like every other renderer→main request in
-// this file; the validated shape is cast to AiSettings at the main-process call
-// site, which always has exactly the 5 known provider keys once merged through
-// resolveAiSettings/defaultAiSettings. ----
-
-const aiProviderConfigSchema = z
-  .object({
-    apiKey: z.string(),
-    model: z.string(),
-    baseUrl: z.string().optional(),
-  })
-  .strict()
-
-export const aiSettingsInputSchema = z
-  .object({
-    provider: z.string().min(1),
-    providers: z.record(z.string(), aiProviderConfigSchema),
-  })
-  .strict()
-
-const agentToolResultSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    output: z.string(),
-    isError: z.boolean().optional(),
-  })
-  .strict()
-
-const agentToolCallSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    input: z.record(z.string(), z.unknown()),
-  })
-  .strict()
-
-/// Inline vision input on a user turn (image attachments, base64 without data: prefix).
-const agentImageSchema = z
-  .object({
-    base64: z.string().min(1),
-    mime: z.string().min(1).max(64),
-  })
-  .strict()
-
-const agentMessageSchema = z.union([
-  z
-    .object({
-      role: z.literal('user'),
-      text: z.string(),
-      images: z.array(agentImageSchema).max(20).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      role: z.literal('assistant'),
-      text: z.string(),
-      toolCalls: z.array(agentToolCallSchema).optional(),
-    })
-    .strict(),
-  z.object({ role: z.literal('tool'), results: z.array(agentToolResultSchema) }).strict(),
-])
-
-const agentToolDefSchema = z
-  .object({
-    name: z.string(),
-    description: z.string(),
-    inputSchema: z.record(z.string(), z.unknown()),
-  })
-  .strict()
-
-const MAX_AI_MESSAGES = 500
-const MAX_AI_TOOLS = 50
-
-export const aiChatRequestSchema = z
-  .object({
-    settings: aiSettingsInputSchema,
-    system: z.string(),
-    user: z.string(),
-  })
-  .strict()
-
-export const aiStreamRequestSchema = z
-  .object({
-    requestId: z.string().min(1),
-    settings: aiSettingsInputSchema,
-    system: z.string(),
-    messages: z.array(agentMessageSchema).max(MAX_AI_MESSAGES),
-    tools: z.array(agentToolDefSchema).max(MAX_AI_TOOLS).optional(),
-    maxTokens: z.number().int().positive().optional(),
-  })
-  .strict()
-
-export type AiSettingsInput = z.infer<typeof aiSettingsInputSchema>
-export type AiChatRequestInput = z.infer<typeof aiChatRequestSchema>
-export type AiStreamRequestInput = z.infer<typeof aiStreamRequestSchema>
-
 /// A rendered print job: the renderer lays the sheet out as HTML, the main
 /// process turns it into a PDF via a hidden window.
 export const workbookExportPdfRequestSchema = z
@@ -1839,48 +1733,6 @@ export const workbookExportPdfResultSchema = z.union([
 
 export type WorkbookExportPdfRequest = z.infer<typeof workbookExportPdfRequestSchema>
 export type WorkbookExportPdfResult = z.infer<typeof workbookExportPdfResultSchema>
-
-// ---- Chat attachments (local files fed to the agent via tools; same structure
-// as apps/docs and apps/slides) ----
-
-/** Image attachment extensions: no text extraction; read as base64 on send and
- * passed to the model as a multimodal image with the user message */
-export const ATTACHMENT_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
-
-export interface AttachmentMeta {
-  /** Absolute local path; the file never leaves the machine */
-  path: string
-  name: string
-  /** Lowercase extension, no dot */
-  ext: string
-  sizeBytes: number
-}
-
-export interface AttachmentAddResult {
-  accepted: AttachmentMeta[]
-  /** Per-file rejection reason (too large/unsupported type/unreadable) */
-  rejected: string[]
-}
-
-export interface AttachmentReadResult {
-  ok: boolean
-  error?: string
-  name?: string
-  /** Total character count of the extracted text */
-  totalChars?: number
-  /** The requested chunk */
-  text?: string
-  offset?: number
-}
-
-/** Raw bytes of an image attachment (multimodal input) */
-export interface AttachmentImageResult {
-  ok: boolean
-  /** raw base64 (no data: prefix) */
-  base64?: string
-  mime?: string
-  error?: string
-}
 
 export interface DesktopApi {
   /** current UI language (persisted by the shell in app-settings.json) */
@@ -1930,40 +1782,6 @@ export interface DesktopApi {
   /// Is a shell-queued workbook path still waiting to be opened? (The shell's
   /// 'open' nudge loop can time out on slow cold starts; the renderer pulls.)
   hasQueuedWorkbook(): Promise<boolean>
-  getAiSettings(): Promise<AiSettings>
-  setAiSettings(settings: AiSettings): Promise<void>
-  aiChat(request: AiChatRequest): Promise<AiChatResponse>
-  /// start a streaming AI call; deltas arrive via onAiStream with the same requestId
-  aiStream(request: AiStreamRequest): Promise<void>
-  aiStreamCancel(requestId: string): Promise<void>
-  /// Genspark account status (gsk login state); withEmail also returns the email
-  /// (needs a network request, slower)
-  aiGskStatus(withEmail?: boolean): Promise<GenSparkAccountStatus>
-  /// Opens the browser to sign in to Genspark (fire-and-forget; aiGskStatus
-  /// becomes signed-in on completion)
-  aiGskLogin(): Promise<void>
-  /// Web search (main-process Serper/DuckDuckGo, shared with docs/slides)
-  webSearch(query: string, maxResults?: number): Promise<WebSearchResult>
-  onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
-  /// Chat attachments: multi-select file dialog (returns null on cancel)
-  pickAttachments(): Promise<AttachmentAddResult | null>
-  /// Validates dropped paths and returns attachment metadata
-  addAttachmentPaths(paths: string[]): Promise<AttachmentAddResult>
-  /// Persists a clipboard-pasted image (no local path) to a temp file and adds it
-  /// as an attachment
-  addPastedImage(data: ArrayBuffer, ext: string): Promise<AttachmentAddResult>
-  /// Reads one chunk of an attachment's extracted text
-  readAttachment(path: string, offset: number, maxChars: number): Promise<AttachmentReadResult>
-  /// Reads an image attachment as base64 for multimodal input (≤5MB)
-  readAttachmentImage(path: string): Promise<AttachmentImageResult>
-  /// Absolute path of a File dropped onto the window (Electron webUtils)
-  getPathForFile(file: File): string
 }
 
 export type MenuAction = 'open' | 'save' | 'save-as' | 'export-pdf' | 'undo' | 'redo'
-
-export interface WebSearchResult {
-  results: Array<{ title: string; url: string; snippet: string }>
-  answer?: string
-  method: string
-}

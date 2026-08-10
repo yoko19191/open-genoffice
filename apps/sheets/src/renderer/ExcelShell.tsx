@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { SHAPE_GALLERY_GROUPS, ShapePreview } from '@genoffice/ui'
 
-import {
-  CaretIcon,
-  GensparkMark,
-  RIBBON_GLYPH_ICONS,
-  RedoIcon,
-  SaveIcon,
-  UndoIcon,
-} from './ribbon-icons'
+import { CaretIcon, RIBBON_GLYPH_ICONS, RedoIcon, SaveIcon, UndoIcon } from './ribbon-icons'
 
 import { FormatCellsDialog } from './FormatCellsDialog'
 import { GoToDialog } from './GoToDialog'
@@ -18,9 +11,7 @@ import { categoryOptionForPattern, NUMBER_FORMAT_CATEGORIES } from './number-for
 import { type SelectionFormat } from './selection-format'
 
 import type { ChartSeriesVisualState } from '../domain/chart-visual'
-import type { ChangePlan } from '../domain/workbook.types'
-import type { AttachmentMeta } from '../shared/desktop-api'
-import { AiChatPanel, type AiChatMessage } from './ai/AiChatPanel'
+import { AgentMark, AiPanel } from './ai/AiPanel'
 import {
   PivotDialog,
   type PivotEditSeed,
@@ -119,29 +110,10 @@ function ToolSymbol({ symbol }: { readonly symbol: string }): React.JSX.Element 
 }
 
 interface ExcelShellProps {
-  readonly prompt: string
-  readonly preview: ChangePlan | null
   readonly selectionFormat: SelectionFormat | null
   /// True when the workbook has any cell content (the one-click AI action
   /// buttons are greyed out on an empty sheet).
   readonly sheetHasContent: boolean
-  /// true while the real LLM agent is running (composer disabled meanwhile).
-  readonly aiBusy: boolean
-  readonly chat: readonly AiChatMessage[]
-  readonly historicChat?: readonly AiChatMessage[]
-  /// Chat attachments (chips + 📎 button + drag-and-drop), same structure as the
-  /// docs/slides AI panels.
-  readonly attachments: readonly AttachmentMeta[]
-  readonly attachNotice: string | null
-  readonly onPickAttachments: () => void
-  readonly onAddAttachmentPaths: (paths: readonly string[]) => void
-  readonly onAddPastedImage: (data: ArrayBuffer, ext: string) => void
-  readonly onRemoveAttachment: (path: string) => void
-  readonly onPromptChange: (prompt: string) => void
-  /** Send the composer text, or the given instruction when provided */
-  readonly onSend: (instruction?: string) => void
-  readonly onStop: () => void
-  readonly onNewChat: () => void
   readonly onUndo: () => void
   readonly onCommand: (command: string) => void
   /// Left side of the status bar (ready / streaming / AI progress messages).
@@ -217,19 +189,8 @@ export interface PageLayoutEcho {
 }
 
 export function ExcelShell({
-  prompt,
-  preview,
   selectionFormat,
   sheetHasContent,
-  aiBusy,
-  chat,
-  historicChat,
-  attachments,
-  attachNotice,
-  onPickAttachments,
-  onAddAttachmentPaths,
-  onAddPastedImage,
-  onRemoveAttachment,
   onGetSortColumns,
   onGetSheetProtection,
   onGetDefinedNames,
@@ -251,10 +212,6 @@ export function ExcelShell({
   onCreateConsolidate,
   onGetConsolidateDefault,
   onApplyHeaderFooter,
-  onPromptChange,
-  onSend,
-  onStop,
-  onNewChat,
   onUndo,
   onCommand,
   statusMessage,
@@ -270,6 +227,7 @@ export function ExcelShell({
   const { t } = useI18n()
   const [activeTab, setActiveTab] = useState<RibbonTab>('Home')
   const [isCopilotOpen, setIsCopilotOpen] = useState(true)
+  const [aiPreset, setAiPreset] = useState<{ text: string; nonce: number }>()
   const [showFormatCells, setShowFormatCells] = useState(false)
   const [axisSizeTarget, setAxisSizeTarget] = useState<'row' | 'col' | null>(null)
   const [showLinkDialog, setShowLinkDialog] = useState(false)
@@ -409,7 +367,7 @@ export function ExcelShell({
           }}
           onAiRun={(nextPrompt) => {
             setIsCopilotOpen(true)
-            onSend(nextPrompt)
+            setAiPreset({ text: nextPrompt, nonce: Date.now() })
           }}
           aiOpen={isCopilotOpen}
           onAiToggle={() => setIsCopilotOpen((open) => !open)}
@@ -418,25 +376,9 @@ export function ExcelShell({
 
       {/* AI panel docks on the left, full height under the ribbon (unified with docs) */}
       <div className="sheet-body">
-        <AiChatPanel
-          isOpen={isCopilotOpen}
-          hasContent={sheetHasContent}
-          chat={chat}
-          {...(historicChat !== undefined ? { historicChat } : {})}
-          attachments={attachments}
-          attachNotice={attachNotice}
-          onPickAttachments={onPickAttachments}
-          onAddAttachmentPaths={onAddAttachmentPaths}
-          onAddPastedImage={onAddPastedImage}
-          onRemoveAttachment={onRemoveAttachment}
-          prompt={prompt}
-          preview={preview}
-          aiBusy={aiBusy}
-          onPromptChange={onPromptChange}
-          onSend={onSend}
-          onStop={onStop}
-          onNewChat={onNewChat}
-          onUndo={onUndo}
+        <AiPanel
+          open={isCopilotOpen}
+          {...(aiPreset ? { preset: aiPreset } : {})}
           onExpand={() => setIsCopilotOpen(true)}
           onCollapse={() => setIsCopilotOpen(false)}
         />
@@ -2053,10 +1995,10 @@ function Ribbon({
           onClick={onAiToggle}
         >
           <span className="tool-icon-row">
-            <GensparkMark size={26} />
+            <AgentMark size={26} />
           </span>
           <span>
-            <strong>Genspark AI</strong>
+            <strong>AI Assistant</strong>
           </span>
         </button>
         <button

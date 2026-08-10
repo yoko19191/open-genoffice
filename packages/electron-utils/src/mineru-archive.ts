@@ -150,7 +150,9 @@ export async function downloadMineruDocx(
   } = {},
 ): Promise<Uint8Array> {
   const fetch = options.fetch ?? globalThis.fetch
-  const response = await fetch(assertMineruHttpsUrl(resultUrl), { signal: options.signal })
+  const response = await fetch(assertMineruHttpsUrl(resultUrl), {
+    ...(options.signal ? { signal: options.signal } : {}),
+  })
   if (!response.ok) {
     const retriable = response.status >= 500 || response.status === 403
     throw new MineruError(

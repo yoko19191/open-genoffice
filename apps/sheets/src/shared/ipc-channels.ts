@@ -18,21 +18,6 @@ export const IPC_CHANNELS = {
   exportPdf: 'workbook:export-pdf',
   openExternal: 'shell:open-external',
   menuAction: 'menu:action',
-  aiGetSettings: 'ai:get-settings',
-  aiSetSettings: 'ai:set-settings',
-  aiChat: 'ai:chat',
-  aiStream: 'ai:stream',
-  aiStreamCancel: 'ai:stream-cancel',
-  aiStreamChunk: 'ai:stream-chunk',
-  aiGskStatus: 'ai:gsk-status',
-  aiGskLogin: 'ai:gsk-login',
-  // Chat attachments (sheets: prefix — docs already registers global files:* in
-  // the shell; avoids collisions)
   captureScreenSources: 'sheets:capture-screen-sources',
   captureScreenSource: 'sheets:capture-screen-source',
-  filesPick: 'sheets:files-pick',
-  filesAdd: 'sheets:files-add',
-  filesAddPastedImage: 'sheets:files-add-pasted-image',
-  filesRead: 'sheets:files-read',
-  filesReadImage: 'sheets:files-read-image',
 } as const

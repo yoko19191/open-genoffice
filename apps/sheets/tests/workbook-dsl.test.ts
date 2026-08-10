@@ -237,7 +237,12 @@ describe('extended operations', () => {
       { op: 'add_shape', sheetId: 's', shapeType: 'textbox', anchorCell: 'E2', text: 'Note' },
       { op: 'edit_shape', visualId: 'added-shape-abc-1', text: 'New text', fillColor: '#DDEBF7' },
       { op: 'edit_shape', visualId: 'added-shape-abc-1', anchorCell: 'H4' },
-      { op: 'add_image', sheetId: 's', path: '~/logo.png', anchorCell: 'B2' },
+      {
+        op: 'add_image',
+        sheetId: 's',
+        artifactId: '11111111-1111-4111-8111-111111111111',
+        anchorCell: 'B2',
+      },
       { op: 'add_table', sheetId: 's', range: 'A1:D10' },
       {
         op: 'add_table',

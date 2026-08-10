@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { chmod, lstat, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -44,6 +44,10 @@ async function inputs() {
       import.meta.dirname,
       '../../../apps/pi-agent-runtime/fixtures/mcp-stdio-server.mjs',
     ),
+    builtInSkillsDirectory: resolve(
+      import.meta.dirname,
+      '../../../apps/pi-agent-runtime/built-in/skills',
+    ),
     lockfile: resolve(import.meta.dirname, '../../../package-lock.json'),
     notices: noticesPath,
     windowsJobLauncher: process.env.GENOFFICE_WINDOWS_JOB_LAUNCHER ?? process.execPath,
@@ -65,6 +69,19 @@ describe('Pi Runtime bundle builder', () => {
       'LICENSE.node.txt',
       'THIRD-PARTY-NOTICES.txt',
       'app/main.mjs',
+      'built-in/skills/open-genoffice-sheets-workbook/SKILL.md',
+      'built-in/skills/open-genoffice-sheets-workbook/agents/openai.yaml',
+      'built-in/skills/open-genoffice-sheets-workbook/references/charts.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/data-attribution.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/data.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/financial-formatting.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/formatting.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/layout.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/pivot.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/shape-image.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/structure.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/table.md',
+      'built-in/skills/open-genoffice-sheets-workbook/references/writing.md',
       ...(process.platform === 'win32' ? ['native/win32-x64/win32-console-mode.node'] : []),
       ...(process.platform === 'win32' ? ['node/open-genoffice-job-launcher.exe'] : []),
       `node/open-genoffice-pi-agent-runtime${process.platform === 'win32' ? '.exe' : ''}`,
@@ -81,6 +98,12 @@ describe('Pi Runtime bundle builder', () => {
     const entry = await readFile(verified.entryPath, 'utf8')
     expect(entry).toContain('runtime_crash')
     expect(entry).toContain('const require = __genofficeCreateRequire(import.meta.url)')
+    expect(
+      await readFile(
+        join(options.outputDirectory, 'built-in/skills/open-genoffice-sheets-workbook/SKILL.md'),
+        'utf8',
+      ),
+    ).toContain('propose_operations')
     expect(verified.capabilitySmokeEntryPath).toBe(
       join(options.outputDirectory, 'self-test/native-capability-smoke.mjs'),
     )
@@ -132,6 +155,20 @@ describe('Pi Runtime bundle builder', () => {
     )
     await expect(stat(buildFailure.outputDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('supports an empty built-in set and rejects non-file Skill entries', async () => {
+    const { builtInSkillsDirectory: _builtInSkillsDirectory, ...empty } = await inputs()
+    const verified = await buildPiRuntimeBundle(empty)
+    expect(verified.manifest.files.some((file) => file.path.startsWith('built-in/'))).toBe(false)
+
+    const invalid = await inputs()
+    const skills = await mkdtemp(join(tmpdir(), 'pi-runtime-invalid-skill-'))
+    const skill = join(skills, 'invalid-skill')
+    await mkdir(skill)
+    await symlink(invalid.notices, join(skill, 'SKILL.md'))
+    invalid.builtInSkillsDirectory = skills
+    await expect(buildPiRuntimeBundle(invalid)).rejects.toThrowError('runtime_bundle_build_failed')
+  }, 15_000)
 
   it('requires the Job Object launcher for every Windows bundle', async () => {
     const actualPlatform = process.platform
@@ -200,6 +237,8 @@ describe('Pi Runtime bundle builder', () => {
       options.capabilityExtension,
       '--mcp-smoke-server',
       options.mcpSmokeServer,
+      '--built-in-skills',
+      options.builtInSkillsDirectory,
       '--lockfile',
       options.lockfile,
       '--notices',

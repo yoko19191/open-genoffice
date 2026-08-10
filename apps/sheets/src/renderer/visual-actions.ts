@@ -561,7 +561,7 @@ export function insertAiImageVisual(
     },
     mediaType: image.mediaType,
     mediaDataUrl: image.dataUrl,
-    name: op.path.split('/').pop() ?? 'image',
+    name: `artifact-${op.artifactId}.png`,
   }
   pushVisualAddUndo(ctx, runtime, state, visual)
   queueCtxVisualInstall(ctx, runtime, op.sheetId)

@@ -38,6 +38,7 @@ import { RUNTIME_VERSION } from '@genoffice/agent-runtime-protocol'
 import {
   DOCS_OFFICE_TOOL_CATALOG_BINDING,
   PDF_OFFICE_TOOL_CATALOG_BINDING,
+  SHEETS_OFFICE_TOOL_CATALOG_BINDING,
 } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import {
   DocumentBindingStore,
@@ -126,9 +127,11 @@ import {
   setSheetsExtraFileMenuItems,
   setSheetsShellWindow,
   setSheetsWorkbookOpenedHook,
+  sheetsOfficeToolRendererClient,
   startSheetsCaptureServer,
   stopSheetsSidecar,
 } from '../../../sheets/src/main/sheets-main'
+import { SheetsOfficeToolHost } from '../../../sheets/src/main/agent-tools/sheets-office-tool-host'
 import {
   configureSlidesRuntime,
   installSlidesMenu,
@@ -253,6 +256,7 @@ const mineruOcrService = new MineruOcrService({
 })
 const pdfOfficeToolHost = { current: undefined as PdfOfficeToolHost | undefined }
 const docsOfficeToolHost = { current: undefined as DocsOfficeToolHost | undefined }
+const sheetsOfficeToolHost = { current: undefined as SheetsOfficeToolHost | undefined }
 const scopedArtifactStore = new ScopedArtifactStore({
   rootDirectory: join(AGENT_RESOURCE_HOME, 'assets', 'artifacts'),
 })
@@ -275,16 +279,24 @@ const piRuntimeService = createInstalledPiRuntimeService({
       if (request.toolId.startsWith('office:pdf:') && pdfOfficeToolHost.current) {
         return pdfOfficeToolHost.current.invoke(request)
       }
+      if (request.toolId.startsWith('office:sheets:') && sheetsOfficeToolHost.current) {
+        return sheetsOfficeToolHost.current.invoke(request)
+      }
       return Promise.reject(
         Object.assign(new Error('executor_unavailable'), {
           code: 'executor_unavailable',
         }),
       )
     },
-    abort: (request) =>
-      tabManager?.agentWebContentsFor(request.documentId, 'docs')
-        ? (docsOfficeToolHost.current?.abort(request) ?? Promise.resolve(false))
-        : (pdfOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)),
+    abort: (request) => {
+      if (tabManager?.agentWebContentsFor(request.documentId, 'docs')) {
+        return docsOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+      }
+      if (tabManager?.agentWebContentsFor(request.documentId, 'sheets')) {
+        return sheetsOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+      }
+      return pdfOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+    },
   },
 })
 
@@ -1157,16 +1169,23 @@ const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
   authorize: (webContentsId, documentId) =>
     tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
   randomUUID,
-  rollbackRun: (documentId, runId) =>
-    tabManager?.agentWebContentsFor(documentId, 'docs')
-      ? (docsOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false))
-      : (pdfOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)),
+  rollbackRun: (documentId, runId) => {
+    if (tabManager?.agentWebContentsFor(documentId, 'docs')) {
+      return docsOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)
+    }
+    if (tabManager?.agentWebContentsFor(documentId, 'sheets')) {
+      return sheetsOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)
+    }
+    return pdfOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)
+  },
   resolveOfficeToolCatalog: (webContentsId) =>
     tabManager?.agentDocumentKindFor(webContentsId) === 'pdf'
       ? PDF_OFFICE_TOOL_CATALOG_BINDING
       : tabManager?.agentDocumentKindFor(webContentsId) === 'docs'
         ? DOCS_OFFICE_TOOL_CATALOG_BINDING
-        : undefined,
+        : tabManager?.agentDocumentKindFor(webContentsId) === 'sheets'
+          ? SHEETS_OFFICE_TOOL_CATALOG_BINDING
+          : undefined,
   resolveProjectRoot: async (documentId) => {
     const binding = await documentBindingStore.get(documentId)
     return binding.state === 'bound' && binding.canonicalPath
@@ -1266,6 +1285,34 @@ docsOfficeToolHost.current = new DocsOfficeToolHost({
   },
   validatePermissionSnapshot: async (request) =>
     request.permissionSnapshot.toolIds.every((toolId) => docsToolIds.has(toolId)) &&
+    (request.permissionSnapshot.toolIds.length > 0 ||
+      (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
+  authorizeMutationGrant: async (request) =>
+    request.actor.type === 'subagent' &&
+    request.mutationGrantId !== undefined &&
+    agentSessionBroker.authorizeMutationGrant({
+      grantId: request.mutationGrantId,
+      subagentRunId: request.actor.subagentRunId,
+      documentId: request.documentId,
+      toolId: request.toolId,
+    }),
+  openImage: (input) => scopedArtifactStore.openImage(input),
+})
+
+const sheetsToolIds = new Set(SHEETS_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
+sheetsOfficeToolHost.current = new SheetsOfficeToolHost({
+  resolveRenderer: (documentId) => {
+    const contents = tabManager?.agentWebContentsFor(documentId, 'sheets')
+    return contents ? sheetsOfficeToolRendererClient(contents.id) : undefined
+  },
+  validateBinding: async (request) => {
+    const contents = tabManager?.agentWebContentsFor(request.documentId, 'sheets')
+    return contents
+      ? (tabManager?.authorizeAgentDocument(contents.id, request.documentId) ?? false)
+      : false
+  },
+  validatePermissionSnapshot: async (request) =>
+    request.permissionSnapshot.toolIds.every((toolId) => sheetsToolIds.has(toolId)) &&
     (request.permissionSnapshot.toolIds.length > 0 ||
       (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
   authorizeMutationGrant: async (request) =>

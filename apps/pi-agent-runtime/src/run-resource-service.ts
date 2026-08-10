@@ -10,6 +10,7 @@ import {
   scanResourceCatalog,
   verifyCapabilitySnapshot,
   type CapabilitySnapshot,
+  type BuiltInResource,
   type ResolvedPackage,
   type ResourceCatalog,
 } from '@genoffice/agent-resource'
@@ -90,6 +91,7 @@ export type McpDiagnostic = {
 export type RunResourceServiceOptions = {
   resourceHome: string
   deviceId: string
+  builtInResources?: readonly BuiltInResource[]
   permissionVersion?: () => string
   isToolEnabled?: (toolId: string) => boolean
   packageSourceResolver?: Pick<PackageSourceResolver, 'resolve'>
@@ -671,6 +673,7 @@ export class RunResourceService {
     }
     return scanResourceCatalog({
       resourceHome: this.options.resourceHome,
+      ...(this.options.builtInResources ? { builtInResources: this.options.builtInResources } : {}),
       ...(projectRoot ? { projectRoot, projectTrusted } : {}),
       isActivated: (descriptor) => this.activation.isActive(descriptor),
     })

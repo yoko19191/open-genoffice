@@ -235,7 +235,7 @@ async function requireRegularFile(path: string): Promise<void> {
 export class ScopedArtifactStore {
   private readonly rootDirectory: string
   private readonly now: () => string
-  private readonly atomicWriteOptions?: AtomicWriteOptions
+  private readonly atomicWriteOptions: AtomicWriteOptions | undefined
 
   constructor(options: ScopedArtifactStoreOptions) {
     if (!options.rootDirectory) throw invalid()

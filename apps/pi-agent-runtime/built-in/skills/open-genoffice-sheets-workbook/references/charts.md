@@ -41,7 +41,7 @@
 ## Editing shapes / inserting images
 
 - `{op:"edit_shape", visualId, text?, fillColor?, anchorCell?}` — edits a shape/text box **added this session** (change text, change fill, move; size is preserved). Get visualId from read_sheet_features; shapes that came with the file cannot be modified.
-- `{op:"add_image", sheetId, path:"~/logo.png", anchorCell:"B2"}` — inserts a local image the user specified (PNG/JPEG/GIF, ≤20MB, absolute path or ~/ prefixed). Size is computed automatically from the image's aspect ratio; written into the file on save. **path must be explicitly given by the user** — never guess file locations.
+- `{op:"add_image", sheetId, artifactId, anchorCell:"B2"}` — inserts a scope-bound PNG Artifact selected or generated for this run. Size is computed from the verified Artifact metadata and the image is written into the workbook on save. Never pass a URL, base64 payload, or local path.
 
 ## Rules
 

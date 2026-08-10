@@ -450,7 +450,7 @@ export function applyAiPivotAdd(
       : {
           kind: 'value',
           field: fieldIndex(filter.field),
-          dataField: filter.valueIndex,
+          dataField: filter.valueIndex ?? 0,
           op: filter.op,
           ...(filter.count !== undefined ? { count: filter.count } : {}),
           ...(filter.from !== undefined ? { from: filter.from } : {}),

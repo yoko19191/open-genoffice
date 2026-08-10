@@ -12,8 +12,11 @@ import {
   DOCS_OFFICE_TOOL_DEFINITIONS,
   PDF_OFFICE_TOOL_CATALOG_BINDING,
   PDF_OFFICE_TOOL_DEFINITIONS,
+  SHEETS_OFFICE_TOOL_CATALOG_BINDING,
+  SHEETS_OFFICE_TOOL_DEFINITIONS,
   parseDocsOfficeToolInput,
   parsePdfOfficeToolInput,
+  parseSheetsOfficeToolInput,
   resolveOfficeToolCatalogMetadata,
   resolveOfficeToolDefinitions,
 } from '../src/office-tool-catalog'
@@ -175,6 +178,60 @@ describe('frozen four-application tool catalog', () => {
     )
   })
 
+  it('publishes the exact six Sheets executors and one deterministic binding', () => {
+    expect(SHEETS_OFFICE_TOOL_DEFINITIONS.map(({ modelAlias }) => modelAlias)).toEqual([
+      'get_workbook_context',
+      'read_range',
+      'read_formats',
+      'read_sheet_features',
+      'read_cells',
+      'propose_operations',
+    ])
+    expect(SHEETS_OFFICE_TOOL_CATALOG_BINDING.catalogHash).toBe(
+      createHash('sha256')
+        .update(JSON.stringify(SHEETS_OFFICE_TOOL_CATALOG_BINDING.descriptors))
+        .digest('hex'),
+    )
+    expect(resolveOfficeToolDefinitions(SHEETS_OFFICE_TOOL_CATALOG_BINDING)).toBe(
+      SHEETS_OFFICE_TOOL_DEFINITIONS,
+    )
+  })
+
+  it('uses the 52-operation TypeBox source at both Sheets boundaries', () => {
+    expect(
+      parseSheetsOfficeToolInput('office:sheets:propose_operations', {
+        summary: '更新合计',
+        operations: [
+          {
+            op: 'set_formula',
+            sheetId: 'sheet-1',
+            address: 'B2',
+            formula: '=SUM(A1:A10)',
+          },
+        ],
+      }),
+    ).toMatchObject({ summary: '更新合计' })
+    expect(() =>
+      parseSheetsOfficeToolInput('office:sheets:propose_operations', {
+        summary: '读取本机文件',
+        operations: [
+          {
+            op: 'add_image',
+            sheetId: 'sheet-1',
+            anchorCell: 'A1',
+            path: '/Users/private/image.png',
+          },
+        ],
+      }),
+    ).toThrowError('invalid_tool_arguments')
+    expect(() =>
+      parseSheetsOfficeToolInput('office:sheets:read_range', {
+        range: 'A1:B2',
+        endpoint: 'https://example.test/private',
+      }),
+    ).toThrowError('invalid_tool_arguments')
+  })
+
   it('resolves canonical Office effects without treating platform ids as Office tools', () => {
     expect(resolveOfficeToolCatalogMetadata('office:pdf:read_pages')).toEqual({
       modelAlias: 'read_pages',
@@ -204,7 +261,7 @@ describe('frozen four-application tool catalog', () => {
     const catalog = parseOfficeToolCatalog(catalogFixture)
     const sourceGroups = new Map<string, string[]>()
     for (const entry of catalog.entries) {
-      if (entry.app === 'docs' || entry.app === 'pdf') continue
+      if (entry.app === 'docs' || entry.app === 'pdf' || entry.app === 'sheets') continue
       const key = `${entry.app}:${entry.sourceFile}`
       sourceGroups.set(key, [...(sourceGroups.get(key) ?? []), entry.legacyAlias])
     }
@@ -217,6 +274,7 @@ describe('frozen four-application tool catalog', () => {
     for (const [app, definitions] of [
       ['docs', DOCS_OFFICE_TOOL_DEFINITIONS],
       ['pdf', PDF_OFFICE_TOOL_DEFINITIONS],
+      ['sheets', SHEETS_OFFICE_TOOL_DEFINITIONS],
     ] as const) {
       const expected = catalog.entries
         .filter((entry) => entry.app === app && entry.disposition === 'office-executor')

@@ -609,7 +609,7 @@ function applyLayoutOp(snapshot: WorkbookSnapshot, op: LayoutOperation): void {
   }
   if (op.op === 'set_row_height') {
     const rowHeights: Record<string, number> = { ...sheet.rowHeights }
-    for (let offset = 0; offset < op.count; offset += 1) {
+    for (let offset = 0; offset < (op.count ?? 1); offset += 1) {
       rowHeights[String(op.row + offset)] = op.heightPoints
     }
     replaceSheet(snapshot, { ...sheet, rowHeights })
@@ -617,7 +617,7 @@ function applyLayoutOp(snapshot: WorkbookSnapshot, op: LayoutOperation): void {
   }
   const colWidths: Record<string, number> = { ...sheet.colWidths }
   const first = columnIndex(op.column)
-  for (let offset = 0; offset < op.count; offset += 1) {
+  for (let offset = 0; offset < (op.count ?? 1); offset += 1) {
     colWidths[columnLabel(first + offset)] = op.widthPx
   }
   replaceSheet(snapshot, { ...sheet, colWidths })

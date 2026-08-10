@@ -213,7 +213,8 @@ export class AgentSessionController {
       runId,
     })) as OfficeRollbackReceipt
     if (receipt.rolledBack) {
-      this.projection = { ...projection, rollbackRunId: undefined }
+      const { rollbackRunId: _rollbackRunId, ...withoutRollback } = projection
+      this.projection = withoutRollback
       this.emit()
     }
     return receipt

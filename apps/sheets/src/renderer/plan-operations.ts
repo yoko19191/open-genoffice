@@ -28,6 +28,7 @@ import {
 } from './univer-sync'
 import type { LazyWorkbookState, UniverRuntime } from './univer-state'
 import { convertibleType } from './WorkbookVisuals'
+import type { WorkbookArtifactImage } from './ai/tools'
 
 /** App-scope state the plan builders need, threaded explicitly. */
 export interface PlanContext {
@@ -35,7 +36,12 @@ export interface PlanContext {
   readonly univerRef: { readonly current: UniverRuntime | null }
   readonly lazyWorkbookRef: { readonly current: LazyWorkbookState | null }
   readonly lazyPreviewRef: {
-    current: { sessionId: string; sheetId: string; plan: ChangePlan } | null
+    current: {
+      sessionId: string
+      sheetId: string
+      plan: ChangePlan
+      artifactImages: ReadonlyMap<string, WorkbookArtifactImage>
+    } | null
   }
   readonly setPreview: (plan: ChangePlan | null) => void
   readonly autoApplySafePlan: (plan: ChangePlan) => Promise<ApplyOutcome>
@@ -48,6 +54,7 @@ export function proposeOperations(
   ctx: PlanContext,
   operations: readonly WorkbookOperation[],
   summary: string,
+  artifactImages: ReadonlyMap<string, WorkbookArtifactImage> = new Map(),
 ): { ok: true; plan: ChangePlan; applied: Promise<ApplyOutcome> } | { ok: false; error: string } {
   const state = ctx.lazyWorkbookRef.current
   if (state) {
@@ -88,6 +95,9 @@ export function proposeOperations(
       for (const operation of expandToPrimitiveOps(batch.operations, (address) =>
         reader(address),
       )) {
+        if (operation.op === 'add_image' && !artifactImages.has(operation.artifactId)) {
+          return { ok: false, error: `Artifact image is unavailable: ${operation.artifactId}` }
+        }
         if (operation.op === 'edit_chart') {
           const visual = [...state.file.visuals, ...state.editJournal.visualAdds].find(
             (candidate) =>
@@ -193,12 +203,6 @@ export function proposeOperations(
           operation.op === 'add_shape' ||
           operation.op === 'add_image'
         ) {
-          if (operation.op === 'add_image' && !/\.(png|jpe?g|gif)$/i.test(operation.path)) {
-            return {
-              ok: false,
-              error: 'Only PNG/JPEG/GIF images are supported (judged by extension).',
-            }
-          }
           const targetSheet = workbook?.getSheetBySheetId(operation.sheetId)
           if (!targetSheet || isSheetRemoved(state.editJournal, operation.sheetId)) {
             return { ok: false, error: `Unknown sheet: ${operation.sheetId}` }
@@ -419,7 +423,12 @@ export function proposeOperations(
         }
       }
       const plan = buildLazyChangePlan(batch, lazyCellReader(worksheet), worksheet.getSheetName())
-      ctx.lazyPreviewRef.current = { sessionId: state.file.sessionId, sheetId, plan }
+      ctx.lazyPreviewRef.current = {
+        sessionId: state.file.sessionId,
+        sheetId,
+        plan,
+        artifactImages,
+      }
       ctx.setPreview(plan)
       // All plans auto-apply (undo covers them); the caller awaits `applied`
       // so a failed apply is reported instead of silently claimed as done.
@@ -484,7 +493,12 @@ export function runDeterministicPlan(
         }
       }
       const plan = buildLazyChangePlan(command, lazyCellReader(worksheet), worksheet.getSheetName())
-      ctx.lazyPreviewRef.current = { sessionId: state.file.sessionId, sheetId, plan }
+      ctx.lazyPreviewRef.current = {
+        sessionId: state.file.sessionId,
+        sheetId,
+        plan,
+        artifactImages: new Map(),
+      }
       ctx.setPreview(plan)
       void ctx.autoApplySafePlan(plan)
       return { text: t('appPreviewCreated') }

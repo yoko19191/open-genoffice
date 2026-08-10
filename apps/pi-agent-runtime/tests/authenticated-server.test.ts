@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createConnection, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -19,6 +19,7 @@ import {
   createAuthenticatedRuntimeServer,
   createSessionRegistry,
   MutationGrantRegistryError,
+  resolveInstalledBuiltInResources,
   resolveSubagentToolDescriptor,
   type SessionMutationGrantRegistry,
 } from '../src'
@@ -28,6 +29,30 @@ import { ModelCatalogError } from '../src/model-catalog-service'
 
 const token = 'a'.repeat(64)
 const mcpFixture = fileURLToPath(new URL('../fixtures/mcp-stdio-server.mjs', import.meta.url))
+
+describe('installed Runtime resources', () => {
+  it('discovers only a bundled Sheets Skill file next to the Runtime entry', async () => {
+    await expect(resolveInstalledBuiltInResources(undefined)).resolves.toEqual([])
+
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-installed-resources-'))
+    const runtimeEntry = join(root, 'app', 'main.js')
+    await expect(resolveInstalledBuiltInResources(runtimeEntry)).resolves.toEqual([])
+
+    const skillPath = join(root, 'built-in', 'skills', 'open-genoffice-sheets-workbook', 'SKILL.md')
+    await mkdir(skillPath, { recursive: true })
+    await expect(resolveInstalledBuiltInResources(runtimeEntry)).resolves.toEqual([])
+
+    await rm(skillPath, { recursive: true })
+    await writeFile(skillPath, '---\nname: open-genoffice-sheets-workbook\n---\n')
+    await expect(resolveInstalledBuiltInResources(runtimeEntry)).resolves.toEqual([
+      {
+        resourceId: 'open-genoffice/sheets-workbook',
+        kind: 'skill',
+        path: join(root, 'built-in', 'skills', 'open-genoffice-sheets-workbook'),
+      },
+    ])
+  })
+})
 
 async function endpoint(): Promise<string> {
   if (process.platform === 'win32') {

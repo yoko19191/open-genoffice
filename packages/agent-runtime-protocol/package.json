@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./office-tool-catalog": "./src/office-tool-catalog.ts",
     "./platform-tool-catalog": "./src/platform-tool-catalog.ts",
+    "./sheets-workbook-schema": "./src/sheets-workbook-schema.ts",
     "./renderer": "./src/renderer.ts"
   },
   "imports": {

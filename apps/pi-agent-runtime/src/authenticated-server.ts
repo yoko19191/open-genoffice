@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
-import { chmod } from 'node:fs/promises'
+import { chmod, stat } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import type { CredentialStore } from '@earendil-works/pi-ai'
 import { InMemoryModelsStore } from '@earendil-works/pi-ai'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
@@ -22,6 +22,7 @@ import {
   PackageLockError,
   ScopedArtifactStore,
   initializeAgentResourceHome,
+  type BuiltInResource,
 } from '@genoffice/agent-resource'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
 import { McpConfigError } from './mcp-config-resolver'
@@ -75,6 +76,31 @@ export type AuthenticatedRuntimeServer = {
   shutdown: () => Promise<void>
   credentials: CredentialStore
   officeTools?: RuntimeOfficeToolHostClient
+}
+
+export async function resolveInstalledBuiltInResources(
+  runtimeEntry: string | undefined,
+): Promise<readonly BuiltInResource[]> {
+  if (!runtimeEntry) return []
+  const sheetsSkillPath = resolve(
+    dirname(runtimeEntry),
+    '..',
+    'built-in',
+    'skills',
+    'open-genoffice-sheets-workbook',
+  )
+  const installed = await stat(join(sheetsSkillPath, 'SKILL.md'))
+    .then((metadata) => metadata.isFile())
+    .catch(() => false)
+  return installed
+    ? [
+        {
+          resourceId: 'open-genoffice/sheets-workbook',
+          kind: 'skill',
+          path: sheetsSkillPath,
+        },
+      ]
+    : []
 }
 
 function response(request: RequestEnvelope, result: unknown): string {
@@ -162,10 +188,12 @@ export async function createAuthenticatedRuntimeServer(
     ? undefined
     : new ModelCatalogService(modelRuntime, await loadModelCatalogSettings(options.resourceHome))
   const modelCatalog = options.modelCatalog ?? ownedModelCatalog!
+  const builtInResources = await resolveInstalledBuiltInResources(process.argv[1])
   const runResources = new RunResourceService({
     resourceHome: options.resourceHome,
     deviceId: resourceHome.schema.deviceId,
     credentials,
+    ...(builtInResources.length > 0 ? { builtInResources } : {}),
   })
   const initialModel = modelRuntime.getProviders().flatMap((provider) => provider.getModels())[0]
   if (!initialModel) throw new Error('model_catalog_empty')

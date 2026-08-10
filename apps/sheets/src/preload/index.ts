@@ -1,18 +1,7 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { createAgentSessionPreloadApi } from '@genoffice/electron-utils/agent-session-preload'
 
 import type {
-  AiChatResponse,
-  AiSettings,
-  AiStreamChunk,
-  GenSparkAccountStatus,
-} from '@genoffice/ai-provider'
-import type { ProjectApi } from '@genoffice/project-store'
-import type {
-  AttachmentAddResult,
-  AttachmentImageResult,
-  AttachmentMeta,
-  AttachmentReadResult,
   DesktopApi,
   ScreenCaptureResult,
   ScreenSourcesResult,
@@ -33,9 +22,14 @@ import type {
   WorkbookSaveRequest,
   WorkbookSaveResult,
   WorkbookVisualObject,
-  WebSearchResult,
 } from '../shared/desktop-api'
 import { IPC_CHANNELS } from '../shared/ipc-channels'
+import {
+  SHEETS_OFFICE_TOOL_CHANNELS,
+  isSheetsOfficeToolRequest,
+  isSheetsOfficeToolResponse,
+  type SheetsOfficeToolsApi,
+} from '../shared/sheets-office-tools'
 
 const desktopApi: DesktopApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
@@ -244,61 +238,6 @@ const desktopApi: DesktopApi = {
   reportCloseSaveResult(ok) {
     ipcRenderer.send(IPC_CHANNELS.closeSaveResult, ok === true)
   },
-  async getAiSettings() {
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.aiGetSettings)
-    if (!isRecord(result)) throw new Error('Invalid AI settings response.')
-    return result as unknown as AiSettings
-  },
-  async setAiSettings(settings) {
-    await ipcRenderer.invoke(IPC_CHANNELS.aiSetSettings, settings)
-  },
-  async aiChat(request) {
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.aiChat, request)
-    if (!isRecord(result) || typeof result.ok !== 'boolean') {
-      throw new Error('Invalid AI chat response.')
-    }
-    return result as unknown as AiChatResponse
-  },
-  async aiStream(request) {
-    await ipcRenderer.invoke(IPC_CHANNELS.aiStream, request)
-  },
-  async aiStreamCancel(requestId) {
-    if (!requestId) throw new Error('Invalid AI stream request id.')
-    await ipcRenderer.invoke(IPC_CHANNELS.aiStreamCancel, requestId)
-  },
-  async aiGskStatus(withEmail) {
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.aiGskStatus, withEmail)
-    if (!isRecord(result) || typeof result.loggedIn !== 'boolean') {
-      throw new Error('Invalid Genspark account status response.')
-    }
-    return result as unknown as GenSparkAccountStatus
-  },
-  async aiGskLogin() {
-    await ipcRenderer.invoke(IPC_CHANNELS.aiGskLogin)
-  },
-  async webSearch(query, maxResults) {
-    if (typeof query !== 'string' || !query.trim() || query.length > 512) {
-      throw new Error('Invalid search query.')
-    }
-    const result: unknown = await ipcRenderer.invoke('ai:web-search', query, maxResults)
-    if (!isRecord(result) || !Array.isArray(result.results) || typeof result.method !== 'string') {
-      throw new Error('Invalid web search response.')
-    }
-    return result as unknown as WebSearchResult
-  },
-  onAiStream(callback) {
-    const listener = (_event: unknown, chunk: unknown): void => {
-      if (
-        isRecord(chunk) &&
-        typeof chunk.requestId === 'string' &&
-        typeof chunk.type === 'string'
-      ) {
-        callback(chunk as unknown as AiStreamChunk)
-      }
-    }
-    ipcRenderer.on(IPC_CHANNELS.aiStreamChunk, listener)
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.aiStreamChunk, listener)
-  },
   async consumeNewBlankWorkbook() {
     const result: unknown = await ipcRenderer.invoke('sheets:consume-new-blank')
     return result === true
@@ -307,130 +246,38 @@ const desktopApi: DesktopApi = {
     const result: unknown = await ipcRenderer.invoke('sheets:has-queued-workbook')
     return result === true
   },
-  async pickAttachments() {
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.filesPick)
-    return result === null ? null : parseAttachmentAddResult(result)
-  },
-  async addAttachmentPaths(paths) {
-    if (
-      !Array.isArray(paths) ||
-      paths.length === 0 ||
-      paths.length > 50 ||
-      paths.some((p) => typeof p !== 'string' || p.length === 0 || p.length > 1024)
-    ) {
-      throw new Error('Invalid attachment paths.')
-    }
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.filesAdd, paths)
-    return parseAttachmentAddResult(result)
-  },
-  async addPastedImage(data, ext) {
-    if (
-      !(data instanceof ArrayBuffer) ||
-      data.byteLength === 0 ||
-      data.byteLength > 64 * 1024 * 1024
-    ) {
-      throw new Error('Invalid pasted image data.')
-    }
-    if (typeof ext !== 'string' || ext.length === 0 || ext.length > 8) {
-      throw new Error('Invalid pasted image extension.')
-    }
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.filesAddPastedImage, data, ext)
-    return parseAttachmentAddResult(result)
-  },
-  async readAttachment(path, offset, maxChars) {
-    if (typeof path !== 'string' || path.length === 0 || path.length > 1024) {
-      throw new Error('Invalid attachment path.')
-    }
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.filesRead, path, offset, maxChars)
-    if (
-      !isRecord(result) ||
-      typeof result.ok !== 'boolean' ||
-      !isOptionalString(result.error) ||
-      !isOptionalString(result.name) ||
-      !isOptionalString(result.text) ||
-      (result.totalChars !== undefined && !isNonnegativeInteger(result.totalChars)) ||
-      (result.offset !== undefined && !isNonnegativeInteger(result.offset))
-    ) {
-      throw new Error('Invalid attachment read response.')
-    }
-    const read: AttachmentReadResult = { ok: result.ok }
-    if (result.error !== undefined) read.error = result.error
-    if (result.name !== undefined) read.name = result.name
-    if (result.text !== undefined) read.text = result.text
-    if (result.totalChars !== undefined) read.totalChars = result.totalChars
-    if (result.offset !== undefined) read.offset = result.offset
-    return read
-  },
-  async readAttachmentImage(path) {
-    if (typeof path !== 'string' || path.length === 0 || path.length > 1024) {
-      throw new Error('Invalid attachment path.')
-    }
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.filesReadImage, path)
-    if (
-      !isRecord(result) ||
-      typeof result.ok !== 'boolean' ||
-      !isOptionalString(result.base64) ||
-      !isOptionalString(result.mime) ||
-      !isOptionalString(result.error)
-    ) {
-      throw new Error('Invalid attachment image response.')
-    }
-    const image: AttachmentImageResult = { ok: result.ok }
-    if (result.base64 !== undefined) image.base64 = result.base64
-    if (result.mime !== undefined) image.mime = result.mime
-    if (result.error !== undefined) image.error = result.error
-    return image
-  },
-  getPathForFile(file) {
-    return webUtils.getPathForFile(file)
-  },
-}
-
-function parseAttachmentAddResult(input: unknown): AttachmentAddResult {
-  if (
-    !isRecord(input) ||
-    !Array.isArray(input.accepted) ||
-    input.accepted.length > 50 ||
-    !Array.isArray(input.rejected) ||
-    input.rejected.length > 50 ||
-    input.rejected.some((reason) => typeof reason !== 'string')
-  ) {
-    throw new Error('Invalid attachment response.')
-  }
-  const accepted = input.accepted.map((meta): AttachmentMeta => {
-    if (
-      !isRecord(meta) ||
-      typeof meta.path !== 'string' ||
-      meta.path.length === 0 ||
-      typeof meta.name !== 'string' ||
-      meta.name.length === 0 ||
-      typeof meta.ext !== 'string' ||
-      !isNonnegativeInteger(meta.sizeBytes)
-    ) {
-      throw new Error('Invalid attachment metadata.')
-    }
-    return { path: meta.path, name: meta.name, ext: meta.ext, sizeBytes: meta.sizeBytes }
-  })
-  return { accepted, rejected: input.rejected as string[] }
 }
 
 contextBridge.exposeInMainWorld('desktopApi', desktopApi)
 
-const projectApi: ProjectApi = {
-  resolveChat: (args) => ipcRenderer.invoke('project:resolveChat', args),
-  appendChat: (args) => ipcRenderer.invoke('project:appendChat', args),
-  loadChat: (args) => ipcRenderer.invoke('project:loadChat', args),
-  rebindChat: (args) => ipcRenderer.invoke('project:rebindChat', args),
-  // P1 extensions
-  listProjects: () => ipcRenderer.invoke('project:list'),
-  createProject: (args) => ipcRenderer.invoke('project:create', args),
-  renameProject: (args) => ipcRenderer.invoke('project:rename', args),
-  deleteProject: (args) => ipcRenderer.invoke('project:delete', args),
-  moveFile: (args) => ipcRenderer.invoke('project:moveFile', args),
-  getTimeline: (args) => ipcRenderer.invoke('project:timeline', args),
-}
-contextBridge.exposeInMainWorld('projectApi', projectApi)
 contextBridge.exposeInMainWorld('agentSession', createAgentSessionPreloadApi(ipcRenderer))
+
+const officeTools: SheetsOfficeToolsApi = {
+  onRequest: (handler) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: unknown) => {
+      if (!isSheetsOfficeToolRequest(request)) return
+      void Promise.resolve(handler(request))
+        .then((response) => {
+          ipcRenderer.send(
+            SHEETS_OFFICE_TOOL_CHANNELS.response,
+            isSheetsOfficeToolResponse(response)
+              ? response
+              : { requestId: request.requestId, ok: false, errorCode: 'tool_failed' },
+          )
+        })
+        .catch(() => {
+          ipcRenderer.send(SHEETS_OFFICE_TOOL_CHANNELS.response, {
+            requestId: request.requestId,
+            ok: false,
+            errorCode: 'tool_failed',
+          })
+        })
+    }
+    ipcRenderer.on(SHEETS_OFFICE_TOOL_CHANNELS.request, listener)
+    return () => ipcRenderer.removeListener(SHEETS_OFFICE_TOOL_CHANNELS.request, listener)
+  },
+}
+contextBridge.exposeInMainWorld('sheetsOfficeTools', officeTools)
 
 function parseWorkbookFile(input: unknown): WorkbookFile {
   if (!isRecord(input)) throw new Error('Invalid workbook response.')

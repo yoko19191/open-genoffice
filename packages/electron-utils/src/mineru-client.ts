@@ -144,7 +144,7 @@ export function createMineruClient(options: {
             model_version: 'vlm',
             extra_formats: ['docx'],
           }),
-          signal: requestOptions.signal,
+          ...(requestOptions.signal ? { signal: requestOptions.signal } : {}),
         }),
       )
       if (
@@ -161,7 +161,7 @@ export function createMineruClient(options: {
       const response = await fetch(httpsUrl(uploadUrl), {
         method: 'PUT',
         body: new Uint8Array(pdfBytes),
-        signal: requestOptions.signal,
+        ...(requestOptions.signal ? { signal: requestOptions.signal } : {}),
       })
       if (!response.ok) {
         const retriable = response.status >= 500 || response.status === 403
@@ -177,7 +177,7 @@ export function createMineruClient(options: {
       const data = await responseData(
         await fetch(`${base}/extract-results/batch/${encodeURIComponent(batchId)}`, {
           headers,
-          signal: requestOptions.signal,
+          ...(requestOptions.signal ? { signal: requestOptions.signal } : {}),
         }),
       )
       if (!Array.isArray(data.extract_result)) {
@@ -220,7 +220,7 @@ export async function waitForMineruResult(
   for (let poll = 0; poll < maxPolls; poll += 1) {
     options.signal?.throwIfAborted()
     const projection = await client.getBatchResult(batchId, fileName, {
-      signal: options.signal,
+      ...(options.signal ? { signal: options.signal } : {}),
     })
     if (projection.state === 'done') return projection.resultUrl
     await wait(projection, poll)

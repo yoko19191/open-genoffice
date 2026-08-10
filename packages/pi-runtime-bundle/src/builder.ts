@@ -2,9 +2,11 @@ import { execFile } from 'node:child_process'
 import { constants } from 'node:fs'
 import {
   chmod,
+  cp,
   copyFile,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rename,
   rm,
@@ -55,6 +57,7 @@ export type PiRuntimeBundleBuildOptions = {
   capabilitySmokeEntryPoint: string
   capabilityExtension: string
   mcpSmokeServer: string
+  builtInSkillsDirectory?: string
   lockfile: string
   notices: string
   platform: RuntimeBundleManifest['platform']
@@ -79,6 +82,24 @@ async function pathExists(path: string): Promise<boolean> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
     throw error
   }
+}
+
+async function relativeFiles(root: string, relativeDirectory: string): Promise<string[]> {
+  const directory = join(root, ...relativeDirectory.split('/'))
+  const files: string[] = []
+  const visit = async (current: string, relative: string): Promise<void> => {
+    const entries = await readdir(current, { withFileTypes: true })
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      const childRelative = relative ? `${relative}/${entry.name}` : entry.name
+      const child = join(current, entry.name)
+      if (entry.isDirectory()) await visit(child, childRelative)
+      else if (entry.isFile()) {
+        files.push(relativeDirectory ? `${relativeDirectory}/${childRelative}` : childRelative)
+      } else fail('runtime_bundle_resource_invalid')
+    }
+  }
+  await visit(directory, '')
+  return files
 }
 
 async function verifyNodeExecutable(path: string) {
@@ -198,11 +219,24 @@ export async function buildPiRuntimeBundle(
       ),
       copyFile(options.mcpSmokeServer, join(stagingDirectory, MCP_SMOKE_SERVER_RELATIVE_PATH)),
     ])
+    if (options.builtInSkillsDirectory) {
+      await relativeFiles(options.builtInSkillsDirectory, '')
+      const skillEntries = await readdir(options.builtInSkillsDirectory, { withFileTypes: true })
+      for (const entry of skillEntries.sort((left, right) => left.name.localeCompare(right.name))) {
+        if (!entry.isDirectory()) fail('runtime_bundle_resource_invalid')
+        await cp(
+          join(options.builtInSkillsDirectory, entry.name),
+          join(stagingDirectory, 'built-in/skills', entry.name),
+          { recursive: true, errorOnExist: true },
+        )
+      }
+    }
     await Promise.all([
       copyFile(options.nodeLicense, join(stagingDirectory, 'LICENSE.node.txt')),
       copyFile(options.notices, join(stagingDirectory, 'THIRD-PARTY-NOTICES.txt')),
     ])
 
+    const builtInSkillPaths = await relativeFiles(stagingDirectory, 'built-in/skills')
     const paths = [
       'LICENSE.node.txt',
       'THIRD-PARTY-NOTICES.txt',
@@ -211,6 +245,7 @@ export async function buildPiRuntimeBundle(
       CAPABILITY_EXTENSION_RELATIVE_PATH,
       MCP_SMOKE_SERVER_RELATIVE_PATH,
       executablePath,
+      ...builtInSkillPaths,
       ...(options.platform === 'win32'
         ? [WINDOWS_JOB_LAUNCHER_RELATIVE_PATH, WINDOWS_NATIVE_ADDON_RELATIVE_PATH]
         : []),
@@ -301,6 +336,9 @@ export async function runPiRuntimeBundleBuilderCli(
       capabilitySmokeEntryPoint: values.get('--capability-smoke-entry')!,
       capabilityExtension: values.get('--capability-extension')!,
       mcpSmokeServer: values.get('--mcp-smoke-server')!,
+      ...(values.get('--built-in-skills')
+        ? { builtInSkillsDirectory: values.get('--built-in-skills')! }
+        : {}),
       lockfile: values.get('--lockfile')!,
       notices: values.get('--notices')!,
       platform: values.get('--platform') as RuntimeBundleManifest['platform'],

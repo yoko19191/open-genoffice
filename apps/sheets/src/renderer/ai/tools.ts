@@ -1,5 +1,3 @@
-import { z } from 'zod'
-import type { AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import { workbookOperationSchema, type WorkbookOperation } from '../../domain/workbook-dsl'
 import {
   columnLabel,
@@ -15,7 +13,6 @@ import type {
   ChangePlan,
 } from '../../domain/workbook.types'
 import { t } from '../i18n/locale'
-import { guideCatalogSummary, loadGuides } from './guides'
 
 /**
  * The workbook DSL as an AgentSkill tool set: read-only context/reader tools
@@ -75,12 +72,27 @@ export interface SheetsSkillDeps {
   readFormats(addresses: readonly string[]): Record<string, CellFormatState>
   /** formatted report of a sheet's feature state (filters, CF, DV, names, visuals, …) */
   readSheetFeatures(sheetId?: string): string
+  artifactImages?: ReadonlyMap<string, WorkbookArtifactImage>
   /** `applied` resolves with the real apply result (the lazy path applies async);
    * the tool awaits it so the model never hears "applied" for a batch that failed */
   proposeOperations(
     operations: readonly WorkbookOperation[],
     summary: string,
+    artifactImages?: ReadonlyMap<string, WorkbookArtifactImage>,
   ): { ok: true; plan: ChangePlan; applied?: Promise<ApplyOutcome> } | { ok: false; error: string }
+}
+
+export interface WorkbookArtifactImage {
+  readonly dataUrl: string
+  readonly mediaType: 'image/png'
+  readonly width: number
+  readonly height: number
+}
+
+export interface WorkbookToolCall {
+  readonly id: string
+  readonly name: string
+  readonly input: Record<string, unknown>
 }
 
 const MAX_READ_ADDRESSES = 100
@@ -91,140 +103,25 @@ const MAX_READBACK_FORMULAS = 10
 const FORMULA_RECALC_DELAY_MS = 300
 const MAX_READ_FORMAT_CELLS = 200
 
-export const WORKBOOK_TOOLS: AgentToolDef[] = [
-  {
-    name: 'get_workbook_context',
-    description:
-      'Get a workbook overview: all sheets (id/name/data-extent rows-columns), active sheet, current selection, known non-empty cell addresses. ' +
-      'For data-size questions (how many rows / how much data), answer from the data extent here instead of reading block by block; use read_range or read_cells when concrete values are needed.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
-  },
-  {
-    name: 'read_range',
-    description:
-      'Read current values/formulas by rectangular range, returning a grid with row numbers and column letters. ' +
-      'The requested range is not the worksheet data extent: never infer total row or record count from its ending row; use get_workbook_context. ' +
-      'This is the preferred way to read data; max 2000 cells — read larger regions in multiple calls.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        range: {
-          type: 'string',
-          description: 'Range like "A1:D20"; a single cell like "B2" is also accepted',
-        },
-      },
-      required: ['range'],
-    },
-  },
-  {
-    name: 'load_guide',
-    description:
-      'Load operation guide documents into context (field definitions, conventions, common mistakes). Except for the most basic single-cell reads/writes, load the relevant guides before generating propose_operations; several can be loaded at once. ' +
-      `Available guides: ${guideCatalogSummary()}`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        guides: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Guide names to load, e.g. ["writing","formatting"]',
-        },
-      },
-      required: ['guides'],
-    },
-  },
-  {
-    name: 'read_formats',
-    description:
-      'Read explicit cell formats in a range (bold/italic/underline/colors/number format/alignment/borders); only formatted cells are returned. ' +
-      'Use when you need to "reuse the format from somewhere" or inspect current formatting; max 200 cells.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        range: { type: 'string', description: 'Range like "A1:D20"' },
-      },
-      required: ['range'],
-    },
-  },
-  {
-    name: 'read_sheet_features',
-    description:
-      "Read a worksheet's feature state: AutoFilter (range and column criteria), conditional formatting rules, data validation rules, defined names, " +
-      'freeze panes, hidden/protected status, shapes and images, and page setup pending save this session. ' +
-      'Read the current state before modifying or clearing any of these existing settings — never change them blindly.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sheetId: {
-          type: 'string',
-          description: 'Target sheet id; reads the active sheet when omitted',
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: 'read_cells',
-    description:
-      'Read current values/formulas of specific scattered cells (use read_range for contiguous regions). Always read the affected cells before writing — never assume their contents.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        addresses: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of cell addresses, e.g. ["A1","B2"], max 100',
-        },
-      },
-      required: ['addresses'],
-    },
-  },
-  {
-    name: 'propose_operations',
-    description:
-      'Submit a batch of change operations, applied to the workbook immediately (the user can roll back with the [Undo] button or ⌘Z). Basic operations: ' +
-      '{op:"set_cell",sheetId,address,value} | {op:"set_formula",sheetId,address,formula(starts with =)} | ' +
-      '{op:"clear_cell",sheetId,address} | {op:"rename_sheet",sheetId,name}. ' +
-      'Field definitions for the remaining operations live in the guides — load_guide before using them: ' +
-      'writing(set_range/clear_range/find_replace) | formatting(format_range) | ' +
-      'layout(sort_range/merge_cells/unmerge_cells/set_row_height/set_col_width/set_rows_hidden/set_cols_hidden/set_freeze/set_page_setup) | ' +
-      'structure(insert_rows/delete_rows/insert_cols/delete_cols/add_sheet/delete_sheet/' +
-      'duplicate_sheet/set_sheet_hidden/move_sheet/protect_sheet) | ' +
-      'charts(add_chart/edit_chart/delete_visual/add_sparkline/add_shape/edit_shape/add_image) | ' +
-      'pivot(add_pivot/refresh_pivot) | ' +
-      'table(add_table/add_table_row/add_table_column/delete_table_row/delete_table_column/delete_table) | ' +
-      'data(set_hyperlink/set_filter/clear_filter/set_filter_criteria/add_conditional_format/' +
-      'clear_conditional_formats/set_data_validation/set_note/add_defined_name/delete_defined_name). ' +
-      'Limits: structural operations (row/column insert-delete, sheet add/delete/duplicate/move/hide) cannot share a batch with other classes; at most 2000 expanded cell changes; ' +
-      'sheetId must be an id returned by get_workbook_context.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        operations: {
-          type: 'array',
-          items: { type: 'object' },
-          description: 'Array of operations in the workbook DSL discriminated-union format',
-        },
-        summary: { type: 'string', description: 'One-sentence summary of this batch of changes' },
-      },
-      required: ['operations', 'summary'],
-    },
-  },
-]
-
 export interface ToolExecution {
   output: string
   isError?: boolean
   /** true when propose_operations auto-applied a batch of changes */
   mutated: boolean
   summary: string
+  mutationOutcome?: 'not_started' | 'unknown'
 }
 
-const fail = (summary: string, output: string): ToolExecution => ({
+const fail = (
+  summary: string,
+  output: string,
+  mutationOutcome: 'not_started' | 'unknown' = 'not_started',
+): ToolExecution => ({
   output,
   isError: true,
   mutated: false,
   summary,
+  mutationOutcome,
 })
 
 export function buildWorkbookContext(deps: SheetsSkillDeps): string {
@@ -358,7 +255,7 @@ function formatPlanSummary(plan: ChangePlan): string {
 }
 
 export function executeWorkbookTool(
-  call: AgentToolCall,
+  call: WorkbookToolCall,
   deps: SheetsSkillDeps,
 ): ToolExecution | Promise<ToolExecution> {
   switch (call.name) {
@@ -457,19 +354,6 @@ export function executeWorkbookTool(
       return executeRead()
     }
 
-    case 'load_guide': {
-      const raw = call.input.guides
-      if (!Array.isArray(raw) || raw.length === 0)
-        return fail(t('aiToolLoadGuide'), 'guides must be a non-empty array')
-      const outcome = loadGuides(raw.map(String))
-      if (!outcome.ok) return fail(t('aiToolLoadGuide'), outcome.error)
-      return {
-        output: outcome.content,
-        mutated: false,
-        summary: t('aiToolLoadGuideOf', { names: raw.join(', ') }),
-      }
-    }
-
     case 'read_formats': {
       const raw = call.input.range
       if (typeof raw !== 'string' || !raw.trim())
@@ -541,11 +425,13 @@ export function executeWorkbookTool(
       }
       let operations: WorkbookOperation[]
       try {
-        operations = z.array(workbookOperationSchema).parse(rawOps)
+        operations = rawOps.map((operation) => workbookOperationSchema.parse(operation))
       } catch (e) {
         return fail(t('aiToolPropose'), e instanceof Error ? e.message : 'Invalid operation format')
       }
-      const outcome = deps.proposeOperations(operations, summaryInput.trim())
+      const outcome = deps.artifactImages
+        ? deps.proposeOperations(operations, summaryInput.trim(), deps.artifactImages)
+        : deps.proposeOperations(operations, summaryInput.trim())
       if (!outcome.ok) return fail(t('aiToolPropose'), outcome.error)
       const summary = summaryInput.trim()
       const finish = (): ToolExecution | Promise<ToolExecution> => {
@@ -595,8 +481,9 @@ export function executeWorkbookTool(
           ? finish()
           : fail(
               t('aiToolPropose'),
-              `Apply failed — the workbook is UNCHANGED: ${applied.reason ?? 'unknown reason'}. ` +
-                'Do not tell the user the changes were made; adjust the operations and retry, or explain the failure.',
+              `Apply failed and the final workbook state is unknown: ${applied.reason ?? 'unknown reason'}. ` +
+                'Do not tell the user the changes were made; request rollback or explain the failure.',
+              'unknown',
             ),
       )
     }

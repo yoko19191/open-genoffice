@@ -385,7 +385,6 @@ export class MineruOcrService {
       state: 'completed',
       providerState: 'done',
       artifactId,
-      errorCode: undefined,
     })
     const capsuleRecord = await this.options.credentialBroker.getOperationCapsule(operationId)
     if (capsuleRecord) {

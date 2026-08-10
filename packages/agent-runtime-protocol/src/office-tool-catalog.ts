@@ -1,6 +1,11 @@
 import { Type, type TObject } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 import catalog from '../fixtures/office-tool-catalog-baseline.json' with { type: 'json' }
+import {
+  SheetsWorkbookOperationSchema,
+  parseSheetsWorkbookOperation,
+  sheetsWorkbookOperationsInput,
+} from './sheets-workbook-schema'
 
 type OfficeToolCatalogBinding = {
   app: 'docs' | 'pdf' | 'sheets' | 'slides'
@@ -19,7 +24,7 @@ export type OfficeToolDefinition = OfficeToolCatalogBinding['descriptors'][numbe
 }
 
 function definition(
-  app: 'docs' | 'pdf',
+  app: 'docs' | 'pdf' | 'sheets',
   modelAlias: string,
   effect: 'read' | 'mutation' | 'external',
   description: string,
@@ -51,6 +56,15 @@ function docsDefinition(
   parameters: TObject,
 ): OfficeToolDefinition {
   return definition('docs', modelAlias, effect, description, parameters)
+}
+
+function sheetsDefinition(
+  modelAlias: string,
+  effect: 'read' | 'mutation',
+  description: string,
+  parameters: TObject,
+): OfficeToolDefinition {
+  return definition('sheets', modelAlias, effect, description, parameters)
 }
 
 const emptyInput = () => Type.Object({}, { additionalProperties: false })
@@ -526,12 +540,62 @@ export const DOCS_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
   ),
 ]
 
+const sheetsCellRange = () =>
+  Type.String({ pattern: '^[A-Z]{1,3}[1-9][0-9]{0,6}(:[A-Z]{1,3}[1-9][0-9]{0,6})?$' })
+const sheetsCellAddress = () => Type.String({ pattern: '^[A-Z]{1,3}[1-9][0-9]{0,6}$' })
+
+export const SHEETS_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
+  sheetsDefinition(
+    'get_workbook_context',
+    'read',
+    'Read live sheets, data extents, selection, loaded viewport, merges and chart summaries.',
+    emptyInput(),
+  ),
+  sheetsDefinition(
+    'read_range',
+    'read',
+    'Read formulas and values from at most 2000 cells in one rectangular workbook range.',
+    Type.Object({ range: sheetsCellRange() }, { additionalProperties: false }),
+  ),
+  sheetsDefinition(
+    'read_formats',
+    'read',
+    'Read explicit formats from at most 200 cells in one rectangular workbook range.',
+    Type.Object({ range: sheetsCellRange() }, { additionalProperties: false }),
+  ),
+  sheetsDefinition(
+    'read_sheet_features',
+    'read',
+    'Read filters, conditional formats, validation, names, panes, protection and visuals.',
+    Type.Object(
+      { sheetId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })) },
+      { additionalProperties: false },
+    ),
+  ),
+  sheetsDefinition(
+    'read_cells',
+    'read',
+    'Read formulas and values from at most 100 scattered normalized cell addresses.',
+    Type.Object(
+      { addresses: Type.Array(sheetsCellAddress(), { minItems: 1, maxItems: 100 }) },
+      { additionalProperties: false },
+    ),
+  ),
+  sheetsDefinition(
+    'propose_operations',
+    'mutation',
+    'Expand, prevalidate and atomically apply a batch from the exact 52-operation workbook DSL.',
+    sheetsWorkbookOperationsInput(),
+  ),
+]
+
 function descriptorProjection(definitions: readonly OfficeToolDefinition[]) {
   return definitions.map(({ id, modelAlias, effect }) => ({ id, modelAlias, effect }))
 }
 
 const pdfDescriptors = descriptorProjection(PDF_OFFICE_TOOL_DEFINITIONS)
 const docsDescriptors = descriptorProjection(DOCS_OFFICE_TOOL_DEFINITIONS)
+const sheetsDescriptors = descriptorProjection(SHEETS_OFFICE_TOOL_DEFINITIONS)
 
 export const DOCS_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
   app: 'docs',
@@ -543,6 +607,12 @@ export const PDF_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
   app: 'pdf',
   catalogHash: 'c7df023595cbfa4780424841dd03f18cc21156c534fb24fc6e6b225571956e82',
   descriptors: pdfDescriptors,
+}
+
+export const SHEETS_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
+  app: 'sheets',
+  catalogHash: '0904d366ddf21423a9a01b0709d508c9cb74b620db11c8e2881fa0115d3d04a8',
+  descriptors: sheetsDescriptors,
 }
 
 export function resolveOfficeToolDefinitions(
@@ -564,6 +634,14 @@ export function resolveOfficeToolDefinitions(
   ) {
     return DOCS_OFFICE_TOOL_DEFINITIONS
   }
+  if (
+    binding.app === 'sheets' &&
+    binding.catalogHash === SHEETS_OFFICE_TOOL_CATALOG_BINDING.catalogHash &&
+    JSON.stringify(binding.descriptors) ===
+      JSON.stringify(SHEETS_OFFICE_TOOL_CATALOG_BINDING.descriptors)
+  ) {
+    return SHEETS_OFFICE_TOOL_DEFINITIONS
+  }
   throw new Error('office_tool_catalog_mismatch')
 }
 
@@ -580,6 +658,23 @@ export function parseDocsOfficeToolInput(toolId: string, value: unknown): unknow
   if (Value.Check(descriptor.parameters, value)) return value
   throw new Error('invalid_tool_arguments')
 }
+
+export function parseSheetsOfficeToolInput(toolId: string, value: unknown): unknown {
+  const descriptor = SHEETS_OFFICE_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
+  if (!descriptor) throw new Error('tool_not_in_snapshot')
+  if (!Value.Check(descriptor.parameters, value)) throw new Error('invalid_tool_arguments')
+  if (toolId !== 'office:sheets:propose_operations') return value
+  const input = value as { summary: string; operations: unknown[] }
+  const summary = input.summary.trim()
+  if (!summary) throw new Error('invalid_tool_arguments')
+  try {
+    return { summary, operations: input.operations.map(parseSheetsWorkbookOperation) }
+  } catch {
+    throw new Error('invalid_tool_arguments')
+  }
+}
+
+export { SheetsWorkbookOperationSchema }
 
 export type OfficeToolCatalogMetadata = {
   modelAlias: string
