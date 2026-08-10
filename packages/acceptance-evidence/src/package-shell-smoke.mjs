@@ -9,26 +9,37 @@ export function packageShellShutdownTimeout(platform) {
 }
 
 export function packageShellLaunchStrategy(platform) {
-  return platform === 'win32' ? 'cdp' : 'electron'
+  return platform === 'win32' ? 'audit-http' : 'electron'
 }
 
-function requireCdpPort(cdpPort) {
-  if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65_535) {
-    throw new Error('package_shell_cdp_port_invalid')
+export function packageShellLaunchArgs(platform, userData) {
+  return platform === 'win32'
+    ? [`--user-data-dir=${userData}`]
+    : platform === 'linux'
+      ? ['--no-sandbox']
+      : []
+}
+
+export function parsePackageAuditEndpoint(value) {
+  let parsed
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error('package_shell_audit_endpoint_invalid')
   }
-  return cdpPort
-}
-
-export function packageShellLaunchArgs(platform, userData, cdpPort) {
-  if (platform === 'win32') {
-    requireCdpPort(cdpPort)
-    return [`--user-data-dir=${userData}`]
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    parsed.schemaVersion !== 1 ||
+    !Number.isInteger(parsed.port) ||
+    parsed.port < 1 ||
+    parsed.port > 65_535 ||
+    Object.keys(parsed).sort().join(',') !== 'port,schemaVersion'
+  ) {
+    throw new Error('package_shell_audit_endpoint_invalid')
   }
-  return platform === 'linux' ? ['--no-sandbox'] : []
-}
-
-export function packageShellLaunchEnv(platform, cdpPort) {
-  return platform === 'win32' ? { GENOFFICE_PACKAGE_CDP_PORT: String(requireCdpPort(cdpPort)) } : {}
+  return parsed.port
 }
 
 export function validatePackageShellSmoke(input) {

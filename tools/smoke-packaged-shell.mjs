@@ -1,15 +1,15 @@
-import { createHash, randomInt } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { _electron as electron, chromium } from 'playwright'
+import { _electron as electron } from 'playwright'
 import {
   packageShellLaunchArgs,
-  packageShellLaunchEnv,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   packageShellShutdownTimeout,
+  parsePackageAuditEndpoint,
   validatePackageShellSmoke,
 } from '../packages/acceptance-evidence/src/package-shell-smoke.mjs'
 
@@ -38,6 +38,7 @@ const scratch = await mkdtemp(join(tmpdir(), 'genoffice-package-shell-'))
 const cleanHome = join(scratch, 'home')
 const userData = join(scratch, 'user-data')
 const networkReportPath = join(scratch, 'network.jsonl')
+const auditEndpointPath = join(userData, 'package-audit-endpoint.json')
 const screenshotPath = join(evidenceDirectory, 'first-launch.png')
 await Promise.all([
   mkdir(cleanHome),
@@ -61,32 +62,32 @@ async function within(promise, timeoutMs, code) {
 
 const delay = (timeoutMs) => new Promise((done) => setTimeout(done, timeoutMs))
 
-async function waitForCdp(port, child, timeoutMs) {
+async function waitForAuditSnapshot(child, token, timeoutMs) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error('package_shell_process_exited')
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      const port = parsePackageAuditEndpoint(await readFile(auditEndpointPath, 'utf8'))
+      const response = await fetch(`http://127.0.0.1:${port}/snapshot`, {
+        headers: { authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(1_000),
       })
-      const version = response.ok ? await response.json() : undefined
-      if (typeof version?.webSocketDebuggerUrl === 'string') return port
+      if (response.status === 503) {
+        await delay(100)
+        continue
+      }
+      if (!response.ok) throw new Error('package_shell_audit_snapshot_rejected')
+      const snapshot = await response.json()
+      if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+        throw new Error('package_shell_audit_snapshot_invalid')
+      }
+      return { port, snapshot }
     } catch {
       // The packaged app is still starting; retry until the same bounded launch deadline.
     }
     await delay(100)
   }
-  throw new Error('package_shell_cdp_timeout')
-}
-
-async function waitForCdpPage(browser, timeoutMs) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const page = browser.contexts().flatMap((context) => context.pages())[0]
-    if (page) return page
-    await delay(100)
-  }
-  throw new Error('package_shell_window_timeout')
+  throw new Error('package_shell_audit_snapshot_timeout')
 }
 
 async function launchShell(env) {
@@ -114,23 +115,18 @@ async function launchShell(env) {
     }
   }
 
-  const requestedPort = randomInt(49_152, 65_536)
-  const child = spawn(
-    resolve(executable),
-    packageShellLaunchArgs(platform, userData, requestedPort),
-    {
-      env: { ...env, ...packageShellLaunchEnv(platform, requestedPort) },
-      stdio: 'ignore',
-      windowsHide: true,
-    },
-  )
+  const auditToken = randomBytes(32).toString('hex')
+  const child = spawn(resolve(executable), packageShellLaunchArgs(platform, userData), {
+    env: { ...env, GENOFFICE_PACKAGE_AUDIT_TOKEN: auditToken },
+    stdio: 'ignore',
+    windowsHide: true,
+  })
   const exited = new Promise((resolveExit) =>
     child.once('exit', (code, signal) => resolveExit({ code, signal })),
   )
   const failed = new Promise((_, reject) =>
     child.once('error', () => reject(new Error('package_shell_process_start_failed'))),
   )
-  let browser
   const forceClose = async () => {
     if (child.exitCode === null) {
       if (process.platform === 'win32' && child.pid) {
@@ -144,31 +140,29 @@ async function launchShell(env) {
       }
     }
     child.unref()
-    if (browser) void browser.close().catch(() => undefined)
     await Promise.race([exited, delay(2_000)])
   }
   try {
-    const port = await Promise.race([
-      waitForCdp(requestedPort, child, packageShellLaunchTimeout(platform)),
+    const { port, snapshot } = await Promise.race([
+      waitForAuditSnapshot(child, auditToken, packageShellLaunchTimeout(platform)),
       failed,
     ])
-    browser = await within(
-      chromium.connectOverCDP(`http://127.0.0.1:${port}`),
-      packageShellLaunchTimeout(platform),
-      'package_shell_cdp_connect_timeout',
-    )
-    const page = await waitForCdpPage(browser, 30_000)
     return {
-      page,
-      readPaths: () => page.evaluate(() => globalThis.aiOfficePackageAudit.state()),
+      snapshot,
       close: async () => {
-        const accepted = await page.evaluate(() => globalThis.aiOfficePackageAudit.shutdown())
-        if (accepted !== true) throw new Error('package_shell_shutdown_rejected')
-        const result = await exited
-        if (result.code !== 0 || result.signal !== null) {
+        const response = await fetch(`http://127.0.0.1:${port}/shutdown`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${auditToken}` },
+          signal: AbortSignal.timeout(5_000),
+        })
+        const acknowledgement = response.ok ? await response.json() : undefined
+        if (acknowledgement?.accepted !== true) {
+          throw new Error('package_shell_shutdown_rejected')
+        }
+        const exitResult = await exited
+        if (exitResult.code !== 0 || exitResult.signal !== null) {
           throw new Error('package_shell_process_exit_invalid')
         }
-        await browser.close().catch(() => undefined)
       },
       forceClose,
     }
@@ -190,56 +184,75 @@ try {
     GENOFFICE_NETWORK_REPORT: networkReportPath,
     GENOFFICE_NETWORK_SURFACE: 'shell-first-launch',
   })
-  const { page } = shellDriver
-  await page.waitForLoadState('domcontentloaded')
-  const skip = page.locator('.onb-skip')
-  if (await skip.isVisible()) await skip.click()
-  await page.locator('.quick-cards').waitFor({ state: 'visible', timeout: 15_000 })
+  let snapshot
+  if ('page' in shellDriver) {
+    const { page } = shellDriver
+    await page.waitForLoadState('domcontentloaded')
+    const skip = page.locator('.onb-skip')
+    if (await skip.isVisible()) await skip.click()
+    await page.locator('.quick-cards').waitFor({ state: 'visible', timeout: 15_000 })
 
-  let health
-  const deadline = Date.now() + 30_000
-  while (Date.now() < deadline) {
-    health = await page.evaluate(() => globalThis.aiOfficeAgent.health())
-    if (health.state === 'ready') break
-    if (health.state === 'crashed' || health.state === 'unavailable') break
-    await new Promise((done) => setTimeout(done, 100))
+    let health
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline) {
+      health = await page.evaluate(() => globalThis.aiOfficeAgent.health())
+      if (health.state === 'ready') break
+      if (health.state === 'crashed' || health.state === 'unavailable') break
+      await delay(100)
+    }
+
+    snapshot = {
+      ...(await shellDriver.readPaths()),
+      health,
+      quickActions: await page.locator('.quick-card').evaluateAll((buttons) =>
+        buttons.map((button) => ({
+          label: button.querySelector('.quick-title')?.textContent?.trim() ?? '',
+          disabled: button.tagName === 'BUTTON' && button.disabled === true,
+        })),
+      ),
+      bodyText: await page.locator('body').innerText(),
+      mineru: await within(
+        page.evaluate(() => globalThis.aiOfficeMineruOcr.status()),
+        10_000,
+        'package_shell_mineru_timeout',
+      ),
+      models: await within(
+        page.evaluate(() => globalThis.aiOfficeAgent.modelCatalog()),
+        10_000,
+        'package_shell_models_timeout',
+      ),
+      mcp: await within(
+        page.evaluate(() => globalThis.aiOfficeAgent.mcpCatalog()),
+        10_000,
+        'package_shell_mcp_timeout',
+      ),
+      packages: await within(
+        page.evaluate(() => globalThis.aiOfficeAgent.packageCatalog('global')),
+        10_000,
+        'package_shell_packages_timeout',
+      ),
+      resources: await within(
+        page.evaluate(() => globalThis.aiOfficeAgent.resourceCatalog()),
+        10_000,
+        'package_shell_resources_timeout',
+      ),
+    }
+    await page.screenshot({ path: screenshotPath, fullPage: true })
+  } else {
+    const { screenshotBase64, ...auditSnapshot } = shellDriver.snapshot
+    if (typeof screenshotBase64 !== 'string') {
+      throw new Error('package_shell_screenshot_invalid')
+    }
+    const screenshot = Buffer.from(screenshotBase64, 'base64')
+    if (
+      screenshot.length < 8 ||
+      !screenshot.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    ) {
+      throw new Error('package_shell_screenshot_invalid')
+    }
+    snapshot = auditSnapshot
+    await writeFile(screenshotPath, screenshot)
   }
-
-  const paths = await shellDriver.readPaths()
-  const quickActions = await page.locator('.quick-card').evaluateAll((buttons) =>
-    buttons.map((button) => ({
-      label: button.querySelector('.quick-title')?.textContent?.trim() ?? '',
-      disabled: button.tagName === 'BUTTON' && button.disabled === true,
-    })),
-  )
-  const bodyText = await page.locator('body').innerText()
-  const mineru = await within(
-    page.evaluate(() => globalThis.aiOfficeMineruOcr.status()),
-    10_000,
-    'package_shell_mineru_timeout',
-  )
-  const models = await within(
-    page.evaluate(() => globalThis.aiOfficeAgent.modelCatalog()),
-    10_000,
-    'package_shell_models_timeout',
-  )
-  const mcp = await within(
-    page.evaluate(() => globalThis.aiOfficeAgent.mcpCatalog()),
-    10_000,
-    'package_shell_mcp_timeout',
-  )
-  const packages = await within(
-    page.evaluate(() => globalThis.aiOfficeAgent.packageCatalog('global')),
-    10_000,
-    'package_shell_packages_timeout',
-  )
-  const resources = await within(
-    page.evaluate(() => globalThis.aiOfficeAgent.resourceCatalog()),
-    10_000,
-    'package_shell_resources_timeout',
-  )
-
-  await page.screenshot({ path: screenshotPath, fullPage: true })
   const screenshotSha256 = createHash('sha256')
     .update(await readFile(screenshotPath))
     .digest('hex')
@@ -256,16 +269,8 @@ try {
     .map((line) => JSON.parse(line))
   const homeEntries = await readdir(cleanHome)
   const report = validatePackageShellSmoke({
-    ...paths,
+    ...snapshot,
     resourceHomeIsolated: homeEntries.includes('.open-genoffice'),
-    health,
-    quickActions,
-    bodyText,
-    mineru,
-    models,
-    mcp,
-    packages,
-    resources,
     homeEntries,
     networkEvents,
     screenshotSha256,

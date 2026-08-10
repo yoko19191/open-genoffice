@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   packageShellLaunchArgs,
-  packageShellLaunchEnv,
   packageShellLaunchStrategy,
   packageShellLaunchTimeout,
   packageShellShutdownTimeout,
+  parsePackageAuditEndpoint,
   validatePackageShellSmoke,
 } from '../src/package-shell-smoke.mjs'
 
@@ -50,22 +50,30 @@ describe('validatePackageShellSmoke', () => {
     expect(packageShellShutdownTimeout('linux')).toBe(15_000)
   })
 
-  it('uses explicit CDP only where Windows GUI logging cannot expose the dynamic endpoint', () => {
-    expect(packageShellLaunchStrategy('win32')).toBe('cdp')
+  it('uses the fixed audit transport where Playwright cannot attach to packaged Windows Electron', () => {
+    expect(packageShellLaunchStrategy('win32')).toBe('audit-http')
     expect(packageShellLaunchStrategy('darwin')).toBe('electron')
     expect(packageShellLaunchStrategy('linux')).toBe('electron')
-    expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data', 43117)).toEqual([
+    expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data')).toEqual([
       '--user-data-dir=C:\\smoke\\user-data',
     ])
-    expect(packageShellLaunchEnv('win32', 43117)).toEqual({
-      GENOFFICE_PACKAGE_CDP_PORT: '43117',
-    })
-    expect(packageShellLaunchEnv('darwin', 0)).toEqual({})
-    expect(packageShellLaunchArgs('darwin', '/tmp/user-data', 0)).toEqual([])
-    expect(packageShellLaunchArgs('linux', '/tmp/user-data', 0)).toEqual(['--no-sandbox'])
-    expect(() => packageShellLaunchArgs('win32', 'C:\\smoke\\user-data', 0)).toThrow(
-      'package_shell_cdp_port_invalid',
-    )
+    expect(packageShellLaunchArgs('darwin', '/tmp/user-data')).toEqual([])
+    expect(packageShellLaunchArgs('linux', '/tmp/user-data')).toEqual(['--no-sandbox'])
+  })
+
+  it('parses only the fixed package audit endpoint schema', () => {
+    expect(parsePackageAuditEndpoint('{"schemaVersion":1,"port":43117}\n')).toBe(43117)
+    for (const value of [
+      '',
+      '{}',
+      '{"schemaVersion":2,"port":43117}',
+      '{"schemaVersion":1,"port":0}',
+      '{"schemaVersion":1,"port":65536}',
+      '{"schemaVersion":1,"port":"43117"}',
+      '{"schemaVersion":1,"port":43117,"host":"0.0.0.0"}',
+    ]) {
+      expect(() => parsePackageAuditEndpoint(value)).toThrow('package_shell_audit_endpoint_invalid')
+    }
   })
 
   it('summarizes a clean installed first launch without leaking paths', () => {

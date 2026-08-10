@@ -172,7 +172,7 @@ import {
   installChromiumPackageNetworkAudit,
   packageNetworkAuditEnabled,
 } from './package-network-audit'
-import { installPackageAuditControl, packageAuditCdpPort } from './package-audit-control'
+import { collectPackageAuditSnapshot, startPackageAuditServer } from './package-audit-server'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -202,12 +202,9 @@ const packageNetworkAudit = {
 const packageNetworkAuditConfig = packageNetworkAuditEnabled(packageNetworkAudit)
   ? packageNetworkAudit
   : undefined
+const packageAuditToken = process.env.GENOFFICE_PACKAGE_AUDIT_TOKEN
+delete process.env.GENOFFICE_PACKAGE_AUDIT_TOKEN
 if (packageNetworkAuditConfig) {
-  const cdpPort = packageAuditCdpPort(process.env.GENOFFICE_PACKAGE_CDP_PORT)
-  if (cdpPort !== undefined) {
-    app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
-    app.commandLine.appendSwitch('remote-debugging-port', cdpPort)
-  }
   createRequire(__filename)(
     join(process.resourcesPath, 'diagnostics', 'package-network-recorder.cjs'),
   )
@@ -1208,6 +1205,7 @@ const tm = (key: Parameters<typeof tMain>[1], params?: Parameters<typeof tMain>[
 // ---- the shell window + its tab manager (recreated if the user closes it on macOS) ----
 
 let shellWindow: BrowserWindow | null = null
+let packageAuditServer: { close(): Promise<void> } | undefined
 let tabManager: TabManager | null = null
 
 /**
@@ -2536,15 +2534,6 @@ registerDocsIpc()
 registerAgentArtifactIpc()
 registerHomeIpc()
 registerTabsIpc()
-if (packageNetworkAuditConfig) {
-  installPackageAuditControl(ipcMain, {
-    isPackaged: app.isPackaged,
-    userData: app.getPath('userData'),
-    expectedUserData: shellUserDataPath ?? '',
-    schedule: (callback) => setImmediate(callback),
-    quit: () => app.quit(),
-  })
-}
 const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker, {
   documentIdFor: (webContentsId) => {
     if (!tabManager) throw new Error('document_binding_not_found')
@@ -2631,6 +2620,34 @@ app.whenReady().then(() => {
   void piRuntimeService.initialize()
   startSheetsCaptureServer()
   createShellWindow()
+  if (packageNetworkAuditConfig && packageAuditToken) {
+    const auditWindow = shellWindow
+    if (!auditWindow) {
+      console.error('package_audit_window_unavailable')
+      app.quit()
+      return
+    }
+    void startPackageAuditServer({
+      token: packageAuditToken,
+      userData: app.getPath('userData'),
+      collect: () =>
+        collectPackageAuditSnapshot({
+          isPackaged: app.isPackaged,
+          userData: app.getPath('userData'),
+          expectedUserData: shellUserDataPath ?? '',
+          executeJavaScript: (script) => auditWindow.webContents.executeJavaScript(script, true),
+          capturePage: () => auditWindow.webContents.capturePage(),
+        }),
+      shutdown: () => setImmediate(() => app.quit()),
+    })
+      .then((server) => {
+        packageAuditServer = server
+      })
+      .catch(() => {
+        console.error('package_audit_server_failed')
+        app.quit()
+      })
+  }
   void proxyBootstrap.then(() => recoverMineruOcrOperations()).catch(() => undefined)
   // deferred to ready: labels need currentLang(), which reads app.getLocale()
   installBackToHomeItems()
@@ -2652,6 +2669,11 @@ app.on('window-all-closed', () => {
 let piRuntimeShutdownStarted = false
 
 app.on('before-quit', (event) => {
+  if (packageAuditServer) {
+    const server = packageAuditServer
+    packageAuditServer = undefined
+    void server.close()
+  }
   // No close prompt may fall through to "Save" during shutdown
   markSheetsShuttingDown()
   stopSheetsSidecar()
