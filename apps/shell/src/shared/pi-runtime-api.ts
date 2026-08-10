@@ -4,6 +4,7 @@ import {
   SCHEMA_VERSION,
   parseCredentialProviderId,
   parseModelCatalogProjection,
+  parseMcpCatalogProjection,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
   parsePackageCatalogProjection,
@@ -13,6 +14,7 @@ import {
   type ProviderCredentialStatus,
   type RuntimeHealthProjection,
   type ModelCatalogProjection,
+  type McpCatalogProjection,
   type ModelSelectionRole,
   type OAuthOperationProjection,
   type OpenAICompatibleProviderConfiguration,
@@ -45,6 +47,13 @@ export const PI_RUNTIME_CHANNELS = {
   enablePackage: 'pi-runtime:package-enable',
   disablePackage: 'pi-runtime:package-disable',
   uninstallPackage: 'pi-runtime:package-uninstall',
+  mcpCatalog: 'pi-runtime:mcp-catalog',
+  activateMcp: 'pi-runtime:mcp-activate',
+  enableMcp: 'pi-runtime:mcp-enable',
+  disableMcp: 'pi-runtime:mcp-disable',
+  retryMcp: 'pi-runtime:mcp-retry',
+  enableMcpTool: 'pi-runtime:mcp-tool-enable',
+  disableMcpTool: 'pi-runtime:mcp-tool-disable',
 } as const
 
 export type ProviderCredentialInput = {
@@ -79,6 +88,13 @@ export type PackageGitInstallInput = PackageLocalInstallInput & {
   url: string
   commit: string
 }
+export type McpMutationInput = {
+  namespace: PackageNamespace
+  serverId: string
+}
+export type McpToolMutationInput = McpMutationInput & {
+  toolName: string
+}
 
 const operationIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -88,6 +104,8 @@ const exactVersionPattern =
 const sha256Pattern = /^[0-9a-f]{64}$/
 const integrityPattern = /^sha512-[A-Za-z0-9+/]+={0,2}$/
 const commitPattern = /^[0-9a-f]{40}$/
+const mcpServerIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+const mcpToolNamePattern = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/
 
 function isExactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return (
@@ -179,6 +197,10 @@ export function asPackageCatalog(value: unknown): Readonly<PackageCatalogProject
   return Object.freeze(parsePackageCatalogProjection(value))
 }
 
+export function asMcpCatalog(value: unknown): Readonly<McpCatalogProjection> {
+  return Object.freeze(parseMcpCatalogProjection(value))
+}
+
 export function asPackageNamespace(value: unknown): PackageNamespace {
   if (value !== 'global' && value !== 'project') throw new Error('package_namespace_invalid')
   return value
@@ -191,6 +213,36 @@ export function asPackageMutationInput(value: unknown): Readonly<PackageMutation
   return Object.freeze({
     namespace: value.namespace as PackageNamespace,
     packageId: value.packageId as string,
+  })
+}
+
+export function asMcpMutationInput(value: unknown): Readonly<McpMutationInput> {
+  if (
+    !isExactRecord(value, ['namespace', 'serverId']) ||
+    (value.namespace !== 'global' && value.namespace !== 'project') ||
+    typeof value.serverId !== 'string' ||
+    !mcpServerIdPattern.test(value.serverId)
+  ) {
+    throw new Error('mcp_mutation_input_invalid')
+  }
+  return Object.freeze({ namespace: value.namespace, serverId: value.serverId })
+}
+
+export function asMcpToolMutationInput(value: unknown): Readonly<McpToolMutationInput> {
+  if (
+    !isExactRecord(value, ['namespace', 'serverId', 'toolName']) ||
+    (value.namespace !== 'global' && value.namespace !== 'project') ||
+    typeof value.serverId !== 'string' ||
+    !mcpServerIdPattern.test(value.serverId) ||
+    typeof value.toolName !== 'string' ||
+    !mcpToolNamePattern.test(value.toolName)
+  ) {
+    throw new Error('mcp_tool_mutation_input_invalid')
+  }
+  return Object.freeze({
+    namespace: value.namespace,
+    serverId: value.serverId,
+    toolName: value.toolName,
   })
 }
 
@@ -356,4 +408,11 @@ export interface PiRuntimeApi {
   enablePackage(input: PackageMutationInput): Promise<Readonly<PackageCatalogProjection>>
   disablePackage(input: PackageMutationInput): Promise<Readonly<PackageCatalogProjection>>
   uninstallPackage(input: PackageMutationInput): Promise<Readonly<PackageCatalogProjection>>
+  mcpCatalog(): Promise<Readonly<McpCatalogProjection>>
+  activateMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
+  enableMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
+  disableMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
+  retryMcp(input: McpMutationInput): Promise<Readonly<McpCatalogProjection>>
+  enableMcpTool(input: McpToolMutationInput): Promise<Readonly<McpCatalogProjection>>
+  disableMcpTool(input: McpToolMutationInput): Promise<Readonly<McpCatalogProjection>>
 }

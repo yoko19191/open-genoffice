@@ -25,6 +25,7 @@ export {
   SCHEMA_VERSION,
   ModelCatalogProjectionSchema,
   PackageCatalogProjectionSchema,
+  McpCatalogProjectionSchema,
   ModelCapabilitySchema,
   OpenAICompatibleProviderConfigurationSchema,
   ModelSelectionRoleSchema,
@@ -36,6 +37,7 @@ export {
   parseCredentialProviderId,
   parseModelCatalogProjection,
   parsePackageCatalogProjection,
+  parseMcpCatalogProjection,
   parseResourceCatalogProjection,
   parseOpenAICompatibleProviderConfiguration,
   parseOAuthOperationProjection,
@@ -45,6 +47,7 @@ export {
   type ModelCapability,
   type ModelCatalogProjection,
   type PackageCatalogProjection,
+  type McpCatalogProjection,
   type ResourceCatalogProjection,
   type OpenAICompatibleProviderConfiguration,
   type ModelDescriptor,
@@ -177,6 +180,13 @@ const RuntimeErrorCodeSchema = Type.Union([
   Type.Literal('package_source_unavailable'),
   Type.Literal('package_scope_invalid'),
   Type.Literal('package_project_untrusted'),
+  Type.Literal('mcp_config_invalid'),
+  Type.Literal('mcp_server_not_found'),
+  Type.Literal('mcp_scope_invalid'),
+  Type.Literal('mcp_project_untrusted'),
+  Type.Literal('mcp_unavailable'),
+  Type.Literal('mcp_credential_missing'),
+  Type.Literal('mcp_result_unknown'),
 ])
 
 export const CredentialBrokerMetadataSchema = Type.Object(
@@ -537,6 +547,56 @@ const PackageUninstallRequestSchema = sessionRequestEnvelope(
   Type.Object(PackageMutationProperties, { additionalProperties: false }),
 )
 
+const McpNamespaceSchema = Type.Union([Type.Literal('global'), Type.Literal('project')])
+const McpServerIdSchema = Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' })
+const McpToolNameSchema = Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$' })
+const McpScopeProperties = {
+  namespace: McpNamespaceSchema,
+  projectRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+}
+const McpMutationProperties = {
+  ...McpScopeProperties,
+  operationId: OperationIdSchema,
+  serverId: McpServerIdSchema,
+}
+const McpCatalogRequestSchema = sessionRequestEnvelope(
+  'mcp.catalog',
+  Type.Object(
+    { projectRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })) },
+    { additionalProperties: false },
+  ),
+)
+const McpActivateRequestSchema = sessionRequestEnvelope(
+  'mcp.activate',
+  Type.Object(McpMutationProperties, { additionalProperties: false }),
+)
+const McpEnableRequestSchema = sessionRequestEnvelope(
+  'mcp.enable',
+  Type.Object(McpMutationProperties, { additionalProperties: false }),
+)
+const McpDisableRequestSchema = sessionRequestEnvelope(
+  'mcp.disable',
+  Type.Object(McpMutationProperties, { additionalProperties: false }),
+)
+const McpRetryRequestSchema = sessionRequestEnvelope(
+  'mcp.retry',
+  Type.Object(McpMutationProperties, { additionalProperties: false }),
+)
+const McpToolEnableRequestSchema = sessionRequestEnvelope(
+  'mcp.tool.enable',
+  Type.Object(
+    { ...McpMutationProperties, toolName: McpToolNameSchema },
+    { additionalProperties: false },
+  ),
+)
+const McpToolDisableRequestSchema = sessionRequestEnvelope(
+  'mcp.tool.disable',
+  Type.Object(
+    { ...McpMutationProperties, toolName: McpToolNameSchema },
+    { additionalProperties: false },
+  ),
+)
+
 export const ResourceManagementRequestSchema = Type.Union([
   ResourceCatalogRequestSchema,
   ProjectTrustGrantRequestSchema,
@@ -549,6 +609,13 @@ export const ResourceManagementRequestSchema = Type.Union([
   PackageEnableRequestSchema,
   PackageDisableRequestSchema,
   PackageUninstallRequestSchema,
+  McpCatalogRequestSchema,
+  McpActivateRequestSchema,
+  McpEnableRequestSchema,
+  McpDisableRequestSchema,
+  McpRetryRequestSchema,
+  McpToolEnableRequestSchema,
+  McpToolDisableRequestSchema,
 ])
 
 const ModelSelectRequestSchema = sessionRequestEnvelope(
@@ -841,6 +908,13 @@ export const RequestEnvelopeSchema = Type.Union([
   PackageEnableRequestSchema,
   PackageDisableRequestSchema,
   PackageUninstallRequestSchema,
+  McpCatalogRequestSchema,
+  McpActivateRequestSchema,
+  McpEnableRequestSchema,
+  McpDisableRequestSchema,
+  McpRetryRequestSchema,
+  McpToolEnableRequestSchema,
+  McpToolDisableRequestSchema,
   ModelSelectRequestSchema,
   ModelProviderConfigureRequestSchema,
   ModelOAuthStartRequestSchema,

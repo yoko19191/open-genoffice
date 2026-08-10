@@ -8,6 +8,7 @@ import {
   type RegisteredTool,
   type ResourceLoader,
 } from '@earendil-works/pi-coding-agent'
+import { PiMcpExtensionFactory, type PiMcpTool } from './pi-mcp-extension-factory'
 
 type DefaultOptions = ConstructorParameters<typeof DefaultResourceLoader>[0]
 
@@ -16,6 +17,11 @@ export type ControlledResourceLoaderOptions = Pick<
   'cwd' | 'agentDir' | 'settingsManager' | 'eventBus' | 'systemPrompt' | 'appendSystemPrompt'
 > & {
   authorizeExtensionTool?: (canonicalToolId: string) => Promise<ExtensionToolProvenance>
+  executeMcpTool?: (
+    tool: PiMcpTool,
+    params: unknown,
+    signal: AbortSignal,
+  ) => Promise<{ content: readonly { type: 'text'; text: string }[]; details: unknown }>
 }
 
 export type ExtensionToolProvenance = {
@@ -37,6 +43,7 @@ export type ControlledResourcePaths = {
   skillPaths: readonly string[]
   promptPaths: readonly string[]
   extensionTools?: readonly ControlledExtensionTool[]
+  mcpTools?: readonly PiMcpTool[]
 }
 
 export class ControlledResourceLoader implements ResourceLoader {
@@ -45,6 +52,7 @@ export class ControlledResourceLoader implements ResourceLoader {
     skillPaths: [],
     promptPaths: [],
     extensionTools: [],
+    mcpTools: [],
   }
 
   constructor(private readonly options: ControlledResourceLoaderOptions) {
@@ -56,6 +64,7 @@ export class ControlledResourceLoader implements ResourceLoader {
       skillPaths: [...paths.skillPaths],
       promptPaths: [...paths.promptPaths],
       extensionTools: (paths.extensionTools ?? []).map((tool) => ({ ...tool })),
+      mcpTools: (paths.mcpTools ?? []).map((tool) => ({ ...tool })),
     }
   }
 
@@ -142,6 +151,7 @@ export class ControlledResourceLoader implements ResourceLoader {
 
   private createDelegate(): DefaultResourceLoader {
     const extensionTools = this.paths.extensionTools.map((tool) => ({ ...tool }))
+    const mcpTools = this.paths.mcpTools.map((tool) => ({ ...tool }))
     return new DefaultResourceLoader({
       ...this.options,
       additionalExtensionPaths: [
@@ -154,7 +164,18 @@ export class ControlledResourceLoader implements ResourceLoader {
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      extensionsOverride: (base) => this.isolateExtensions(base, extensionTools),
+      extensionsOverride: (base) => {
+        const isolated = this.isolateExtensions(base, extensionTools)
+        if (mcpTools.length === 0) return isolated
+        if (!this.options.executeMcpTool) {
+          isolated.errors.push({ path: 'mcp://', error: 'MCP execution is not authorized' })
+          return isolated
+        }
+        return new PiMcpExtensionFactory({
+          extensionPath: this.options.cwd,
+          execute: this.options.executeMcpTool,
+        }).append(isolated, mcpTools)
+      },
     })
   }
 

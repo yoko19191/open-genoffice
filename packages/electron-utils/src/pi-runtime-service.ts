@@ -4,6 +4,7 @@ import {
   SCHEMA_VERSION,
   type RuntimeHealthProjection,
   type ModelCatalogProjection,
+  type McpCatalogProjection,
   type OAuthOperationProjection,
   type PackageCatalogProjection,
   type ResourceCatalogProjection,
@@ -44,6 +45,9 @@ import type {
   PackageInstallLocalRequest,
   PackageInstallNpmRequest,
   PackageMutationRequest,
+  McpCatalogRequest,
+  McpMutationRequest,
+  McpToolMutationRequest,
 } from './pi-runtime-manager'
 
 export type PiRuntimeServiceOptions = {
@@ -90,6 +94,13 @@ type OwnedPiRuntimeManager = Pick<
   | 'enablePackage'
   | 'disablePackage'
   | 'uninstallPackage'
+  | 'mcpCatalog'
+  | 'activateMcp'
+  | 'enableMcp'
+  | 'disableMcp'
+  | 'retryMcp'
+  | 'enableMcpTool'
+  | 'disableMcpTool'
 >
 
 export type PiRuntimeServiceDependencies = {
@@ -262,6 +273,34 @@ export class PiRuntimeService {
 
   async uninstallPackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
     return (await this.readyManager()).uninstallPackage(input)
+  }
+
+  async mcpCatalog(input: McpCatalogRequest = {}): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).mcpCatalog(input)
+  }
+
+  async activateMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).activateMcp(input)
+  }
+
+  async enableMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).enableMcp(input)
+  }
+
+  async disableMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).disableMcp(input)
+  }
+
+  async retryMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).retryMcp(input)
+  }
+
+  async enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).enableMcpTool(input)
+  }
+
+  async disableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).disableMcpTool(input)
   }
 
   private async readyManager(): Promise<OwnedPiRuntimeManager> {

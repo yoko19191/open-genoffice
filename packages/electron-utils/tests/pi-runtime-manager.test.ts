@@ -139,6 +139,13 @@ class FakeRuntimeSocket extends Duplex {
               'package.enable',
               'package.disable',
               'package.uninstall',
+              'mcp.catalog',
+              'mcp.activate',
+              'mcp.enable',
+              'mcp.disable',
+              'mcp.retry',
+              'mcp.tool.enable',
+              'mcp.tool.disable',
             ],
           }
         : request.method === 'runtime.status'
@@ -164,78 +171,84 @@ class FakeRuntimeSocket extends Duplex {
                 }
               : request.method.startsWith('package.')
                 ? { globalGeneration: 1, packages: [] }
-                : request.method.startsWith('model.')
-                  ? {
-                      providers: [],
-                      selections:
-                        request.method === 'model.select'
-                          ? {
-                              [request.params.role]: {
-                                providerId: request.params.providerId,
-                                modelId: request.params.modelId,
-                                capabilities: ['text-input'],
-                              },
-                            }
-                          : {},
-                    }
-                  : request.method === 'credential.put'
+                : request.method.startsWith('mcp.')
+                  ? { projectState: 'none', servers: [] }
+                  : request.method.startsWith('model.')
                     ? {
-                        providerId: request.params.providerId,
-                        persistence: request.params.persistence,
-                        status: 'available',
-                        kind: 'api_key',
+                        providers: [],
+                        selections:
+                          request.method === 'model.select'
+                            ? {
+                                [request.params.role]: {
+                                  providerId: request.params.providerId,
+                                  modelId: request.params.modelId,
+                                  capabilities: ['text-input'],
+                                },
+                              }
+                            : {},
                       }
-                    : request.method === 'credential.status'
+                    : request.method === 'credential.put'
                       ? {
                           providerId: request.params.providerId,
-                          persistence: 'persistent',
-                          status: 'missing',
+                          persistence: request.params.persistence,
+                          status: 'available',
+                          kind: 'api_key',
                         }
-                      : request.method === 'credential.delete'
+                      : request.method === 'credential.status'
                         ? {
                             providerId: request.params.providerId,
                             persistence: 'persistent',
                             status: 'missing',
                           }
-                        : request.method === 'session.create' || request.method === 'session.open'
+                        : request.method === 'credential.delete'
                           ? {
-                              sessionId: snapshot.sessionId,
-                              documentId: snapshot.documentId,
-                              snapshot,
-                              cursor: snapshot.cursor,
+                              providerId: request.params.providerId,
+                              persistence: 'persistent',
+                              status: 'missing',
                             }
-                          : request.method === 'session.prompt'
-                            ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
-                            : request.method === 'session.abort'
-                              ? { runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-2' }
-                              : request.method === 'session.fork'
+                          : request.method === 'session.create' || request.method === 'session.open'
+                            ? {
+                                sessionId: snapshot.sessionId,
+                                documentId: snapshot.documentId,
+                                snapshot,
+                                cursor: snapshot.cursor,
+                              }
+                            : request.method === 'session.prompt'
+                              ? { runId: 'run-1', acceptedCursor: 'cursor-1' }
+                              : request.method === 'session.abort'
                                 ? {
-                                    sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                    parentSessionId: snapshot.sessionId,
-                                    documentId: snapshot.documentId,
-                                    snapshot: {
-                                      ...snapshot,
-                                      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                      branch: { parentSessionId: snapshot.sessionId, nodes: [] },
-                                    },
-                                    cursor: snapshot.cursor,
+                                    runId: 'run-1',
+                                    state: 'cancelling',
+                                    acceptedCursor: 'cursor-2',
                                   }
-                                : request.method === 'session.navigate'
+                                : request.method === 'session.fork'
                                   ? {
-                                      sessionId: snapshot.sessionId,
+                                      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                      parentSessionId: snapshot.sessionId,
                                       documentId: snapshot.documentId,
-                                      activeLeafId: 'navigation-leaf',
                                       snapshot: {
                                         ...snapshot,
-                                        branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                        sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                        branch: { parentSessionId: snapshot.sessionId, nodes: [] },
                                       },
                                       cursor: snapshot.cursor,
                                     }
-                                  : request.method === 'session.snapshot'
-                                    ? snapshot
-                                    : request.method === 'session.subscribe'
-                                      ? { resetRequired: false, snapshot, events: [] }
-                                      : { shuttingDown: true }
+                                  : request.method === 'session.navigate'
+                                    ? {
+                                        sessionId: snapshot.sessionId,
+                                        documentId: snapshot.documentId,
+                                        activeLeafId: 'navigation-leaf',
+                                        snapshot: {
+                                          ...snapshot,
+                                          branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                        },
+                                        cursor: snapshot.cursor,
+                                      }
+                                    : request.method === 'session.snapshot'
+                                      ? snapshot
+                                      : request.method === 'session.subscribe'
+                                        ? { resetRequired: false, snapshot, events: [] }
+                                        : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
@@ -249,11 +262,13 @@ class FakeRuntimeSocket extends Duplex {
               ? this.options.resourceResult
               : request.method.startsWith('package.') && 'packageResult' in this.options
                 ? this.options.packageResult
-                : request.method.startsWith('credential.') && 'credentialResult' in this.options
-                  ? this.options.credentialResult
-                  : request.method.startsWith('session.') && 'sessionResult' in this.options
-                    ? this.options.sessionResult
-                    : defaultResult
+                : request.method.startsWith('mcp.') && 'mcpResult' in this.options
+                  ? this.options.mcpResult
+                  : request.method.startsWith('credential.') && 'credentialResult' in this.options
+                    ? this.options.credentialResult
+                    : request.method.startsWith('session.') && 'sessionResult' in this.options
+                      ? this.options.sessionResult
+                      : defaultResult
     if (request.method === 'runtime.status' && this.options.statusMode === 'error-response') {
       this.push(
         `${JSON.stringify({
@@ -347,6 +362,24 @@ class FakeRuntimeSocket extends Duplex {
       callback()
       return
     }
+    if (request.method.startsWith('mcp.') && this.options.mcpMode === 'error-response') {
+      this.push(
+        `${JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          kind: 'response',
+          id: request.id,
+          correlationId: request.correlationId,
+          error: {
+            code: 'mcp_unavailable',
+            message: 'mcp_unavailable',
+            retryable: false,
+            correlationId: request.correlationId,
+          },
+        })}\n`,
+      )
+      callback()
+      return
+    }
     if (
       request.method.startsWith('credential.') &&
       this.options.credentialMode === 'error-response'
@@ -406,6 +439,8 @@ type ManagerHarnessOptions = {
   resourceMode?: 'error-response'
   packageResult?: unknown
   packageMode?: 'error-response'
+  mcpResult?: unknown
+  mcpMode?: 'error-response'
 }
 
 class FakeRuntimeChild extends EventEmitter implements PiRuntimeChild {
@@ -820,6 +855,52 @@ describe('PiRuntimeManager', () => {
     await failed.start()
     await expect(failed.activatePackage(mutation)).rejects.toEqual(
       new PiRuntimeManagerError('package_source_invalid'),
+    )
+    await failed.shutdown()
+  })
+
+  it('validates MCP projections and preserves stable MCP Runtime errors', async () => {
+    const manager = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness().dependencies,
+    )
+    await manager.start()
+    const operationId = '55555555-5555-4555-8555-555555555555'
+    const mutation = {
+      namespace: 'global' as const,
+      operationId,
+      serverId: 'fixture',
+    }
+    await expect(manager.mcpCatalog()).resolves.toEqual({ projectState: 'none', servers: [] })
+    await expect(manager.activateMcp(mutation)).resolves.toMatchObject({ servers: [] })
+    await expect(manager.enableMcp(mutation)).resolves.toMatchObject({ servers: [] })
+    await expect(manager.disableMcp(mutation)).resolves.toMatchObject({ servers: [] })
+    await expect(manager.retryMcp(mutation)).resolves.toMatchObject({ servers: [] })
+    await expect(
+      manager.enableMcpTool({ ...mutation, toolName: 'read_fixture' }),
+    ).resolves.toMatchObject({ servers: [] })
+    await expect(
+      manager.disableMcpTool({ ...mutation, toolName: 'read_fixture' }),
+    ).resolves.toMatchObject({ servers: [] })
+    await manager.shutdown()
+
+    const invalid = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness({ mcpResult: { command: '/bin/leak' } }).dependencies,
+    )
+    await invalid.start()
+    await expect(invalid.mcpCatalog()).rejects.toEqual(
+      new PiRuntimeManagerError('mcp_catalog_invalid'),
+    )
+    await invalid.shutdown()
+
+    const failed = new PiRuntimeManager(
+      { bundle: verifiedBundle(), platform: 'darwin', parentPid: 7070 },
+      managerHarness({ mcpMode: 'error-response' }).dependencies,
+    )
+    await failed.start()
+    await expect(failed.retryMcp(mutation)).rejects.toEqual(
+      new PiRuntimeManagerError('mcp_unavailable'),
     )
     await failed.shutdown()
   })

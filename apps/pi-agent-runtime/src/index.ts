@@ -1,4 +1,33 @@
 export {
+  McpAuthorizationBroker,
+  type McpAuthorizationBrokerOptions,
+  type McpAuthorizationInput,
+} from './mcp-authorization-broker'
+export {
+  McpConfigError,
+  OpenGenOfficeMcpConfigResolver,
+  type McpCredentialEnvironment,
+  type McpCredentialReference,
+  type McpConfigScope,
+  type McpServerState,
+  type ResolvedMcpServer,
+} from './mcp-config-resolver'
+export {
+  McpConnectionSupervisor,
+  McpExecutionError,
+  type ActiveMcpServer,
+  type McpConnectionSupervisorOptions,
+  type McpExecutionContext,
+  type McpExecutionErrorCode,
+  type McpToolDescriptor,
+  type McpToolResult,
+} from './mcp-connection-supervisor'
+export {
+  PiMcpExtensionFactory,
+  type PiMcpExtensionFactoryOptions,
+  type PiMcpTool,
+} from './pi-mcp-extension-factory'
+export {
   createAuthenticatedRuntimeServer,
   type AuthenticatedRuntimeServer,
   type AuthenticatedRuntimeServerOptions,
@@ -95,11 +124,13 @@ export {
   RunResourceService,
   RunResourceServiceError,
   type PackageDiagnostic,
+  type McpDiagnostic,
   type PackageInstall,
   type PackageMutation,
   type PackageScope,
   type PrepareRunResourcesInput,
   type PreparedExtensionTool,
+  type PreparedMcpTool,
   type PreparedRunResources,
   type RunModelMetadata,
   type RunResourceServiceOptions,

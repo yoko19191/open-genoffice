@@ -1,6 +1,7 @@
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   InMemoryCredentialStore,
@@ -12,13 +13,16 @@ import {
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import {
   PackageLockService,
+  ResourceActivationStore,
   createCapabilitySnapshot,
   initializeAgentResourceHome,
 } from '@genoffice/agent-resource'
 import { createDeterministicPiSession } from '../src/pi-session-factory'
 import { RunResourceService } from '../src/run-resource-service'
+import { OpenGenOfficeMcpConfigResolver } from '../src/mcp-config-resolver'
 
 const roots: string[] = []
+const mcpFixture = fileURLToPath(new URL('../fixtures/mcp-stdio-server.mjs', import.meta.url))
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
@@ -214,6 +218,88 @@ describe('deterministic Pi Session factory', () => {
     handle.dispose()
   })
 
+  it('executes an activated stdio MCP read tool from the Pi turn with canonical provenance', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-mcp-'))
+    roots.push(root)
+    const deviceId = '33333333-3333-4333-8333-333333333333'
+    await initializeAgentResourceHome({
+      rootDirectory: root,
+      runtimeVersion: 'test',
+      randomUUID: () => deviceId,
+    })
+    await mkdir(join(root, 'mcp'), { recursive: true })
+    await writeFile(
+      join(root, 'mcp', 'servers.json'),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        servers: [
+          {
+            serverId: 'pi-fixture',
+            transport: 'stdio',
+            command: process.execPath,
+            args: [mcpFixture],
+            environment: { inherit: [], credentials: [] },
+            enabledToolIds: ['read_fixture'],
+            timeoutMs: 2_000,
+            enabled: true,
+          },
+        ],
+      })}\n`,
+    )
+    const resolver = new OpenGenOfficeMcpConfigResolver({ resourceHome: root, deviceId })
+    await new ResourceActivationStore({ rootDirectory: root, deviceId }).activate(
+      (await resolver.resolve())[0]!.activation,
+    )
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-mcp-faux',
+      provider: 'genoffice-mcp-faux',
+      models: [{ id: 'mcp-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    provider.setResponses([
+      fauxAssistantMessage(
+        [fauxToolCall('read_fixture', { value: 'from-pi' }, { id: 'mcp-tool-call' })],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('mcp completed'),
+    ])
+    const runResources = new RunResourceService({ resourceHome: root, deviceId })
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-mcp-faux',
+        modelId: 'mcp-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources,
+    })
+    await handle.prompt('call the MCP read tool', new AbortController().signal, {
+      runId: 'run-mcp-pi',
+    })
+
+    expect(handle.session.getActiveToolNames()).toEqual(['read_fixture'])
+    const entries = JSON.stringify(handle.sessionManager.getEntries())
+    expect(entries).toContain('mcp:from-pi:canary-missing:env-clean')
+    expect(entries).toContain('mcp:pi-fixture:read_fixture')
+    expect(entries).toContain('"serverId":"pi-fixture"')
+    expect(entries).toContain('"runId":"run-mcp-pi"')
+    handle.dispose()
+    await runResources.shutdown()
+  })
+
   it('requires a run context, skips an already aborted run, and rechecks abort after prepare', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-run-guards-'))
     roots.push(root)
@@ -244,11 +330,15 @@ describe('deterministic Pi Session factory', () => {
         skillPaths: [],
         promptPaths: [],
         extensionTools: [],
+        mcpTools: [],
         packageDiagnostics: [],
+        mcpDiagnostics: [],
       })),
       verify: vi.fn(async () => {
         controller.abort()
       }),
+      callMcpTool: vi.fn(),
+      releaseRun: vi.fn(),
     }
     const handle = await createDeterministicPiSession({
       cwd: join(root, 'cwd'),

@@ -9,6 +9,8 @@ import {
   resolveProjectIdentity,
 } from '@genoffice/agent-resource'
 import { RunResourceService } from '../src/run-resource-service'
+import { McpExecutionError } from '../src/mcp-connection-supervisor'
+import type { ResolvedMcpServer } from '../src/mcp-config-resolver'
 
 const roots: string[] = []
 const deviceId = '11111111-1111-4111-8111-111111111111'
@@ -73,6 +75,34 @@ async function packageSource(rootDirectory: string, packageId: string, toolName:
     `export default function (pi) { pi.registerTool({ name: '${toolName}', label: 'Read', description: 'Read', parameters: { type: 'object', properties: {} }, async execute() { return { content: [], details: {} } } }) }\n`,
   )
   return directory
+}
+
+function mcpServer(
+  serverId: string,
+  state: ResolvedMcpServer['state'] = 'eligible',
+): ResolvedMcpServer {
+  const contentSha256 = serverId.charCodeAt(0).toString(16).padStart(64, '0').slice(-64)
+  return {
+    namespace: 'global',
+    serverId,
+    transport: 'stdio',
+    command: process.execPath,
+    args: [],
+    inheritedEnv: [],
+    credentialEnvironment: [],
+    enabledToolIds: ['shared_alias'],
+    timeoutMs: 2_000,
+    enabled: state !== 'disabled',
+    contentSha256,
+    activation: {
+      namespace: 'global',
+      resourceId: `mcp/${serverId}`,
+      source: `global:mcp/${serverId}`,
+      contentSha256,
+      capabilities: ['executable'],
+    },
+    state,
+  }
 }
 
 describe('RunResourceService', () => {
@@ -521,5 +551,172 @@ describe('RunResourceService', () => {
         canonicalToolId: 'platform:extension:project/project-extension/inspect_project',
       }),
     ])
+  })
+
+  it('isolates MCP and Package tools on either side of a model alias collision', async () => {
+    const { resourceHome } = await fixture()
+    const packages = new PackageLockService({ resourceHome, deviceId, namespace: 'global' })
+    await packages.install({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      packageId: 'colliding-package',
+      source: {
+        type: 'local',
+        path: await packageSource(resourceHome, 'colliding-package', 'shared_alias'),
+      },
+    })
+    await packages.activate('colliding-package')
+    const configured = mcpServer('collision-fixture')
+    const mcpResolver = {
+      resolve: vi.fn(async () => [configured]),
+      activate: vi.fn(),
+      setServerEnabled: vi.fn(),
+      setToolEnabled: vi.fn(),
+    }
+    const supervisor = {
+      connect: vi.fn(async () => [
+        {
+          canonicalToolId: 'mcp:collision-fixture:shared_alias',
+          modelAlias: 'shared_alias',
+          serverId: 'collision-fixture',
+          toolName: 'shared_alias',
+          description: 'Shared alias',
+          inputSchema: { type: 'object' },
+          effect: 'read' as const,
+        },
+      ]),
+      catalogTools: vi.fn(() => []),
+      callTool: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    const service = new RunResourceService({
+      resourceHome,
+      deviceId,
+      mcpResolver,
+      createMcpSupervisor: () => supervisor as never,
+    })
+    const prepared = await service.prepare({
+      runId: 'run-cross-collision',
+      model: { providerId: 'local', modelId: 'model', capabilities: ['tool-use'] },
+      toolIds: [],
+    })
+    expect(prepared.extensionTools).toEqual([])
+    expect(prepared.mcpTools).toEqual([])
+    expect(prepared.packageDiagnostics).toContainEqual({
+      packageId: 'colliding-package',
+      code: 'tool_alias_collision',
+    })
+    expect(prepared.mcpDiagnostics).toContainEqual({
+      serverId: 'collision-fixture',
+      code: 'tool_alias_collision',
+    })
+    await expect(service.mcpCatalog()).resolves.toMatchObject({
+      servers: [
+        expect.objectContaining({ state: 'tool_alias_collision', action: 'fix_collision' }),
+      ],
+    })
+    await expect(
+      service.callMcpTool(
+        'mcp:collision-fixture:shared_alias',
+        {},
+        {
+          actorId: 'actor',
+          documentId: 'document',
+          runId: 'missing-run',
+          signal: new AbortController().signal,
+        },
+      ),
+    ).rejects.toThrowError('tool_not_in_snapshot')
+  })
+
+  it('projects every safe MCP state and forwards project-scoped lifecycle controls', async () => {
+    const { resourceHome, projectRoot } = await fixture()
+    await new ProjectTrustStore({ rootDirectory: resourceHome, deviceId }).grant(
+      await resolveProjectIdentity(projectRoot, deviceId),
+    )
+    const servers = [
+      mcpServer('activation', 'activation_required'),
+      mcpServer('collision', 'server_id_collision'),
+      mcpServer('disabled', 'disabled'),
+      mcpServer('ready'),
+      mcpServer('credential'),
+      mcpServer('failed'),
+    ].map((server) => ({ ...server, namespace: 'project' as const }))
+    const mcpResolver = {
+      resolve: vi.fn(async () => servers),
+      activate: vi.fn(async () => undefined),
+      setServerEnabled: vi.fn(async () => undefined),
+      setToolEnabled: vi.fn(async () => undefined),
+    }
+    const closed: string[] = []
+    const service = new RunResourceService({
+      resourceHome,
+      deviceId,
+      mcpResolver,
+      createMcpSupervisor: (server) =>
+        ({
+          connect: vi.fn(async () => {
+            if (server.serverId === 'credential') {
+              throw new McpExecutionError('mcp_credential_missing')
+            }
+            if (server.serverId === 'failed') throw new Error('opaque')
+            return [
+              {
+                canonicalToolId: `mcp:${server.serverId}:${server.serverId}_read`,
+                modelAlias: `${server.serverId}_read`,
+                serverId: server.serverId,
+                toolName: `${server.serverId}_read`,
+                description: 'Read',
+                inputSchema: { type: 'object' },
+                effect: 'read' as const,
+              },
+            ]
+          }),
+          catalogTools: vi.fn(() => [
+            {
+              canonicalToolId: `mcp:${server.serverId}:${server.serverId}_read`,
+              modelAlias: `${server.serverId}_read`,
+              serverId: server.serverId,
+              toolName: `${server.serverId}_read`,
+              description: 'Read',
+              inputSchema: { type: 'object' },
+              effect: 'read' as const,
+            },
+          ]),
+          callTool: vi.fn(),
+          close: vi.fn(async () => {
+            closed.push(server.serverId)
+          }),
+        }) as never,
+    })
+    const catalog = await service.mcpCatalog(projectRoot)
+    expect(catalog.projectState).toBe('trusted')
+    expect(catalog.servers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ serverId: 'activation', action: 'activate' }),
+        expect.objectContaining({ serverId: 'collision', action: 'fix_collision' }),
+        expect.objectContaining({ serverId: 'disabled', action: 'enable' }),
+        expect.objectContaining({ serverId: 'ready', state: 'ready', action: 'disable' }),
+        expect.objectContaining({
+          serverId: 'credential',
+          state: 'needs_credentials',
+          action: 'configure_credentials',
+        }),
+        expect.objectContaining({ serverId: 'failed', state: 'failed', action: 'retry' }),
+      ]),
+    )
+
+    const scope = { namespace: 'project' as const, projectRoot }
+    await service.activateMcp(scope, 'activation')
+    await service.setMcpServerEnabled(scope, 'ready', true)
+    await service.setMcpToolEnabled(scope, 'ready', 'shared_alias', false)
+    await service.retryMcp(scope, 'ready')
+    expect(mcpResolver.activate).toHaveBeenCalledWith(scope, 'activation')
+    expect(mcpResolver.setServerEnabled).toHaveBeenCalledWith(scope, 'ready', true)
+    expect(mcpResolver.setToolEnabled).toHaveBeenCalledWith(scope, 'ready', 'shared_alias', false)
+    expect(closed).toContain('ready')
+
+    const untrustedRoot = await root('genoffice-mcp-untrusted-')
+    expect(await service.mcpCatalog(untrustedRoot)).toMatchObject({ projectState: 'invalid' })
+    await service.shutdown()
   })
 })

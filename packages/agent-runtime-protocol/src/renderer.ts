@@ -233,6 +233,60 @@ export const PackageCatalogProjectionSchema = Type.Object(
   { additionalProperties: false },
 )
 
+const McpToolProjectionSchema = Type.Object(
+  {
+    canonicalToolId: Type.String({
+      pattern: '^mcp:[A-Za-z0-9][A-Za-z0-9._-]{0,127}:[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$',
+    }),
+    toolName: Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$' }),
+    modelAlias: Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$' }),
+    enabled: Type.Boolean(),
+  },
+  { additionalProperties: false },
+)
+
+const McpServerProjectionSchema = Type.Object(
+  {
+    namespace: Type.Union([Type.Literal('global'), Type.Literal('project')]),
+    serverId: Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' }),
+    contentSha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+    state: Type.Union([
+      Type.Literal('disabled'),
+      Type.Literal('activation_required'),
+      Type.Literal('ready'),
+      Type.Literal('degraded'),
+      Type.Literal('failed'),
+      Type.Literal('needs_credentials'),
+      Type.Literal('server_id_collision'),
+      Type.Literal('tool_alias_collision'),
+    ]),
+    tools: Type.Array(McpToolProjectionSchema, { maxItems: 512 }),
+    action: Type.Union([
+      Type.Literal('none'),
+      Type.Literal('activate'),
+      Type.Literal('enable'),
+      Type.Literal('disable'),
+      Type.Literal('retry'),
+      Type.Literal('configure_credentials'),
+      Type.Literal('fix_collision'),
+    ]),
+  },
+  { additionalProperties: false },
+)
+
+export const McpCatalogProjectionSchema = Type.Object(
+  {
+    projectState: Type.Union([
+      Type.Literal('none'),
+      Type.Literal('untrusted'),
+      Type.Literal('trusted'),
+      Type.Literal('invalid'),
+    ]),
+    servers: Type.Array(McpServerProjectionSchema, { maxItems: 512 }),
+  },
+  { additionalProperties: false },
+)
+
 const OAuthOperationIdSchema = Type.String({
   pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
 })
@@ -336,6 +390,7 @@ export type ModelProviderProjection = Static<typeof ModelProviderProjectionSchem
 export type ModelCatalogProjection = Static<typeof ModelCatalogProjectionSchema>
 export type ResourceCatalogProjection = Static<typeof ResourceCatalogProjectionSchema>
 export type PackageCatalogProjection = Static<typeof PackageCatalogProjectionSchema>
+export type McpCatalogProjection = Static<typeof McpCatalogProjectionSchema>
 export type ModelSelectionRole = Static<typeof ModelSelectionRoleSchema>
 export type ModelProviderErrorCode = Static<typeof ModelProviderErrorCodeSchema>
 export type OAuthInteractionProjection = Static<typeof OAuthInteractionProjectionSchema>
@@ -369,6 +424,11 @@ export function parseResourceCatalogProjection(value: unknown): ResourceCatalogP
 export function parsePackageCatalogProjection(value: unknown): PackageCatalogProjection {
   if (Value.Check(PackageCatalogProjectionSchema, value)) return value
   throw new Error('package_catalog_invalid')
+}
+
+export function parseMcpCatalogProjection(value: unknown): McpCatalogProjection {
+  if (Value.Check(McpCatalogProjectionSchema, value)) return value
+  throw new Error('mcp_catalog_invalid')
 }
 
 export function parseOpenAICompatibleProviderConfiguration(

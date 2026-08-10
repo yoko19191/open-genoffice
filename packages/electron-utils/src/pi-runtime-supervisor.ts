@@ -9,6 +9,7 @@ import type {
   SessionSubscriptionReceipt,
   ProviderCredentialStatus,
   ModelCatalogProjection,
+  McpCatalogProjection,
   OAuthOperationProjection,
   PackageCatalogProjection,
   ResourceCatalogProjection,
@@ -38,6 +39,9 @@ import type {
   PackageInstallLocalRequest,
   PackageInstallNpmRequest,
   PackageMutationRequest,
+  McpCatalogRequest,
+  McpMutationRequest,
+  McpToolMutationRequest,
 } from './pi-runtime-manager'
 
 export type SupervisedPiRuntimeManager = {
@@ -74,6 +78,13 @@ export type SupervisedPiRuntimeManager = {
   enablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection>
   disablePackage(input: PackageMutationRequest): Promise<PackageCatalogProjection>
   uninstallPackage(input: PackageMutationRequest): Promise<PackageCatalogProjection>
+  mcpCatalog(input?: McpCatalogRequest): Promise<McpCatalogProjection>
+  activateMcp(input: McpMutationRequest): Promise<McpCatalogProjection>
+  enableMcp(input: McpMutationRequest): Promise<McpCatalogProjection>
+  disableMcp(input: McpMutationRequest): Promise<McpCatalogProjection>
+  retryMcp(input: McpMutationRequest): Promise<McpCatalogProjection>
+  enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection>
+  disableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection>
 }
 
 export type PiRuntimeSupervisorState =
@@ -313,6 +324,34 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async uninstallPackage(input: PackageMutationRequest): Promise<PackageCatalogProjection> {
     return (await this.readyManager()).uninstallPackage(input)
+  }
+
+  async mcpCatalog(input: McpCatalogRequest = {}): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).mcpCatalog(input)
+  }
+
+  async activateMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).activateMcp(input)
+  }
+
+  async enableMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).enableMcp(input)
+  }
+
+  async disableMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).disableMcp(input)
+  }
+
+  async retryMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).retryMcp(input)
+  }
+
+  async enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).enableMcpTool(input)
+  }
+
+  async disableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {
+    return (await this.readyManager()).disableMcpTool(input)
   }
 
   private async readyManager(): Promise<SupervisedPiRuntimeManager> {

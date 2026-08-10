@@ -23,6 +23,9 @@ import {
   asProviderCredentialStatus,
   asProviderId,
   asModelCatalog,
+  asMcpCatalog,
+  asMcpMutationInput,
+  asMcpToolMutationInput,
   asModelProviderConfigurationInput,
   asModelSelectInput,
   asModelOAuthStartInput,
@@ -410,6 +413,39 @@ const piRuntimeApi: PiRuntimeApi = {
   async uninstallPackage(input) {
     return asPackageCatalog(
       await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.uninstallPackage, asPackageMutationInput(input)),
+    )
+  },
+  async mcpCatalog() {
+    return asMcpCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.mcpCatalog))
+  },
+  async activateMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.activateMcp, asMcpMutationInput(input)),
+    )
+  },
+  async enableMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.enableMcp, asMcpMutationInput(input)),
+    )
+  },
+  async disableMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.disableMcp, asMcpMutationInput(input)),
+    )
+  },
+  async retryMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.retryMcp, asMcpMutationInput(input)),
+    )
+  },
+  async enableMcpTool(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.enableMcpTool, asMcpToolMutationInput(input)),
+    )
+  },
+  async disableMcpTool(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.disableMcpTool, asMcpToolMutationInput(input)),
     )
   },
 }

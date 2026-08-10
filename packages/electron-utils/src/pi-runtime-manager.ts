@@ -9,6 +9,7 @@ import {
   createNdjsonFrameDecoder,
   parseCredentialBrokerRequest,
   parseModelCatalogProjection,
+  parseMcpCatalogProjection,
   parseOAuthOperationProjection,
   parsePackageCatalogProjection,
   parseProviderCredentialStatus,
@@ -24,6 +25,7 @@ import {
   type CredentialManagementRequest,
   type EventEnvelope,
   type ModelCatalogProjection,
+  type McpCatalogProjection,
   type ModelManagementRequest,
   type ModelSelectionRole,
   type OAuthOperationProjection,
@@ -157,6 +159,18 @@ export type PackageMutationRequest = Extract<
     method: 'package.activate' | 'package.enable' | 'package.disable' | 'package.uninstall'
   }
 >['params']
+export type McpCatalogRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'mcp.catalog' }
+>['params']
+export type McpMutationRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'mcp.activate' | 'mcp.enable' | 'mcp.disable' | 'mcp.retry' }
+>['params']
+export type McpToolMutationRequest = Extract<
+  ResourceManagementRequest,
+  { method: 'mcp.tool.enable' | 'mcp.tool.disable' }
+>['params']
 
 type ClientRuntimeMethod =
   | 'runtime.hello'
@@ -192,6 +206,13 @@ type ClientRuntimeMethod =
   | 'package.enable'
   | 'package.disable'
   | 'package.uninstall'
+  | 'mcp.catalog'
+  | 'mcp.activate'
+  | 'mcp.enable'
+  | 'mcp.disable'
+  | 'mcp.retry'
+  | 'mcp.tool.enable'
+  | 'mcp.tool.disable'
 
 export class PiRuntimeManagerError extends Error {
   readonly code: string
@@ -427,7 +448,14 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('package.activate') ||
         !hello.capabilities.includes('package.enable') ||
         !hello.capabilities.includes('package.disable') ||
-        !hello.capabilities.includes('package.uninstall')
+        !hello.capabilities.includes('package.uninstall') ||
+        !hello.capabilities.includes('mcp.catalog') ||
+        !hello.capabilities.includes('mcp.activate') ||
+        !hello.capabilities.includes('mcp.enable') ||
+        !hello.capabilities.includes('mcp.disable') ||
+        !hello.capabilities.includes('mcp.retry') ||
+        !hello.capabilities.includes('mcp.tool.enable') ||
+        !hello.capabilities.includes('mcp.tool.disable')
       ) {
         throw new PiRuntimeManagerError('runtime_hello_invalid')
       }
@@ -688,6 +716,34 @@ export class PiRuntimeManager {
     return this.packageManagementRequest('package.uninstall', input)
   }
 
+  async mcpCatalog(input: McpCatalogRequest = {}): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.catalog', input)
+  }
+
+  async activateMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.activate', input)
+  }
+
+  async enableMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.enable', input)
+  }
+
+  async disableMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.disable', input)
+  }
+
+  async retryMcp(input: McpMutationRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.retry', input)
+  }
+
+  async enableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.tool.enable', input)
+  }
+
+  async disableMcpTool(input: McpToolMutationRequest): Promise<McpCatalogProjection> {
+    return this.mcpManagementRequest('mcp.tool.disable', input)
+  }
+
   private async resourceManagementRequest(
     method: 'resource.catalog' | 'project.trust.grant' | 'project.trust.revoke',
     input: ResourceCatalogRequest | ProjectTrustRequest,
@@ -724,6 +780,26 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('package_catalog_invalid')
+    }
+  }
+
+  private async mcpManagementRequest(
+    method:
+      | 'mcp.catalog'
+      | 'mcp.activate'
+      | 'mcp.enable'
+      | 'mcp.disable'
+      | 'mcp.retry'
+      | 'mcp.tool.enable'
+      | 'mcp.tool.disable',
+    input: McpCatalogRequest | McpMutationRequest | McpToolMutationRequest,
+  ): Promise<McpCatalogProjection> {
+    this.assertReady()
+    try {
+      return parseMcpCatalogProjection(await this.request(method, input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('mcp_catalog_invalid')
     }
   }
 

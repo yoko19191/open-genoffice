@@ -187,6 +187,13 @@ function harness(
       enablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
       disablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
       uninstallPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+      mcpCatalog: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      activateMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      enableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      disableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      retryMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      enableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+      disableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
       onSessionEvent: vi.fn((listener: (event: EventEnvelope) => void) => {
         eventListener = listener
         return () => {
@@ -436,9 +443,25 @@ describe('PiRuntimeSupervisor', () => {
     await fixture.supervisor.enablePackage(packageMutation)
     await fixture.supervisor.disablePackage(packageMutation)
     await fixture.supervisor.uninstallPackage(packageMutation)
+    const mcpMutation = {
+      namespace: 'global' as const,
+      operationId: oauthOperationId,
+      serverId: 'fixture',
+    }
+    await fixture.supervisor.mcpCatalog()
+    await fixture.supervisor.activateMcp(mcpMutation)
+    await fixture.supervisor.enableMcp(mcpMutation)
+    await fixture.supervisor.disableMcp(mcpMutation)
+    await fixture.supervisor.retryMcp(mcpMutation)
+    await fixture.supervisor.enableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
+    await fixture.supervisor.disableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
     expect(fixture.managers[0]!.installLocalPackage).toHaveBeenCalledWith({
       ...packageMutation,
       localPath: '/main/selected/package',
+    })
+    expect(fixture.managers[0]!.disableMcpTool).toHaveBeenCalledWith({
+      ...mcpMutation,
+      toolName: 'read_fixture',
     })
     const emitted = {
       protocolVersion: '1',

@@ -17,6 +17,7 @@ import {
 } from '@genoffice/agent-runtime-protocol'
 import { PackageLockError, initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
+import { McpConfigError } from './mcp-config-resolver'
 import {
   loadModelCatalogSettings,
   saveModelSelection,
@@ -132,6 +133,7 @@ export async function createAuthenticatedRuntimeServer(
   const runResources = new RunResourceService({
     resourceHome: options.resourceHome,
     deviceId: resourceHome.schema.deviceId,
+    credentials,
   })
   const initialModel = modelRuntime.getProviders().flatMap((provider) => provider.getModels())[0]
   if (!initialModel) throw new Error('model_catalog_empty')
@@ -243,6 +245,13 @@ export async function createAuthenticatedRuntimeServer(
                 'package.enable',
                 'package.disable',
                 'package.uninstall',
+                'mcp.catalog',
+                'mcp.activate',
+                'mcp.enable',
+                'mcp.disable',
+                'mcp.retry',
+                'mcp.tool.enable',
+                'mcp.tool.disable',
               ],
             }),
           )
@@ -272,7 +281,7 @@ export async function createAuthenticatedRuntimeServer(
     if (closeStarted) return closed
     closeStarted = true
     credentialClient.close('runtime_connection_closed')
-    void sessionRegistry.shutdown().finally(() => {
+    void Promise.allSettled([sessionRegistry.shutdown(), runResources.shutdown()]).finally(() => {
       authenticatedSocket?.end()
       server.close(() => resolveClosed())
     })
@@ -314,7 +323,8 @@ export async function createAuthenticatedRuntimeServer(
     if (
       request.method === 'resource.catalog' ||
       request.method.startsWith('project.trust.') ||
-      request.method.startsWith('package.')
+      request.method.startsWith('package.') ||
+      request.method.startsWith('mcp.')
     ) {
       void handleResourceManagementRequest(socket, request)
       return
@@ -339,6 +349,56 @@ export async function createAuthenticatedRuntimeServer(
         socket.write(
           response(request, await runResources.revokeProjectTrust(command.params.projectRoot)),
         )
+        return
+      }
+      if (command.method === 'mcp.catalog') {
+        socket.write(response(request, await runResources.mcpCatalog(command.params.projectRoot)))
+        return
+      }
+      if (
+        command.method === 'mcp.activate' ||
+        command.method === 'mcp.enable' ||
+        command.method === 'mcp.disable' ||
+        command.method === 'mcp.retry' ||
+        command.method === 'mcp.tool.enable' ||
+        command.method === 'mcp.tool.disable'
+      ) {
+        const scope = {
+          namespace: command.params.namespace,
+          ...(command.params.projectRoot ? { projectRoot: command.params.projectRoot } : {}),
+        }
+        if (command.method === 'mcp.activate') {
+          socket.write(
+            response(request, await runResources.activateMcp(scope, command.params.serverId)),
+          )
+          return
+        }
+        if (command.method === 'mcp.enable' || command.method === 'mcp.disable') {
+          socket.write(
+            response(
+              request,
+              await runResources.setMcpServerEnabled(
+                scope,
+                command.params.serverId,
+                command.method === 'mcp.enable',
+              ),
+            ),
+          )
+          return
+        }
+        if (command.method === 'mcp.retry') {
+          socket.write(
+            response(request, await runResources.retryMcp(scope, command.params.serverId)),
+          )
+          return
+        }
+        const result = await runResources.setMcpToolEnabled(
+          scope,
+          command.params.serverId,
+          command.params.toolName,
+          command.method === 'mcp.tool.enable',
+        )
+        socket.write(response(request, result))
         return
       }
       const scope = {
@@ -427,7 +487,8 @@ export async function createAuthenticatedRuntimeServer(
       const code =
         error instanceof PackageLockError ||
         error instanceof PackageSourceResolverError ||
-        error instanceof RunResourceServiceError
+        error instanceof RunResourceServiceError ||
+        error instanceof McpConfigError
           ? error.code
           : 'invalid_request'
       socket.write(errorResponse(request, code))

@@ -60,6 +60,16 @@ function harness(options: { selectedProjectRoot?: string; trustedSenderAvailable
     enablePackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
     disablePackage: vi.fn(async () => ({ globalGeneration: 2, packages: [] })),
     uninstallPackage: vi.fn(async () => ({ globalGeneration: 3, packages: [] })),
+    mcpCatalog: vi.fn(async (input?: { projectRoot?: string }) => ({
+      projectState: input?.projectRoot ? ('trusted' as const) : ('none' as const),
+      servers: [],
+    })),
+    activateMcp: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
+    enableMcp: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
+    disableMcp: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
+    retryMcp: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
+    enableMcpTool: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
+    disableMcpTool: vi.fn(async () => ({ projectState: 'trusted' as const, servers: [] })),
   }
   const openAuthUrl = vi.fn(async () => undefined)
   const selectProjectRoot = vi.fn(async () =>
@@ -177,6 +187,13 @@ describe('model management IPC', () => {
       PI_RUNTIME_CHANNELS.enablePackage,
       PI_RUNTIME_CHANNELS.disablePackage,
       PI_RUNTIME_CHANNELS.uninstallPackage,
+      PI_RUNTIME_CHANNELS.mcpCatalog,
+      PI_RUNTIME_CHANNELS.activateMcp,
+      PI_RUNTIME_CHANNELS.enableMcp,
+      PI_RUNTIME_CHANNELS.disableMcp,
+      PI_RUNTIME_CHANNELS.retryMcp,
+      PI_RUNTIME_CHANNELS.enableMcpTool,
+      PI_RUNTIME_CHANNELS.disableMcpTool,
     ]) {
       await expect(
         fixture.handlers.get(channel)!({ sender: {} }, { secret: 'untrusted' }),
@@ -313,5 +330,38 @@ describe('model management IPC', () => {
         undefined,
       ),
     ).rejects.toThrowError('permission_denied')
+  })
+
+  it('keeps MCP project roots and operation IDs in main while forwarding only fixed actions', async () => {
+    const fixture = harness()
+    const sender = { sender: fixture.trustedSender }
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.selectResourceProject)!(sender, undefined)
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.mcpCatalog)!(sender, undefined)
+    expect(fixture.service.mcpCatalog).toHaveBeenCalledWith({ projectRoot: '/selected/project' })
+
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.activateMcp)!(sender, {
+      namespace: 'project',
+      serverId: 'fixture',
+    })
+    expect(fixture.service.activateMcp).toHaveBeenCalledWith({
+      namespace: 'project',
+      projectRoot: '/selected/project',
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      serverId: 'fixture',
+    })
+    await fixture.handlers.get(PI_RUNTIME_CHANNELS.disableMcpTool)!(sender, {
+      namespace: 'global',
+      serverId: 'fixture',
+      toolName: 'read_fixture',
+    })
+    expect(fixture.service.disableMcpTool).toHaveBeenCalledWith({
+      namespace: 'global',
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      serverId: 'fixture',
+      toolName: 'read_fixture',
+    })
+    expect(JSON.stringify(fixture.service.disableMcpTool.mock.calls)).not.toContain(
+      '/selected/project',
+    )
   })
 })

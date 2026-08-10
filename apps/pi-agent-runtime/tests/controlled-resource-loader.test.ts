@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SettingsManager } from '@earendil-works/pi-coding-agent'
+import { SettingsManager, createExtensionRuntime } from '@earendil-works/pi-coding-agent'
 import { ControlledResourceLoader } from '../src/controlled-resource-loader'
+import { PiMcpExtensionFactory } from '../src/pi-mcp-extension-factory'
 
 const roots: string[] = []
 
@@ -285,4 +286,57 @@ describe('ControlledResourceLoader', () => {
       await expect(loader.reload()).rejects.toThrowError('resource_loader_diagnostics')
     },
   )
+
+  it('injects only the prepared MCP tools through the isolated Pi extension seam', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-controlled-mcp-'))
+    roots.push(root)
+    const executeMcpTool = vi.fn(async () => ({
+      content: [{ type: 'text' as const, text: 'mcp-safe' }],
+      details: { provenance: { serverId: 'fixture', toolName: 'read_fixture' } },
+    }))
+    const loader = new ControlledResourceLoader({
+      cwd: root,
+      agentDir: join(root, 'agent'),
+      settingsManager: SettingsManager.inMemory(),
+      executeMcpTool,
+    })
+    const mcpTool = {
+      serverId: 'fixture',
+      toolName: 'read_fixture',
+      canonicalToolId: 'mcp:fixture:read_fixture',
+      modelAlias: 'read_fixture',
+      description: 'Read fixture',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    }
+    loader.configure({ skillPaths: [], promptPaths: [], mcpTools: [mcpTool] })
+    await loader.reload()
+    const extension = loader.getExtensions().extensions[0]!
+    expect(extension).toMatchObject({ path: root, hidden: true })
+    expect(extension.handlers.size).toBe(0)
+    const signal = new AbortController().signal
+    await expect(
+      extension.tools
+        .get('read_fixture')!
+        .definition.execute('call-1', {}, signal, undefined, {} as never),
+    ).resolves.toMatchObject({ content: [{ type: 'text', text: 'mcp-safe' }] })
+    expect(executeMcpTool).toHaveBeenCalledWith(mcpTool, {}, signal)
+    await expect(
+      extension.tools
+        .get('read_fixture')!
+        .definition.execute('call-2', {}, undefined, undefined, {} as never),
+    ).rejects.toThrowError('mcp_abort_signal_required')
+
+    const base = { extensions: [], errors: [], runtime: createExtensionRuntime() }
+    expect(
+      new PiMcpExtensionFactory({ extensionPath: root, execute: executeMcpTool }).append(base, []),
+    ).toBe(base)
+
+    const unauthorized = new ControlledResourceLoader({
+      cwd: root,
+      agentDir: join(root, 'agent-missing'),
+      settingsManager: SettingsManager.inMemory(),
+    })
+    unauthorized.configure({ skillPaths: [], promptPaths: [], mcpTools: [mcpTool] })
+    await expect(unauthorized.reload()).rejects.toThrowError('resource_loader_diagnostics')
+  })
 })

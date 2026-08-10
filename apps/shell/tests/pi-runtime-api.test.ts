@@ -6,6 +6,9 @@ import {
   asProviderCredentialInput,
   asProviderCredentialStatus,
   asModelCatalog,
+  asMcpCatalog,
+  asMcpMutationInput,
+  asMcpToolMutationInput,
   asModelSelectInput,
   asModelProviderConfigurationInput,
   asModelOAuthStartInput,
@@ -96,6 +99,13 @@ describe('typed Pi Runtime preload health contract', () => {
       enablePackage: 'pi-runtime:package-enable',
       disablePackage: 'pi-runtime:package-disable',
       uninstallPackage: 'pi-runtime:package-uninstall',
+      mcpCatalog: 'pi-runtime:mcp-catalog',
+      activateMcp: 'pi-runtime:mcp-activate',
+      enableMcp: 'pi-runtime:mcp-enable',
+      disableMcp: 'pi-runtime:mcp-disable',
+      retryMcp: 'pi-runtime:mcp-retry',
+      enableMcpTool: 'pi-runtime:mcp-tool-enable',
+      disableMcpTool: 'pi-runtime:mcp-tool-disable',
     })
     expect(JSON.stringify(PI_RUNTIME_CHANNELS)).not.toContain('credential-get')
   })
@@ -201,6 +211,36 @@ describe('typed Pi Runtime preload health contract', () => {
     expect(() => asResourceCatalog({ ...catalog, body: 'secret' })).toThrowError(
       'resource_catalog_invalid',
     )
+  })
+
+  it('validates renderer-safe MCP projections and exact lifecycle inputs', () => {
+    const catalog = { projectState: 'none', servers: [] }
+    expect(asMcpCatalog(catalog)).toEqual(catalog)
+    expect(asMcpMutationInput({ namespace: 'global', serverId: 'fixture' })).toEqual({
+      namespace: 'global',
+      serverId: 'fixture',
+    })
+    expect(
+      asMcpToolMutationInput({
+        namespace: 'project',
+        serverId: 'fixture',
+        toolName: 'read_fixture',
+      }),
+    ).toEqual({ namespace: 'project', serverId: 'fixture', toolName: 'read_fixture' })
+    expect(() => asMcpCatalog({ ...catalog, command: '/bin/secret' })).toThrowError(
+      'mcp_catalog_invalid',
+    )
+    expect(() => asMcpMutationInput({ namespace: 'global', serverId: '../escape' })).toThrowError(
+      'mcp_mutation_input_invalid',
+    )
+    expect(() =>
+      asMcpToolMutationInput({
+        namespace: 'global',
+        serverId: 'fixture',
+        toolName: 'read_fixture',
+        credentialRef: 'forbidden',
+      }),
+    ).toThrowError('mcp_tool_mutation_input_invalid')
   })
 
   it('accepts only fixed Package inputs and path-free Package projections', () => {

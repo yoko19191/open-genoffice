@@ -56,6 +56,9 @@ export {
   type PackageInstallLocalRequest,
   type PackageInstallNpmRequest,
   type PackageMutationRequest,
+  type McpCatalogRequest,
+  type McpMutationRequest,
+  type McpToolMutationRequest,
 } from './pi-runtime-manager'
 export {
   connectRuntimeEndpoint,

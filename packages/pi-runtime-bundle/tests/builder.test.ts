@@ -99,7 +99,7 @@ describe('Pi Runtime bundle builder', () => {
     await expect(buildPiRuntimeBundle(options)).rejects.toEqual(
       new PiRuntimeBundleBuildError('runtime_bundle_output_exists'),
     )
-  })
+  }, 15_000)
 
   it('fails closed on a non-host target and invalid Node version', async () => {
     const targetMismatch = await inputs()

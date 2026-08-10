@@ -8,6 +8,8 @@ import {
   asModelOAuthStartInput,
   asModelProviderConfigurationInput,
   asModelSelectInput,
+  asMcpMutationInput,
+  asMcpToolMutationInput,
   asProviderId,
   asPackageGitInstallInput,
   asPackageLocalInstallInput,
@@ -42,6 +44,13 @@ type ModelManagementService = Pick<
   | 'enablePackage'
   | 'disablePackage'
   | 'uninstallPackage'
+  | 'mcpCatalog'
+  | 'activateMcp'
+  | 'enableMcp'
+  | 'disableMcp'
+  | 'retryMcp'
+  | 'enableMcpTool'
+  | 'disableMcpTool'
 >
 
 export function installModelManagementIpc(
@@ -76,6 +85,11 @@ export function installModelManagementIpc(
     ...packageScope(input.namespace),
     operationId: randomUUID(),
     packageId: input.packageId,
+  })
+  const mcpMutation = (input: { namespace: PackageNamespace; serverId: string }) => ({
+    ...packageScope(input.namespace),
+    operationId: randomUUID(),
+    serverId: input.serverId,
   })
 
   ipcMain.handle(PI_RUNTIME_CHANNELS.modelCatalog, async (event) => {
@@ -190,6 +204,33 @@ export function installModelManagementIpc(
     ipcMain.handle(channel, async (event, value) => {
       assertTrusted(event)
       return service[method](packageMutation(asPackageMutationInput(value)))
+    })
+  }
+  ipcMain.handle(PI_RUNTIME_CHANNELS.mcpCatalog, async (event) => {
+    assertTrusted(event)
+    return service.mcpCatalog(
+      selectedProjectRoot ? { projectRoot: selectedProjectRoot } : undefined,
+    )
+  })
+  for (const [channel, method] of [
+    [PI_RUNTIME_CHANNELS.activateMcp, 'activateMcp'],
+    [PI_RUNTIME_CHANNELS.enableMcp, 'enableMcp'],
+    [PI_RUNTIME_CHANNELS.disableMcp, 'disableMcp'],
+    [PI_RUNTIME_CHANNELS.retryMcp, 'retryMcp'],
+  ] as const) {
+    ipcMain.handle(channel, async (event, value) => {
+      assertTrusted(event)
+      return service[method](mcpMutation(asMcpMutationInput(value)))
+    })
+  }
+  for (const [channel, method] of [
+    [PI_RUNTIME_CHANNELS.enableMcpTool, 'enableMcpTool'],
+    [PI_RUNTIME_CHANNELS.disableMcpTool, 'disableMcpTool'],
+  ] as const) {
+    ipcMain.handle(channel, async (event, value) => {
+      assertTrusted(event)
+      const input = asMcpToolMutationInput(value)
+      return service[method]({ ...mcpMutation(input), toolName: input.toolName })
     })
   }
 }

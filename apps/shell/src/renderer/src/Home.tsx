@@ -431,6 +431,7 @@ const PRIMARY_MODEL_PROVIDER_ID = 'openai'
 type ModelCatalog = Awaited<ReturnType<PiRuntimeApi['modelCatalog']>>
 type ResourceCatalog = Awaited<ReturnType<PiRuntimeApi['resourceCatalog']>>
 type PackageCatalog = Awaited<ReturnType<PiRuntimeApi['packageCatalog']>>
+type McpCatalog = Awaited<ReturnType<PiRuntimeApi['mcpCatalog']>>
 type PackageNamespace = Parameters<PiRuntimeApi['packageCatalog']>[0]
 type OAuthOperation = Awaited<ReturnType<PiRuntimeApi['modelOAuthStatus']>>
 type ModelCapability = ModelCatalog['providers'][number]['models'][number]['capabilities'][number]
@@ -449,6 +450,7 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
   const [catalog, setCatalog] = useState<ModelCatalog>()
   const [resourceCatalog, setResourceCatalog] = useState<ResourceCatalog>()
   const [packageCatalog, setPackageCatalog] = useState<PackageCatalog>()
+  const [mcpCatalog, setMcpCatalog] = useState<McpCatalog>()
   const [packageNamespace, setPackageNamespace] = useState<PackageNamespace>('global')
   const [packageId, setPackageId] = useState('')
   const [npmPackageName, setNpmPackageName] = useState('')
@@ -503,11 +505,20 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     }
   }, [packageNamespace])
 
+  const refreshMcpCatalog = useCallback(async () => {
+    try {
+      setMcpCatalog(await window.aiOfficeAgent.mcpCatalog())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_catalog_failed')
+    }
+  }, [])
+
   useEffect(() => {
     void refreshCatalog()
     void refreshResourceCatalog()
     void refreshPackageCatalog()
-  }, [refreshCatalog, refreshPackageCatalog, refreshResourceCatalog])
+    void refreshMcpCatalog()
+  }, [refreshCatalog, refreshMcpCatalog, refreshPackageCatalog, refreshResourceCatalog])
 
   useEffect(() => {
     if (
@@ -695,6 +706,7 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
     setError(null)
     try {
       setResourceCatalog(await window.aiOfficeAgent.selectResourceProject())
+      setMcpCatalog(await window.aiOfficeAgent.mcpCatalog())
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'resource_catalog_failed')
     } finally {
@@ -711,6 +723,7 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
         ? await window.aiOfficeAgent.grantProjectTrust()
         : await window.aiOfficeAgent.revokeProjectTrust()
       setResourceCatalog(next)
+      setMcpCatalog(await window.aiOfficeAgent.mcpCatalog())
       if (!trusted && packageNamespace === 'project') setPackageNamespace('global')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'project_trust_failed')
@@ -775,6 +788,55 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
       setPackageCatalog(next)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'package_mutation_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const mutateMcp = async (
+    action: 'activate' | 'enable' | 'disable' | 'retry',
+    namespace: PackageNamespace,
+    serverId: string,
+  ) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const input = { namespace, serverId }
+      setMcpCatalog(
+        action === 'activate'
+          ? await window.aiOfficeAgent.activateMcp(input)
+          : action === 'enable'
+            ? await window.aiOfficeAgent.enableMcp(input)
+            : action === 'disable'
+              ? await window.aiOfficeAgent.disableMcp(input)
+              : await window.aiOfficeAgent.retryMcp(input),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_mutation_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleMcpTool = async (
+    namespace: PackageNamespace,
+    serverId: string,
+    toolName: string,
+    enabled: boolean,
+  ) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const input = { namespace, serverId, toolName }
+      setMcpCatalog(
+        enabled
+          ? await window.aiOfficeAgent.disableMcpTool(input)
+          : await window.aiOfficeAgent.enableMcpTool(input),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_tool_mutation_failed')
     } finally {
       setBusy(false)
     }
@@ -1121,6 +1183,101 @@ function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
                   </div>
                 </article>
               ))}
+          </div>
+        </details>
+        <details className="provider-resource-catalog">
+          <summary>{zh ? 'MCP 服务与工具' : 'MCP servers and tools'}</summary>
+          <p className="provider-credential-status">
+            {zh
+              ? '这里只显示脱敏状态。命令、参数、环境变量、凭据引用和进程信息只留在受信 Runtime。'
+              : 'Only redacted state is shown. Commands, arguments, environment, credential references, and process details remain in the trusted Runtime.'}
+          </p>
+          <div className="provider-resource-list">
+            {mcpCatalog?.servers.length === 0 && (
+              <p className="provider-credential-status">
+                {zh ? '当前没有已配置的 MCP 服务。' : 'No MCP servers configured.'}
+              </p>
+            )}
+            {mcpCatalog?.servers.map((server) => (
+              <article
+                key={`${server.namespace}/${server.serverId}`}
+                className="provider-resource-item"
+              >
+                <strong>{server.serverId}</strong>
+                <span>
+                  {server.namespace} · {server.state}
+                </span>
+                <code>sha256:{server.contentSha256}</code>
+                <div className="provider-resource-actions">
+                  {server.action === 'activate' && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('activate', server.namespace, server.serverId)}
+                    >
+                      {zh ? '授权并激活' : 'Authorize and activate'}
+                    </button>
+                  )}
+                  {server.action === 'enable' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('enable', server.namespace, server.serverId)}
+                    >
+                      {zh ? '启用' : 'Enable'}
+                    </button>
+                  )}
+                  {server.action === 'disable' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('disable', server.namespace, server.serverId)}
+                    >
+                      {zh ? '停用并回收进程' : 'Disable and stop'}
+                    </button>
+                  )}
+                  {server.action === 'retry' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('retry', server.namespace, server.serverId)}
+                    >
+                      {zh ? '重新连接' : 'Reconnect'}
+                    </button>
+                  )}
+                </div>
+                {server.tools.map((tool) => (
+                  <div key={tool.canonicalToolId} className="provider-resource-actions">
+                    <code>{tool.modelAlias}</code>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void toggleMcpTool(
+                          server.namespace,
+                          server.serverId,
+                          tool.toolName,
+                          tool.enabled,
+                        )
+                      }
+                    >
+                      {tool.enabled
+                        ? zh
+                          ? '停用工具'
+                          : 'Disable tool'
+                        : zh
+                          ? '启用工具'
+                          : 'Enable tool'}
+                    </button>
+                  </div>
+                ))}
+              </article>
+            ))}
           </div>
         </details>
         {provider?.authMethods.includes('api_key') && (

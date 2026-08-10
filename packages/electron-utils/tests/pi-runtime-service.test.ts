@@ -145,6 +145,13 @@ function manager(overrides: Record<string, unknown> = {}) {
     enablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
     disablePackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
     uninstallPackage: vi.fn(async () => ({ globalGeneration: 1, packages: [] })),
+    mcpCatalog: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    activateMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    enableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    disableMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    retryMcp: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    enableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
+    disableMcpTool: vi.fn(async () => ({ projectState: 'none' as const, servers: [] })),
     ...overrides,
   }
 }
@@ -409,6 +416,24 @@ describe('installed Pi Runtime service', () => {
       localPath: '/main/selected/package',
     })
     expect(fixture.runtimeManager.uninstallPackage).toHaveBeenCalledWith(mutation)
+
+    const mcpMutation = {
+      namespace: 'global' as const,
+      operationId: trust.operationId,
+      serverId: 'fixture',
+    }
+    await fixture.instance.mcpCatalog()
+    await fixture.instance.activateMcp(mcpMutation)
+    await fixture.instance.enableMcp(mcpMutation)
+    await fixture.instance.disableMcp(mcpMutation)
+    await fixture.instance.retryMcp(mcpMutation)
+    await fixture.instance.enableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
+    await fixture.instance.disableMcpTool({ ...mcpMutation, toolName: 'read_fixture' })
+    expect(fixture.runtimeManager.mcpCatalog).toHaveBeenCalledWith({})
+    expect(fixture.runtimeManager.disableMcpTool).toHaveBeenCalledWith({
+      ...mcpMutation,
+      toolName: 'read_fixture',
+    })
   })
 
   it('passes the main-process credential broker only to the owned Runtime manager', async () => {

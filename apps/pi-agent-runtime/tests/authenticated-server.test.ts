@@ -3,6 +3,7 @@ import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promis
 import { createConnection, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import {
   PROTOCOL_VERSION,
@@ -14,9 +15,12 @@ import {
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
 import { createAuthenticatedRuntimeServer, createSessionRegistry } from '../src'
+import { ResourceActivationStore, initializeAgentResourceHome } from '@genoffice/agent-resource'
+import { OpenGenOfficeMcpConfigResolver } from '../src/mcp-config-resolver'
 import { ModelCatalogError } from '../src/model-catalog-service'
 
 const token = 'a'.repeat(64)
+const mcpFixture = fileURLToPath(new URL('../fixtures/mcp-stdio-server.mjs', import.meta.url))
 
 async function endpoint(): Promise<string> {
   if (process.platform === 'win32') {
@@ -640,6 +644,109 @@ describe('authenticated Runtime socket', () => {
     await runtime.closed
   })
 
+  it('manages activated stdio MCP servers through a renderer-safe authenticated catalog', async () => {
+    const socketPath = await endpoint()
+    const runtimeHome = resourceHome('instance-mcp-management')
+    const initialized = await initializeAgentResourceHome({
+      rootDirectory: runtimeHome,
+      runtimeVersion: RUNTIME_VERSION,
+    })
+    await mkdir(join(runtimeHome, 'mcp'), { recursive: true })
+    await writeFile(
+      join(runtimeHome, 'mcp', 'servers.json'),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        servers: [
+          {
+            serverId: 'socket-fixture',
+            transport: 'stdio',
+            command: process.execPath,
+            args: [mcpFixture],
+            environment: { inherit: [], credentials: [] },
+            enabledToolIds: ['read_fixture'],
+            timeoutMs: 2_000,
+            enabled: true,
+          },
+        ],
+      })}\n`,
+      { mode: 0o600 },
+    )
+    const resolver = new OpenGenOfficeMcpConfigResolver({
+      resourceHome: runtimeHome,
+      deviceId: initialized.schema.deviceId,
+    })
+    const configured = await resolver.resolve()
+    await new ResourceActivationStore({
+      rootDirectory: runtimeHome,
+      deviceId: initialized.schema.deviceId,
+    }).activate(configured[0]!.activation)
+
+    const runtime = await createAuthenticatedRuntimeServer({
+      bootstrap: bootstrap(socketPath),
+      actualParentPid: 4242,
+      instanceId: 'instance-mcp-management',
+      resourceHome: runtimeHome,
+    })
+    const client = await connect(socketPath)
+    const reader = frameReader(client)
+    client.write(`${hello()}\n`)
+    await reader.next((frame) => frame.kind === 'response' && frame.id === 'runtime.hello')
+    client.write(`${request('mcp.catalog', {}, 'mcp-catalog')}\n`)
+    const catalog = await reader.next(
+      (frame) => frame.kind === 'response' && frame.id === 'mcp-catalog',
+    )
+    expect(catalog).toMatchObject({
+      result: {
+        servers: [
+          expect.objectContaining({
+            serverId: 'socket-fixture',
+            state: 'ready',
+            tools: expect.arrayContaining([
+              expect.objectContaining({ toolName: 'read_fixture', enabled: true }),
+            ]),
+          }),
+        ],
+      },
+    })
+    expect(JSON.stringify(catalog)).not.toContain(mcpFixture)
+    expect(JSON.stringify(catalog)).not.toContain('command')
+
+    client.write(
+      `${request(
+        'mcp.tool.disable',
+        {
+          namespace: 'global',
+          operationId: randomUUID(),
+          serverId: 'socket-fixture',
+          toolName: 'read_fixture',
+        },
+        'mcp-tool-disable',
+      )}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'mcp-tool-disable'),
+    ).toMatchObject({
+      result: { servers: [expect.objectContaining({ state: 'activation_required' })] },
+    })
+    client.write(
+      `${request(
+        'mcp.disable',
+        {
+          namespace: 'global',
+          operationId: randomUUID(),
+          serverId: 'socket-fixture',
+        },
+        'mcp-disable',
+      )}\n`,
+    )
+    expect(
+      await reader.next((frame) => frame.kind === 'response' && frame.id === 'mcp-disable'),
+    ).toMatchObject({ result: { servers: [expect.objectContaining({ state: 'disabled' })] } })
+
+    await runtime.shutdown()
+    await runtime.closed
+  })
+
   it('does not consume the token after a rejected hello, then serves status and shutdown', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({
@@ -694,6 +801,13 @@ describe('authenticated Runtime socket', () => {
           'package.enable',
           'package.disable',
           'package.uninstall',
+          'mcp.catalog',
+          'mcp.activate',
+          'mcp.enable',
+          'mcp.disable',
+          'mcp.retry',
+          'mcp.tool.enable',
+          'mcp.tool.disable',
         ],
       },
     })

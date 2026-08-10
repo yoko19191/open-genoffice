@@ -6,6 +6,7 @@ import {
   EventEnvelopeSchema,
   MAX_FRAME_BYTES,
   ModelCatalogProjectionSchema,
+  McpCatalogProjectionSchema,
   ModelManagementRequestSchema,
   ResourceCatalogProjectionSchema,
   PackageCatalogProjectionSchema,
@@ -34,6 +35,7 @@ import {
   parseAgentSessionConnectRequest,
   parseEventEnvelope,
   parseModelCatalogProjection,
+  parseMcpCatalogProjection,
   parseModelManagementRequest,
   parseResourceCatalogProjection,
   parsePackageCatalogProjection,
@@ -196,7 +198,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(39)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(46)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -847,12 +849,89 @@ describe('renderer-safe resource catalog projection', () => {
         params: { operationId, projectRoot: '/selected/project' },
       },
     ]
-    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(11)
+    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(18)
     for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
     expect(() =>
       parseResourceManagementRequest({
         ...requests[0],
         params: { projectRoot: '/selected/project', rendererPath: '/forbidden' },
+      }),
+    ).toThrowError('resource_management_request_invalid')
+  })
+})
+
+describe('renderer-safe MCP management contract', () => {
+  const catalog = {
+    projectState: 'trusted',
+    servers: [
+      {
+        namespace: 'global',
+        serverId: 'fixture',
+        contentSha256: 'a'.repeat(64),
+        state: 'ready',
+        tools: [
+          {
+            canonicalToolId: 'mcp:fixture:read_fixture',
+            toolName: 'read_fixture',
+            modelAlias: 'read_fixture',
+            enabled: true,
+          },
+        ],
+        action: 'disable',
+      },
+    ],
+  } as const
+
+  it('accepts only path-free and secret-free server and tool state', () => {
+    expect(parseMcpCatalogProjection(catalog)).toEqual(catalog)
+    expect(McpCatalogProjectionSchema).toBeDefined()
+    for (const unsafe of [
+      { command: process.execPath },
+      { args: ['server.mjs'] },
+      { credentialRef: { slot: 'model/mcp/default' } },
+      { environment: { TOKEN: 'canary' } },
+      { pid: 1234 },
+    ]) {
+      expect(() =>
+        parseMcpCatalogProjection({
+          ...catalog,
+          servers: [{ ...catalog.servers[0], ...unsafe }],
+        }),
+      ).toThrowError('mcp_catalog_invalid')
+    }
+  })
+
+  it('accepts exact catalog, lifecycle and tool toggle operations', () => {
+    const base = {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: 'request',
+      id: 'mcp-request',
+      correlationId: 'mcp-correlation',
+    } as const
+    const mutation = {
+      operationId,
+      namespace: 'project',
+      projectRoot: '/selected/project',
+      serverId: 'fixture',
+    } as const
+    const requests = [
+      { ...base, method: 'mcp.catalog', params: { projectRoot: '/selected/project' } },
+      ...(['mcp.activate', 'mcp.enable', 'mcp.disable', 'mcp.retry'] as const).map((method) => ({
+        ...base,
+        method,
+        params: mutation,
+      })),
+      ...(['mcp.tool.enable', 'mcp.tool.disable'] as const).map((method) => ({
+        ...base,
+        method,
+        params: { ...mutation, toolName: 'read_fixture' },
+      })),
+    ]
+    for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
+    expect(() =>
+      parseResourceManagementRequest({
+        ...requests[0],
+        params: { projectRoot: '/selected/project', command: '/bin/secret' },
       }),
     ).toThrowError('resource_management_request_invalid')
   })
@@ -954,7 +1033,7 @@ describe('renderer-safe Package management contract', () => {
         params: { namespace: 'global', operationId, packageId: 'safe-extension' },
       })),
     ]
-    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(11)
+    expect(ResourceManagementRequestSchema.anyOf).toHaveLength(18)
     for (const request of requests) expect(parseResourceManagementRequest(request)).toEqual(request)
     for (const request of [
       { ...requests[2], params: { ...requests[2]!.params, version: '^1.2.3' } },

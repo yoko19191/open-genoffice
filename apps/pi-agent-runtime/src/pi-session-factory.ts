@@ -76,7 +76,7 @@ export type CreatePiSessionOptions = CreatePiSessionBaseOptions &
         initialModel: Model<Api>
         resolveModel: () => Model<Api>
         resolveModelMetadata: () => RunModelMetadata
-        runResources: Pick<RunResourceService, 'prepare' | 'verify'>
+        runResources: Pick<RunResourceService, 'prepare' | 'verify' | 'callMcpTool' | 'releaseRun'>
       }
   )
 
@@ -186,6 +186,20 @@ export async function createDeterministicPiSession(
               documentId: options.documentId,
             }
           },
+          executeMcpTool: async (tool, params, signal) => {
+            if (
+              !extensionExecution ||
+              !extensionExecution.snapshot.toolIds.includes(tool.canonicalToolId)
+            ) {
+              throw new Error('tool_not_in_snapshot')
+            }
+            return options.runResources!.callMcpTool(tool.canonicalToolId, params, {
+              actorId: options.sessionId,
+              documentId: options.documentId,
+              runId: extensionExecution.runId,
+              signal,
+            })
+          },
         }
       : {}),
   })
@@ -283,6 +297,7 @@ export async function createDeterministicPiSession(
           skillPaths: prepared.skillPaths,
           promptPaths: prepared.promptPaths,
           extensionTools: prepared.extensionTools,
+          mcpTools: prepared.mcpTools,
         })
         extensionExecution = {
           snapshot: prepared.snapshot,
@@ -298,13 +313,19 @@ export async function createDeterministicPiSession(
         session.setActiveToolsByName([
           ...(prepared.skillPaths.length > 0 ? ['read'] : []),
           ...prepared.extensionTools.map(({ name }) => name),
+          ...prepared.mcpTools.map(({ modelAlias }) => modelAlias),
         ])
         sessionManager.appendCustomEntry('genoffice.capability-snapshot', prepared.snapshot)
         await options.runResources.verify(prepared.snapshot, context.projectRoot)
         if (signal.aborted) return undefined
         await session.setModel(model)
-        await session.prompt(text, { expandPromptTemplates: true, source: 'rpc' })
-        return undefined
+        try {
+          await session.prompt(text, { expandPromptTemplates: true, source: 'rpc' })
+          return undefined
+        } finally {
+          options.runResources.releaseRun(context.runId)
+          extensionExecution = undefined
+        }
       }
       fixtureProvider!.setResponses([
         fauxAssistantMessage(
