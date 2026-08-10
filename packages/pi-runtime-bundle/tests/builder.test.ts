@@ -134,6 +134,9 @@ describe('Pi Runtime bundle builder', () => {
     const entry = await readFile(verified.entryPath, 'utf8')
     expect(entry).toContain('runtime_crash')
     expect(entry).toContain('const require = __genofficeCreateRequire(import.meta.url)')
+    if (process.platform === 'linux') {
+      expect((await lstat(verified.entryPath)).mode & 0o777).toBe(0o755)
+    }
     expect(
       JSON.parse(await readFile(join(options.outputDirectory, 'app/package.json'), 'utf8')),
     ).toMatchObject({

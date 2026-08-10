@@ -73,7 +73,12 @@ async function fixtureBundle() {
     const target = join(root, ...path.split('/'))
     await mkdir(join(target, '..'), { recursive: true })
     await writeFile(target, contents)
-    await chmod(target, path.startsWith('node/') ? 0o755 : 0o644)
+    await chmod(
+      target,
+      path.startsWith('node/') || (process.platform === 'linux' && path === 'app/main.mjs')
+        ? 0o755
+        : 0o644,
+    )
   }
   const files = [...fileContents]
     .map(([path, contents]) => ({
@@ -82,7 +87,12 @@ async function fixtureBundle() {
       size: Buffer.byteLength(contents),
       ...(process.platform === 'win32'
         ? {}
-        : { mode: path.startsWith('node/') ? ('0755' as const) : ('0644' as const) }),
+        : {
+            mode:
+              path.startsWith('node/') || (process.platform === 'linux' && path === 'app/main.mjs')
+                ? ('0755' as const)
+                : ('0644' as const),
+          }),
     }))
     .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
   const manifest: RuntimeBundleManifest = {
@@ -325,6 +335,19 @@ describe('installed Pi Runtime bundle verifier', () => {
                 await chmod(join(root, manifest.executable), 0o644)
               },
             },
+            ...(process.platform === 'linux'
+              ? [
+                  {
+                    code: 'runtime_bundle_entry_mode_invalid',
+                    mutate: async (root: string, manifest: RuntimeBundleManifest) => {
+                      const entry = manifest.files.find((file) => file.path === manifest.entry)!
+                      entry.mode = '0644'
+                      refreshTreeHash(manifest)
+                      await chmod(join(root, manifest.entry), 0o644)
+                    },
+                  },
+                ]
+              : []),
           ]),
       {
         code: 'runtime_bundle_notices_mismatch',
@@ -341,6 +364,24 @@ describe('installed Pi Runtime bundle verifier', () => {
       await expect(
         verifyPiRuntimeBundle(root, { platform: manifest.platform, arch: manifest.arch }),
       ).rejects.toThrowError(testCase.code)
+    }
+  })
+
+  it('rejects a non-executable Linux Runtime entry even when its manifest matches', async () => {
+    const actualPlatform = process.platform
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' })
+    try {
+      const { root, manifest } = await fixtureBundle()
+      const entry = manifest.files.find((file) => file.path === manifest.entry)!
+      entry.mode = '0644'
+      refreshTreeHash(manifest)
+      await chmod(join(root, manifest.entry), 0o644)
+      await writeManifest(root, manifest)
+      await expect(
+        verifyPiRuntimeBundle(root, { platform: 'linux', arch: manifest.arch }),
+      ).rejects.toEqual(new RuntimeBundleVerificationError('runtime_bundle_entry_mode_invalid'))
+    } finally {
+      Object.defineProperty(process, 'platform', { configurable: true, value: actualPlatform })
     }
   })
 

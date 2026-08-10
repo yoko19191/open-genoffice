@@ -8,6 +8,7 @@ const {
   ymlVersion,
   semverNewer,
   assertPromotable,
+  RELEASE_PLATFORMS,
 } = require('../../../scripts/update-feed-utils.cjs')
 
 /** Promote-workflow guard: stable may only move forward (unless forced). */
@@ -39,5 +40,23 @@ describe('update-feed-utils', () => {
 
   it('lets --force roll back', () => {
     expect(assertPromotable('0.5.80', '0.5.82', true)).toEqual({ ok: true })
+  })
+
+  it('defines immutable macOS, Windows, and Linux feed artifacts', () => {
+    expect(RELEASE_PLATFORMS.map((platform: { flag: string }) => platform.flag)).toEqual([
+      '--mac',
+      '--win',
+      '--linux',
+    ])
+    const linux = RELEASE_PLATFORMS[2]
+    expect(linux).toMatchObject({
+      feed: 'latest-linux.yml',
+      betaFeed: 'beta-linux.yml',
+      alias: 'GenOffice.AppImage',
+    })
+    expect(linux.archive('0.5.0')).toBe('GenOffice-linux-x64-0.5.0.yml')
+    expect(linux.installer('0.5.0')).toBe('GenOffice-0.5.0-linux-x64.AppImage')
+    expect(Object.isFrozen(RELEASE_PLATFORMS)).toBe(true)
+    expect(Object.isFrozen(linux)).toBe(true)
   })
 })

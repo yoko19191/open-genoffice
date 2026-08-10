@@ -345,6 +345,9 @@ export async function buildPiRuntimeBundle(
       plugins: [bundlePiSubagentApiPlugin()],
       ...NODE_BUNDLE_OPTIONS,
     })
+    if (options.platform === 'linux') {
+      await chmod(join(stagingDirectory, 'app/main.mjs'), 0o755)
+    }
     await build({
       entryPoints: [options.capabilitySmokeEntryPoint],
       outfile: join(stagingDirectory, CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH),

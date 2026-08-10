@@ -9,6 +9,7 @@ import {
   verifyPiRuntimeBundle,
 } from '@genoffice/pi-runtime-bundle'
 import { auditPackagedGensparkFree } from '../packages/acceptance-evidence/src/genspark-package-audit.mjs'
+import { auditLinuxPackage } from '../packages/acceptance-evidence/src/linux-package-audit.mjs'
 
 const execFileAsync = promisify(execFile)
 const values = new Map()
@@ -26,11 +27,14 @@ const resources = values.get('--resources')
 const platform = values.get('--platform')
 const arch = values.get('--arch')
 const output = values.get('--output')
+const packageRoot = values.get('--package-root')
+const appImage = values.get('--appimage')
 if (
   !resources ||
   !['darwin', 'win32', 'linux'].includes(platform) ||
   !['arm64', 'x64'].includes(arch) ||
-  !output
+  !output ||
+  (platform === 'linux' && (!packageRoot || !appImage))
 ) {
   process.stderr.write('packaged_pi_platform_arguments_invalid\n')
   process.exit(1)
@@ -186,6 +190,14 @@ try {
   if (retiredVendorFree.status !== 'passed') {
     throw new Error('packaged_pi_platform_genspark_free_failed')
   }
+  const linuxPackage =
+    platform === 'linux'
+      ? await auditLinuxPackage({
+          packageRoot: resolve(packageRoot),
+          appImagePath: resolve(appImage),
+          runtimeManifest: verified.manifest,
+        })
+      : null
 
   const evidence = {
     schemaVersion: 1,
@@ -196,6 +208,7 @@ try {
     unsigned: true,
     libc: platform === 'linux' ? { family: 'glibc', version: glibcVersion } : null,
     updateFeedEmbedded: false,
+    automaticUpdateClaimed: false,
     retiredVendorMatches: 0,
     retiredVendorFree: {
       reportSha256: sha256(await readFile(retiredVendorFreePath)),
@@ -227,6 +240,7 @@ try {
       debugFrames: debugFrames.length,
       terminal: debugFrames.at(-1)?.type,
     },
+    linuxPackage,
   }
   await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`)
   process.stdout.write(

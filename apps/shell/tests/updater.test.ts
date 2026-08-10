@@ -155,12 +155,23 @@ describe('initAutoUpdater', () => {
 
   it('does nothing on unsupported platforms', async () => {
     platformSpy?.restore()
-    setPlatform('linux')
+    setPlatform('freebsd')
     const { initAutoUpdater } = await loadUpdater()
     initAutoUpdater(() => null)
     vi.advanceTimersByTime(FIRST_CHECK_DELAY_MS)
     expect(updaterState.listeners.size).toBe(0)
     expect(checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('configures AppImage updates on packaged Linux', async () => {
+    platformSpy?.restore()
+    setPlatform('linux')
+    const { initAutoUpdater } = await loadUpdater()
+    initAutoUpdater(() => null)
+    expect(updaterState.channel).toBe('latest')
+    expect(updaterState.autoDownload).toBe(false)
+    vi.advanceTimersByTime(FIRST_CHECK_DELAY_MS)
+    expect(checkForUpdates).toHaveBeenCalledOnce()
   })
 
   it('configures manual full-package download and checks after the initial delay', async () => {

@@ -145,16 +145,46 @@ jobs:
       - name: Verify unpacked installed resources and native smoke paths
         shell: bash
         run: |
+          linux_args=()
           case '${{ matrix.platform }}' in
             darwin) resources='apps/shell/package-smoke/GenOffice.app/Contents/Resources' ;;
             win32) resources='apps/shell/release/win-unpacked/resources' ;;
-            linux) resources='apps/shell/release/linux-unpacked/resources' ;;
+            linux)
+              mapfile -t runtime_manifests < <(
+                find apps/shell/package-smoke/squashfs-root \
+                  -path '*/resources/pi-runtime/manifest.json' -type f -print
+              )
+              test "${#runtime_manifests[@]}" -eq 1
+              resources="${runtime_manifests[0]%/pi-runtime/manifest.json}"
+              linux_args=(
+                --package-root apps/shell/package-smoke/squashfs-root
+                --appimage apps/shell/release/GenOffice-*-unsigned.AppImage
+              )
+              ;;
           esac
           npm run verify:packaged-pi-platform -- \
             --resources "$resources" \
             --platform ${{ matrix.platform }} \
             --arch ${{ matrix.arch }} \
+            "${linux_args[@]}" \
             --output evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
+
+      - name: Exercise the exact packaged Linux Runtime process group
+        if: matrix.platform == 'linux'
+        env:
+          GENOFFICE_LINUX_LIFECYCLE_OUTPUT: evidence/g9/native-package/linux/lifecycle.json
+        shell: bash
+        run: |
+          mapfile -t runtime_manifests < <(
+            find apps/shell/package-smoke/squashfs-root \
+              -path '*/resources/pi-runtime/manifest.json' -type f -print
+          )
+          test "${#runtime_manifests[@]}" -eq 1
+          export GENOFFICE_PACKAGED_RUNTIME_ROOT="${runtime_manifests[0]%/manifest.json}"
+          npm run test -w @genoffice/electron-utils -- \
+            --coverage.enabled=false \
+            tests/pi-runtime-e2e.test.ts \
+            -t 'restarts after a forced process crash'
 
       - name: Launch installed shell with a clean home and no network
         shell: bash
@@ -184,19 +214,30 @@ jobs:
           --output evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json
 
       - name: Collect acceptance mapping
-        run: >-
-          npm run acceptance:evidence --
-          --acceptance AR-003,AR-009,AR-010,GX-001,GX-002,GX-003,GX-004,PK-001,PK-002,OTC-009
-          --fixture packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
-          --fixture shell=evidence/g9/native-package/${{ matrix.evidence-platform }}/first-launch.json
-          --fixture artifacts=evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json
-          --fixture retiredVendorFree=evidence/g9/native-package/${{ matrix.evidence-platform }}/retired-vendor-free.json
-          --suite packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json
-          --suite shell=evidence/g9/native-package/${{ matrix.evidence-platform }}/first-launch.json
-          --command unsigned-native-package-${{ matrix.evidence-platform }}
-          --protocol 1
-          --runtime 1.0.0
-          --output evidence/g9/native-package/${{ matrix.evidence-platform }}/evidence.json
+        shell: bash
+        run: |
+          lifecycle_args=()
+          if [ '${{ matrix.platform }}' = 'linux' ]; then
+            lifecycle_args=(
+              --fixture lifecycle=evidence/g9/native-package/linux/lifecycle.json
+              --suite lifecycle=evidence/g9/native-package/linux/lifecycle.json
+            )
+          fi
+          npm run acceptance:evidence -- \
+            --acceptance AR-003,AR-009,AR-010,GX-001,GX-002,GX-003,GX-004,PK-001,PK-002,OTC-009 \
+            --fixture packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json \
+            --fixture shell=evidence/g9/native-package/${{ matrix.evidence-platform }}/first-launch.json \
+            --fixture artifacts=evidence/g9/native-package/${{ matrix.evidence-platform }}/artifacts.json \
+            --fixture retiredVendorFree=evidence/g9/native-package/${{ matrix.evidence-platform }}/retired-vendor-free.json \
+            --fixture upgrade=evidence/g9/issue-43/evidence.json \
+            --suite packaged=evidence/g9/native-package/${{ matrix.evidence-platform }}/package.json \
+            --suite shell=evidence/g9/native-package/${{ matrix.evidence-platform }}/first-launch.json \
+            --suite upgrade=evidence/g9/issue-43/reports/upgrade.json \
+            "${lifecycle_args[@]}" \
+            --command unsigned-native-package-${{ matrix.evidence-platform }} \
+            --protocol 1 \
+            --runtime 1.0.0 \
+            --output evidence/g9/native-package/${{ matrix.evidence-platform }}/evidence.json
 
       - name: Upload unsigned package and redacted evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

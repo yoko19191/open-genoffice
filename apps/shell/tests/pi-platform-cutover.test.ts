@@ -93,6 +93,8 @@ describe('Shell Pi Agent Platform cutover', () => {
     expect(builder).toContain("componentNames.has('pi-agent-runtime')")
     expect(builder).toContain("process.env.GENOFFICE_UNSIGNED_BUILD === '1'")
     expect(builder).toContain('GenOffice-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(builder).toContain('GenOffice-${version}-linux-x64-unsigned.${ext}')
+    expect(builder).toContain('GenOffice-${version}-linux-x64.${ext}')
     expect(builder).toContain('config.mac.identity = null')
     expect(builder).toContain('config.mac.notarize = false')
     expect(builder).toContain('updateUrl && !unsignedBuild')

@@ -227,6 +227,10 @@ export async function verifyPiRuntimeBundle(
     const executable = await lstat(resolve(root, ...manifest.executable.split('/')))
     if ((executable.mode & 0o111) === 0) fail('runtime_bundle_executable_mode_invalid')
   }
+  if (target.platform === 'linux') {
+    const entry = await lstat(resolve(root, ...manifest.entry.split('/')))
+    if ((entry.mode & 0o111) === 0) fail('runtime_bundle_entry_mode_invalid')
+  }
 
   const notices = await readFile(resolve(root, 'THIRD-PARTY-NOTICES.txt'))
   if (sha256(notices) !== manifest.noticesSha256) fail('runtime_bundle_notices_mismatch')

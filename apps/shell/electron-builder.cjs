@@ -268,9 +268,11 @@ const config = {
 
 if (unsignedBuild) {
   config.artifactName = 'GenOffice-${version}-${os}-${arch}-unsigned.${ext}'
+  config.linux.artifactName = 'GenOffice-${version}-linux-x64-unsigned.${ext}'
   config.mac.identity = null
   config.mac.notarize = false
 } else {
+  config.linux.artifactName = 'GenOffice-${version}-linux-x64.${ext}'
   config.afterAllArtifactBuild = 'build/notarize-dmg.js'
 }
 

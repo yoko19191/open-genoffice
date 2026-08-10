@@ -17,9 +17,9 @@ import { closeUpdateWindow, pushUpdateState, showUpdateWindow } from './update-w
  * is intentionally not committed to the repo.
  *
  * UX is the strong-guidance modal card (update-window.ts), not a native
- * dialog. Windows updates through the NSIS installer (latest.yml); macOS
- * through the zip target (latest-mac.yml), both published by the internal
- * release pipeline.
+ * dialog. Windows updates through the NSIS installer (latest.yml), macOS
+ * through the zip target (latest-mac.yml), and Linux through the versioned
+ * AppImage (latest-linux.yml), all published by the internal release pipeline.
  *
  * Dev preview: GENOFFICE_FAKE_UPDATE=<version> in an unpacked run opens the
  * window with a simulated download so the UI can be exercised end to end.
@@ -319,11 +319,11 @@ export function initAutoUpdater(
     return
   }
   // Unpacked runs have no app-update.yml and must not hit the CDN with a
-  // dev version. Windows updates via NSIS (latest.yml), macOS via the zip
-  // target + latest-mac.yml (Squirrel.Mac requires a signed, notarized app
-  // — dmg is first-install only).
+  // dev version. Windows updates via NSIS, macOS via the zip target, and
+  // Linux via AppImage. Squirrel.Mac requires a signed, notarized app; dmg
+  // remains first-install only.
   if (!app.isPackaged) return
-  if (process.platform !== 'win32' && process.platform !== 'darwin') return
+  if (!['win32', 'darwin', 'linux'].includes(process.platform)) return
 
   updaterActive = true
   autoUpdater.channel = CHANNEL_FEED[initialChannel]

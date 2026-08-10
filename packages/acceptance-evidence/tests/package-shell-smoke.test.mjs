@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { validatePackageShellSmoke } from '../src/package-shell-smoke.mjs'
+import {
+  packageShellLaunchTimeout,
+  validatePackageShellSmoke,
+} from '../src/package-shell-smoke.mjs'
 
 function valid(overrides = {}) {
   return {
@@ -31,6 +34,12 @@ function valid(overrides = {}) {
 }
 
 describe('validatePackageShellSmoke', () => {
+  it('allows Windows Defender more launch time without relaxing other platforms', () => {
+    expect(packageShellLaunchTimeout('win32')).toBe(60_000)
+    expect(packageShellLaunchTimeout('darwin')).toBe(30_000)
+    expect(packageShellLaunchTimeout('linux')).toBe(30_000)
+  })
+
   it('summarizes a clean installed first launch without leaking paths', () => {
     expect(validatePackageShellSmoke(valid())).toEqual({
       status: 'passed',

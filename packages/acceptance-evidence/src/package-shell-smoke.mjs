@@ -1,5 +1,9 @@
 const forbiddenUiPattern = /genspark|@genspark|gsk_|credits?/i
 
+export function packageShellLaunchTimeout(platform) {
+  return platform === 'win32' ? 60_000 : 30_000
+}
+
 export function validatePackageShellSmoke(input) {
   if (input.installed !== true) throw new Error('package_shell_not_installed')
   if (input.userDataIsolated !== true) throw new Error('package_shell_user_data_invalid')

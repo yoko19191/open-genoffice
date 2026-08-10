@@ -3,7 +3,10 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { _electron as electron } from 'playwright'
-import { validatePackageShellSmoke } from '../packages/acceptance-evidence/src/package-shell-smoke.mjs'
+import {
+  packageShellLaunchTimeout,
+  validatePackageShellSmoke,
+} from '../packages/acceptance-evidence/src/package-shell-smoke.mjs'
 
 const values = new Map()
 for (let index = 2; index < process.argv.length; index += 2) {
@@ -66,7 +69,7 @@ try {
       GENOFFICE_NETWORK_REPORT: networkReportPath,
       GENOFFICE_NETWORK_SURFACE: 'shell-first-launch',
     },
-    timeout: 30_000,
+    timeout: packageShellLaunchTimeout(platform),
   })
   const page = await electronApp.firstWindow({ timeout: 30_000 })
   await page.waitForLoadState('domcontentloaded')

@@ -102,7 +102,7 @@ describe('PiSubagentEngine', () => {
     process.env.PI_CODING_AGENT_DIR = join(resourceHome, 'state', 'subagent-pi-agent')
     try {
       const engine = new PiSubagentEngine({ resourceHome, pollIntervalMs: 10 })
-      const handle = await engine.spawn({ ...input(), tools: [] })
+      const handle = await engine.spawn({ ...input(), tools: [], timeoutMs: 10_000 })
       await expect(collect(handle.events)).resolves.toEqual(
         expect.arrayContaining([
           {

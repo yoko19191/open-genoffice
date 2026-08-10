@@ -158,6 +158,13 @@ function createFakeCredentialBroker(rootDirectory: string) {
 }
 
 async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle> {
+  const packagedRuntimeRoot = process.env.GENOFFICE_PACKAGED_RUNTIME_ROOT
+  if (packagedRuntimeRoot) {
+    return verifyPiRuntimeBundle(packagedRuntimeRoot, {
+      platform: process.platform as 'darwin' | 'win32' | 'linux',
+      arch: process.arch as 'arm64' | 'x64',
+    })
+  }
   const notices = join(root, 'THIRD-PARTY-NOTICES.txt')
   const outputDirectory = join(root, 'bundle')
   await writeFile(notices, 'Runtime E2E fixture notices\n')
@@ -215,6 +222,26 @@ async function buildCopiedRuntime(root: string): Promise<VerifiedPiRuntimeBundle
     platform: process.platform as 'darwin' | 'win32' | 'linux',
     arch: process.arch as 'arm64' | 'x64',
   })
+}
+
+async function linuxProcessGroup(pid: number): Promise<number> {
+  const stat = await readFile(`/proc/${pid}/stat`, 'utf8')
+  const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
+  return Number(fields[2])
+}
+
+async function linuxProcessGroupMembers(processGroup: number): Promise<number[]> {
+  const members: number[] = []
+  for (const entry of await readdir('/proc')) {
+    if (!/^\d+$/.test(entry)) continue
+    const pid = Number(entry)
+    try {
+      if ((await linuxProcessGroup(pid)) === processGroup) members.push(pid)
+    } catch {
+      // A process may exit between /proc enumeration and stat read.
+    }
+  }
+  return members.sort((left, right) => left - right)
 }
 
 describe('copied Pi Runtime end to end', () => {
@@ -728,6 +755,9 @@ describe('copied Pi Runtime end to end', () => {
     })
     const coldStartedAt = Date.now()
     const firstHealth = await supervisor.start()
+    const firstProcessGroup =
+      process.platform === 'linux' ? await linuxProcessGroup(firstHealth.pid) : undefined
+    if (firstProcessGroup !== undefined) expect(firstProcessGroup).toBe(firstHealth.pid)
     await supervisor.putCredential({
       providerId: localProviderId,
       persistence: 'persistent',
@@ -760,6 +790,9 @@ describe('copied Pi Runtime end to end', () => {
     expect(secondHealth.instanceId).not.toBe(firstHealth.instanceId)
     expect(secondHealth.pid).not.toBe(firstHealth.pid)
     expect(() => process.kill(firstHealth.pid, 0)).toThrow()
+    const secondProcessGroup =
+      process.platform === 'linux' ? await linuxProcessGroup(secondHealth.pid) : undefined
+    if (secondProcessGroup !== undefined) expect(secondProcessGroup).toBe(secondHealth.pid)
 
     const reopened = await supervisor.openSession({
       operationId: randomUUID(),
@@ -833,7 +866,13 @@ describe('copied Pi Runtime end to end', () => {
     await aborted
     unsubscribeNextRun()
     unsubscribe()
+    const shutdownStartedAt = Date.now()
     await supervisor.shutdown()
+    const shutdownDurationMs = Date.now() - shutdownStartedAt
+    expect(shutdownDurationMs).toBeLessThan(5_000)
+    const finalCensus =
+      secondProcessGroup === undefined ? [] : await linuxProcessGroupMembers(secondProcessGroup)
+    expect(finalCensus).toEqual([])
 
     const runtimeDirectoriesAfter = (await readdir(tmpdir())).filter((name) =>
       name.startsWith('open-genoffice-runtime-'),
@@ -841,6 +880,44 @@ describe('copied Pi Runtime end to end', () => {
     expect(runtimeDirectoriesAfter.filter((name) => !runtimeDirectoriesBefore.has(name))).toEqual(
       [],
     )
+    const linuxLifecycleOutput = process.env.GENOFFICE_LINUX_LIFECYCLE_OUTPUT
+    if (process.platform === 'linux' && linuxLifecycleOutput) {
+      await mkdir(dirname(linuxLifecycleOutput), { recursive: true })
+      await writeFile(
+        linuxLifecycleOutput,
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            status: 'passed',
+            platform: 'linux',
+            arch: process.arch,
+            manifestSha256: verified.manifestSha256,
+            treeSha256: verified.manifest.treeSha256,
+            processGroup: {
+              detachedLeader: firstProcessGroup === firstHealth.pid,
+              recoveredLeader: secondProcessGroup === secondHealth.pid,
+              isolated: firstProcessGroup !== secondProcessGroup,
+            },
+            crashRecovery: {
+              signal: 'SIGKILL',
+              oldRuntimeGone: true,
+              instanceChanged: secondHealth.instanceId !== firstHealth.instanceId,
+              activeRun: 'interrupted',
+              replayed: false,
+            },
+            shutdown: {
+              cooperative: true,
+              deadlineMs: 5_000,
+              durationMs: shutdownDurationMs,
+              remainingProcessGroupMembers: finalCensus.length,
+              endpointDirectoriesRemaining: 0,
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      )
+    }
     await localModel.close()
     await rm(root, { recursive: true, force: true })
   }, 30_000)
