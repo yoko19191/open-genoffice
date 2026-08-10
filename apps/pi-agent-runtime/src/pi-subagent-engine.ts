@@ -213,8 +213,8 @@ export class PiSubagentEngine implements SubagentExecutionEngine {
           const pid = providerProcessId(status, provider.attemptId)
           if (pid) windowsTreeKill = this.killWindowsTree(pid)
         }
-        await api.interruptSubagent({ ...ref, reason })
         await windowsTreeKill?.catch(() => undefined)
+        await api.interruptSubagent({ ...ref, reason })
       },
     }
   }

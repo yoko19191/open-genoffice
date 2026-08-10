@@ -371,6 +371,38 @@ describe('PiSubagentEngine', () => {
     expect(api.interruptSubagent).toHaveBeenCalledOnce()
   })
 
+  it('finishes Windows tree cleanup before upstream interruption can orphan descendants', async () => {
+    const resourceHome = await root('genoffice-subagent-engine-windows-order-')
+    const order: string[] = []
+    const api = {
+      runSubagent: vi.fn(async () => ({
+        runId: 'provider-run-order',
+        attemptId: 'provider-attempt-order',
+      })),
+      getSubagentStatus: vi.fn(async () => ({
+        status: 'running',
+        attempts: [{ attemptId: 'provider-attempt-order', pid: 4321 }],
+      })),
+      getSubagentLogs: vi.fn(),
+      interruptSubagent: vi.fn(async () => {
+        order.push('interrupt')
+      }),
+      reconcileSubagentRun: vi.fn(),
+    }
+    const engine = new PiSubagentEngine({
+      resourceHome,
+      api,
+      platform: 'win32',
+      killWindowsProcessTree: async () => {
+        await Promise.resolve()
+        order.push('tree-killed')
+      },
+    })
+    const handle = await engine.spawn(input())
+    await handle.cancel('parent_stop')
+    expect(order).toEqual(['tree-killed', 'interrupt'])
+  })
+
   it.each([
     ['committed-result', 'completed'],
     ['already-terminal', 'failed'],
