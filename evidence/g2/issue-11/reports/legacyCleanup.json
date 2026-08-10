@@ -1,0 +1,196 @@
+{
+  "numTotalTestSuites": 2,
+  "numPassedTestSuites": 2,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 13,
+  "numPassedTests": 13,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786367235551,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup deletes only the reviewed Agent/Genspark targets and preserves Office/autosave siblings",
+          "status": "passed",
+          "title": "deletes only the reviewed Agent/Genspark targets and preserves Office/autosave siblings",
+          "duration": 20.97245799999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup is idempotent and does not advance the completed migration generation twice",
+          "status": "passed",
+          "title": "is idempotent and does not advance the completed migration generation twice",
+          "duration": 16.49837500000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup continues after one deletion failure, omits completion, and succeeds on retry",
+          "status": "passed",
+          "title": "continues after one deletion failure, omits completion, and succeeds on retry",
+          "duration": 15.433792000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects symlink targets without following them or recording completion",
+          "status": "passed",
+          "title": "rejects symlink targets without following them or recording completion",
+          "duration": 4.194708999999989,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup fails closed before deletion when the migration journal is corrupt",
+          "status": "passed",
+          "title": "fails closed before deletion when the migration journal is corrupt",
+          "duration": 4.5376660000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects unsafe structural variants while ignoring unrelated project entries",
+          "status": "passed",
+          "title": "rejects unsafe structural variants while ignoring unrelated project entries",
+          "duration": 4.560334000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup handles absent legacy roots/projects and Windows policy without creating them",
+          "status": "passed",
+          "title": "handles absent legacy roots/projects and Windows policy without creating them",
+          "duration": 6.957084000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup reports failed verification and failed chat deletion without leaking errors",
+          "status": "passed",
+          "title": "reports failed verification and failed chat deletion without leaking errors",
+          "duration": 3.65300000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects invalid roots and non-file migration journals before cleanup",
+          "status": "passed",
+          "title": "rejects invalid roots and non-file migration journals before cleanup",
+          "duration": 3.3745830000000296,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects a symlink migration journal and an invalid completed timestamp",
+          "status": "passed",
+          "title": "rejects a symlink migration journal and an invalid completed timestamp",
+          "duration": 5.845458000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects a non-directory projects root and an inaccessible legacy root shape",
+          "status": "passed",
+          "title": "rejects a non-directory projects root and an inaccessible legacy root shape",
+          "duration": 1.3035830000000033,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup preserves unrelated migration records and fails atomically before journal rename",
+          "status": "passed",
+          "title": "preserves unrelated migration records and fails atomically before journal rename",
+          "duration": 9.930375000000026,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup publishes only reviewed renderer storage keys for removal during app cutover",
+          "status": "passed",
+          "title": "publishes only reviewed renderer storage keys for removal during app cutover",
+          "duration": 0.10800000000000409,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786367235763,
+      "endTime": 1786367235860.108,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/agent-resource/tests/legacy-cleanup.test.ts"
+    }
+  ]
+}
