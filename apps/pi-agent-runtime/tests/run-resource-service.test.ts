@@ -413,6 +413,10 @@ describe('RunResourceService', () => {
       toolIds: ['platform:resource:read', 'office:pdf:read'],
     })
     expect(withSkill.snapshot.toolIds).toEqual(['office:pdf:read', 'platform:resource:read'])
+    await expect(service.subagentResourceTexts(withSkill.snapshot)).resolves.toEqual([
+      expect.stringContaining('prompt:global/global\nGlobal prompt'),
+      expect.stringContaining('skill:global/global-skill\n---'),
+    ])
 
     await rm(join(resourceHome, 'agent', 'skills', 'global-skill'), {
       recursive: true,
@@ -424,6 +428,25 @@ describe('RunResourceService', () => {
       toolIds: ['platform:resource:read', 'office:pdf:read'],
     })
     expect(withoutSkill.snapshot.toolIds).toEqual(['office:pdf:read'])
+  })
+
+  it('rejects a Subagent context whose individually bounded resources exceed the total budget', async () => {
+    const { resourceHome } = await fixture()
+    for (const name of ['large-one', 'large-two', 'large-three']) {
+      await write(
+        join(resourceHome, 'agent', 'prompts', `${name}.md`),
+        `${name}\n${'x'.repeat(44 * 1024)}`,
+      )
+    }
+    const service = new RunResourceService({ resourceHome, deviceId })
+    const prepared = await service.prepare({
+      runId: 'run-large-subagent-context',
+      model: { providerId: 'local', modelId: 'model', capabilities: ['text-input'] },
+      toolIds: ['platform:resource:read'],
+    })
+    await expect(service.subagentResourceTexts(prepared.snapshot)).rejects.toMatchObject({
+      code: 'subagent_context_invalid',
+    })
   })
 
   it('rejects current execution after Trust, resource, tool, or permission revocation', async () => {

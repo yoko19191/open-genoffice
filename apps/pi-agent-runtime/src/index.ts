@@ -29,6 +29,7 @@ export {
 } from './pi-mcp-extension-factory'
 export {
   createAuthenticatedRuntimeServer,
+  resolveSubagentToolDescriptor,
   type AuthenticatedRuntimeServer,
   type AuthenticatedRuntimeServerOptions,
 } from './authenticated-server'
@@ -40,7 +41,11 @@ export {
   type RuntimeDiagnosticCode,
   type StartRuntimeFromStdinOptions,
 } from './bootstrap-stdin'
-export { runRuntimeProcess, type RunRuntimeProcessOptions } from './process-entry'
+export {
+  PI_SUBAGENT_AGENT_DIR_ENV,
+  runRuntimeProcess,
+  type RunRuntimeProcessOptions,
+} from './process-entry'
 export { createDeterministicFakeProvider, type FakeProviderEvent } from './fake-provider'
 export {
   createIsolatedDebugWorkspace,
@@ -53,8 +58,33 @@ export {
   RuntimeSessionError,
   SessionRegistry,
   createSessionRegistry,
+  type SessionSubagentCoordinator,
   type SessionRegistryOptions,
 } from './session-registry'
+export {
+  SubagentCoordinator,
+  SubagentCoordinatorError,
+  type SpawnSubagentRequest,
+  type SubagentCoordinatorEvent,
+  type SubagentExecutionContext,
+  type SubagentExecutionEngine,
+  type SubagentEngineEvent,
+  type SubagentEngineHandle,
+  type SubagentEngineInput,
+  type SubagentToolDescriptor,
+} from './subagent-coordinator'
+export {
+  DEFAULT_SUBAGENT_ROOT_BUDGET,
+  SubagentRunRegistry,
+  SubagentRunRegistryError,
+  type SubagentResult,
+  type SubagentRootBudget,
+  type SubagentRunProjection,
+  type SubagentRunRecord,
+  type SubagentRunStatus,
+  type SubagentUsage,
+} from './subagent-run-registry'
+export { PiSubagentEngine, type PiSubagentEngineOptions } from './pi-subagent-engine'
 export { runRuntimeEntrypoint, type RuntimeEntrypointDependencies } from './runtime-entrypoint'
 export {
   RunAbortTree,

@@ -29,6 +29,118 @@ afterEach(async () => {
 })
 
 describe('deterministic Pi Session factory', () => {
+  it('exposes one product-owned Subagent tool with implicit parent authority', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-subagent-'))
+    roots.push(root)
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      modelsStore: new InMemoryModelsStore(),
+      allowModelNetwork: false,
+    })
+    const provider = fauxProvider({
+      api: 'genoffice-subagent-faux',
+      provider: 'genoffice-subagent-faux',
+      models: [{ id: 'subagent-model', reasoning: false }],
+    })
+    modelRuntime.registerNativeProvider(provider.provider)
+    provider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'subagent',
+            { role: 'researcher', task: 'inspect safely', tools: ['office:docs:replace_blocks'] },
+            { id: 'subagent-tool-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('child queued'),
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'subagent',
+            { role: 'critic', task: 'inspect without optional authority' },
+            { id: 'subagent-tool-call-minimal' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('second child queued'),
+    ])
+    const spawnSubagent = vi.fn(async (input) => ({
+      runId: 'subagent-run-1',
+      rootRunId: input.parentRunId,
+      parentRunId: input.parentRunId,
+      parentSessionId: input.parentSessionId,
+      documentId: input.documentId,
+      role: input.role,
+      depth: 1,
+      model: { providerId: 'genoffice-subagent-faux', modelId: 'subagent-model' },
+      status: 'running' as const,
+      attempt: 1,
+      usage: { inputTokens: 0, outputTokens: 0, costUsd: 0, toolCalls: 0 },
+      capabilitySnapshotId: 'a'.repeat(64),
+      createdAt: '2026-08-10T00:00:00.000Z',
+    }))
+    const handle = await createDeterministicPiSession({
+      cwd: join(root, 'cwd'),
+      agentDir: join(root, 'agent'),
+      sessionDir: join(root, 'sessions'),
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      documentId: '22222222-2222-4222-8222-222222222222',
+      modelRuntime,
+      initialModel: provider.getModel(),
+      resolveModel: () => provider.getModel(),
+      resolveModelMetadata: () => ({
+        providerId: 'genoffice-subagent-faux',
+        modelId: 'subagent-model',
+        capabilities: ['text-input', 'tool-use'],
+      }),
+      runResources: new RunResourceService({
+        resourceHome: root,
+        deviceId: '33333333-3333-4333-8333-333333333333',
+      }),
+      spawnSubagent,
+    })
+    await handle.prompt('delegate', new AbortController().signal, {
+      runId: 'parent-run-1',
+      projectRoot: '/trusted/project',
+    })
+
+    expect(handle.session.getActiveToolNames()).toEqual(['subagent'])
+    expect(spawnSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentRunId: 'parent-run-1',
+        parentSessionId: '11111111-1111-4111-8111-111111111111',
+        documentId: '22222222-2222-4222-8222-222222222222',
+        role: 'researcher',
+        task: 'inspect safely',
+        requestedTools: ['office:docs:replace_blocks'],
+        projectRoot: '/trusted/project',
+        parentSnapshot: expect.objectContaining({
+          createdForRunId: 'parent-run-1',
+          toolIds: ['platform:subagent:spawn'],
+        }),
+      }),
+    )
+    expect(JSON.stringify(handle.sessionManager.getEntries())).toContain('subagent-run-1')
+    spawnSubagent.mockClear()
+    await handle.prompt('delegate again', new AbortController().signal, {
+      runId: 'parent-run-2',
+    })
+    expect(spawnSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentRunId: 'parent-run-2',
+        role: 'critic',
+        task: 'inspect without optional authority',
+      }),
+    )
+    expect(spawnSubagent.mock.calls[0]?.[0]).not.toHaveProperty('requestedTools')
+    expect(spawnSubagent.mock.calls[0]?.[0]).not.toHaveProperty('projectRoot')
+    handle.dispose()
+  })
+
   it('uses the shared selected ModelRuntime model without deterministic fixture post-processing', async () => {
     const root = await mkdtemp(join(tmpdir(), 'genoffice-pi-session-selected-model-'))
     roots.push(root)

@@ -15,6 +15,7 @@ import {
   type RequestEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
+import { resolveOfficeToolCatalogMetadata } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
 import { PackageLockError, initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { ModelCatalogError, ModelCatalogService } from './model-catalog-service'
 import { McpConfigError } from './mcp-config-resolver'
@@ -30,6 +31,9 @@ import { RuntimeCredentialBrokerClient } from './runtime-credential-broker-clien
 import { RuntimeCredentialStore } from './runtime-credential-store'
 import { PackageSourceResolverError } from './package-source-resolver'
 import { RunResourceService, RunResourceServiceError } from './run-resource-service'
+import { PiSubagentEngine } from './pi-subagent-engine'
+import { SubagentCoordinator, type SubagentToolDescriptor } from './subagent-coordinator'
+import { SubagentRunRegistry } from './subagent-run-registry'
 import {
   RuntimeSessionError,
   createSessionRegistry,
@@ -153,13 +157,28 @@ export async function createAuthenticatedRuntimeServer(
     return enqueueSettingsWrite(() => saveModelSelection(options.resourceHome, selection))
   }
 
-  const sessionRegistry =
-    options.sessionRegistry ??
-    createSessionRegistry({
+  let ownedSubagentCoordinator: SubagentCoordinator | undefined
+  let sessionRegistry: SessionRegistry
+  if (options.sessionRegistry) {
+    sessionRegistry = options.sessionRegistry
+  } else {
+    const subagentRuns = new SubagentRunRegistry({ rootDirectory: options.resourceHome })
+    await subagentRuns.initialize()
+    ownedSubagentCoordinator = new SubagentCoordinator({
+      registry: subagentRuns,
+      engine: new PiSubagentEngine({ resourceHome: options.resourceHome }),
+      authorizeSnapshot: (snapshot, projectRoot) => runResources.verify(snapshot, projectRoot),
+      resolveTool: resolveSubagentToolDescriptor,
+      resolveContext: async ({ parentSnapshot, projectRoot }) => ({
+        resourceTexts: await runResources.subagentResourceTexts(parentSnapshot, projectRoot),
+      }),
+    })
+    sessionRegistry = createSessionRegistry({
       dataRoot: options.resourceHome,
       instanceId: options.instanceId,
       cursorSecret: randomBytes(32),
       credentials,
+      subagents: ownedSubagentCoordinator,
       ...(ownedModelCatalog
         ? {
             createPiSession: (sessionOptions) =>
@@ -170,10 +189,13 @@ export async function createAuthenticatedRuntimeServer(
                 resolveModel: () => ownedModelCatalog.selectedModel('conversation'),
                 resolveModelMetadata: () => ownedModelCatalog.selectedModelMetadata('conversation'),
                 runResources,
+                spawnSubagent: (request) => sessionRegistry.spawnSubagent(request),
               }),
           }
         : {}),
     })
+    await sessionRegistry.reconcileSubagents()
+  }
 
   const server = createServer((socket) => {
     if (tokenConsumed || authenticatedSocket) {
@@ -220,6 +242,7 @@ export async function createAuthenticatedRuntimeServer(
                 'session.open',
                 'session.prompt',
                 'session.abort',
+                'session.subagent.resume',
                 'session.fork',
                 'session.navigate',
                 'session.snapshot',
@@ -286,6 +309,7 @@ export async function createAuthenticatedRuntimeServer(
     closeStarted = true
     credentialClient.close('runtime_connection_closed')
     void Promise.allSettled([sessionRegistry.shutdown(), runResources.shutdown()]).finally(() => {
+      ownedSubagentCoordinator?.close()
       authenticatedSocket?.end()
       server.close(() => resolveClosed())
     })
@@ -671,6 +695,10 @@ export async function createAuthenticatedRuntimeServer(
         socket.write(response(request, await sessionRegistry.abort(request.params)))
         return
       }
+      if (request.method === 'session.subagent.resume') {
+        socket.write(response(request, await sessionRegistry.resumeSubagent(request.params)))
+        return
+      }
       if (request.method === 'session.fork') {
         socket.write(response(request, await sessionRegistry.fork(request.params)))
         return
@@ -714,4 +742,24 @@ export async function createAuthenticatedRuntimeServer(
   }
 
   return { closed, shutdown: beginShutdown, credentials }
+}
+
+export function resolveSubagentToolDescriptor(
+  canonicalToolId: string,
+): SubagentToolDescriptor | undefined {
+  if (canonicalToolId === 'platform:subagent:spawn') {
+    return { canonicalToolId, modelAlias: 'subagent', effect: 'orchestration' }
+  }
+  if (canonicalToolId === 'platform:resource:read') {
+    return { canonicalToolId, modelAlias: 'read', effect: 'read' }
+  }
+  const office = resolveOfficeToolCatalogMetadata(canonicalToolId)
+  if (office) {
+    return { canonicalToolId, modelAlias: office.modelAlias, effect: office.effect }
+  }
+  if (canonicalToolId.startsWith('mcp:')) {
+    const modelAlias = canonicalToolId.slice(canonicalToolId.lastIndexOf(':') + 1)
+    return modelAlias ? { canonicalToolId, modelAlias, effect: 'read' } : undefined
+  }
+  return undefined
 }

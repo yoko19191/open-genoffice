@@ -3,7 +3,9 @@ import type {
   EventEnvelope,
   SessionMessageProjection,
   SessionSnapshot,
+  SubagentRunProjection,
 } from '@genoffice/agent-runtime-protocol'
+import { parseSubagentRunProjection } from '@genoffice/agent-runtime-protocol'
 
 export type AgentPanelTool = {
   toolCallId: string
@@ -17,6 +19,7 @@ export type AgentSessionProjection = {
   messages: SessionMessageProjection[]
   thinking?: { text: string; streaming: boolean }
   tools: AgentPanelTool[]
+  subagents: SubagentRunProjection[]
   compaction?: {
     state: 'running' | 'completed' | 'failed'
     tokensBefore?: number
@@ -86,12 +89,22 @@ function toolState(event: EventEnvelope): AgentPanelTool['state'] | undefined {
   return undefined
 }
 
+function subagentProjection(event: EventEnvelope): SubagentRunProjection | undefined {
+  if (!event.type.startsWith('subagent.')) return undefined
+  try {
+    return parseSubagentRunProjection(event.payload)
+  } catch {
+    return undefined
+  }
+}
+
 export function createAgentSessionProjection(snapshot: SessionSnapshot): AgentSessionProjection {
   return {
     sessionId: snapshot.sessionId,
     documentId: snapshot.documentId,
     messages: structuredClone(snapshot.messages),
     tools: [],
+    subagents: structuredClone(snapshot.subagents ?? []),
     ...(snapshot.activeRun ? { activeRun: { ...snapshot.activeRun } } : {}),
     lastSequence: snapshot.lastSequence,
     cursor: snapshot.cursor,
@@ -122,6 +135,7 @@ export function applyAgentSessionEvent(
     ...projection,
     messages: [...projection.messages],
     tools: [...projection.tools],
+    subagents: [...projection.subagents],
     lastSequence: event.sequence,
     cursor: event.cursor,
     recentEventIds: [...projection.recentEventIds, event.eventId].slice(-EVENT_DEDUPE_WINDOW),
@@ -131,6 +145,13 @@ export function applyAgentSessionEvent(
   if (nextRunState) {
     const runId = event.runId ?? projection.activeRun?.runId
     if (runId) next.activeRun = { runId, state: nextRunState }
+  }
+
+  const nextSubagent = subagentProjection(event)
+  if (nextSubagent) {
+    const index = next.subagents.findIndex((candidate) => candidate.runId === nextSubagent.runId)
+    if (index === -1) next.subagents.push(nextSubagent)
+    else next.subagents[index] = nextSubagent
   }
 
   if (event.type === 'message.started') {

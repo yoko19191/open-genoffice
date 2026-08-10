@@ -9,6 +9,7 @@ import type {
   EventEnvelope,
   SessionMessageProjection,
   SessionSnapshot,
+  SubagentRunProjection as RendererSubagentRunProjection,
 } from '@genoffice/agent-runtime-protocol'
 import {
   CapabilitySnapshotError,
@@ -29,6 +30,8 @@ import {
   type RunAbortSummary,
 } from './run-abort-tree'
 import { planSessionRecovery, type SessionRecoveryPlan } from './session-recovery'
+import type { SpawnSubagentRequest, SubagentCoordinatorEvent } from './subagent-coordinator'
+import type { SubagentRunProjection } from './subagent-run-registry'
 
 type Binding = {
   version: 1
@@ -42,6 +45,7 @@ type CreateInput = { operationId: string; documentId: string }
 type OpenInput = CreateInput & { sessionId: string }
 type PromptInput = OpenInput & { text: string; projectRoot?: string }
 type AbortInput = OpenInput & { runId: string }
+type ResumeSubagentInput = OpenInput & { runId: string }
 type NavigateInput = OpenInput & { targetEntryId: string }
 type BoundInput = { sessionId: string; documentId: string }
 type SubscribeInput = BoundInput & { afterCursor?: string }
@@ -64,6 +68,7 @@ type AbortReceipt = {
   state: 'cancelling' | 'already_terminal'
   acceptedCursor: string
 }
+type ResumeSubagentReceipt = { runId: string; attempt: number; acceptedCursor: string }
 type ForkReceipt = CreateReceipt & { parentSessionId: string }
 type NavigateReceipt = CreateReceipt & { activeLeafId: string }
 type OperationEntry = { hash: string; result: Promise<unknown> }
@@ -103,7 +108,18 @@ export type SessionRegistryOptions = {
   now?: () => Date
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
   credentials?: CredentialStore
+  subagents?: SessionSubagentCoordinator
   bindingAtomicWriteOptions?: (binding: Readonly<Binding>) => AtomicWriteOptions
+}
+
+export type SessionSubagentCoordinator = {
+  onEvent(listener: (event: SubagentCoordinatorEvent) => void): () => void
+  listForSession(parentSessionId: string): SubagentRunProjection[]
+  spawn(request: SpawnSubagentRequest): Promise<SubagentRunProjection>
+  cancelTree(parentRunId: string, reason: string): Promise<void>
+  resume(runId: string): Promise<SubagentRunProjection>
+  parentSessionIdsWithRuns?(): string[]
+  reconcile?(): Promise<void>
 }
 
 export class RuntimeSessionError extends Error {
@@ -191,6 +207,7 @@ export class SessionRegistry {
   private readonly loadingRecords = new Map<string, Promise<SessionRecord>>()
   private readonly operations = new Map<string, OperationEntry>()
   private readonly listeners = new Set<(event: EventEnvelope) => void>()
+  private readonly unsubscribeSubagents: () => void
 
   constructor(private readonly options: SessionRegistryOptions) {
     this.dataRoot =
@@ -232,6 +249,8 @@ export class SessionRegistry {
         }
       },
     })
+    this.unsubscribeSubagents =
+      options.subagents?.onEvent((event) => this.projectSubagentEvent(event)) ?? (() => {})
   }
 
   onEvent(listener: (event: EventEnvelope) => void): () => void {
@@ -516,6 +535,53 @@ export class SessionRegistry {
     })
   }
 
+  async spawnSubagent(request: SpawnSubagentRequest): Promise<SubagentRunProjection> {
+    const binding = await this.readBoundBinding({
+      sessionId: request.parentSessionId,
+      documentId: request.documentId,
+    })
+    const record = await this.loadRecord(binding)
+    const activeRun = record.activeRun
+    if (
+      !this.options.subagents ||
+      !activeRun ||
+      activeRun.runId !== request.parentRunId ||
+      (activeRun.state !== 'queued' && activeRun.state !== 'running')
+    ) {
+      throw new RuntimeSessionError('invalid_state')
+    }
+    const child = await this.options.subagents.spawn(request)
+    activeRun.abortTree.register({
+      id: `subagent:${child.runId}`,
+      kind: 'subagent',
+      abort: async () => {
+        await this.options.subagents!.cancelTree(child.runId, 'parent_run_aborted')
+      },
+    })
+    await record.eventQueue
+    return child
+  }
+
+  async resumeSubagent(input: ResumeSubagentInput): Promise<ResumeSubagentReceipt> {
+    const binding = await this.readBoundBinding(input)
+    return this.idempotent('session.subagent.resume', input, async () => {
+      const record = await this.loadRecord(binding)
+      const child = this.options.subagents
+        ?.listForSession(binding.sessionId)
+        .find((candidate) => candidate.runId === input.runId)
+      if (!child || child.documentId !== binding.documentId || child.status !== 'resumable') {
+        throw new RuntimeSessionError('invalid_state')
+      }
+      const resumed = await this.options.subagents!.resume(input.runId)
+      await record.eventQueue
+      return {
+        runId: resumed.runId,
+        attempt: resumed.attempt,
+        acceptedCursor: this.snapshotFor(record).cursor,
+      }
+    })
+  }
+
   registerRunDescendant(
     sessionId: string,
     runId: string,
@@ -561,6 +627,17 @@ export class SessionRegistry {
     if (!record) throw new RuntimeSessionError('session_not_found')
     await record.activeRun?.promise
     await record.eventQueue
+  }
+
+  async reconcileSubagents(): Promise<void> {
+    const coordinator = this.options.subagents
+    if (!coordinator?.reconcile) return
+    for (const sessionId of coordinator.parentSessionIdsWithRuns?.() ?? []) {
+      const binding = await this.readBinding(sessionId)
+      await this.loadRecord(binding)
+    }
+    await coordinator.reconcile()
+    await Promise.all([...this.records.values()].map((record) => record.eventQueue))
   }
 
   async readJournal(sessionId: string): Promise<EventEnvelope[]> {
@@ -627,6 +704,7 @@ export class SessionRegistry {
       this.records.clear()
       this.loadingRecords.clear()
       this.listeners.clear()
+      this.unsubscribeSubagents()
     }
   }
 
@@ -1111,6 +1189,13 @@ export class SessionRegistry {
       sessionId: record.binding.sessionId,
       documentId: record.binding.documentId,
       messages,
+      ...(this.options.subagents
+        ? {
+            subagents: this.options.subagents
+              .listForSession(record.binding.sessionId)
+              .map(rendererSubagentProjection),
+          }
+        : {}),
       branch: {
         ...(record.binding.parentSessionId
           ? { parentSessionId: record.binding.parentSessionId }
@@ -1143,6 +1228,34 @@ export class SessionRegistry {
     }
   }
 
+  private projectSubagentEvent(event: SubagentCoordinatorEvent): void {
+    const parentSessionId = 'run' in event ? event.run.parentSessionId : event.parentSessionId
+    const record = this.records.get(parentSessionId)
+    if (!record) return
+    const runId = 'run' in event ? event.run.runId : event.runId
+    if ('run' in event) {
+      void this.appendEvent(
+        record,
+        `subagent.${event.type}` as EventEnvelope['type'],
+        rendererSubagentProjection(event.run),
+        runId,
+      )
+      return
+    }
+    void this.appendEvent(
+      record,
+      `subagent.${event.type}` as EventEnvelope['type'],
+      {
+        runId,
+        rootRunId: event.rootRunId,
+        parentRunId: event.parentRunId,
+        ...(event.text ? { text: event.text } : {}),
+        ...(event.toolId ? { toolId: event.toolId } : {}),
+      },
+      runId,
+    )
+  }
+
   private cursor(sessionId: string, sequence: number): string {
     const body = Buffer.from(`${this.options.instanceId}\0${sessionId}\0${sequence}`).toString(
       'base64url',
@@ -1173,6 +1286,13 @@ export class SessionRegistry {
       return undefined
     return sequence
   }
+}
+
+function rendererSubagentProjection(
+  projection: SubagentRunProjection,
+): RendererSubagentRunProjection {
+  const { parentSessionId: _parentSessionId, documentId: _documentId, ...renderer } = projection
+  return renderer
 }
 
 export function createSessionRegistry(options: SessionRegistryOptions): SessionRegistry {

@@ -5,6 +5,7 @@ import type {
   SessionNavigateReceipt,
   SessionConnectionReceipt,
   SessionPromptReceipt,
+  SessionSubagentResumeReceipt,
   SessionSnapshot,
   SessionSubscriptionReceipt,
   ProviderCredentialStatus,
@@ -23,6 +24,7 @@ import type {
   SessionCreateRequest,
   SessionOpenRequest,
   SessionPromptRequest,
+  SessionSubagentResumeRequest,
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
@@ -55,6 +57,7 @@ export type SupervisedPiRuntimeManager = {
   openSession(input: SessionOpenRequest): Promise<SessionConnectionReceipt>
   promptSession(input: SessionPromptRequest): Promise<SessionPromptReceipt>
   abortSession(input: SessionAbortRequest): Promise<SessionAbortReceipt>
+  resumeSubagent(input: SessionSubagentResumeRequest): Promise<SessionSubagentResumeReceipt>
   forkSession(input: SessionForkRequest): Promise<SessionForkReceipt>
   navigateSession(input: SessionNavigateRequest): Promise<SessionNavigateReceipt>
   snapshotSession(input: SessionBoundRequest): Promise<SessionSnapshot>
@@ -221,6 +224,10 @@ export class PiRuntimeSupervisor implements SupervisedPiRuntimeManager {
 
   async abortSession(input: SessionAbortRequest): Promise<SessionAbortReceipt> {
     return (await this.readyManager()).abortSession(input)
+  }
+
+  async resumeSubagent(input: SessionSubagentResumeRequest): Promise<SessionSubagentResumeReceipt> {
+    return (await this.readyManager()).resumeSubagent(input)
   }
 
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {

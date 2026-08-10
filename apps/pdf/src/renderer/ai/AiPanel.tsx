@@ -100,6 +100,13 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
     })
   }
 
+  const resumeSubagent = (runId: string): void => {
+    setConnectionError(undefined)
+    void controller.resumeSubagent(runId).catch((error: unknown) => {
+      setConnectionError(error instanceof Error ? error.message : 'subagent_resume_failed')
+    })
+  }
+
   const onChatScroll = (): void => {
     const element = chatRef.current
     if (!element) return
@@ -205,6 +212,13 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
           </div>
         ))}
         {(projection?.tools.length ?? 0) > 0 && <ToolStatusList tools={projection!.tools} />}
+        {(projection?.subagents.length ?? 0) > 0 && (
+          <SubagentRunTree
+            runs={projection!.subagents}
+            retryLabel={t('aiRetry')}
+            onResume={resumeSubagent}
+          />
+        )}
         {errorCode && <div className="ai-msg ai-msg-assistant ai-msg-error">{errorCode}</div>}
         {busy && <AiTypingIndicator label={typingLabel} />}
       </div>
@@ -228,6 +242,47 @@ export function AiPanel({ onCollapse }: { onCollapse: () => void }): ReactElemen
         />
       </div>
     </aside>
+  )
+}
+
+function SubagentRunTree({
+  runs,
+  retryLabel,
+  onResume,
+}: {
+  runs: AgentSessionProjection['subagents']
+  retryLabel: string
+  onResume: (runId: string) => void
+}): ReactElement {
+  return (
+    <div className="ai-work-group" data-testid="subagent-run-tree">
+      <div className="ai-work-group-body open">
+        <div className="ai-work-group-body-inner">
+          {runs.map((run) => (
+            <div
+              key={run.runId}
+              className="ai-step-row"
+              style={{ paddingInlineStart: `${Math.max(0, run.depth - 1) * 16}px` }}
+            >
+              <span className={`ai-step-icon ${run.status}`} aria-hidden>
+                ·
+              </span>
+              <div className="ai-step-content">
+                <span className="ai-step-title">{run.role}</span>
+                <span className="ai-step-desc">
+                  {run.status} · {run.usage.inputTokens + run.usage.outputTokens} tokens
+                </span>
+              </div>
+              {run.status === 'resumable' && (
+                <button type="button" className="ai-header-btn" onClick={() => onResume(run.runId)}>
+                  {retryLabel}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 

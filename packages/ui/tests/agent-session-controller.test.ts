@@ -53,9 +53,11 @@ function fixture(connect = vi.fn(async () => receipt())) {
     connect,
     command: vi.fn(async (command) => {
       commands.push(command)
-      return command.type === 'prompt'
-        ? { runId, acceptedCursor: 'cursor-2' }
-        : { runId, state: 'cancelling', acceptedCursor: 'cursor-3' }
+      if (command.type === 'prompt') return { runId, acceptedCursor: 'cursor-2' }
+      if (command.type === 'resumeSubagent') {
+        return { runId: command.runId, attempt: 2, acceptedCursor: 'cursor-4' }
+      }
+      return { runId, state: 'cancelling', acceptedCursor: 'cursor-3' }
     }),
     disconnect: vi.fn(),
     onEvent: vi.fn((handler) => {
@@ -130,6 +132,45 @@ describe('AgentSessionController', () => {
     expect(test.client.disconnect).toHaveBeenCalledOnce()
     test.emit(event(2, 'run.started'))
     expect(controller.snapshot()).toBeUndefined()
+  })
+
+  it('resumes only a resumable child from the authoritative projection', async () => {
+    const childRunId = 'subagent-run-1'
+    const connect = vi.fn(async () => ({
+      ...receipt(),
+      snapshot: {
+        ...receipt().snapshot,
+        subagents: [
+          {
+            runId: childRunId,
+            rootRunId: runId,
+            parentRunId: runId,
+            role: 'researcher',
+            depth: 1,
+            model: { providerId: 'provider-1', modelId: 'model-1' },
+            status: 'resumable' as const,
+            attempt: 1,
+            usage: { inputTokens: 1, outputTokens: 1, costUsd: 0, toolCalls: 0 },
+            capabilitySnapshotId: 'a'.repeat(64),
+            createdAt: '2026-08-10T00:00:00.000Z',
+          },
+        ],
+      },
+    }))
+    const test = fixture(connect)
+    const controller = new AgentSessionController(test.client, { randomUUID: () => operationId })
+    await controller.connect()
+    await expect(controller.resumeSubagent(childRunId)).resolves.toMatchObject({ attempt: 2 })
+    expect(test.commands.at(-1)).toEqual({
+      type: 'resumeSubagent',
+      operationId,
+      sessionId,
+      documentId,
+      runId: childRunId,
+    })
+    await expect(controller.resumeSubagent('missing')).rejects.toThrowError(
+      'subagent_run_not_resumable',
+    )
   })
 
   it('reconnects from the last authoritative cursor and ignores already-snapshotted queued events', async () => {

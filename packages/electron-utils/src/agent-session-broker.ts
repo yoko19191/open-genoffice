@@ -8,6 +8,7 @@ import type {
   SessionForkReceipt,
   SessionNavigateReceipt,
   SessionPromptReceipt,
+  SessionSubagentResumeReceipt,
   SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
 
@@ -39,6 +40,12 @@ export type AgentSessionTransport = {
     documentId: string
     runId: string
   }): Promise<SessionAbortReceipt>
+  resumeSubagent(input: {
+    operationId: string
+    sessionId: string
+    documentId: string
+    runId: string
+  }): Promise<SessionSubagentResumeReceipt>
   forkSession(input: {
     operationId: string
     sessionId: string
@@ -171,7 +178,11 @@ export class AgentSessionBroker<ClientId = number> {
     clientId: ClientId,
     command: AgentSessionCommand,
   ): Promise<
-    SessionPromptReceipt | SessionAbortReceipt | SessionForkReceipt | SessionNavigateReceipt
+    | SessionPromptReceipt
+    | SessionAbortReceipt
+    | SessionSubagentResumeReceipt
+    | SessionForkReceipt
+    | SessionNavigateReceipt
   > {
     if (!(await this.options.authorize(clientId, command.documentId))) {
       throw new Error('document_access_denied')
@@ -197,6 +208,14 @@ export class AgentSessionBroker<ClientId = number> {
     }
     if (command.type === 'abort') {
       return this.transport.abortSession({
+        operationId: command.operationId,
+        sessionId: command.sessionId,
+        documentId: command.documentId,
+        runId: command.runId,
+      })
+    }
+    if (command.type === 'resumeSubagent') {
+      return this.transport.resumeSubagent({
         operationId: command.operationId,
         sessionId: command.sessionId,
         documentId: command.documentId,

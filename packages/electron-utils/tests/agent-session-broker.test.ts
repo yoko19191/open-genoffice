@@ -67,6 +67,11 @@ function harness() {
       state: 'cancelling' as const,
       acceptedCursor: 'cursor-3',
     })),
+    resumeSubagent: vi.fn(async () => ({
+      runId: 'subagent-run-1',
+      attempt: 2,
+      acceptedCursor: 'cursor-4',
+    })),
     forkSession: vi.fn(async () => {
       const forkSnapshot = {
         ...currentSnapshot,
@@ -324,6 +329,21 @@ describe('Electron main Agent Session broker', () => {
       sessionId,
       documentId,
       runId: 'run-1',
+    })
+    await expect(
+      fixture.broker.command(1, {
+        type: 'resumeSubagent',
+        operationId: command.operationId,
+        sessionId,
+        documentId,
+        runId: 'subagent-run-1',
+      }),
+    ).resolves.toMatchObject({ runId: 'subagent-run-1', attempt: 2 })
+    expect(fixture.transport.resumeSubagent).toHaveBeenCalledWith({
+      operationId: command.operationId,
+      sessionId,
+      documentId,
+      runId: 'subagent-run-1',
     })
     fixture.authorize.mockResolvedValueOnce(false)
     await expect(fixture.broker.command(1, command)).rejects.toThrowError('document_access_denied')

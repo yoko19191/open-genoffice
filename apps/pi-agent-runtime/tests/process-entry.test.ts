@@ -10,7 +10,12 @@ import {
   SCHEMA_VERSION,
   type BootstrapRecord,
 } from '@genoffice/agent-runtime-protocol'
-import { RUNTIME_EXIT_CODES, RuntimeBootstrapError, runRuntimeProcess } from '../src'
+import {
+  PI_SUBAGENT_AGENT_DIR_ENV,
+  RUNTIME_EXIT_CODES,
+  RuntimeBootstrapError,
+  runRuntimeProcess,
+} from '../src'
 
 async function endpoint(): Promise<string> {
   if (process.platform === 'win32') {
@@ -65,27 +70,38 @@ describe('Runtime process entry', () => {
       shutdown: async () => {},
       credentials: new InMemoryCredentialStore(),
     }
-    await expect(
-      runRuntimeProcess({
-        stdin: new PassThrough(),
-        stderr: new PassThrough(),
-        actualParentPid: 6160,
-        instanceId: 'process-instance-resource-home',
-        platform: 'linux',
-        resourceHome: '/isolated/.open-genoffice',
-        initializeResourceHome: async (options) => {
-          calls.push(
-            `resource:${options.rootDirectory}:${options.runtimeVersion}:${options.platform}`,
-          )
-        },
-        startRuntime: async (options) => {
-          expect(options.resourceHome).toBe('/isolated/.open-genoffice')
-          calls.push('runtime')
-          return runtime
-        },
-      }),
-    ).resolves.toBe(RUNTIME_EXIT_CODES.ok)
-    expect(calls).toEqual(['resource:/isolated/.open-genoffice:1.0.0:linux', 'runtime'])
+    const previousAgentDirectory = process.env[PI_SUBAGENT_AGENT_DIR_ENV]
+    process.env[PI_SUBAGENT_AGENT_DIR_ENV] = '/external/pi-agent'
+    try {
+      await expect(
+        runRuntimeProcess({
+          stdin: new PassThrough(),
+          stderr: new PassThrough(),
+          actualParentPid: 6160,
+          instanceId: 'process-instance-resource-home',
+          platform: 'linux',
+          resourceHome: '/isolated/.open-genoffice',
+          initializeResourceHome: async (options) => {
+            calls.push(
+              `resource:${options.rootDirectory}:${options.runtimeVersion}:${options.platform}`,
+            )
+          },
+          startRuntime: async (options) => {
+            expect(options.resourceHome).toBe('/isolated/.open-genoffice')
+            expect(process.env[PI_SUBAGENT_AGENT_DIR_ENV]).toBe(
+              '/isolated/.open-genoffice/state/subagent-pi-agent',
+            )
+            calls.push('runtime')
+            return runtime
+          },
+        }),
+      ).resolves.toBe(RUNTIME_EXIT_CODES.ok)
+      expect(calls).toEqual(['resource:/isolated/.open-genoffice:1.0.0:linux', 'runtime'])
+      expect(process.env[PI_SUBAGENT_AGENT_DIR_ENV]).toBe('/external/pi-agent')
+    } finally {
+      if (previousAgentDirectory === undefined) delete process.env[PI_SUBAGENT_AGENT_DIR_ENV]
+      else process.env[PI_SUBAGENT_AGENT_DIR_ENV] = previousAgentDirectory
+    }
   })
 
   it('writes only the stable diagnostic code for known and unknown failures', async () => {

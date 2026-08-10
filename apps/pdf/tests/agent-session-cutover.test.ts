@@ -20,6 +20,8 @@ describe('PDF Agent Session cutover', () => {
     expect(panel).toContain('controller.connect()')
     expect(panel).toContain('controller.prompt(instruction)')
     expect(panel).toContain('controller.abort()')
+    expect(panel).toContain('data-testid="subagent-run-tree"')
+    expect(panel).toContain('controller.resumeSubagent(runId)')
     expect(preload).toContain("contextBridge.exposeInMainWorld('agentSession'")
     expect(rendererTypes).toContain('agentSession: AgentSessionPreloadApi')
   })

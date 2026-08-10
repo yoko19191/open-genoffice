@@ -19,6 +19,7 @@ import {
   parseSessionForkReceipt,
   parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
+  parseSessionSubagentResumeReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
   type BootstrapRecord,
@@ -39,6 +40,7 @@ import {
   type SessionForkReceipt,
   type SessionNavigateReceipt,
   type SessionPromptReceipt,
+  type SessionSubagentResumeReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -110,6 +112,7 @@ export type SessionCreateRequest = { operationId: string; documentId: string }
 export type SessionOpenRequest = SessionCreateRequest & { sessionId: string }
 export type SessionPromptRequest = SessionOpenRequest & { text: string; projectRoot?: string }
 export type SessionAbortRequest = SessionOpenRequest & { runId: string }
+export type SessionSubagentResumeRequest = SessionOpenRequest & { runId: string }
 export type SessionForkRequest = SessionOpenRequest
 export type SessionNavigateRequest = SessionOpenRequest & { targetEntryId: string }
 export type SessionBoundRequest = { sessionId: string; documentId: string }
@@ -197,6 +200,7 @@ type ClientRuntimeMethod =
   | 'session.open'
   | 'session.prompt'
   | 'session.abort'
+  | 'session.subagent.resume'
   | 'session.fork'
   | 'session.navigate'
   | 'session.snapshot'
@@ -487,6 +491,7 @@ export class PiRuntimeManager {
         !hello.capabilities.includes('session.open') ||
         !hello.capabilities.includes('session.prompt') ||
         !hello.capabilities.includes('session.abort') ||
+        !hello.capabilities.includes('session.subagent.resume') ||
         !hello.capabilities.includes('session.fork') ||
         !hello.capabilities.includes('session.navigate') ||
         !hello.capabilities.includes('session.snapshot') ||
@@ -941,6 +946,16 @@ export class PiRuntimeManager {
     } catch (error) {
       if (error instanceof PiRuntimeManagerError) throw error
       throw new PiRuntimeManagerError('session_abort_receipt_invalid')
+    }
+  }
+
+  async resumeSubagent(input: SessionSubagentResumeRequest): Promise<SessionSubagentResumeReceipt> {
+    this.assertReady()
+    try {
+      return parseSessionSubagentResumeReceipt(await this.request('session.subagent.resume', input))
+    } catch (error) {
+      if (error instanceof PiRuntimeManagerError) throw error
+      throw new PiRuntimeManagerError('session_subagent_resume_receipt_invalid')
     }
   }
 

@@ -14,7 +14,11 @@ import {
   type ProtocolEnvelope,
   type ResponseEnvelope,
 } from '@genoffice/agent-runtime-protocol'
-import { createAuthenticatedRuntimeServer, createSessionRegistry } from '../src'
+import {
+  createAuthenticatedRuntimeServer,
+  createSessionRegistry,
+  resolveSubagentToolDescriptor,
+} from '../src'
 import { ResourceActivationStore, initializeAgentResourceHome } from '@genoffice/agent-resource'
 import { OpenGenOfficeMcpConfigResolver } from '../src/mcp-config-resolver'
 import { ModelCatalogError } from '../src/model-catalog-service'
@@ -152,6 +156,36 @@ function frameReader(socket: Socket) {
 }
 
 describe('authenticated Runtime socket', () => {
+  it('resolves only contract-proven read surfaces for production Subagent snapshots', () => {
+    expect(resolveSubagentToolDescriptor('platform:subagent:spawn')).toEqual({
+      canonicalToolId: 'platform:subagent:spawn',
+      modelAlias: 'subagent',
+      effect: 'orchestration',
+    })
+    expect(resolveSubagentToolDescriptor('platform:resource:read')).toEqual({
+      canonicalToolId: 'platform:resource:read',
+      modelAlias: 'read',
+      effect: 'read',
+    })
+    expect(resolveSubagentToolDescriptor('office:pdf:read_pages')).toEqual({
+      canonicalToolId: 'office:pdf:read_pages',
+      modelAlias: 'read_pages',
+      effect: 'read',
+    })
+    expect(resolveSubagentToolDescriptor('office:pdf:delete_page')).toEqual({
+      canonicalToolId: 'office:pdf:delete_page',
+      modelAlias: 'delete_page',
+      effect: 'mutation',
+    })
+    expect(resolveSubagentToolDescriptor('mcp:search:query')).toEqual({
+      canonicalToolId: 'mcp:search:query',
+      modelAlias: 'query',
+      effect: 'read',
+    })
+    expect(resolveSubagentToolDescriptor('mcp:')).toBeUndefined()
+    expect(resolveSubagentToolDescriptor('platform:extension:unsafe/delete_page')).toBeUndefined()
+  })
+
   it('carries Runtime-initiated credential storage over the authenticated socket only', async () => {
     const socketPath = await endpoint()
     const runtime = await createAuthenticatedRuntimeServer({
@@ -801,6 +835,7 @@ describe('authenticated Runtime socket', () => {
           'session.open',
           'session.prompt',
           'session.abort',
+          'session.subagent.resume',
           'session.fork',
           'session.navigate',
           'session.snapshot',

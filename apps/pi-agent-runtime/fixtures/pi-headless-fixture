@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+
+import { spawn } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const prompt = process.argv.at(-1) ?? ''
+
+if (prompt.includes('BLOCK_FOR_CANCEL')) {
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    stdio: 'ignore',
+  })
+  writeFileSync(join(process.cwd(), 'fixture-child.pid'), String(child.pid))
+  setInterval(() => {}, 1000)
+} else {
+  const message = {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'fixture child completed' }],
+    provider: 'fixture-provider',
+    model: 'fixture-model',
+    usage: { input: 7, output: 3, cost: { total: 0.01 } },
+    stopReason: 'stop',
+  }
+  process.stdout.write(`${JSON.stringify({ type: 'message_end', message })}\n`)
+  process.stdout.write(`${JSON.stringify({ type: 'agent_end', messages: [message] })}\n`)
+}

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import catalogFixture from '../fixtures/office-tool-catalog-baseline.json' with { type: 'json' }
 import { canonicalizeOfficeToolCatalog, parseOfficeToolCatalog } from '../src'
+import { resolveOfficeToolCatalogMetadata } from '../src/office-tool-catalog'
 
 const repoRoot = new URL('../../../', import.meta.url)
 
@@ -11,6 +12,19 @@ async function registrations(sourceFile: string): Promise<string[]> {
 }
 
 describe('frozen four-application tool catalog', () => {
+  it('resolves canonical Office effects without treating platform ids as Office tools', () => {
+    expect(resolveOfficeToolCatalogMetadata('office:pdf:read_pages')).toEqual({
+      modelAlias: 'read_pages',
+      effect: 'read',
+    })
+    expect(resolveOfficeToolCatalogMetadata('office:pdf:delete_page')).toEqual({
+      modelAlias: 'delete_page',
+      effect: 'mutation',
+    })
+    expect(resolveOfficeToolCatalogMetadata('platform:artifact:read_text')).toBeUndefined()
+    expect(resolveOfficeToolCatalogMetadata('office:pdf:unknown')).toBeUndefined()
+  })
+
   it('validates and canonicalizes the 63-instance migration baseline', () => {
     const catalog = parseOfficeToolCatalog(catalogFixture)
     expect(catalog.entries).toHaveLength(63)

@@ -70,6 +70,11 @@ function harness(
         state: 'cancelling' as const,
         acceptedCursor: `cursor-${id}`,
       })),
+      resumeSubagent: vi.fn(async () => ({
+        runId: 'subagent-run-1',
+        attempt: 2,
+        acceptedCursor: `cursor-${id}`,
+      })),
       forkSession: vi.fn(async (input) => ({
         sessionId: `fork-session-${id}`,
         parentSessionId: input.sessionId,
@@ -335,6 +340,14 @@ describe('PiRuntimeSupervisor', () => {
         runId: 'run-1',
       }),
     ).resolves.toMatchObject({ state: 'cancelling' })
+    await expect(
+      fixture.supervisor.resumeSubagent({
+        operationId: 'operation-resume',
+        sessionId: 'session-1',
+        documentId: 'document-1',
+        runId: 'subagent-run-1',
+      }),
+    ).resolves.toMatchObject({ attempt: 2 })
     await expect(
       fixture.supervisor.forkSession({
         operationId: '44444444-4444-4444-8444-444444444444',

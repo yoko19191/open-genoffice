@@ -6,6 +6,7 @@ import type {
   SessionForkReceipt,
   SessionNavigateReceipt,
   SessionPromptReceipt,
+  SessionSubagentResumeReceipt,
 } from '@genoffice/agent-runtime-protocol'
 import {
   applyAgentSessionEvent,
@@ -19,7 +20,11 @@ export interface AgentSessionClient {
   command(
     command: AgentSessionCommand,
   ): Promise<
-    SessionPromptReceipt | SessionAbortReceipt | SessionForkReceipt | SessionNavigateReceipt
+    | SessionPromptReceipt
+    | SessionAbortReceipt
+    | SessionSubagentResumeReceipt
+    | SessionForkReceipt
+    | SessionNavigateReceipt
   >
   disconnect(): void
   onEvent(handler: (event: EventEnvelope) => void): () => void
@@ -123,6 +128,21 @@ export class AgentSessionController {
       documentId: projection.documentId,
       runId: activeRun.runId,
     })) as SessionAbortReceipt
+  }
+
+  async resumeSubagent(runId: string): Promise<SessionSubagentResumeReceipt> {
+    const projection = this.requireProjection()
+    const child = projection.subagents.find((candidate) => candidate.runId === runId)
+    if (!child || child.status !== 'resumable') {
+      throw new Error('subagent_run_not_resumable')
+    }
+    return (await this.client.command({
+      type: 'resumeSubagent',
+      operationId: this.randomUUID(),
+      sessionId: projection.sessionId,
+      documentId: projection.documentId,
+      runId,
+    })) as SessionSubagentResumeReceipt
   }
 
   disconnect(): void {

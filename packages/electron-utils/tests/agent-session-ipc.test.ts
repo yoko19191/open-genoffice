@@ -180,6 +180,20 @@ describe('Agent Session preload bridge', () => {
     await expect(
       api.command({ type: 'abort', operationId, sessionId, documentId, runId: 'run-1' }),
     ).resolves.toMatchObject({ state: 'cancelling' })
+    ipcRenderer.invoke.mockResolvedValueOnce({
+      runId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      attempt: 2,
+      acceptedCursor: 'cursor-4',
+    })
+    await expect(
+      api.command({
+        type: 'resumeSubagent',
+        operationId,
+        sessionId,
+        documentId,
+        runId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      }),
+    ).resolves.toMatchObject({ attempt: 2 })
     const forkSessionId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
     ipcRenderer.invoke.mockResolvedValueOnce({
       sessionId: forkSessionId,
@@ -218,7 +232,7 @@ describe('Agent Session preload bridge', () => {
     await expect(api.connect({ documentId: 'other' })).rejects.toThrowError(
       'agent_session_connect_request_invalid',
     )
-    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(6)
+    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(7)
 
     const next = vi.fn()
     const remove = api.onEvent(next)

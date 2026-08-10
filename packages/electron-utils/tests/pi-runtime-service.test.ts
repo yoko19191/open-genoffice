@@ -52,6 +52,11 @@ function manager(overrides: Record<string, unknown> = {}) {
       state: 'cancelling' as const,
       acceptedCursor: 'cursor-2',
     })),
+    resumeSubagent: vi.fn(async () => ({
+      runId: 'subagent-run-1',
+      attempt: 2,
+      acceptedCursor: 'cursor-2',
+    })),
     forkSession: vi.fn(async () => ({
       sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       parentSessionId: snapshot.sessionId,
@@ -263,6 +268,12 @@ describe('installed Pi Runtime service', () => {
       ...bound,
       runId: 'run-1',
     })
+    await fixture.instance.resumeSubagent({
+      sessionId: 'session-1',
+      documentId: 'document-1',
+      operationId: 'operation-resume',
+      runId: 'subagent-run-1',
+    })
     await fixture.instance.forkSession({
       operationId: '55555555-5555-4555-8555-555555555555',
       ...bound,
@@ -277,6 +288,7 @@ describe('installed Pi Runtime service', () => {
     expect(fixture.runtimeManager.openSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.promptSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.abortSession).toHaveBeenCalledOnce()
+    expect(fixture.runtimeManager.resumeSubagent).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.forkSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.navigateSession).toHaveBeenCalledOnce()
     expect(fixture.runtimeManager.snapshotSession).toHaveBeenCalledOnce()

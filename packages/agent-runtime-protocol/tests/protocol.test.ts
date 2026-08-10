@@ -52,6 +52,7 @@ import {
   parseSessionForkReceipt,
   parseSessionNavigateReceipt,
   parseSessionPromptReceipt,
+  parseSessionSubagentResumeReceipt,
   parseSessionSnapshot,
   parseSessionSubscriptionReceipt,
 } from '../src'
@@ -198,7 +199,7 @@ describe('protocol TypeBox source of truth', () => {
   }
 
   it('exports JSON schemas and accepts a frozen request vector', () => {
-    expect(RequestEnvelopeSchema.anyOf).toHaveLength(49)
+    expect(RequestEnvelopeSchema.anyOf).toHaveLength(50)
     expect(ResponseEnvelopeSchema.anyOf).toHaveLength(2)
     expect(EventEnvelopeSchema.type).toBe('object')
     expect(ProtocolEnvelopeSchema.anyOf).toHaveLength(3)
@@ -229,6 +230,15 @@ describe('protocol TypeBox source of truth', () => {
         sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
         runId: 'run-1',
+      },
+    ],
+    [
+      'session.subagent.resume',
+      {
+        operationId: '77777777-7777-4777-8777-777777777777',
+        sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        runId: 'subagent-run-1',
       },
     ],
     [
@@ -1294,6 +1304,21 @@ describe('renderer-safe Session receipts', () => {
       },
     ],
     activeRun: { runId: 'run-1', state: 'running' },
+    subagents: [
+      {
+        runId: 'subagent-run-1',
+        rootRunId: 'run-1',
+        parentRunId: 'run-1',
+        role: 'researcher',
+        depth: 1,
+        model: { providerId: 'provider-1', modelId: 'model-1' },
+        status: 'resumable',
+        attempt: 1,
+        usage: { inputTokens: 10, outputTokens: 5, costUsd: 0.01, toolCalls: 1 },
+        capabilitySnapshotId: 'a'.repeat(64),
+        createdAt: '2026-08-10T00:00:00.000Z',
+      },
+    ],
     lastSequence: 2,
     cursor: 'cursor-2',
   }
@@ -1319,6 +1344,13 @@ describe('renderer-safe Session receipts', () => {
         acceptedCursor: 'cursor-3',
       }),
     ).toEqual({ runId: 'run-1', state: 'cancelling', acceptedCursor: 'cursor-3' })
+    expect(
+      parseSessionSubagentResumeReceipt({
+        runId: 'subagent-run-1',
+        attempt: 2,
+        acceptedCursor: 'cursor-4',
+      }),
+    ).toEqual({ runId: 'subagent-run-1', attempt: 2, acceptedCursor: 'cursor-4' })
     expect(
       parseSessionSubscriptionReceipt({ resetRequired: false, snapshot, events: [] }),
     ).toMatchObject({ resetRequired: false })
@@ -1358,6 +1390,21 @@ describe('narrow renderer Agent Session bridge', () => {
     documentId,
     messages: [],
     activeRun: { runId: 'run-1', state: 'running' },
+    subagents: [
+      {
+        runId: 'subagent-run-1',
+        rootRunId: 'run-1',
+        parentRunId: 'run-1',
+        role: 'researcher',
+        depth: 1,
+        model: { providerId: 'provider-1', modelId: 'model-1' },
+        status: 'resumable',
+        attempt: 1,
+        usage: { inputTokens: 10, outputTokens: 5, costUsd: 0.01, toolCalls: 1 },
+        capabilitySnapshotId: 'a'.repeat(64),
+        createdAt: '2026-08-10T00:00:00.000Z',
+      },
+    ],
     lastSequence: 4,
     cursor: 'cursor-4',
   }
@@ -1378,6 +1425,15 @@ describe('narrow renderer Agent Session bridge', () => {
         runId: 'run-1',
       }),
     ).toMatchObject({ type: 'abort', runId: 'run-1' })
+    expect(
+      parseAgentSessionCommand({
+        type: 'resumeSubagent',
+        operationId,
+        sessionId,
+        documentId,
+        runId: 'subagent-run-1',
+      }),
+    ).toMatchObject({ type: 'resumeSubagent', runId: 'subagent-run-1' })
     expect(
       parseAgentSessionConnectReceipt({
         connectionId: operationId,
@@ -1403,6 +1459,22 @@ describe('narrow renderer Agent Session bridge', () => {
         payload: {},
       }),
     ).toMatchObject({ kind: 'event', sequence: 5 })
+    expect(
+      parseEventEnvelope({
+        protocolVersion: '1',
+        kind: 'event',
+        eventId: 'event-6',
+        instanceId: 'instance-1',
+        sessionId,
+        documentId,
+        runId: 'subagent-run-1',
+        sequence: 6,
+        cursor: 'cursor-6',
+        occurredAt: '2026-08-10T00:00:00.000Z',
+        type: 'subagent.resumable',
+        payload: snapshot.subagents[0],
+      }),
+    ).toMatchObject({ type: 'subagent.resumable', runId: 'subagent-run-1' })
   })
 
   it.each([

@@ -14,6 +14,7 @@ import {
   type SessionForkReceipt,
   type SessionNavigateReceipt,
   type SessionPromptReceipt,
+  type SessionSubagentResumeReceipt,
   type SessionSnapshot,
   type SessionSubscriptionReceipt,
 } from '@genoffice/agent-runtime-protocol'
@@ -29,6 +30,7 @@ import type {
   SessionCreateRequest,
   SessionOpenRequest,
   SessionPromptRequest,
+  SessionSubagentResumeRequest,
   SessionSubscribeRequest,
   ProviderCredentialPutRequest,
   ProviderCredentialProviderRequest,
@@ -71,6 +73,7 @@ type OwnedPiRuntimeManager = Pick<
   | 'openSession'
   | 'promptSession'
   | 'abortSession'
+  | 'resumeSubagent'
   | 'forkSession'
   | 'navigateSession'
   | 'snapshotSession'
@@ -170,6 +173,10 @@ export class PiRuntimeService {
 
   async abortSession(input: SessionAbortRequest): Promise<SessionAbortReceipt> {
     return (await this.readyManager()).abortSession(input)
+  }
+
+  async resumeSubagent(input: SessionSubagentResumeRequest): Promise<SessionSubagentResumeReceipt> {
+    return (await this.readyManager()).resumeSubagent(input)
   }
 
   async forkSession(input: SessionForkRequest): Promise<SessionForkReceipt> {

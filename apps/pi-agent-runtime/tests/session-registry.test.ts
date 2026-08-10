@@ -5,8 +5,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
-import { CapabilitySnapshotError } from '@genoffice/agent-resource'
+import { CapabilitySnapshotError, createCapabilitySnapshot } from '@genoffice/agent-resource'
 import { RuntimeSessionError, createSessionRegistry } from '../src'
+import type {
+  SessionSubagentCoordinator,
+  SubagentCoordinatorEvent,
+  SubagentRunProjection,
+} from '../src'
 
 const roots: string[] = []
 const operationId = '11111111-1111-4111-8111-111111111111'
@@ -77,6 +82,180 @@ function fakePiSession(options: {
 }
 
 describe('document-bound Pi Session registry', () => {
+  it('journals safe Subagent projections, resumes one attempt, and attaches parent Stop', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-subagent-'))
+    roots.push(dataRoot)
+    let listener: (event: SubagentCoordinatorEvent) => void = () => {}
+    let projection: SubagentRunProjection | undefined
+    let parentSessionId = ''
+    const cancelTree = vi.fn(async () => {})
+    const spawn = vi.fn(async (input) => {
+      projection = {
+        runId: 'subagent-run-1',
+        rootRunId: input.parentRunId,
+        parentRunId: input.parentRunId,
+        parentSessionId: input.parentSessionId,
+        documentId: input.documentId,
+        role: input.role,
+        depth: 1,
+        model: { providerId: 'provider-1', modelId: 'model-1' },
+        status: 'running',
+        attempt: 1,
+        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0, toolCalls: 0 },
+        capabilitySnapshotId: 'a'.repeat(64),
+        createdAt: '2026-08-10T00:00:00.000Z',
+      }
+      listener({ type: 'started', run: projection })
+      return projection
+    })
+    const coordinator: SessionSubagentCoordinator = {
+      onEvent: (next) => {
+        listener = next
+        return () => {
+          listener = () => {}
+        }
+      },
+      listForSession: (sessionId) =>
+        projection?.parentSessionId === sessionId ? [projection] : [],
+      spawn,
+      cancelTree,
+      resume: vi.fn(async () => {
+        projection = { ...projection!, status: 'running', attempt: 2 }
+        listener({ type: 'started', run: projection })
+        return projection
+      }),
+      parentSessionIdsWithRuns: () => (parentSessionId ? [parentSessionId] : []),
+      reconcile: vi.fn(async () => {
+        projection = { ...projection!, status: 'resumable', errorCode: 'runtime_crash' }
+        listener({ type: 'resumable', run: projection })
+      }),
+    }
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-subagent',
+      cursorSecret: Buffer.alloc(32, 45),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+      subagents: coordinator,
+    })
+    listener({
+      type: 'assistant.delta',
+      runId: 'orphan-run',
+      rootRunId: 'orphan-root',
+      parentRunId: 'orphan-parent',
+      parentSessionId: 'missing-session',
+      documentId,
+      text: 'ignored',
+    })
+    const created = await registry.create({ operationId, documentId })
+    parentSessionId = created.sessionId
+    const parent = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'delegate read-only research',
+    })
+    const parentSnapshot = createCapabilitySnapshot({
+      createdForRunId: parent.runId,
+      model: { providerId: 'provider-1', modelId: 'model-1', capabilities: ['text'] },
+      resources: [],
+      toolIds: ['platform:subagent:spawn'],
+      permissionVersion: 'permission-v1',
+    })
+    await registry.spawnSubagent({
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      role: 'researcher',
+      task: 'inspect the current document',
+      parentSnapshot,
+    })
+    listener({
+      type: 'assistant.delta',
+      runId: 'subagent-run-1',
+      rootRunId: parent.runId,
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      text: 'safe child delta',
+    })
+    listener({
+      type: 'tool.started',
+      runId: 'subagent-run-1',
+      rootRunId: parent.runId,
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      toolId: 'office:pdf:read_pages',
+    })
+    await vi.waitFor(async () => {
+      expect(await registry.readJournal(created.sessionId)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'subagent.assistant.delta',
+            payload: expect.objectContaining({ text: 'safe child delta' }),
+          }),
+          expect.objectContaining({
+            type: 'subagent.tool.started',
+            payload: expect.objectContaining({ toolId: 'office:pdf:read_pages' }),
+          }),
+        ]),
+      )
+    })
+    expect((await registry.snapshot(created)).subagents).toEqual([
+      expect.objectContaining({
+        runId: 'subagent-run-1',
+        parentRunId: parent.runId,
+        status: 'running',
+      }),
+    ])
+    expect((await registry.snapshot(created)).subagents?.[0]).not.toHaveProperty('parentSessionId')
+    expect((await registry.snapshot(created)).subagents?.[0]).not.toHaveProperty('documentId')
+    expect(await registry.readJournal(created.sessionId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'subagent.started',
+          runId: 'subagent-run-1',
+          payload: expect.objectContaining({ runId: 'subagent-run-1', status: 'running' }),
+        }),
+      ]),
+    )
+
+    await registry.reconcileSubagents()
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'subagent.resumable',
+      runId: 'subagent-run-1',
+    })
+    coordinator.parentSessionIdsWithRuns = undefined
+    await registry.reconcileSubagents()
+    const resumed = await registry.resumeSubagent({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      runId: 'subagent-run-1',
+    })
+    expect(resumed).toMatchObject({ runId: 'subagent-run-1', attempt: 2 })
+    await registry.abort({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: created.sessionId,
+      documentId,
+      runId: parent.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect(cancelTree).toHaveBeenCalledWith('subagent-run-1', 'parent_run_aborted')
+    await registry.shutdown()
+  })
+
   it('projects an authorization revocation as capability_revoked instead of provider failure', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-revoked-'))
     roots.push(dataRoot)
@@ -107,6 +286,7 @@ describe('document-bound Pi Session registry', () => {
       runId: prompted.runId,
       payload: { code: 'capability_revoked' },
     })
+    await registry.reconcileSubagents()
     await registry.shutdown()
   })
 

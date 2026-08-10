@@ -42,6 +42,50 @@ function apply(projection: AgentSessionProjection, events: EventEnvelope[]) {
 }
 
 describe('shared AI Panel Session projection', () => {
+  it('restores and updates a stable Subagent run tree without provider metadata', () => {
+    const child = {
+      runId: 'subagent-run-1',
+      rootRunId: 'run-1',
+      parentRunId: 'run-1',
+      role: 'researcher',
+      depth: 1,
+      model: { providerId: 'provider-1', modelId: 'model-1' },
+      status: 'running' as const,
+      attempt: 1,
+      usage: { inputTokens: 10, outputTokens: 5, costUsd: 0.01, toolCalls: 1 },
+      capabilitySnapshotId: 'a'.repeat(64),
+      createdAt: '2026-08-10T00:00:00.000Z',
+    }
+    const initial = createAgentSessionProjection({ ...snapshot, subagents: [child] })
+    const completed = applyAgentSessionEvent(
+      initial,
+      event(2, 'subagent.completed', {
+        ...child,
+        status: 'completed',
+        result: { kind: 'text', text: 'safe child result' },
+        providerRunId: 'must-not-project',
+      }),
+    )
+    expect(completed.subagents).toEqual([child])
+
+    const updated = applyAgentSessionEvent(
+      initial,
+      event(2, 'subagent.completed', {
+        ...child,
+        status: 'completed',
+        result: { kind: 'text', text: 'safe child result' },
+      }),
+    )
+    expect(updated.subagents).toEqual([
+      expect.objectContaining({
+        runId: 'subagent-run-1',
+        status: 'completed',
+        result: { kind: 'text', text: 'safe child result' },
+      }),
+    ])
+    expect(JSON.stringify(updated)).not.toContain('providerRunId')
+  })
+
   it('renders native message, thinking, tool, and run events in journal order', () => {
     const projection = apply(createAgentSessionProjection(snapshot), [
       event(2, 'run.started'),

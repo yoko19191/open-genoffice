@@ -27,6 +27,8 @@ import type { CapabilitySnapshot } from '@genoffice/agent-resource'
 import type { RunResourceService, RunModelMetadata } from './run-resource-service'
 import { ControlledResourceLoader } from './controlled-resource-loader'
 import { ResourceReadBoundary } from './resource-read-boundary'
+import type { SpawnSubagentRequest } from './subagent-coordinator'
+import type { SubagentRunProjection } from './subagent-run-registry'
 
 export type PiPromptResult = {
   branchCreated?: {
@@ -62,6 +64,7 @@ type CreatePiSessionBaseOptions = {
   sessionFile?: string
   documentId: string
   credentials?: CredentialStore
+  spawnSubagent?: (request: SpawnSubagentRequest) => Promise<SubagentRunProjection>
 }
 
 export type CreatePiSessionOptions = CreatePiSessionBaseOptions &
@@ -241,6 +244,64 @@ export async function createDeterministicPiSession(
         },
       })
     : undefined
+  const subagentTool =
+    managedModel && options.spawnSubagent
+      ? defineTool({
+          name: 'subagent',
+          label: 'Read-only Subagent',
+          description:
+            'Create an independent, read-only child agent for bounded research or analysis.',
+          promptSnippet:
+            'Delegate bounded read-only research to an independent child context when useful.',
+          parameters: Type.Object(
+            {
+              role: Type.String({ minLength: 1, maxLength: 64 }),
+              task: Type.String({ minLength: 1, maxLength: 64 * 1024 }),
+              tools: Type.Optional(
+                Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 128 }),
+              ),
+            },
+            { additionalProperties: false },
+          ),
+          async execute(_toolCallId, input) {
+            if (!extensionExecution) throw new Error('subagent_parent_context_required')
+            if (!extensionExecution.snapshot.toolIds.includes('platform:subagent:spawn')) {
+              throw new Error('subagent_not_authorized')
+            }
+            const child = await options.spawnSubagent!({
+              parentRunId: extensionExecution.runId,
+              parentSessionId: options.sessionId,
+              documentId: options.documentId,
+              role: input.role,
+              task: input.task,
+              parentSnapshot: extensionExecution.snapshot,
+              ...(input.tools ? { requestedTools: input.tools } : {}),
+              ...(extensionExecution.projectRoot
+                ? { projectRoot: extensionExecution.projectRoot }
+                : {}),
+            })
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    runId: child.runId,
+                    status: child.status,
+                    attempt: child.attempt,
+                  }),
+                },
+              ],
+              details: {
+                runId: child.runId,
+                rootRunId: child.rootRunId,
+                parentRunId: child.parentRunId,
+                status: child.status,
+                attempt: child.attempt,
+              },
+            }
+          },
+        })
+      : undefined
 
   let sessionManager: SessionManager
   if (options.sessionFile) {
@@ -274,7 +335,11 @@ export async function createDeterministicPiSession(
     settingsManager,
     resourceLoader,
     ...(managedModel ? {} : { noTools: 'all' as const, tools: ['genoffice_contract_probe'] }),
-    customTools: managedModel ? [resourceReadTool!] : [contractProbe],
+    customTools: managedModel
+      ? [resourceReadTool, subagentTool].filter(
+          (tool): tool is NonNullable<typeof tool> => tool !== undefined,
+        )
+      : [contractProbe],
   })
   if (managedModel) session.setActiveToolsByName([])
 
@@ -291,7 +356,10 @@ export async function createDeterministicPiSession(
           runId: context.runId,
           ...(context.projectRoot ? { projectRoot: context.projectRoot } : {}),
           model: options.resolveModelMetadata(),
-          toolIds: ['platform:resource:read'],
+          toolIds: [
+            'platform:resource:read',
+            ...(options.spawnSubagent ? ['platform:subagent:spawn'] : []),
+          ],
         })
         resourceLoader.configure({
           skillPaths: prepared.skillPaths,
@@ -312,6 +380,7 @@ export async function createDeterministicPiSession(
         await session.reload()
         session.setActiveToolsByName([
           ...(prepared.skillPaths.length > 0 ? ['read'] : []),
+          ...(options.spawnSubagent ? ['subagent'] : []),
           ...prepared.extensionTools.map(({ name }) => name),
           ...prepared.mcpTools.map(({ modelAlias }) => modelAlias),
         ])

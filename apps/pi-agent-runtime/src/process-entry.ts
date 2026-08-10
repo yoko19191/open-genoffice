@@ -26,6 +26,8 @@ export type RunRuntimeProcessOptions = {
   startRuntime?: (options: StartRuntimeFromStdinOptions) => Promise<AuthenticatedRuntimeServer>
 }
 
+export const PI_SUBAGENT_AGENT_DIR_ENV = 'PI_CODING_AGENT_DIR' as const
+
 export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Promise<number> {
   try {
     const resourceHome =
@@ -37,15 +39,22 @@ export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Prom
       runtimeVersion: RUNTIME_VERSION,
       platform: options.platform,
     })
-    const runtime = await (options.startRuntime ?? startRuntimeFromStdin)({
-      stdin: options.stdin,
-      actualParentPid: options.actualParentPid,
-      instanceId: options.instanceId,
-      platform: options.platform,
-      resourceHome,
-    })
-    await runtime.closed
-    return RUNTIME_EXIT_CODES.ok
+    const previousAgentDirectory = process.env[PI_SUBAGENT_AGENT_DIR_ENV]
+    process.env[PI_SUBAGENT_AGENT_DIR_ENV] = join(resourceHome, 'state', 'subagent-pi-agent')
+    try {
+      const runtime = await (options.startRuntime ?? startRuntimeFromStdin)({
+        stdin: options.stdin,
+        actualParentPid: options.actualParentPid,
+        instanceId: options.instanceId,
+        platform: options.platform,
+        resourceHome,
+      })
+      await runtime.closed
+      return RUNTIME_EXIT_CODES.ok
+    } finally {
+      if (previousAgentDirectory === undefined) delete process.env[PI_SUBAGENT_AGENT_DIR_ENV]
+      else process.env[PI_SUBAGENT_AGENT_DIR_ENV] = previousAgentDirectory
+    }
   } catch (error) {
     if (error instanceof RuntimeBootstrapError || error instanceof RuntimeStartError) {
       options.stderr.write(`${JSON.stringify({ code: error.code })}\n`)

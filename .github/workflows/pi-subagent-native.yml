@@ -1,0 +1,92 @@
+name: Pi Subagent Native Matrix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/pi-subagent-native.yml'
+      - 'apps/pi-agent-runtime/**'
+      - 'packages/agent-runtime-protocol/**'
+      - 'packages/electron-utils/**'
+      - 'packages/ui/**'
+      - 'tools/collect-acceptance-evidence.mjs'
+      - 'package-lock.json'
+      - 'package.json'
+  workflow_dispatch:
+
+concurrency:
+  group: pi-subagent-native-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  subagent-native:
+    name: ${{ matrix.evidence-platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            evidence-platform: macos
+          - runner: windows-2025
+            evidence-platform: windows
+          - runner: ubuntu-22.04
+            evidence-platform: linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.19.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit Runtime and Subagent boundaries
+        run: npm run audit:pi-platform
+
+      - name: Typecheck Subagent workspaces
+        run: |
+          npm run typecheck -w @genoffice/agent-runtime-protocol
+          npm run typecheck -w @genoffice/pi-agent-runtime
+          npm run typecheck -w @genoffice/electron-utils
+          npm run typecheck -w @genoffice/ui
+
+      - name: Spawn, watch, cancel, reconcile, resume, and recover the native process tree
+        run: >-
+          npx vitest run
+          apps/pi-agent-runtime/tests/pi-subagent-engine.test.ts
+          apps/pi-agent-runtime/tests/subagent-run-registry.test.ts
+          apps/pi-agent-runtime/tests/subagent-coordinator.test.ts
+          apps/pi-agent-runtime/tests/process-entry.test.ts
+          apps/pi-agent-runtime/tests/session-registry.test.ts
+          packages/electron-utils/tests/agent-session-broker.test.ts
+          packages/ui/tests/agent-session-projection.test.ts
+          --coverage.enabled=false
+
+      - name: Collect redacted Subagent evidence
+        run: >-
+          npm run acceptance:evidence --
+          --acceptance SS-007,SA-001,SA-002,SA-003,SA-004
+          --fixture headlessPi=apps/pi-agent-runtime/fixtures/pi-headless-fixture
+          --suite runtime=apps/pi-agent-runtime/reports/tests.json
+          --command native-subagent-${{ matrix.evidence-platform }}
+          --protocol 1
+          --runtime 1.0.0
+          --output evidence/g3/issue-22/${{ matrix.evidence-platform }}/evidence.json
+
+      - name: Upload native Subagent evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pi-subagent-${{ matrix.evidence-platform }}-${{ github.sha }}
+          path: evidence/g3/issue-22/${{ matrix.evidence-platform }}
+          if-no-files-found: error
+          retention-days: 14

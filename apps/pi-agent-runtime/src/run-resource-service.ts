@@ -1,3 +1,4 @@
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CredentialStore } from '@earendil-works/pi-ai'
 import {
@@ -122,7 +123,10 @@ export type PackageInstall = PackageMutation & {
 }
 
 export type RunResourceServiceErrorCode =
-  'mcp_oauth_not_configured' | 'package_scope_invalid' | 'package_project_untrusted'
+  | 'mcp_oauth_not_configured'
+  | 'package_scope_invalid'
+  | 'package_project_untrusted'
+  | 'subagent_context_invalid'
 
 export class RunResourceServiceError extends Error {
   constructor(readonly code: RunResourceServiceErrorCode) {
@@ -333,6 +337,44 @@ export class RunResourceService {
         )
       },
     })
+  }
+
+  async subagentResourceTexts(
+    snapshot: CapabilitySnapshot,
+    projectRoot?: string,
+  ): Promise<readonly string[]> {
+    await this.verify(snapshot, projectRoot)
+    const catalog = await this.scan(projectRoot)
+    const resources = new Map(
+      catalog.resources
+        .filter(
+          (resource) =>
+            resource.state === 'eligible' &&
+            (resource.kind === 'skill' || resource.kind === 'prompt') &&
+            resource.path !== undefined &&
+            resource.contentSha256 !== undefined,
+        )
+        .map((resource) => [resource.resourceKey, resource]),
+    )
+    const texts: string[] = []
+    let totalBytes = 0
+    for (const [resourceKey, contentSha256] of Object.entries(snapshot.resourceHashes).sort(
+      ([left], [right]) => left.localeCompare(right),
+    )) {
+      const resource = resources.get(resourceKey)
+      if (!resource || resource.contentSha256 !== contentSha256 || !resource.path) continue
+      const textPath = resource.kind === 'skill' ? join(resource.path, 'SKILL.md') : resource.path
+      const metadata = await stat(textPath).catch(() => undefined)
+      if (!metadata?.isFile() || metadata.size > 64 * 1024) {
+        throw new RunResourceServiceError('subagent_context_invalid')
+      }
+      totalBytes += metadata.size
+      if (totalBytes > 128 * 1024) {
+        throw new RunResourceServiceError('subagent_context_invalid')
+      }
+      texts.push(`${resourceKey}\n${await readFile(textPath, 'utf8')}`)
+    }
+    return Object.freeze(texts)
   }
 
   async callMcpTool(canonicalToolId: string, params: unknown, context: McpExecutionContext) {

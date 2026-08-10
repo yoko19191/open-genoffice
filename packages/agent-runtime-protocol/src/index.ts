@@ -117,6 +117,20 @@ const SessionEventTypeSchema = Type.Union([
   Type.Literal('branch.navigated'),
   Type.Literal('permission.requested'),
   Type.Literal('permission.resolved'),
+  Type.Literal('subagent.queued'),
+  Type.Literal('subagent.started'),
+  Type.Literal('subagent.waiting'),
+  Type.Literal('subagent.usage.updated'),
+  Type.Literal('subagent.child.linked'),
+  Type.Literal('subagent.cancelling'),
+  Type.Literal('subagent.reconciling'),
+  Type.Literal('subagent.resumable'),
+  Type.Literal('subagent.completed'),
+  Type.Literal('subagent.failed'),
+  Type.Literal('subagent.cancelled'),
+  Type.Literal('subagent.assistant.delta'),
+  Type.Literal('subagent.tool.started'),
+  Type.Literal('subagent.tool.completed'),
   Type.Literal('runtime.degraded'),
   Type.Literal('diagnostic.available'),
 ])
@@ -342,11 +356,60 @@ export const SessionMessageProjectionSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const SubagentRunProjectionSchema = Type.Object(
+  {
+    runId: EntityIdSchema,
+    rootRunId: EntityIdSchema,
+    parentRunId: EntityIdSchema,
+    role: Type.String({ minLength: 1, maxLength: 128 }),
+    depth: Type.Integer({ minimum: 1, maximum: 16 }),
+    model: Type.Object(
+      { providerId: EntityIdSchema, modelId: EntityIdSchema },
+      { additionalProperties: false },
+    ),
+    status: Type.Union([
+      Type.Literal('queued'),
+      Type.Literal('running'),
+      Type.Literal('waiting'),
+      Type.Literal('cancelling'),
+      Type.Literal('reconciling'),
+      Type.Literal('resumable'),
+      Type.Literal('completed'),
+      Type.Literal('failed'),
+      Type.Literal('cancelled'),
+    ]),
+    attempt: Type.Integer({ minimum: 1 }),
+    usage: Type.Object(
+      {
+        inputTokens: Type.Number({ minimum: 0 }),
+        outputTokens: Type.Number({ minimum: 0 }),
+        costUsd: Type.Number({ minimum: 0 }),
+        toolCalls: Type.Number({ minimum: 0 }),
+      },
+      { additionalProperties: false },
+    ),
+    capabilitySnapshotId: Sha256Schema,
+    createdAt: Type.String({ minLength: 1, maxLength: 64 }),
+    startedAt: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    completedAt: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    durationMs: Type.Optional(Type.Number({ minimum: 0 })),
+    result: Type.Optional(
+      Type.Object(
+        { kind: Type.Literal('text'), text: Type.String({ maxLength: 64 * 1024 }) },
+        { additionalProperties: false },
+      ),
+    ),
+    errorCode: Type.Optional(EntityIdSchema),
+  },
+  { additionalProperties: false },
+)
+
 export const SessionSnapshotSchema = Type.Object(
   {
     sessionId: EntityIdSchema,
     documentId: DocumentIdSchema,
     messages: Type.Array(SessionMessageProjectionSchema),
+    subagents: Type.Optional(Type.Array(SubagentRunProjectionSchema, { maxItems: 256 })),
     activeRun: Type.Optional(
       Type.Object(
         {
@@ -831,6 +894,19 @@ const SessionAbortRequestSchema = sessionRequestEnvelope(
   ),
 )
 
+const SessionSubagentResumeRequestSchema = sessionRequestEnvelope(
+  'session.subagent.resume',
+  Type.Object(
+    {
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      runId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+)
+
 const SessionForkRequestSchema = sessionRequestEnvelope(
   'session.fork',
   Type.Object(
@@ -936,6 +1012,7 @@ export const RequestEnvelopeSchema = Type.Union([
   SessionOpenRequestSchema,
   SessionPromptRequestSchema,
   SessionAbortRequestSchema,
+  SessionSubagentResumeRequestSchema,
   SessionForkRequestSchema,
   SessionNavigateRequestSchema,
   SessionSnapshotRequestSchema,
@@ -1043,6 +1120,15 @@ export const SessionAbortReceiptSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export const SessionSubagentResumeReceiptSchema = Type.Object(
+  {
+    runId: EntityIdSchema,
+    attempt: Type.Integer({ minimum: 2 }),
+    acceptedCursor: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+)
+
 export const SessionForkReceiptSchema = Type.Object(
   {
     sessionId: SessionIdSchema,
@@ -1128,6 +1214,16 @@ export const AgentSessionCommandSchema = Type.Union([
   Type.Object(
     {
       type: Type.Literal('abort'),
+      operationId: OperationIdSchema,
+      sessionId: SessionIdSchema,
+      documentId: DocumentIdSchema,
+      runId: EntityIdSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal('resumeSubagent'),
       operationId: OperationIdSchema,
       sessionId: SessionIdSchema,
       documentId: DocumentIdSchema,
@@ -1262,6 +1358,7 @@ export type ArtifactRef = Static<typeof ArtifactRefSchema>
 export type OfficeToolInvocation = Static<typeof OfficeToolInvocationSchema>
 export type OfficeToolReceipt = Static<typeof OfficeToolReceiptSchema>
 export type SessionMessageProjection = Static<typeof SessionMessageProjectionSchema>
+export type SubagentRunProjection = Static<typeof SubagentRunProjectionSchema>
 export type SessionSnapshot = Static<typeof SessionSnapshotSchema>
 export type RequestEnvelope = Static<typeof RequestEnvelopeSchema>
 export type ResponseEnvelope = Static<typeof ResponseEnvelopeSchema>
@@ -1269,6 +1366,7 @@ export type EventEnvelope = Static<typeof EventEnvelopeSchema>
 export type SessionConnectionReceipt = Static<typeof SessionConnectionReceiptSchema>
 export type SessionPromptReceipt = Static<typeof SessionPromptReceiptSchema>
 export type SessionAbortReceipt = Static<typeof SessionAbortReceiptSchema>
+export type SessionSubagentResumeReceipt = Static<typeof SessionSubagentResumeReceiptSchema>
 export type SessionForkReceipt = Static<typeof SessionForkReceiptSchema>
 export type SessionNavigateReceipt = Static<typeof SessionNavigateReceiptSchema>
 export type SessionSubscriptionReceipt = Static<typeof SessionSubscriptionReceiptSchema>
@@ -1363,6 +1461,11 @@ export function parseSessionAbortReceipt(value: unknown): SessionAbortReceipt {
   throw new Error('session_abort_receipt_invalid')
 }
 
+export function parseSessionSubagentResumeReceipt(value: unknown): SessionSubagentResumeReceipt {
+  if (Value.Check(SessionSubagentResumeReceiptSchema, value)) return value
+  throw new Error('session_subagent_resume_receipt_invalid')
+}
+
 export function parseSessionForkReceipt(value: unknown): SessionForkReceipt {
   if (
     Value.Check(SessionForkReceiptSchema, value) &&
@@ -1401,6 +1504,11 @@ export function parseOfficeToolReceipt(value: unknown): OfficeToolReceipt {
 export function parseSessionSnapshot(value: unknown): SessionSnapshot {
   if (Value.Check(SessionSnapshotSchema, value)) return value
   throw new Error('session_snapshot_invalid')
+}
+
+export function parseSubagentRunProjection(value: unknown): SubagentRunProjection {
+  if (Value.Check(SubagentRunProjectionSchema, value)) return value
+  throw new Error('subagent_run_projection_invalid')
 }
 
 export function parseSessionSubscriptionReceipt(value: unknown): SessionSubscriptionReceipt {

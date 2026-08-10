@@ -113,6 +113,7 @@ class FakeRuntimeSocket extends Duplex {
               'session.open',
               'session.prompt',
               'session.abort',
+              'session.subagent.resume',
               'session.fork',
               'session.navigate',
               'session.snapshot',
@@ -231,37 +232,46 @@ class FakeRuntimeSocket extends Duplex {
                                       state: 'cancelling',
                                       acceptedCursor: 'cursor-2',
                                     }
-                                  : request.method === 'session.fork'
+                                  : request.method === 'session.subagent.resume'
                                     ? {
-                                        sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                        parentSessionId: snapshot.sessionId,
-                                        documentId: snapshot.documentId,
-                                        snapshot: {
-                                          ...snapshot,
-                                          sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-                                          branch: {
-                                            parentSessionId: snapshot.sessionId,
-                                            nodes: [],
-                                          },
-                                        },
-                                        cursor: snapshot.cursor,
+                                        runId: 'subagent-run-1',
+                                        attempt: 2,
+                                        acceptedCursor: 'cursor-3',
                                       }
-                                    : request.method === 'session.navigate'
+                                    : request.method === 'session.fork'
                                       ? {
-                                          sessionId: snapshot.sessionId,
+                                          sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                          parentSessionId: snapshot.sessionId,
                                           documentId: snapshot.documentId,
-                                          activeLeafId: 'navigation-leaf',
                                           snapshot: {
                                             ...snapshot,
-                                            branch: { activeLeafId: 'navigation-leaf', nodes: [] },
+                                            sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                                            branch: {
+                                              parentSessionId: snapshot.sessionId,
+                                              nodes: [],
+                                            },
                                           },
                                           cursor: snapshot.cursor,
                                         }
-                                      : request.method === 'session.snapshot'
-                                        ? snapshot
-                                        : request.method === 'session.subscribe'
-                                          ? { resetRequired: false, snapshot, events: [] }
-                                          : { shuttingDown: true }
+                                      : request.method === 'session.navigate'
+                                        ? {
+                                            sessionId: snapshot.sessionId,
+                                            documentId: snapshot.documentId,
+                                            activeLeafId: 'navigation-leaf',
+                                            snapshot: {
+                                              ...snapshot,
+                                              branch: {
+                                                activeLeafId: 'navigation-leaf',
+                                                nodes: [],
+                                              },
+                                            },
+                                            cursor: snapshot.cursor,
+                                          }
+                                        : request.method === 'session.snapshot'
+                                          ? snapshot
+                                          : request.method === 'session.subscribe'
+                                            ? { resetRequired: false, snapshot, events: [] }
+                                            : { shuttingDown: true }
     const result =
       request.method === 'runtime.hello' && 'helloResult' in this.options
         ? this.options.helloResult
