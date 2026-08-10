@@ -44,6 +44,7 @@ export {
 } from './bootstrap-stdin'
 export {
   PI_SUBAGENT_AGENT_DIR_ENV,
+  PI_SUBAGENT_RUN_INDEX_DIR_ENV,
   runRuntimeProcess,
   type RunRuntimeProcessOptions,
 } from './process-entry'

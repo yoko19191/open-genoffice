@@ -3,11 +3,17 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const args = process.argv.slice(2)
-if (!args.includes('--built-in-skills')) {
-  args.push(
-    '--built-in-skills',
-    join(dirname(fileURLToPath(import.meta.url)), '../apps/pi-agent-runtime/built-in/skills'),
-  )
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
+const defaults = new Map([
+  ['--built-in-skills', 'apps/pi-agent-runtime/built-in/skills'],
+  ['--subagent-smoke-entry', 'apps/pi-agent-runtime/fixtures/native-subagent-smoke.ts'],
+  ['--pi-headless-fixture', 'apps/pi-agent-runtime/fixtures/pi-headless-fixture'],
+  ['--pi-cli-entry', 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'],
+  ['--pi-subagent-api-entry', 'node_modules/@agwab/pi-subagent/src/api.ts'],
+  ['--pi-subagent-worker-entry', 'node_modules/@agwab/pi-subagent/src/workers/durable-worker.mjs'],
+])
+for (const [name, relativePath] of defaults) {
+  if (!args.includes(name)) args.push(name, join(repoRoot, relativePath))
 }
 
 process.exitCode = await runPiRuntimeBundleBuilderCli(args, {

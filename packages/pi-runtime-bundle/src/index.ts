@@ -18,9 +18,26 @@ export class RuntimeBundleVerificationError extends Error {
 
 export const WINDOWS_JOB_LAUNCHER_RELATIVE_PATH = 'node/open-genoffice-job-launcher.exe'
 export const CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH = 'self-test/native-capability-smoke.mjs'
+export const SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH = 'self-test/native-subagent-smoke.mjs'
 export const CAPABILITY_EXTENSION_RELATIVE_PATH = 'self-test/native-smoke-extension.mjs'
 export const MCP_SMOKE_SERVER_RELATIVE_PATH = 'self-test/mcp-stdio-server.mjs'
+export const PI_HEADLESS_FIXTURE_RELATIVE_PATH = 'self-test/pi-headless-fixture.mjs'
+export const PI_CLI_ENTRY_RELATIVE_PATH = 'app/pi-cli.mjs'
+export const PI_PACKAGE_MANIFEST_RELATIVE_PATH = 'app/package.json'
+export const SUBAGENT_WORKER_RELATIVE_PATH = 'workers/durable-worker.mjs'
 export const WINDOWS_NATIVE_ADDON_RELATIVE_PATH = 'native/win32-x64/win32-console-mode.node'
+
+export function piCliCommandRelativePath(platform: RuntimeBundleManifest['platform']): string {
+  return `node/open-genoffice-pi-cli${platform === 'win32' ? '.exe' : ''}`
+}
+
+export function piSmokeCommandRelativePath(platform: RuntimeBundleManifest['platform']): string {
+  return `node/open-genoffice-pi-smoke${platform === 'win32' ? '.exe' : ''}`
+}
+
+export function piShimRelativePath(platform: RuntimeBundleManifest['platform']): string {
+  return `node/pi${platform === 'win32' ? '.exe' : ''}`
+}
 
 export type RuntimeBundleTarget = {
   platform: RuntimeBundleManifest['platform']
@@ -88,18 +105,26 @@ function validateManifestPaths(manifest: RuntimeBundleManifest) {
     fail('runtime_bundle_launch_path_missing')
   }
   if (!paths.has('THIRD-PARTY-NOTICES.txt')) fail('runtime_bundle_notices_missing')
-  if (
-    !paths.has(CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH) ||
-    !paths.has(CAPABILITY_EXTENSION_RELATIVE_PATH) ||
-    !paths.has(MCP_SMOKE_SERVER_RELATIVE_PATH)
-  ) {
-    fail('runtime_bundle_self_test_missing')
-  }
   if (manifest.platform === 'win32' && !paths.has(WINDOWS_JOB_LAUNCHER_RELATIVE_PATH)) {
     fail('runtime_bundle_windows_job_launcher_missing')
   }
   if (manifest.platform === 'win32' && !paths.has(WINDOWS_NATIVE_ADDON_RELATIVE_PATH)) {
     fail('runtime_bundle_windows_native_addon_missing')
+  }
+  if (
+    !paths.has(CAPABILITY_SMOKE_ENTRY_RELATIVE_PATH) ||
+    !paths.has(SUBAGENT_SMOKE_ENTRY_RELATIVE_PATH) ||
+    !paths.has(CAPABILITY_EXTENSION_RELATIVE_PATH) ||
+    !paths.has(MCP_SMOKE_SERVER_RELATIVE_PATH) ||
+    !paths.has(PI_HEADLESS_FIXTURE_RELATIVE_PATH) ||
+    !paths.has(PI_CLI_ENTRY_RELATIVE_PATH) ||
+    !paths.has(PI_PACKAGE_MANIFEST_RELATIVE_PATH) ||
+    !paths.has(SUBAGENT_WORKER_RELATIVE_PATH) ||
+    !paths.has(piCliCommandRelativePath(manifest.platform)) ||
+    !paths.has(piSmokeCommandRelativePath(manifest.platform)) ||
+    !paths.has(piShimRelativePath(manifest.platform))
+  ) {
+    fail('runtime_bundle_self_test_missing')
   }
 }
 

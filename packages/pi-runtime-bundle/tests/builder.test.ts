@@ -36,6 +36,10 @@ async function inputs() {
       import.meta.dirname,
       '../../../apps/pi-agent-runtime/fixtures/native-capability-smoke.ts',
     ),
+    subagentSmokeEntryPoint: resolve(
+      import.meta.dirname,
+      '../../../apps/pi-agent-runtime/fixtures/native-subagent-smoke.ts',
+    ),
     capabilityExtension: resolve(
       import.meta.dirname,
       '../../../apps/pi-agent-runtime/fixtures/native-smoke-extension.mjs',
@@ -44,6 +48,22 @@ async function inputs() {
       import.meta.dirname,
       '../../../apps/pi-agent-runtime/fixtures/mcp-stdio-server.mjs',
     ),
+    piHeadlessFixture: resolve(
+      import.meta.dirname,
+      '../../../apps/pi-agent-runtime/fixtures/pi-headless-fixture',
+    ),
+    piCliEntryPoint: resolve(
+      import.meta.dirname,
+      '../../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js',
+    ),
+    piSubagentApiEntryPoint: resolve(
+      import.meta.dirname,
+      '../../../node_modules/@agwab/pi-subagent/src/api.ts',
+    ),
+    piSubagentWorkerEntryPoint: resolve(
+      import.meta.dirname,
+      '../../../node_modules/@agwab/pi-subagent/src/workers/durable-worker.mjs',
+    ),
     builtInSkillsDirectory: resolve(
       import.meta.dirname,
       '../../../apps/pi-agent-runtime/built-in/skills',
@@ -51,6 +71,7 @@ async function inputs() {
     lockfile: resolve(import.meta.dirname, '../../../package-lock.json'),
     notices: noticesPath,
     windowsJobLauncher: process.env.GENOFFICE_WINDOWS_JOB_LAUNCHER ?? process.execPath,
+    windowsPiLauncher: process.env.GENOFFICE_WINDOWS_PI_LAUNCHER ?? process.execPath,
     windowsNativeAddon: resolve(
       import.meta.dirname,
       '../../../node_modules/@earendil-works/pi-tui/native/win32/prebuilds/win32-x64/win32-console-mode.node',
@@ -69,6 +90,8 @@ describe('Pi Runtime bundle builder', () => {
       'LICENSE.node.txt',
       'THIRD-PARTY-NOTICES.txt',
       'app/main.mjs',
+      'app/package.json',
+      'app/pi-cli.mjs',
       'built-in/skills/open-genoffice-sheets-workbook/SKILL.md',
       'built-in/skills/open-genoffice-sheets-workbook/agents/openai.yaml',
       'built-in/skills/open-genoffice-sheets-workbook/references/charts.md',
@@ -87,9 +110,15 @@ describe('Pi Runtime bundle builder', () => {
       ...(process.platform === 'win32' ? ['native/win32-x64/win32-console-mode.node'] : []),
       ...(process.platform === 'win32' ? ['node/open-genoffice-job-launcher.exe'] : []),
       `node/open-genoffice-pi-agent-runtime${process.platform === 'win32' ? '.exe' : ''}`,
+      `node/open-genoffice-pi-cli${process.platform === 'win32' ? '.exe' : ''}`,
+      `node/open-genoffice-pi-smoke${process.platform === 'win32' ? '.exe' : ''}`,
+      `node/pi${process.platform === 'win32' ? '.exe' : ''}`,
       'self-test/mcp-stdio-server.mjs',
       'self-test/native-capability-smoke.mjs',
       'self-test/native-smoke-extension.mjs',
+      'self-test/native-subagent-smoke.mjs',
+      'self-test/pi-headless-fixture.mjs',
+      'workers/durable-worker.mjs',
     ])
     const copiedNode = await lstat(verified.executablePath)
     expect(copiedNode.isSymbolicLink()).toBe(false)
@@ -100,6 +129,23 @@ describe('Pi Runtime bundle builder', () => {
     const entry = await readFile(verified.entryPath, 'utf8')
     expect(entry).toContain('runtime_crash')
     expect(entry).toContain('const require = __genofficeCreateRequire(import.meta.url)')
+    expect(
+      JSON.parse(await readFile(join(options.outputDirectory, 'app/package.json'), 'utf8')),
+    ).toMatchObject({
+      name: '@earendil-works/pi-coding-agent',
+      version: '0.84.0',
+      type: 'module',
+      private: true,
+    })
+    await expect(
+      execFileAsync(
+        join(
+          options.outputDirectory,
+          `node/open-genoffice-pi-cli${process.platform === 'win32' ? '.exe' : ''}`,
+        ),
+        ['--version'],
+      ),
+    ).resolves.toMatchObject({ stdout: '0.84.0\n', stderr: '' })
     expect(
       await readFile(
         join(options.outputDirectory, 'built-in/skills/open-genoffice-sheets-workbook/SKILL.md'),
@@ -125,6 +171,16 @@ describe('Pi Runtime bundle builder', () => {
       extension: 'native_smoke_extension',
       nativeAddon: process.platform === 'win32' ? 'win32-console-mode.node' : null,
       mcp: { tool: 'native_smoke_echo', result: 'mcp:windows-native' },
+    })
+    const subagentSmoke = await execFileAsync(verified.executablePath, [
+      join(options.outputDirectory, 'self-test/native-subagent-smoke.mjs'),
+    ])
+    expect(subagentSmoke.stderr).toBe('')
+    expect(JSON.parse(subagentSmoke.stdout)).toMatchObject({
+      status: 'passed',
+      backend: 'headless',
+      result: 'fixture child completed',
+      reconciled: 'completed',
     })
 
     await expect(buildPiRuntimeBundle(options)).rejects.toEqual(
@@ -162,6 +218,16 @@ describe('Pi Runtime bundle builder', () => {
       'runtime_bundle_build_failed',
     )
     await expect(stat(buildFailure.outputDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    const invalidSubagentImport = await inputs()
+    invalidSubagentImport.entryPoint = join(
+      dirname(invalidSubagentImport.notices),
+      'pi-subagent-engine.ts',
+    )
+    await writeFile(invalidSubagentImport.entryPoint, 'export {}\n')
+    await expect(buildPiRuntimeBundle(invalidSubagentImport)).rejects.toThrowError(
+      'runtime_bundle_build_failed',
+    )
   })
 
   it('supports an empty built-in set and rejects non-file Skill entries', async () => {
@@ -187,6 +253,14 @@ describe('Pi Runtime bundle builder', () => {
       delete options.windowsJobLauncher
       await expect(buildPiRuntimeBundle(options)).rejects.toThrowError(
         'runtime_bundle_windows_job_launcher_missing',
+      )
+
+      const missingPiLauncher =
+        (await inputs()) as import('../src/builder').PiRuntimeBundleBuildOptions
+      missingPiLauncher.platform = 'win32'
+      delete missingPiLauncher.windowsPiLauncher
+      await expect(buildPiRuntimeBundle(missingPiLauncher)).rejects.toThrowError(
+        'runtime_bundle_windows_pi_launcher_missing',
       )
 
       const missingAddon = (await inputs()) as import('../src/builder').PiRuntimeBundleBuildOptions
@@ -241,10 +315,20 @@ describe('Pi Runtime bundle builder', () => {
       options.entryPoint,
       '--capability-smoke-entry',
       options.capabilitySmokeEntryPoint,
+      '--subagent-smoke-entry',
+      options.subagentSmokeEntryPoint,
       '--capability-extension',
       options.capabilityExtension,
       '--mcp-smoke-server',
       options.mcpSmokeServer,
+      '--pi-headless-fixture',
+      options.piHeadlessFixture,
+      '--pi-cli-entry',
+      options.piCliEntryPoint,
+      '--pi-subagent-api-entry',
+      options.piSubagentApiEntryPoint,
+      '--pi-subagent-worker-entry',
+      options.piSubagentWorkerEntryPoint,
       '--built-in-skills',
       options.builtInSkillsDirectory,
       '--lockfile',
@@ -259,6 +343,8 @@ describe('Pi Runtime bundle builder', () => {
         ? [
             '--windows-job-launcher',
             options.windowsJobLauncher,
+            '--windows-pi-launcher',
+            options.windowsPiLauncher,
             '--windows-native-addon',
             options.windowsNativeAddon,
           ]

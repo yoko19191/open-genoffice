@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { chmod, link, mkdir, mkdtemp, readFile, symlink, unlink, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  link,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  symlink,
+  unlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -29,19 +39,35 @@ async function fixtureBundle() {
   const root = await mkdtemp(join(tmpdir(), 'pi-runtime-bundle-'))
   const fileContents = new Map([
     ['node/open-genoffice-pi-agent-runtime', '#!/bin/sh\n'],
+    ['node/open-genoffice-pi-cli', '#!/bin/sh\n'],
+    ['node/open-genoffice-pi-smoke', '#!/bin/sh\n'],
+    ['node/pi', '#!/bin/sh\n'],
     ...(process.platform === 'win32'
       ? ([['node/open-genoffice-job-launcher.exe', 'job launcher\n']] as const)
       : []),
     ['app/main.mjs', 'export {}\n'],
+    ['app/pi-cli.mjs', 'export {}\n'],
+    ['app/package.json', '{"version":"0.84.0"}\n'],
     ['self-test/mcp-stdio-server.mjs', 'export {}\n'],
     ['self-test/native-capability-smoke.mjs', 'export {}\n'],
+    ['self-test/native-subagent-smoke.mjs', 'export {}\n'],
     ['self-test/native-smoke-extension.mjs', 'export default () => {}\n'],
+    ['self-test/pi-headless-fixture.mjs', 'export {}\n'],
+    ['workers/durable-worker.mjs', 'export {}\n'],
     ['THIRD-PARTY-NOTICES.txt', 'fixture notice\n'],
     ['LICENSE.node.txt', 'fixture license\n'],
     ...(process.platform === 'win32'
       ? ([['native/win32-x64/win32-console-mode.node', 'native addon\n']] as const)
       : []),
   ])
+  if (process.platform === 'win32') {
+    fileContents.delete('node/open-genoffice-pi-cli')
+    fileContents.delete('node/open-genoffice-pi-smoke')
+    fileContents.delete('node/pi')
+    fileContents.set('node/open-genoffice-pi-cli.exe', 'pi launcher\n')
+    fileContents.set('node/open-genoffice-pi-smoke.exe', 'pi smoke launcher\n')
+    fileContents.set('node/pi.exe', 'pi shim\n')
+  }
   for (const [path, contents] of fileContents) {
     const target = join(root, ...path.split('/'))
     await mkdir(join(target, '..'), { recursive: true })
@@ -203,8 +229,16 @@ describe('installed Pi Runtime bundle verifier', () => {
 
   it.each([
     'self-test/native-capability-smoke.mjs',
+    'self-test/native-subagent-smoke.mjs',
     'self-test/native-smoke-extension.mjs',
     'self-test/mcp-stdio-server.mjs',
+    'self-test/pi-headless-fixture.mjs',
+    'app/pi-cli.mjs',
+    'app/package.json',
+    'workers/durable-worker.mjs',
+    `node/open-genoffice-pi-cli${process.platform === 'win32' ? '.exe' : ''}`,
+    `node/open-genoffice-pi-smoke${process.platform === 'win32' ? '.exe' : ''}`,
+    `node/pi${process.platform === 'win32' ? '.exe' : ''}`,
   ])('rejects a bundle missing required self-test file %s', async (missingPath) => {
     const { root, manifest } = await fixtureBundle()
     manifest.files = manifest.files.filter((file) => file.path !== missingPath)
@@ -392,6 +426,20 @@ describe('installed Pi Runtime bundle verifier', () => {
         left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
       )
     }
+    for (const [from, to] of [
+      ['node/open-genoffice-pi-cli', 'node/open-genoffice-pi-cli.exe'],
+      ['node/open-genoffice-pi-smoke', 'node/open-genoffice-pi-smoke.exe'],
+      ['node/pi', 'node/pi.exe'],
+    ] as const) {
+      const record = windows.manifest.files.find((file) => file.path === from)
+      if (record) {
+        await rename(join(windows.root, from), join(windows.root, to))
+        record.path = to
+      }
+    }
+    windows.manifest.files.sort((left, right) =>
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+    )
     windows.manifest.platform = 'win32'
     delete windows.manifest.libc
     for (const file of windows.manifest.files) delete file.mode

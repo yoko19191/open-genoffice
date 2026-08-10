@@ -1,6 +1,6 @@
 import type { Readable, Writable } from 'node:stream'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import {
   initializeAgentResourceHome,
   type InitializeAgentResourceHomeOptions,
@@ -27,6 +27,7 @@ export type RunRuntimeProcessOptions = {
 }
 
 export const PI_SUBAGENT_AGENT_DIR_ENV = 'PI_CODING_AGENT_DIR' as const
+export const PI_SUBAGENT_RUN_INDEX_DIR_ENV = 'PI_SUBAGENT_RUN_INDEX_DIR' as const
 
 export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Promise<number> {
   try {
@@ -40,7 +41,11 @@ export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Prom
       platform: options.platform,
     })
     const previousAgentDirectory = process.env[PI_SUBAGENT_AGENT_DIR_ENV]
+    const previousRunIndexDirectory = process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV]
+    const previousPath = process.env.PATH
     process.env[PI_SUBAGENT_AGENT_DIR_ENV] = join(resourceHome, 'state', 'subagent-pi-agent')
+    process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV] = join(resourceHome, 'state', 'subagent-run-index')
+    process.env.PATH = `${dirname(process.execPath)}${delimiter}${previousPath ?? ''}`
     try {
       const runtime = await (options.startRuntime ?? startRuntimeFromStdin)({
         stdin: options.stdin,
@@ -54,6 +59,10 @@ export async function runRuntimeProcess(options: RunRuntimeProcessOptions): Prom
     } finally {
       if (previousAgentDirectory === undefined) delete process.env[PI_SUBAGENT_AGENT_DIR_ENV]
       else process.env[PI_SUBAGENT_AGENT_DIR_ENV] = previousAgentDirectory
+      if (previousRunIndexDirectory === undefined) delete process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV]
+      else process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV] = previousRunIndexDirectory
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
     }
   } catch (error) {
     if (error instanceof RuntimeBootstrapError || error instanceof RuntimeStartError) {

@@ -7,7 +7,8 @@
   "description": "Build-time and installed-resource verification for the Pi Runtime bundle",
   "exports": {
     ".": "./src/index.ts",
-    "./builder": "./src/builder.ts"
+    "./builder": "./src/builder.ts",
+    "./node-distribution": "./src/node-distribution.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

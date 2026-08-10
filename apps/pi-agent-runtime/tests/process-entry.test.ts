@@ -1,6 +1,6 @@
 import { chmod, mkdtemp, readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
@@ -12,6 +12,7 @@ import {
 } from '@genoffice/agent-runtime-protocol'
 import {
   PI_SUBAGENT_AGENT_DIR_ENV,
+  PI_SUBAGENT_RUN_INDEX_DIR_ENV,
   RUNTIME_EXIT_CODES,
   RuntimeBootstrapError,
   runRuntimeProcess,
@@ -71,7 +72,11 @@ describe('Runtime process entry', () => {
       credentials: new InMemoryCredentialStore(),
     }
     const previousAgentDirectory = process.env[PI_SUBAGENT_AGENT_DIR_ENV]
+    const previousRunIndexDirectory = process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV]
+    const previousPath = process.env.PATH
     process.env[PI_SUBAGENT_AGENT_DIR_ENV] = '/external/pi-agent'
+    process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV] = '/external/subagent-index'
+    delete process.env.PATH
     try {
       await expect(
         runRuntimeProcess({
@@ -91,6 +96,10 @@ describe('Runtime process entry', () => {
             expect(process.env[PI_SUBAGENT_AGENT_DIR_ENV]).toBe(
               join('/isolated/.open-genoffice', 'state', 'subagent-pi-agent'),
             )
+            expect(process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV]).toBe(
+              join('/isolated/.open-genoffice', 'state', 'subagent-run-index'),
+            )
+            expect(process.env.PATH).toBe(`${dirname(process.execPath)}${delimiter}`)
             calls.push('runtime')
             return runtime
           },
@@ -98,9 +107,15 @@ describe('Runtime process entry', () => {
       ).resolves.toBe(RUNTIME_EXIT_CODES.ok)
       expect(calls).toEqual(['resource:/isolated/.open-genoffice:1.0.0:linux', 'runtime'])
       expect(process.env[PI_SUBAGENT_AGENT_DIR_ENV]).toBe('/external/pi-agent')
+      expect(process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV]).toBe('/external/subagent-index')
+      expect(process.env.PATH).toBeUndefined()
     } finally {
       if (previousAgentDirectory === undefined) delete process.env[PI_SUBAGENT_AGENT_DIR_ENV]
       else process.env[PI_SUBAGENT_AGENT_DIR_ENV] = previousAgentDirectory
+      if (previousRunIndexDirectory === undefined) delete process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV]
+      else process.env[PI_SUBAGENT_RUN_INDEX_DIR_ENV] = previousRunIndexDirectory
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
     }
   })
 
