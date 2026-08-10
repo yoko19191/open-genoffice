@@ -202,7 +202,10 @@ export function createSlidesOfficeToolRendererHandler(
         result: {
           kind: 'executed',
           output: executed.output,
-          details: { summary: executed.summary },
+          details: {
+            summary: executed.summary,
+            ...(executed.auditIssues ? { auditIssues: executed.auditIssues } : {}),
+          },
           contextVersionAfter,
           ...(executed.mutated ? { mutationOutcome: 'committed' as const } : {}),
         },

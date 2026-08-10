@@ -60,12 +60,15 @@ export {
   SessionRegistry,
   createSessionRegistry,
   type SessionMutationGrantRegistry,
+  type SessionSlidesQcCoordinator,
   type SessionSubagentCoordinator,
   type SessionRegistryOptions,
 } from './session-registry'
 export {
   SubagentCoordinator,
   SubagentCoordinatorError,
+  type BeginNamedSubagentRequest,
+  type NamedSubagentHandle,
   type SpawnSubagentRequest,
   type SubagentCoordinatorEvent,
   type SubagentExecutionContext,
@@ -75,6 +78,26 @@ export {
   type SubagentEngineInput,
   type SubagentToolDescriptor,
 } from './subagent-coordinator'
+export {
+  SlidesQcCoordinator,
+  SlidesQcCoordinatorError,
+  SLIDES_QC_MAX_REPAIR_ROUNDS,
+  SLIDES_QC_MUTATION_TOOL_ID,
+  SLIDES_QC_READ_TOOL_ID,
+  type BeginSlidesQcSubagentRequest,
+  type NamedSlidesQcSubagent,
+  type SlidesQcCoordinatorErrorCode,
+  type SlidesQcCoordinatorOptions,
+  type SlidesQcReport,
+  type SlidesQcResult,
+} from './slides-qc-coordinator'
+export {
+  PiSlidesQcPlanner,
+  PiSlidesQcPlannerError,
+  type PiSlidesQcPlanInput,
+  type PiSlidesQcPlannerErrorCode,
+  type PiSlidesQcPlannerOptions,
+} from './pi-slides-qc-planner'
 export {
   DEFAULT_SUBAGENT_ROOT_BUDGET,
   SubagentRunRegistry,

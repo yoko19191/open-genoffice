@@ -132,6 +132,7 @@ export type SessionRegistryOptions = {
   createPiSession?: (options: CreatePiSessionOptions) => Promise<PiSessionHandle>
   credentials?: CredentialStore
   subagents?: SessionSubagentCoordinator
+  slidesQc?: SessionSlidesQcCoordinator
   mutationGrants?: SessionMutationGrantRegistry
   bindingAtomicWriteOptions?: (binding: Readonly<Binding>) => AtomicWriteOptions
 }
@@ -144,6 +145,23 @@ export type SessionSubagentCoordinator = {
   resume(runId: string): Promise<SubagentRunProjection>
   parentSessionIdsWithRuns?(): string[]
   reconcile?(): Promise<void>
+}
+
+export type SessionSlidesQcCoordinator = {
+  start(input: {
+    parentRunId: string
+    parentSessionId: string
+    documentId: string
+    parentSnapshot: SpawnSubagentRequest['parentSnapshot']
+    slideIndexes: readonly number[]
+    signal?: AbortSignal
+    onRunStarted?: (run: SubagentRunProjection) => void
+  }): Promise<{
+    runId: string
+    status: 'awaiting_grant' | 'completed' | 'denied' | 'failed'
+  }>
+  wait(runId: string): Promise<unknown>
+  cancel(runId: string): unknown
 }
 
 export type SessionMutationGrantRegistry = {
@@ -600,7 +618,10 @@ export class SessionRegistry {
     })
   }
 
-  async spawnSubagent(request: SpawnSubagentRequest): Promise<SubagentRunProjection> {
+  async spawnSubagent(
+    request: SpawnSubagentRequest,
+    signal?: AbortSignal,
+  ): Promise<SubagentRunProjection> {
     const binding = await this.readBoundBinding({
       sessionId: request.parentSessionId,
       documentId: request.documentId,
@@ -615,14 +636,46 @@ export class SessionRegistry {
     ) {
       throw new RuntimeSessionError('invalid_state')
     }
-    const child = await this.options.subagents.spawn(request)
-    activeRun.abortTree.register({
-      id: `subagent:${child.runId}`,
-      kind: 'subagent',
-      abort: async () => {
-        await this.options.subagents!.cancelTree(child.runId, 'parent_run_aborted')
-      },
-    })
+    if (
+      (request.profile === 'slides-qc' &&
+        (!this.options.slidesQc ||
+          !request.slideIndexes ||
+          request.requestedTools !== undefined)) ||
+      (request.profile === undefined && request.slideIndexes !== undefined)
+    ) {
+      throw new RuntimeSessionError('invalid_state')
+    }
+    let child: SubagentRunProjection
+    const registerChild = (run: SubagentRunProjection) => {
+      activeRun.abortTree.register({
+        id: `subagent:${run.runId}`,
+        kind: 'subagent',
+        abort: async () => {
+          if (request.profile === 'slides-qc') this.options.slidesQc?.cancel(run.runId)
+          await this.options.subagents!.cancelTree(run.runId, 'parent_run_aborted')
+        },
+      })
+    }
+    if (request.profile === 'slides-qc') {
+      const started = await this.options.slidesQc!.start({
+        parentRunId: request.parentRunId,
+        parentSessionId: request.parentSessionId,
+        documentId: request.documentId,
+        parentSnapshot: request.parentSnapshot,
+        slideIndexes: request.slideIndexes!,
+        ...(signal ? { signal } : {}),
+        onRunStarted: registerChild,
+      })
+      if (started.status === 'awaiting_grant') await this.options.slidesQc!.wait(started.runId)
+      const named = this.options.subagents
+        .listForSession(request.parentSessionId)
+        .find((candidate) => candidate.runId === started.runId)
+      if (!named) throw new RuntimeSessionError('invalid_state')
+      child = named
+    } else {
+      child = await this.options.subagents.spawn(request)
+      registerChild(child)
+    }
     await record.eventQueue
     return child
   }

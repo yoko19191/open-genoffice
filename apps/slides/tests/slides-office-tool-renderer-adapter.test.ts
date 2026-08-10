@@ -18,6 +18,7 @@ function harness() {
       output: `${modelAlias} complete`,
       summary: modelAlias,
       mutated: !['get_deck_context', 'read_slide'].includes(modelAlias),
+      ...(modelAlias === 'read_slide' ? { auditIssues: ['overlap'] } : {}),
     }),
   )
   const beginHistoryBatch = vi.fn(async () => true)
@@ -76,7 +77,11 @@ describe('Slides Office Tool renderer adapter', () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      result: { kind: 'executed', contextVersionAfter: 'slides-edit-1' },
+      result: {
+        kind: 'executed',
+        contextVersionAfter: 'slides-edit-1',
+        details: { summary: 'read_slide', auditIssues: ['overlap'] },
+      },
     })
     expect(fixture.beginHistoryBatch).not.toHaveBeenCalled()
   })

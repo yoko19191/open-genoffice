@@ -42,6 +42,8 @@ import { PlatformToolService } from './platform-tool-service'
 import { PackageSourceResolverError } from './package-source-resolver'
 import { RunResourceService, RunResourceServiceError } from './run-resource-service'
 import { PiSubagentEngine } from './pi-subagent-engine'
+import { PiSlidesQcPlanner } from './pi-slides-qc-planner'
+import { SlidesQcCoordinator } from './slides-qc-coordinator'
 import { SubagentCoordinator, type SubagentToolDescriptor } from './subagent-coordinator'
 import { SubagentRunRegistry } from './subagent-run-registry'
 import { MutationGrantRegistry, MutationGrantRegistryError } from './mutation-grant-registry'
@@ -212,6 +214,7 @@ export async function createAuthenticatedRuntimeServer(
 
   let ownedSubagentCoordinator: SubagentCoordinator | undefined
   let ownedMutationGrants: MutationGrantRegistry | undefined
+  let unsubscribeSlidesQcGrants = () => {}
   let sessionRegistry: SessionRegistry
   if (options.sessionRegistry) {
     sessionRegistry = options.sessionRegistry
@@ -247,12 +250,33 @@ export async function createAuthenticatedRuntimeServer(
         resourceTexts: await runResources.subagentResourceTexts(parentSnapshot, projectRoot),
       }),
     })
+    const slidesQcPlanner = ownedModelCatalog
+      ? new PiSlidesQcPlanner({
+          resourceHome: options.resourceHome,
+          agentDir: join(options.resourceHome, 'agent'),
+          modelRuntime,
+          resolveModel: () => ownedModelCatalog.selectedModel('conversation'),
+        })
+      : undefined
+    const slidesQc = slidesQcPlanner
+      ? new SlidesQcCoordinator({
+          subagents: ownedSubagentCoordinator,
+          officeTools,
+          planRepairs: (input, signal) => slidesQcPlanner.plan(input, signal),
+        })
+      : undefined
+    if (slidesQc) {
+      unsubscribeSlidesQcGrants = ownedMutationGrants.onEvent(({ projection }) => {
+        void slidesQc.handleGrantProjection(projection).catch(() => undefined)
+      })
+    }
     sessionRegistry = createSessionRegistry({
       dataRoot: options.resourceHome,
       instanceId: options.instanceId,
       cursorSecret: randomBytes(32),
       credentials,
       subagents: ownedSubagentCoordinator,
+      ...(slidesQc ? { slidesQc } : {}),
       mutationGrants: ownedMutationGrants,
       ...(ownedModelCatalog
         ? {
@@ -267,7 +291,7 @@ export async function createAuthenticatedRuntimeServer(
                 officeToolHost: officeTools,
                 generateImage: (input, signal) => imageProvider.generate(input, signal),
                 platformTools,
-                spawnSubagent: (request) => sessionRegistry.spawnSubagent(request),
+                spawnSubagent: (request, signal) => sessionRegistry.spawnSubagent(request, signal),
               }),
           }
         : {}),
@@ -395,6 +419,7 @@ export async function createAuthenticatedRuntimeServer(
     closeStarted = true
     credentialClient.close('runtime_connection_closed')
     void Promise.allSettled([sessionRegistry.shutdown(), runResources.shutdown()]).finally(() => {
+      unsubscribeSlidesQcGrants()
       ownedSubagentCoordinator?.close()
       authenticatedSocket?.end()
       server.close(() => resolveClosed())

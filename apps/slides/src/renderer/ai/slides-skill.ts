@@ -1434,6 +1434,7 @@ export interface SlidesNativeToolResult {
   output: string
   mutated: boolean
   summary: string
+  auditIssues?: string[]
   isError?: boolean
 }
 
@@ -1780,6 +1781,7 @@ async function executeTool(
         output: formatSlideDump(slide),
         mutated: false,
         summary: t('aiSumReadSlide', { n: idx + 1 }),
+        auditIssues: auditSlideLayout(slide),
       }
     }
 
@@ -2075,6 +2077,7 @@ async function executeTool(
           output: `Applied the edit script to page ${idx + 1}: ${parts.join(', ')}.${returnedStr}${logsStr}${failStr}${formatAudit(issues)}`,
           mutated: true,
           summary: t('aiSumScript', { n: idx + 1, count: totalApplied }),
+          auditIssues: issues,
         }
       } finally {
         if (batchOpened) await window.slidesApi.endHistoryBatch?.()

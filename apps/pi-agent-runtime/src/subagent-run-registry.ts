@@ -394,6 +394,14 @@ export class SubagentRunRegistry {
     })
   }
 
+  markStartedLocal(runId: string): Promise<void> {
+    return this.update(runId, ['queued'], 'started', (record) => {
+      record.status = 'running'
+      record.startedAt ??= this.now().toISOString()
+      delete record.errorCode
+    })
+  }
+
   markWaiting(runId: string, waiting: boolean): Promise<void> {
     return this.update(runId, waiting ? ['running'] : ['waiting'], 'waiting', (record) => {
       record.status = waiting ? 'waiting' : 'running'

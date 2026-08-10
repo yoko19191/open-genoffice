@@ -436,6 +436,120 @@ describe('document-bound Pi Session registry', () => {
     await registry.shutdown()
   })
 
+  it('routes the trusted Slides QC profile through its coordinator and attaches parent Stop', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-slides-qc-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    let projection: SubagentRunProjection | undefined
+    const spawn = vi.fn()
+    const cancelTree = vi.fn(async () => undefined)
+    const subagents: SessionSubagentCoordinator = {
+      onEvent: () => () => {},
+      listForSession: (sessionId) =>
+        projection?.parentSessionId === sessionId ? [projection] : [],
+      spawn,
+      cancelTree,
+      resume: vi.fn(),
+    }
+    const start = vi.fn(async (input) => {
+      projection = {
+        runId: 'slides-qc-run-1',
+        rootRunId: input.parentRunId,
+        parentRunId: input.parentRunId,
+        parentSessionId: input.parentSessionId,
+        documentId: input.documentId,
+        role: 'Slides QC',
+        depth: 1,
+        model: { providerId: 'provider-1', modelId: 'model-1' },
+        status: 'waiting',
+        attempt: 1,
+        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0, toolCalls: 0 },
+        capabilitySnapshotId: 'b'.repeat(64),
+        createdAt: '2026-08-10T00:00:00.000Z',
+      }
+      input.onRunStarted?.(projection)
+      return { runId: projection.runId, status: 'awaiting_grant' as const }
+    })
+    let releaseSlidesQc!: () => void
+    const pendingSlidesQc = new Promise<void>((resolve) => {
+      releaseSlidesQc = resolve
+    })
+    const waitSlidesQc = vi.fn(async () => pendingSlidesQc)
+    const cancelSlidesQc = vi.fn()
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-slides-qc',
+      cursorSecret: Buffer.alloc(32, 49),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+      subagents,
+      slidesQc: { start, wait: waitSlidesQc, cancel: cancelSlidesQc },
+    })
+    const created = await registry.create({ operationId, documentId })
+    const parent = await registry.prompt({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'quality check the selected slide',
+    })
+    const parentSnapshot = createCapabilitySnapshot({
+      createdForRunId: parent.runId,
+      model: { providerId: 'provider-1', modelId: 'model-1', capabilities: ['text'] },
+      resources: [],
+      toolIds: [
+        'platform:subagent:spawn',
+        'office:slides:read_slide',
+        'office:slides:execute_slide_script',
+      ],
+      permissionVersion: 'permission-v1',
+    })
+    const spawnSlidesQc = registry.spawnSubagent({
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      role: 'Slides QC',
+      task: 'quality check',
+      parentSnapshot,
+      profile: 'slides-qc',
+      slideIndexes: [0, 2],
+    })
+    let toolSettled = false
+    void spawnSlidesQc.finally(() => {
+      toolSettled = true
+    })
+    await vi.waitFor(() => expect(waitSlidesQc).toHaveBeenCalledWith('slides-qc-run-1'))
+    expect(toolSettled).toBe(false)
+    releaseSlidesQc()
+    await expect(spawnSlidesQc).resolves.toMatchObject({
+      runId: 'slides-qc-run-1',
+      role: 'Slides QC',
+    })
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({ slideIndexes: [0, 2], parentRunId: parent.runId }),
+    )
+    expect(spawn).not.toHaveBeenCalled()
+
+    await registry.abort({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      sessionId: created.sessionId,
+      documentId,
+      runId: parent.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect(cancelTree).toHaveBeenCalledWith('slides-qc-run-1', 'parent_run_aborted')
+    expect(cancelSlidesQc).toHaveBeenCalledWith('slides-qc-run-1')
+    await registry.shutdown()
+  })
+
   it('projects an authorization revocation as capability_revoked instead of provider failure', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-revoked-'))
     roots.push(dataRoot)

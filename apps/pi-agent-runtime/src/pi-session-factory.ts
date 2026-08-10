@@ -84,7 +84,10 @@ type CreatePiSessionBaseOptions = {
   ) => Promise<CodexImageGenerateResult>
   platformTools?: Pick<PlatformToolService, 'execute'>
   credentials?: CredentialStore
-  spawnSubagent?: (request: SpawnSubagentRequest) => Promise<SubagentRunProjection>
+  spawnSubagent?: (
+    request: SpawnSubagentRequest,
+    signal?: AbortSignal,
+  ) => Promise<SubagentRunProjection>
 }
 
 export type CreatePiSessionOptions = CreatePiSessionBaseOptions &
@@ -320,26 +323,39 @@ export async function createDeterministicPiSession(
               tools: Type.Optional(
                 Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 128 }),
               ),
+              profile: Type.Optional(Type.Literal('slides-qc')),
+              slideIndexes: Type.Optional(
+                Type.Array(Type.Integer({ minimum: 0 }), {
+                  minItems: 1,
+                  maxItems: 256,
+                  uniqueItems: true,
+                }),
+              ),
             },
             { additionalProperties: false },
           ),
-          async execute(_toolCallId, input) {
+          async execute(_toolCallId, input, signal) {
             if (!extensionExecution) throw new Error('subagent_parent_context_required')
             if (!extensionExecution.snapshot.toolIds.includes('platform:subagent:spawn')) {
               throw new Error('subagent_not_authorized')
             }
-            const child = await options.spawnSubagent!({
-              parentRunId: extensionExecution.runId,
-              parentSessionId: options.sessionId,
-              documentId: options.documentId,
-              role: input.role,
-              task: input.task,
-              parentSnapshot: extensionExecution.snapshot,
-              ...(input.tools ? { requestedTools: input.tools } : {}),
-              ...(extensionExecution.projectRoot
-                ? { projectRoot: extensionExecution.projectRoot }
-                : {}),
-            })
+            const child = await options.spawnSubagent!(
+              {
+                parentRunId: extensionExecution.runId,
+                parentSessionId: options.sessionId,
+                documentId: options.documentId,
+                role: input.role,
+                task: input.task,
+                parentSnapshot: extensionExecution.snapshot,
+                ...(input.tools ? { requestedTools: input.tools } : {}),
+                ...(input.profile ? { profile: input.profile } : {}),
+                ...(input.slideIndexes ? { slideIndexes: input.slideIndexes } : {}),
+                ...(extensionExecution.projectRoot
+                  ? { projectRoot: extensionExecution.projectRoot }
+                  : {}),
+              },
+              signal,
+            )
             return {
               content: [
                 {

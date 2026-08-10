@@ -210,6 +210,16 @@ async function fixture(
           effect: 'mutation' as const,
         }
       }
+      if (toolId === 'office:slides:read_slide') {
+        return { canonicalToolId: toolId, modelAlias: 'read_slide', effect: 'read' as const }
+      }
+      if (toolId === 'office:slides:execute_slide_script') {
+        return {
+          canonicalToolId: toolId,
+          modelAlias: 'execute_slide_script',
+          effect: 'mutation' as const,
+        }
+      }
       if (toolId === 'mcp:search:query') {
         return { canonicalToolId: toolId, modelAlias: 'search_query', effect: 'read' as const }
       }
@@ -759,6 +769,171 @@ describe('SubagentCoordinator', () => {
     ).rejects.toMatchObject({ code: 'subagent_mutation_forbidden' })
     engine.emit(child.runId, { type: 'completed', result: { kind: 'text', text: 'done' } })
     await coordinator.wait(child.runId)
+  })
+
+  it('creates a trusted named Slides QC actor with one read tool and one grantable mutation', async () => {
+    const { coordinator, registry } = await fixture()
+    const baseSnapshot = parentSnapshot()
+    const snapshot = {
+      ...baseSnapshot,
+      toolIds: [
+        ...baseSnapshot.toolIds,
+        'office:slides:read_slide',
+        'office:slides:execute_slide_script',
+      ],
+    }
+    const named = await coordinator.beginNamed({
+      profile: 'slides-qc',
+      role: 'Slides QC',
+      parentRunId,
+      parentSessionId,
+      documentId,
+      parentSnapshot: snapshot,
+    })
+
+    expect(named.run).toMatchObject({
+      parentRunId,
+      parentSessionId,
+      documentId,
+      role: 'Slides QC',
+      status: 'waiting',
+    })
+    expect(named.permissionSnapshot).toMatchObject({
+      createdForRunId: named.run.runId,
+      toolIds: ['office:slides:read_slide'],
+    })
+    expect(registry.getInternal(named.run.runId)?.grantableToolIds).toEqual([
+      'office:slides:execute_slide_script',
+    ])
+    expect(coordinator.authorizeTool(named.run.runId, 'office:slides:read_slide')).toMatchObject({
+      actorId: named.run.runId,
+    })
+    expect(() => coordinator.authorizeTool(named.run.runId, 'office:pdf:read_text')).toThrowError(
+      'subagent_tool_not_authorized',
+    )
+
+    await coordinator.completeNamed(named.run.runId, 'QC complete')
+    expect(registry.get(named.run.runId)).toMatchObject({
+      status: 'completed',
+      result: { kind: 'text', text: 'QC complete' },
+    })
+  })
+
+  it('rejects forged named profiles and cancels an active local QC run child-first', async () => {
+    const { coordinator, registry } = await fixture()
+    const baseSnapshot = parentSnapshot()
+    const snapshot = {
+      ...baseSnapshot,
+      toolIds: [
+        ...baseSnapshot.toolIds,
+        'office:slides:read_slide',
+        'office:slides:execute_slide_script',
+      ],
+    }
+    await expect(
+      coordinator.beginNamed({
+        profile: 'slides-qc',
+        role: 'Reviewer' as 'Slides QC',
+        parentRunId,
+        parentSessionId,
+        documentId,
+        parentSnapshot: snapshot,
+      }),
+    ).rejects.toMatchObject({ code: 'subagent_request_invalid' })
+
+    const named = await coordinator.beginNamed({
+      profile: 'slides-qc',
+      role: 'Slides QC',
+      parentRunId,
+      parentSessionId,
+      documentId,
+      parentSnapshot: snapshot,
+    })
+    await coordinator.cancelTree(named.run.runId, 'document_closed')
+    expect(registry.get(named.run.runId)).toMatchObject({ status: 'cancelled' })
+  })
+
+  it('validates named QC lineage, exact tools, terminal ownership, and missing grant actors', async () => {
+    const { coordinator, registry, authorizeSnapshot } = await fixture()
+    const baseSnapshot = parentSnapshot()
+    const namedSnapshot = {
+      ...baseSnapshot,
+      toolIds: [
+        ...baseSnapshot.toolIds,
+        'office:slides:read_slide',
+        'office:slides:execute_slide_script',
+      ],
+    }
+    for (const toolIds of [
+      namedSnapshot.toolIds.filter((toolId) => toolId !== 'office:slides:read_slide'),
+      namedSnapshot.toolIds.filter((toolId) => toolId !== 'office:slides:execute_slide_script'),
+    ]) {
+      await expect(
+        coordinator.beginNamed({
+          profile: 'slides-qc',
+          role: 'Slides QC',
+          parentRunId,
+          parentSessionId,
+          documentId,
+          parentSnapshot: { ...namedSnapshot, toolIds },
+        }),
+      ).rejects.toMatchObject({ code: 'subagent_tool_not_authorized' })
+    }
+
+    const storedParentRunId = '77777777-7777-4777-8777-777777777777'
+    const nestedSnapshot = { ...namedSnapshot, createdForRunId: storedParentRunId }
+    await registry.create({
+      runId: storedParentRunId,
+      rootRunId: storedParentRunId,
+      parentRunId: storedParentRunId,
+      parentSessionId,
+      documentId,
+      role: 'Parent',
+      model: nestedSnapshot.model,
+      budget,
+      capabilitySnapshot: nestedSnapshot,
+    })
+    await expect(
+      coordinator.beginNamed({
+        profile: 'slides-qc',
+        role: 'Slides QC',
+        parentRunId: storedParentRunId,
+        parentSessionId: 'other-session',
+        documentId,
+        parentSnapshot: nestedSnapshot,
+      }),
+    ).rejects.toMatchObject({ code: 'subagent_document_mismatch' })
+
+    const nested = await coordinator.beginNamed({
+      profile: 'slides-qc',
+      role: 'Slides QC',
+      parentRunId: storedParentRunId,
+      parentSessionId,
+      documentId,
+      parentSnapshot: nestedSnapshot,
+      projectRoot: '/trusted/project',
+    })
+    expect(nested.run.rootRunId).toBe(storedParentRunId)
+    expect(authorizeSnapshot).toHaveBeenLastCalledWith(expect.anything(), '/trusted/project')
+    await coordinator.failNamed(nested.run.runId, 'unsafe error detail!')
+    expect(registry.get(nested.run.runId)).toMatchObject({
+      status: 'failed',
+      errorCode: 'subagent_provider_failed',
+    })
+
+    await expect(coordinator.completeNamed('missing-run', 'done')).rejects.toMatchObject({
+      code: 'subagent_parent_invalid',
+    })
+    await expect(coordinator.failNamed('missing-run', 'failed')).rejects.toMatchObject({
+      code: 'subagent_parent_invalid',
+    })
+    expect(() => coordinator.requestMutationGrant('missing-run', ['office:slides:x'])).toThrow(
+      'subagent_parent_invalid',
+    )
+    await expect(
+      coordinator.authorizeMutationTool('missing-run', 'office:slides:x', 'grant-1'),
+    ).rejects.toMatchObject({ code: 'subagent_parent_invalid' })
+    await coordinator.cancelTree('missing-run', 'already-gone')
   })
 
   it('keeps mutations forbidden when the Runtime has no Mutation Grant authority', async () => {

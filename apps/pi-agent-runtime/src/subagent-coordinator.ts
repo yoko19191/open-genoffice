@@ -84,6 +84,28 @@ export type SpawnSubagentRequest = {
   parentSnapshot: CapabilitySnapshot
   requestedTools?: readonly string[]
   projectRoot?: string
+  profile?: 'slides-qc'
+  slideIndexes?: readonly number[]
+}
+
+export type BeginNamedSubagentRequest = {
+  profile: 'slides-qc'
+  role: 'Slides QC'
+  parentRunId: string
+  parentSessionId: string
+  documentId: string
+  parentSnapshot: CapabilitySnapshot
+  projectRoot?: string
+}
+
+export type NamedSubagentHandle = {
+  run: SubagentRunProjection
+  permissionSnapshot: {
+    snapshotId: string
+    createdForRunId: string
+    permissionVersion: string
+    toolIds: string[]
+  }
 }
 
 export type SubagentCoordinatorEvent =
@@ -170,6 +192,7 @@ export class SubagentCoordinator {
   private readonly budget: SubagentRootBudget
   private readonly listeners = new Set<(event: SubagentCoordinatorEvent) => void>()
   private readonly executions = new Map<string, ActiveExecution>()
+  private readonly localNamedRuns = new Set<string>()
   private generation = 1
   private readonly unsubscribeRegistry: () => void
 
@@ -255,6 +278,86 @@ export class SubagentCoordinator {
     })
     await this.start(record.runId, request.task, tools, context)
     return this.requireProjection(record.runId)
+  }
+
+  async beginNamed(request: BeginNamedSubagentRequest): Promise<NamedSubagentHandle> {
+    const readToolId = 'office:slides:read_slide'
+    const mutationToolId = 'office:slides:execute_slide_script'
+    if (
+      request.profile !== 'slides-qc' ||
+      request.role !== 'Slides QC' ||
+      request.parentSnapshot.createdForRunId !== request.parentRunId
+    ) {
+      throw new SubagentCoordinatorError('subagent_request_invalid')
+    }
+    const parent = this.registry.getInternal(request.parentRunId)
+    if (
+      parent &&
+      (parent.parentSessionId !== request.parentSessionId ||
+        parent.documentId !== request.documentId)
+    ) {
+      throw new SubagentCoordinatorError('subagent_document_mismatch')
+    }
+    const readTool = this.options.resolveTool(readToolId)
+    const mutationTool = this.options.resolveTool(mutationToolId)
+    if (
+      readTool?.effect !== 'read' ||
+      mutationTool?.effect !== 'mutation' ||
+      !request.parentSnapshot.toolIds.includes(readToolId) ||
+      !request.parentSnapshot.toolIds.includes(mutationToolId)
+    ) {
+      throw new SubagentCoordinatorError('subagent_tool_not_authorized')
+    }
+    const runId = this.randomUUID()
+    const capabilitySnapshot = createCapabilitySnapshot({
+      createdForRunId: runId,
+      model: request.parentSnapshot.model,
+      resources: Object.entries(request.parentSnapshot.resourceHashes).map(
+        ([resourceKey, contentSha256]) => ({ resourceKey, contentSha256 }),
+      ),
+      toolIds: [readToolId],
+      permissionVersion: request.parentSnapshot.permissionVersion,
+    })
+    await this.options.authorizeSnapshot(capabilitySnapshot, request.projectRoot)
+    const record = await this.registry.create({
+      runId,
+      rootRunId: parent?.rootRunId ?? request.parentRunId,
+      parentRunId: request.parentRunId,
+      parentSessionId: request.parentSessionId,
+      documentId: request.documentId,
+      role: request.role,
+      model: request.parentSnapshot.model,
+      budget: this.budget,
+      capabilitySnapshot,
+      grantableToolIds: [mutationToolId],
+      ...(request.projectRoot ? { projectRoot: request.projectRoot } : {}),
+    })
+    await this.registry.markStartedLocal(record.runId)
+    await this.registry.markWaiting(record.runId, true)
+    this.localNamedRuns.add(record.runId)
+    return {
+      run: this.requireProjection(record.runId),
+      permissionSnapshot: {
+        snapshotId: capabilitySnapshot.snapshotId,
+        createdForRunId: runId,
+        permissionVersion: capabilitySnapshot.permissionVersion,
+        toolIds: [readToolId],
+      },
+    }
+  }
+
+  async completeNamed(runId: string, result: string): Promise<void> {
+    if (!this.localNamedRuns.delete(runId)) {
+      throw new SubagentCoordinatorError('subagent_parent_invalid')
+    }
+    await this.registry.complete(runId, { result: { kind: 'text', text: result } })
+  }
+
+  async failNamed(runId: string, errorCode: string): Promise<void> {
+    if (!this.localNamedRuns.delete(runId)) {
+      throw new SubagentCoordinatorError('subagent_parent_invalid')
+    }
+    await this.registry.fail(runId, safeErrorCode(errorCode))
   }
 
   authorizeTool(
@@ -347,7 +450,7 @@ export class SubagentCoordinator {
     for (const child of children) await this.cancelTree(child.runId, reason)
     const execution = this.executions.get(parentRunId)
     const record = this.registry.getInternal(parentRunId)
-    if (!record || !execution) return
+    if (!record) return
     if (
       record.status !== 'queued' &&
       record.status !== 'running' &&
@@ -356,6 +459,12 @@ export class SubagentCoordinator {
     ) {
       return
     }
+    if (!execution && this.localNamedRuns.delete(parentRunId)) {
+      await this.registry.beginCancelling(parentRunId, reason)
+      await this.registry.cancel(parentRunId)
+      return
+    }
+    if (!execution) return
     if (record.status !== 'cancelling') await this.registry.beginCancelling(parentRunId, reason)
     await execution.handle.cancel(reason)
     await execution.completion
@@ -440,6 +549,7 @@ export class SubagentCoordinator {
     this.unsubscribeRegistry()
     for (const execution of this.executions.values()) clearTimeout(execution.timer)
     this.executions.clear()
+    this.localNamedRuns.clear()
     this.listeners.clear()
   }
 
@@ -448,6 +558,7 @@ export class SubagentCoordinator {
     this.generation += 1
     for (const execution of this.executions.values()) clearTimeout(execution.timer)
     this.executions.clear()
+    this.localNamedRuns.clear()
   }
 
   private async start(

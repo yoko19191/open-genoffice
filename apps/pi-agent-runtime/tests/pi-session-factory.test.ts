@@ -393,6 +393,22 @@ describe('deterministic Pi Session factory', () => {
         { stopReason: 'toolUse' },
       ),
       fauxAssistantMessage('second child queued'),
+      fauxAssistantMessage(
+        [
+          fauxToolCall(
+            'subagent',
+            {
+              role: 'ignored by trusted profile',
+              task: 'quality-check selected slides',
+              profile: 'slides-qc',
+              slideIndexes: [0, 2],
+            },
+            { id: 'slides-qc-tool-call' },
+          ),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+      fauxAssistantMessage('Slides QC awaiting grant'),
     ])
     const spawnSubagent = vi.fn(async (input) => ({
       runId: 'subagent-run-1',
@@ -449,6 +465,7 @@ describe('deterministic Pi Session factory', () => {
           toolIds: ['platform:subagent:spawn'],
         }),
       }),
+      expect.anything(),
     )
     expect(JSON.stringify(handle.sessionManager.getEntries())).toContain('subagent-run-1')
     spawnSubagent.mockClear()
@@ -461,9 +478,22 @@ describe('deterministic Pi Session factory', () => {
         role: 'critic',
         task: 'inspect without optional authority',
       }),
+      expect.anything(),
     )
     expect(spawnSubagent.mock.calls[0]?.[0]).not.toHaveProperty('requestedTools')
     expect(spawnSubagent.mock.calls[0]?.[0]).not.toHaveProperty('projectRoot')
+    spawnSubagent.mockClear()
+    await handle.prompt('quality check selected slides', new AbortController().signal, {
+      runId: 'parent-run-3',
+    })
+    expect(spawnSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentRunId: 'parent-run-3',
+        profile: 'slides-qc',
+        slideIndexes: [0, 2],
+      }),
+      expect.anything(),
+    )
     handle.dispose()
   })
 
