@@ -103,7 +103,31 @@ describe('PiSubagentEngine', () => {
     try {
       const engine = new PiSubagentEngine({ resourceHome, pollIntervalMs: 10 })
       const handle = await engine.spawn({ ...input(), tools: [], timeoutMs: 10_000 })
-      await expect(collect(handle.events)).resolves.toEqual(
+      const events = await collect(handle.events)
+      if (!events.some((event) => event.type === 'completed')) {
+        const attemptDirectory = join(
+          resourceHome,
+          'state',
+          'subagent-engine',
+          input().runId,
+          'provider-runs',
+          handle.providerRunId,
+          'attempts',
+          handle.providerAttemptId,
+        )
+        const diagnostics = Object.fromEntries(
+          await Promise.all(
+            ['result.json', 'stderr.log', 'output.log', 'worker.log'].map(async (name) => [
+              name,
+              (await readFile(join(attemptDirectory, name), 'utf8').catch(() => '')).slice(-4000),
+            ]),
+          ),
+        )
+        throw new Error(
+          `native_subagent_test_incomplete:${JSON.stringify({ events, diagnostics })}`,
+        )
+      }
+      expect(events).toEqual(
         expect.arrayContaining([
           {
             type: 'completed',

@@ -58,22 +58,29 @@ try {
   const events = await collect(handle.events)
   const completed = events.find((event) => event.type === 'completed')
   if (completed?.type !== 'completed' || completed.result.text !== 'fixture child completed') {
-    const workerLog = await readFile(
-      join(
-        resourceHome,
-        'state',
-        'subagent-engine',
-        input.runId,
-        'provider-runs',
-        handle.providerRunId,
-        'attempts',
-        handle.providerAttemptId,
-        'worker.log',
+    const attemptDirectory = join(
+      resourceHome,
+      'state',
+      'subagent-engine',
+      input.runId,
+      'provider-runs',
+      handle.providerRunId,
+      'attempts',
+      handle.providerAttemptId,
+    )
+    const [result, stderr, output, workerLog] = await Promise.all(
+      ['result.json', 'stderr.log', 'output.log', 'worker.log'].map((name) =>
+        readFile(join(attemptDirectory, name), 'utf8').catch(() => ''),
       ),
-      'utf8',
-    ).catch(() => '')
+    )
     throw new Error(
-      `native_subagent_smoke_incomplete:${JSON.stringify({ events, workerLog: workerLog.slice(-4000) })}`,
+      `native_subagent_smoke_incomplete:${JSON.stringify({
+        events,
+        result: result.slice(-4000),
+        stderr: stderr.slice(-4000),
+        output: output.slice(-4000),
+        workerLog: workerLog.slice(-4000),
+      })}`,
     )
   }
   const reconciled = await engine.reconcile({

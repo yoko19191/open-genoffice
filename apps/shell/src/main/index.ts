@@ -1210,6 +1210,32 @@ let shellWindow: BrowserWindow | null = null
 let packageAuditServer: { close(): Promise<void> } | undefined
 let tabManager: TabManager | null = null
 
+if (packageNetworkAuditConfig && (packageAuditToken || packageAuditEndpoint)) {
+  void startPackageAuditServer({
+    token: packageAuditToken,
+    endpoint: packageAuditEndpoint,
+    collect: () => {
+      const auditWindow = shellWindow
+      if (!auditWindow) throw new Error('package_audit_window_unavailable')
+      return collectPackageAuditSnapshot({
+        isPackaged: app.isPackaged,
+        userData: app.getPath('userData'),
+        expectedUserData: shellUserDataPath ?? '',
+        executeJavaScript: (script) => auditWindow.webContents.executeJavaScript(script, true),
+        capturePage: () => auditWindow.webContents.capturePage(),
+      })
+    },
+    shutdown: () => setImmediate(() => app.quit()),
+  })
+    .then((server) => {
+      packageAuditServer = server
+    })
+    .catch(() => {
+      console.error('package_audit_server_failed')
+      app.quit()
+    })
+}
+
 /**
  * When the user creates a file from a specific project view, remember which
  * project the next save should belong to. key: 'doc' | 'sheet' | 'slide', value: projectId.
@@ -2622,34 +2648,6 @@ app.whenReady().then(() => {
   void piRuntimeService.initialize()
   startSheetsCaptureServer()
   createShellWindow()
-  if (packageNetworkAuditConfig && (packageAuditToken || packageAuditEndpoint)) {
-    const auditWindow = shellWindow
-    if (!auditWindow) {
-      console.error('package_audit_window_unavailable')
-      app.quit()
-      return
-    }
-    void startPackageAuditServer({
-      token: packageAuditToken,
-      endpoint: packageAuditEndpoint,
-      collect: () =>
-        collectPackageAuditSnapshot({
-          isPackaged: app.isPackaged,
-          userData: app.getPath('userData'),
-          expectedUserData: shellUserDataPath ?? '',
-          executeJavaScript: (script) => auditWindow.webContents.executeJavaScript(script, true),
-          capturePage: () => auditWindow.webContents.capturePage(),
-        }),
-      shutdown: () => setImmediate(() => app.quit()),
-    })
-      .then((server) => {
-        packageAuditServer = server
-      })
-      .catch(() => {
-        console.error('package_audit_server_failed')
-        app.quit()
-      })
-  }
   void proxyBootstrap.then(() => recoverMineruOcrOperations()).catch(() => undefined)
   // deferred to ready: labels need currentLang(), which reads app.getLocale()
   installBackToHomeItems()
