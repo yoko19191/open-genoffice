@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
 import logoLockup from './assets/genoffice-logo.svg'
 import iconDocx from './assets/file-docx.svg'
 import iconXlsx from './assets/file-xlsx.svg'
 import iconPptx from './assets/file-pptx.svg'
 import iconPdf from './assets/file-pdf.svg'
 import type {
-  AccountStatus,
-  CloudProjectKind,
-  CloudProjectsSnapshot,
   HomeApi,
   ProjectHomeApi,
   ProjectSummaryEntry,
@@ -17,11 +13,15 @@ import type {
 import { fileCountKey, visiblePageCount } from './counts'
 import { useI18n } from './locale'
 import type { I18n, StringKey } from './locale'
+import type { PiRuntimeApi } from '../../shared/pi-runtime-api'
+import type { MineruOcrApi, MineruOcrStatusProjection } from '../../shared/mineru-ocr-api'
 
 declare global {
   interface Window {
     aiOffice: HomeApi
     aiOfficeProject?: ProjectHomeApi
+    aiOfficeAgent: PiRuntimeApi
+    aiOfficeMineruOcr: MineruOcrApi
   }
 }
 
@@ -388,13 +388,7 @@ function ProjectPanel({ projects, selectedId, onSelect, onRefresh }: ProjectPane
   )
 }
 
-// ── Account entry (bottom-left) ──────────────────────────
-// Currently the Genspark (gsk) login entry; to be upgraded to a signup/account system later.
-// Language switching also lives in this popup menu.
-
-const LOGIN_POLL_MS = 2500
-/** fallback deadline when the CLI does not report expires_in (device codes live ~300s) */
-const LOGIN_MAX_WAIT_MS = 300_000
+// ── Settings entry (bottom-left) ─────────────────────────
 
 // sorted by ISO 639 language code — native-script labels have no natural
 // shared alphabet, so the code is the ordering key
@@ -425,27 +419,1233 @@ const CHANNEL_OPTIONS = [
   { value: 'beta', labelKey: 'channelBeta' },
 ] as const
 
-function AccountEntry({
-  onStatusChange,
-}: {
-  onStatusChange?: (status: AccountStatus | null) => void
-}) {
-  const { lang, setLang, t } = useI18n()
-  const [status, setStatus] = useState<AccountStatus | null>(null)
+const PRIMARY_MODEL_PROVIDER_ID = 'openai'
+type ModelCatalog = Awaited<ReturnType<PiRuntimeApi['modelCatalog']>>
+type RuntimeHealth = Awaited<ReturnType<PiRuntimeApi['health']>>
+type ResourceCatalog = Awaited<ReturnType<PiRuntimeApi['resourceCatalog']>>
+type PackageCatalog = Awaited<ReturnType<PiRuntimeApi['packageCatalog']>>
+type McpCatalog = Awaited<ReturnType<PiRuntimeApi['mcpCatalog']>>
+type PackageNamespace = Parameters<PiRuntimeApi['packageCatalog']>[0]
+type OAuthOperation = Awaited<ReturnType<PiRuntimeApi['modelOAuthStatus']>>
+type ModelCapability = ModelCatalog['providers'][number]['models'][number]['capabilities'][number]
+const configurableCapabilities: readonly ModelCapability[] = [
+  'text-input',
+  'image-input',
+  'audio-input',
+  'video-input',
+  'tool-use',
+  'reasoning',
+]
+
+function MineruOcrDialog({ onClose }: { onClose: () => void }) {
+  const { lang } = useI18n()
+  const zh = lang === 'zh' || lang === 'zh-TW'
+  const [status, setStatus] = useState<MineruOcrStatusProjection>()
+  const [token, setToken] = useState('')
+  const [accepted, setAccepted] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
 
   useEffect(() => {
-    onStatusChange?.(status)
-  }, [status, onStatusChange])
-  const [waiting, setWaiting] = useState(false)
-  // incremented on login retry, resetting the polling timer
-  const [loginNonce, setLoginNonce] = useState(0)
-  const [loginError, setLoginError] = useState<
-    'timeout' | 'launch' | 'network' | 'expired' | 'failed' | null
-  >(null)
-  // auth URL reported by the login CLI — rescue entry when the browser did not open
-  const [authUrl, setAuthUrl] = useState<string | null>(null)
-  const [urlCopied, setUrlCopied] = useState(false)
-  const loginDeadline = useRef(0)
+    let active = true
+    void window.aiOfficeMineruOcr
+      .status()
+      .then((next) => {
+        if (active) setStatus(next)
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : 'mineru_status_failed')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const enable = async () => {
+    if (!accepted || !token.trim() || busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      setStatus(
+        await window.aiOfficeMineruOcr.enable({
+          disclosureAccepted: true,
+          token,
+        }),
+      )
+      setToken('')
+      setAccepted(false)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mineru_enable_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disable = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      setStatus(await window.aiOfficeMineruOcr.disable())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mineru_disable_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const statusText = !status
+    ? zh
+      ? '正在读取状态…'
+      : 'Loading status…'
+    : status.enabled
+      ? zh
+        ? '已启用；凭据已由系统安全存储保管。'
+        : 'Enabled; the credential is protected by system secure storage.'
+      : status.credential === 'secure_storage_unavailable'
+        ? zh
+          ? '系统安全存储不可用，无法启用。'
+          : 'System secure storage is unavailable; MinerU cannot be enabled.'
+        : zh
+          ? '未启用。'
+          : 'Disabled.'
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form
+        className="modal mineru-ocr-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={zh ? 'MinerU PDF 转 Word' : 'MinerU PDF to Word'}
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault()
+          void enable()
+        }}
+      >
+        <h3>{zh ? 'MinerU PDF 转 Word' : 'MinerU PDF to Word'}</h3>
+        <p className="provider-credential-status" role="status">
+          {statusText}
+        </p>
+        <p className="mineru-disclosure">
+          {zh
+            ? '启用后，只有在你主动选择“导出为 Word”时，当前 PDF 才会上传到 MinerU 云端并使用 VLM 转换。每次只提交一个 PDF，不会切换到其他服务。取消本地任务不能保证远端任务停止。访问令牌只写入系统加密存储，不会显示、同步或写入日志。'
+            : 'After you enable this provider, the current PDF is uploaded to MinerU only when you explicitly choose Export as Word. Each batch contains one PDF, uses VLM, and never falls back to another service. Local cancellation cannot guarantee that remote work stops. The token is write-only in system-encrypted storage and is never displayed, synced, or logged.'}
+        </p>
+        <label className="provider-credential-field">
+          <span>{zh ? 'MinerU 访问令牌（只写）' : 'MinerU access token (write-only)'}</span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={token}
+            disabled={busy}
+            onChange={(event) => setToken(event.target.value)}
+          />
+        </label>
+        <label className="mineru-consent">
+          <input
+            type="checkbox"
+            checked={accepted}
+            disabled={busy}
+            onChange={(event) => setAccepted(event.target.checked)}
+          />
+          <span>
+            {zh
+              ? '我理解并同意上述云端上传说明'
+              : 'I understand and accept the cloud upload disclosure'}
+          </span>
+        </label>
+        {error && <p className="provider-credential-error">{error}</p>}
+        <div className="modal-buttons">
+          {status?.enabled && (
+            <button type="button" className="btn" disabled={busy} onClick={() => void disable()}>
+              {zh ? '禁用' : 'Disable'}
+            </button>
+          )}
+          <button type="button" className="btn" onClick={onClose}>
+            {zh ? '关闭' : 'Close'}
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={busy || !accepted || !token.trim()}
+          >
+            {busy ? (zh ? '保存中…' : 'Saving…') : zh ? '启用并保存令牌' : 'Enable and save token'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function ProviderCredentialDialog({ onClose }: { onClose: () => void }) {
+  const { lang } = useI18n()
+  const zh = lang === 'zh' || lang === 'zh-TW'
+  const [catalog, setCatalog] = useState<ModelCatalog>()
+  const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealth>()
+  const [resourceCatalog, setResourceCatalog] = useState<ResourceCatalog>()
+  const [packageCatalog, setPackageCatalog] = useState<PackageCatalog>()
+  const [mcpCatalog, setMcpCatalog] = useState<McpCatalog>()
+  const [mcpLoginKey, setMcpLoginKey] = useState<string>()
+  const [packageNamespace, setPackageNamespace] = useState<PackageNamespace>('global')
+  const [packageId, setPackageId] = useState('')
+  const [npmPackageName, setNpmPackageName] = useState('')
+  const [npmPackageVersion, setNpmPackageVersion] = useState('')
+  const [gitPackageUrl, setGitPackageUrl] = useState('')
+  const [gitPackageCommit, setGitPackageCommit] = useState('')
+  const [providerId, setProviderId] = useState(PRIMARY_MODEL_PROVIDER_ID)
+  const [apiKey, setApiKey] = useState('')
+  const [persistence, setPersistence] = useState<'persistent' | 'memory_only'>('persistent')
+  const [oauth, setOAuth] = useState<OAuthOperation>()
+  const [oauthResponse, setOAuthResponse] = useState('')
+  const [localProviderId, setLocalProviderId] = useState('local-openai')
+  const [localProviderName, setLocalProviderName] = useState('Local OpenAI')
+  const [localBaseUrl, setLocalBaseUrl] = useState('')
+  const [localModelId, setLocalModelId] = useState('')
+  const [localModelName, setLocalModelName] = useState('')
+  const [localCapabilities, setLocalCapabilities] = useState<ModelCapability[]>([
+    'text-input',
+    'tool-use',
+  ])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const refreshCatalog = useCallback(async () => {
+    try {
+      const next = await window.aiOfficeAgent.modelCatalog()
+      setCatalog(next)
+      const selected = next.selections.conversation?.providerId
+      if (selected && next.providers.some((provider) => provider.providerId === selected)) {
+        setProviderId(selected)
+      } else if (!next.providers.some((provider) => provider.providerId === providerId)) {
+        setProviderId(next.providers[0]?.providerId ?? PRIMARY_MODEL_PROVIDER_ID)
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_catalog_failed')
+    }
+  }, [providerId])
+
+  const refreshResourceCatalog = useCallback(async () => {
+    try {
+      setResourceCatalog(await window.aiOfficeAgent.resourceCatalog())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'resource_catalog_failed')
+    }
+  }, [])
+
+  const refreshPackageCatalog = useCallback(async () => {
+    try {
+      setPackageCatalog(await window.aiOfficeAgent.packageCatalog(packageNamespace))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'package_catalog_failed')
+    }
+  }, [packageNamespace])
+
+  const refreshMcpCatalog = useCallback(async () => {
+    try {
+      setMcpCatalog(await window.aiOfficeAgent.mcpCatalog())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_catalog_failed')
+    }
+  }, [])
+
+  useEffect(() => {
+    void window.aiOfficeAgent
+      .health()
+      .then(setRuntimeHealth)
+      .catch(() => undefined)
+    void refreshCatalog()
+    void refreshResourceCatalog()
+    void refreshPackageCatalog()
+    void refreshMcpCatalog()
+  }, [refreshCatalog, refreshMcpCatalog, refreshPackageCatalog, refreshResourceCatalog])
+
+  useEffect(() => {
+    if (!mcpLoginKey) return
+    let active = true
+    const poll = async () => {
+      try {
+        const next = await window.aiOfficeAgent.mcpCatalog()
+        if (!active) return
+        setMcpCatalog(next)
+        const target = next.servers.find(
+          (server) => `${server.namespace}/${server.serverId}` === mcpLoginKey,
+        )
+        if (!target || target.state !== 'auth_required') setMcpLoginKey(undefined)
+      } catch {
+        // A transient Runtime restart is surfaced by the next regular poll.
+      }
+    }
+    const timer = window.setInterval(() => void poll(), 1_000)
+    void poll()
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [mcpLoginKey])
+
+  useEffect(() => {
+    if (
+      !oauth ||
+      oauth.state === 'ready' ||
+      oauth.state === 'failed' ||
+      oauth.state === 'cancelled'
+    )
+      return
+    let active = true
+    const poll = async () => {
+      try {
+        const next = await window.aiOfficeAgent.modelOAuthStatus({
+          operationId: oauth.operationId,
+        })
+        if (!active) return
+        setOAuth(next)
+        if (next.state === 'ready') await refreshCatalog()
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : 'model_oauth_failed')
+      }
+    }
+    const timer = window.setInterval(() => void poll(), 750)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [oauth, refreshCatalog])
+
+  const provider = catalog?.providers.find((item) => item.providerId === providerId)
+  const selected = catalog?.selections.conversation
+
+  const saveApiKey = async () => {
+    if (!apiKey || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await window.aiOfficeAgent.saveProviderApiKey({
+        providerId,
+        persistence,
+        apiKey,
+      })
+      setApiKey('')
+      await refreshCatalog()
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'credential_persist_failed'
+      const code = message.includes('secure_storage_unavailable')
+        ? 'secure_storage_unavailable'
+        : 'credential_persist_failed'
+      setError(code)
+      if (code === 'secure_storage_unavailable') setPersistence('memory_only')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const selectModel = async (value: string) => {
+    const [nextProviderId, modelId] = value.split('\0')
+    if (!nextProviderId || !modelId || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await window.aiOfficeAgent.selectModel({
+        role: 'conversation',
+        providerId: nextProviderId,
+        modelId,
+      })
+      setCatalog(next)
+      setProviderId(nextProviderId)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_select_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startOAuth = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setOAuth(
+        await window.aiOfficeAgent.startModelOAuth({
+          operationId: crypto.randomUUID(),
+          providerId,
+        }),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_oauth_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const configureLocalProvider = async () => {
+    if (
+      busy ||
+      !localProviderId ||
+      !localProviderName ||
+      !localBaseUrl ||
+      !localModelId ||
+      !localModelName ||
+      localCapabilities.length === 0
+    )
+      return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await window.aiOfficeAgent.configureModelProvider({
+        providerId: localProviderId,
+        name: localProviderName,
+        baseUrl: localBaseUrl,
+        models: [
+          {
+            modelId: localModelId,
+            name: localModelName,
+            capabilities: localCapabilities,
+          },
+        ],
+      })
+      setCatalog(next)
+      setProviderId(localProviderId)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_provider_invalid')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleLocalCapability = (capability: ModelCapability) => {
+    setLocalCapabilities((current) =>
+      current.includes(capability)
+        ? current.filter((value) => value !== capability)
+        : [...current, capability],
+    )
+  }
+
+  const respondOAuth = async () => {
+    if (!oauth || !oauthResponse || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await window.aiOfficeAgent.respondModelOAuth({
+        operationId: oauth.operationId,
+        value: oauthResponse,
+      })
+      setOAuthResponse('')
+      setOAuth(next)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'model_oauth_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cancelOAuth = async () => {
+    if (!oauth || busy) return
+    setBusy(true)
+    try {
+      setOAuth(await window.aiOfficeAgent.cancelModelOAuth({ operationId: oauth.operationId }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const logout = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setCatalog(await window.aiOfficeAgent.logoutModel(providerId))
+      setApiKey('')
+      setOAuth(undefined)
+      setOAuthResponse('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'credential_delete_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const selectResourceProject = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setResourceCatalog(await window.aiOfficeAgent.selectResourceProject())
+      setMcpCatalog(await window.aiOfficeAgent.mcpCatalog())
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'resource_catalog_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const updateProjectTrust = async (trusted: boolean) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = trusted
+        ? await window.aiOfficeAgent.grantProjectTrust()
+        : await window.aiOfficeAgent.revokeProjectTrust()
+      setResourceCatalog(next)
+      setMcpCatalog(await window.aiOfficeAgent.mcpCatalog())
+      if (!trusted && packageNamespace === 'project') setPackageNamespace('global')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'project_trust_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const selectedPackageHash = packageCatalog?.packages.find(
+    (item) => item.namespace === packageNamespace && item.packageId === packageId,
+  )?.contentSha256
+
+  const installPackage = async (source: 'local' | 'npm' | 'git') => {
+    if (!packageId || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const base = {
+        namespace: packageNamespace,
+        packageId,
+        ...(selectedPackageHash ? { expectedPreviousContentSha256: selectedPackageHash } : {}),
+      }
+      const next =
+        source === 'local'
+          ? await window.aiOfficeAgent.installLocalPackage(base)
+          : source === 'npm'
+            ? await window.aiOfficeAgent.installNpmPackage({
+                ...base,
+                name: npmPackageName,
+                version: npmPackageVersion,
+              })
+            : await window.aiOfficeAgent.installGitPackage({
+                ...base,
+                url: gitPackageUrl,
+                commit: gitPackageCommit,
+              })
+      setPackageCatalog(next)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'package_install_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const mutatePackage = async (
+    action: 'activate' | 'enable' | 'disable' | 'uninstall',
+    targetPackageId: string,
+  ) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const input = { namespace: packageNamespace, packageId: targetPackageId }
+      const next =
+        action === 'activate'
+          ? await window.aiOfficeAgent.activatePackage(input)
+          : action === 'enable'
+            ? await window.aiOfficeAgent.enablePackage(input)
+            : action === 'disable'
+              ? await window.aiOfficeAgent.disablePackage(input)
+              : await window.aiOfficeAgent.uninstallPackage(input)
+      setPackageCatalog(next)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'package_mutation_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const mutateMcp = async (
+    action: 'activate' | 'enable' | 'disable' | 'retry',
+    namespace: PackageNamespace,
+    serverId: string,
+  ) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const input = { namespace, serverId }
+      setMcpCatalog(
+        action === 'activate'
+          ? await window.aiOfficeAgent.activateMcp(input)
+          : action === 'enable'
+            ? await window.aiOfficeAgent.enableMcp(input)
+            : action === 'disable'
+              ? await window.aiOfficeAgent.disableMcp(input)
+              : await window.aiOfficeAgent.retryMcp(input),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_mutation_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const loginMcp = async (namespace: PackageNamespace, serverId: string, cancel = false) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    const key = `${namespace}/${serverId}`
+    try {
+      setMcpCatalog(
+        cancel
+          ? await window.aiOfficeAgent.cancelMcpLogin({ namespace, serverId })
+          : await window.aiOfficeAgent.loginMcp({ namespace, serverId }),
+      )
+      setMcpLoginKey(cancel ? undefined : key)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_oauth_failed')
+      if (cancel) setMcpLoginKey(undefined)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleMcpTool = async (
+    namespace: PackageNamespace,
+    serverId: string,
+    toolName: string,
+    enabled: boolean,
+  ) => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const input = { namespace, serverId, toolName }
+      setMcpCatalog(
+        enabled
+          ? await window.aiOfficeAgent.disableMcpTool(input)
+          : await window.aiOfficeAgent.enableMcpTool(input),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'mcp_tool_mutation_failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const statusText = provider
+    ? zh
+      ? {
+          ready: '已就绪',
+          needs_credentials: '需要在本机登录或配置密钥',
+          checking: '正在检查',
+          refreshing: '正在刷新登录',
+          incompatible: '协议或能力不兼容',
+          unavailable: '服务暂不可用',
+          disabled: '已停用',
+        }[provider.state]
+      : provider.state.replaceAll('_', ' ')
+    : zh
+      ? '正在读取模型目录…'
+      : 'Loading model catalog…'
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form
+        className="modal provider-credential-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={zh ? '模型服务商凭据' : 'Model provider credential'}
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (provider?.authMethods.includes('api_key')) void saveApiKey()
+        }}
+      >
+        <h3>{zh ? '模型服务商' : 'Model provider'}</h3>
+        {runtimeHealth?.diagnosticCode === 'legacy_cleanup_incomplete' && (
+          <p className="provider-credential-error" role="alert">
+            {zh
+              ? '旧 Agent 数据清理尚未完成；应用会在下次启动时重试。Office 文件和自动保存不受影响。'
+              : 'Legacy Agent data cleanup is incomplete and will retry on the next launch. Office files and autosave are unaffected.'}
+          </p>
+        )}
+        <label className="provider-credential-field provider-credential-field-first">
+          <span>{zh ? '服务商' : 'Provider'}</span>
+          <select value={providerId} onChange={(event) => setProviderId(event.target.value)}>
+            {catalog?.providers.map((item) => (
+              <option key={item.providerId} value={item.providerId}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="provider-credential-status" role="status">
+          {statusText}
+        </p>
+        <label className="provider-credential-field">
+          <span>{zh ? '对话模型' : 'Conversation model'}</span>
+          <select
+            value={selected ? `${selected.providerId}\0${selected.modelId}` : ''}
+            disabled={busy}
+            onChange={(event) => void selectModel(event.target.value)}
+          >
+            <option value="" disabled>
+              {zh ? '请选择模型' : 'Choose a model'}
+            </option>
+            {catalog?.providers.flatMap((item) =>
+              item.models.map((model) => (
+                <option
+                  key={`${item.providerId}/${model.modelId}`}
+                  value={`${item.providerId}\0${model.modelId}`}
+                >
+                  {item.name} · {model.name}
+                </option>
+              )),
+            )}
+          </select>
+        </label>
+        <details className="provider-local-config">
+          <summary>
+            {zh ? '添加本地 OpenAI-compatible 服务' : 'Add local OpenAI-compatible service'}
+          </summary>
+          <label className="provider-credential-field">
+            <span>{zh ? '服务商 ID' : 'Provider ID'}</span>
+            <input
+              value={localProviderId}
+              spellCheck={false}
+              onChange={(event) => setLocalProviderId(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '显示名称' : 'Display name'}</span>
+            <input
+              value={localProviderName}
+              onChange={(event) => setLocalProviderName(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? 'API 地址' : 'API endpoint'}</span>
+            <input
+              value={localBaseUrl}
+              spellCheck={false}
+              placeholder="http://127.0.0.1:11434/v1"
+              onChange={(event) => setLocalBaseUrl(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '模型 ID' : 'Model ID'}</span>
+            <input
+              value={localModelId}
+              spellCheck={false}
+              onChange={(event) => setLocalModelId(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '模型名称' : 'Model name'}</span>
+            <input
+              value={localModelName}
+              onChange={(event) => setLocalModelName(event.target.value)}
+            />
+          </label>
+          <fieldset className="provider-local-capabilities">
+            <legend>{zh ? '模型能力（显式声明）' : 'Model capabilities (explicit)'}</legend>
+            {configurableCapabilities.map((capability) => (
+              <label key={capability}>
+                <input
+                  type="checkbox"
+                  checked={localCapabilities.includes(capability)}
+                  onChange={() => toggleLocalCapability(capability)}
+                />
+                <span>{capability}</span>
+              </label>
+            ))}
+          </fieldset>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={
+              busy ||
+              !localProviderId ||
+              !localProviderName ||
+              !localBaseUrl ||
+              !localModelId ||
+              !localModelName ||
+              localCapabilities.length === 0
+            }
+            onClick={configureLocalProvider}
+          >
+            {zh ? '保存本地服务' : 'Save local service'}
+          </button>
+        </details>
+        <details className="provider-resource-catalog">
+          <summary>{zh ? 'Agent 资源目录与项目授权' : 'Agent resources and project trust'}</summary>
+          <p className="provider-credential-status">
+            {zh ? '项目状态：' : 'Project state: '}
+            {resourceCatalog?.projectState ?? (zh ? '正在读取…' : 'loading…')}
+          </p>
+          <div className="provider-resource-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={selectResourceProject}
+            >
+              {zh ? '选择项目目录' : 'Select project directory'}
+            </button>
+            {resourceCatalog?.projectState === 'untrusted' && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void updateProjectTrust(true)}
+              >
+                {zh ? '信任此项目' : 'Trust this project'}
+              </button>
+            )}
+            {resourceCatalog?.projectState === 'trusted' && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={() => void updateProjectTrust(false)}
+              >
+                {zh ? '撤销项目授权' : 'Revoke project trust'}
+              </button>
+            )}
+          </div>
+          <div className="provider-resource-list">
+            {resourceCatalog?.resources.length === 0 && (
+              <p className="provider-credential-status">
+                {zh ? '当前没有已发现的 Agent 资源。' : 'No Agent resources discovered.'}
+              </p>
+            )}
+            {resourceCatalog?.resources.map((resource) => (
+              <article key={resource.resourceKey} className="provider-resource-item">
+                <strong>{resource.resourceId}</strong>
+                <span>
+                  {resource.kind} · {resource.namespace} · {resource.state}
+                </span>
+                <code>{resource.source}</code>
+                <code>
+                  {resource.contentSha256
+                    ? `sha256:${resource.contentSha256}`
+                    : zh
+                      ? 'hash：授权后计算'
+                      : 'hash: available after trust'}
+                </code>
+                <span>
+                  {zh ? '修复动作：' : 'Repair action: '}
+                  {resource.action}
+                </span>
+              </article>
+            ))}
+          </div>
+        </details>
+        <details className="provider-resource-catalog">
+          <summary>{zh ? 'Pi Packages' : 'Pi Packages'}</summary>
+          <p className="provider-credential-status">
+            {zh
+              ? '只接受本地目录、精确 npm 版本或固定 Git commit；本地路径不会显示在界面中。'
+              : 'Only local directories, exact npm versions, or fixed Git commits are accepted. Local paths are never displayed.'}
+          </p>
+          <label className="provider-credential-field">
+            <span>{zh ? '安装范围' : 'Scope'}</span>
+            <select
+              value={packageNamespace}
+              onChange={(event) => setPackageNamespace(event.target.value as PackageNamespace)}
+            >
+              <option value="global">global</option>
+              <option value="project" disabled={resourceCatalog?.projectState !== 'trusted'}>
+                project
+              </option>
+            </select>
+          </label>
+          <label className="provider-credential-field">
+            <span>Package ID</span>
+            <input
+              value={packageId}
+              spellCheck={false}
+              placeholder="safe-extension"
+              onChange={(event) => setPackageId(event.target.value)}
+            />
+          </label>
+          <div className="provider-resource-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || !packageId}
+              onClick={() => void installPackage('local')}
+            >
+              {zh ? '选择本地目录并安装' : 'Choose local directory'}
+            </button>
+          </div>
+          <label className="provider-credential-field">
+            <span>npm name</span>
+            <input
+              value={npmPackageName}
+              spellCheck={false}
+              onChange={(event) => setNpmPackageName(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '精确版本' : 'Exact version'}</span>
+            <input
+              value={npmPackageVersion}
+              spellCheck={false}
+              placeholder="1.2.3"
+              onChange={(event) => setNpmPackageVersion(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || !packageId || !npmPackageName || !npmPackageVersion}
+            onClick={() => void installPackage('npm')}
+          >
+            {zh ? '安装固定 npm Package' : 'Install fixed npm package'}
+          </button>
+          <label className="provider-credential-field">
+            <span>Git URL</span>
+            <input
+              value={gitPackageUrl}
+              spellCheck={false}
+              placeholder="https://example.com/owner/repo.git"
+              onChange={(event) => setGitPackageUrl(event.target.value)}
+            />
+          </label>
+          <label className="provider-credential-field">
+            <span>{zh ? '完整 commit' : 'Full commit'}</span>
+            <input
+              value={gitPackageCommit}
+              spellCheck={false}
+              placeholder="40 hexadecimal characters"
+              onChange={(event) => setGitPackageCommit(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || !packageId || !gitPackageUrl || !gitPackageCommit}
+            onClick={() => void installPackage('git')}
+          >
+            {zh ? '安装固定 Git Package' : 'Install fixed Git package'}
+          </button>
+          <div className="provider-resource-list">
+            {packageCatalog?.packages
+              .filter((item) => item.namespace === packageNamespace)
+              .map((item) => (
+                <article
+                  key={`${item.namespace}/${item.packageId}`}
+                  className="provider-resource-item"
+                >
+                  <strong>{item.packageId}</strong>
+                  <span>
+                    {item.namespace} · {item.status} · {item.license}
+                  </span>
+                  <code>{item.source}</code>
+                  <code>sha256:{item.contentSha256}</code>
+                  <span>
+                    {item.capabilities.join(', ')} · {item.resourceCount}{' '}
+                    {zh ? '个工具' : 'tool(s)'}
+                  </span>
+                  <div className="provider-resource-actions">
+                    {item.status === 'activation_required' && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={busy}
+                        onClick={() => void mutatePackage('activate', item.packageId)}
+                      >
+                        {zh ? '授权并激活' : 'Authorize and activate'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void mutatePackage(item.enabled ? 'disable' : 'enable', item.packageId)
+                      }
+                    >
+                      {item.enabled ? (zh ? '停用' : 'Disable') : zh ? '启用' : 'Enable'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      disabled={busy}
+                      onClick={() => void mutatePackage('uninstall', item.packageId)}
+                    >
+                      {zh ? '卸载' : 'Uninstall'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+          </div>
+        </details>
+        <details className="provider-resource-catalog">
+          <summary>{zh ? 'MCP 服务与工具' : 'MCP servers and tools'}</summary>
+          <p className="provider-credential-status">
+            {zh
+              ? '这里只显示脱敏状态。命令、参数、环境变量、凭据引用和进程信息只留在受信 Runtime。'
+              : 'Only redacted state is shown. Commands, arguments, environment, credential references, and process details remain in the trusted Runtime.'}
+          </p>
+          <div className="provider-resource-list">
+            {mcpCatalog?.servers.length === 0 && (
+              <p className="provider-credential-status">
+                {zh ? '当前没有已配置的 MCP 服务。' : 'No MCP servers configured.'}
+              </p>
+            )}
+            {mcpCatalog?.servers.map((server) => (
+              <article
+                key={`${server.namespace}/${server.serverId}`}
+                className="provider-resource-item"
+              >
+                <strong>{server.serverId}</strong>
+                <span>
+                  {server.namespace} ·{' '}
+                  {{
+                    disabled: zh ? '已停用' : 'Disabled',
+                    activation_required: zh ? '等待授权激活' : 'Activation required',
+                    connecting: zh ? '正在连接' : 'Connecting',
+                    auth_required: zh ? '需要登录' : 'Sign-in required',
+                    ready: zh ? '已就绪' : 'Ready',
+                    degraded: zh ? '连接已降级' : 'Degraded',
+                    failed: zh ? '连接失败' : 'Failed',
+                    server_id_collision: zh ? '服务 ID 冲突' : 'Server ID collision',
+                    tool_alias_collision: zh ? '工具别名冲突' : 'Tool alias collision',
+                    needs_credentials: zh ? '需要凭据' : 'Credentials required',
+                  }[server.state] ?? server.state}
+                </span>
+                <code>sha256:{server.contentSha256}</code>
+                <div className="provider-resource-actions">
+                  {server.action === 'activate' && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('activate', server.namespace, server.serverId)}
+                    >
+                      {zh ? '授权并激活' : 'Authorize and activate'}
+                    </button>
+                  )}
+                  {server.action === 'enable' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('enable', server.namespace, server.serverId)}
+                    >
+                      {zh ? '启用' : 'Enable'}
+                    </button>
+                  )}
+                  {server.action === 'disable' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('disable', server.namespace, server.serverId)}
+                    >
+                      {zh ? '停用并回收进程' : 'Disable and stop'}
+                    </button>
+                  )}
+                  {server.action === 'retry' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => void mutateMcp('retry', server.namespace, server.serverId)}
+                    >
+                      {zh ? '重新连接' : 'Reconnect'}
+                    </button>
+                  )}
+                  {server.action === 'login' && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy}
+                      onClick={() =>
+                        void loginMcp(
+                          server.namespace,
+                          server.serverId,
+                          mcpLoginKey === `${server.namespace}/${server.serverId}`,
+                        )
+                      }
+                    >
+                      {mcpLoginKey === `${server.namespace}/${server.serverId}`
+                        ? zh
+                          ? '取消登录'
+                          : 'Cancel sign-in'
+                        : zh
+                          ? '登录'
+                          : 'Sign in'}
+                    </button>
+                  )}
+                </div>
+                {server.tools.map((tool) => (
+                  <div key={tool.canonicalToolId} className="provider-resource-actions">
+                    <code>{tool.modelAlias}</code>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void toggleMcpTool(
+                          server.namespace,
+                          server.serverId,
+                          tool.toolName,
+                          tool.enabled,
+                        )
+                      }
+                    >
+                      {tool.enabled
+                        ? zh
+                          ? '停用工具'
+                          : 'Disable tool'
+                        : zh
+                          ? '启用工具'
+                          : 'Enable tool'}
+                    </button>
+                  </div>
+                ))}
+              </article>
+            ))}
+          </div>
+        </details>
+        {provider?.authMethods.includes('api_key') && (
+          <>
+            <label className="provider-credential-field">
+              <span>{zh ? 'API 密钥（只写）' : 'API key (write-only)'}</span>
+              <input
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="sk-…"
+              />
+            </label>
+            <fieldset className="provider-credential-modes">
+              <legend>{zh ? '保存方式' : 'Storage'}</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="provider-persistence"
+                  checked={persistence === 'persistent'}
+                  onChange={() => setPersistence('persistent')}
+                />
+                <span>{zh ? '系统安全存储' : 'Secure system storage'}</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="provider-persistence"
+                  checked={persistence === 'memory_only'}
+                  onChange={() => setPersistence('memory_only')}
+                />
+                <span>{zh ? '仅本次运行，退出即失效' : 'This run only; cleared on exit'}</span>
+              </label>
+            </fieldset>
+          </>
+        )}
+        {provider?.authMethods.includes('oauth') && (
+          <div className="provider-oauth">
+            {!oauth || oauth.state === 'failed' || oauth.state === 'cancelled' ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={startOAuth}
+              >
+                {zh ? '使用 Codex 登录' : 'Sign in with Codex'}
+              </button>
+            ) : (
+              <p className="provider-credential-status">
+                {oauth.state === 'ready'
+                  ? zh
+                    ? '登录完成'
+                    : 'Signed in'
+                  : zh
+                    ? '请在浏览器中完成登录'
+                    : 'Complete sign-in in your browser'}
+              </p>
+            )}
+            {oauth?.interaction?.type === 'device_code' && (
+              <p className="provider-device-code">
+                {zh ? '设备码：' : 'Device code: '}
+                <strong>{oauth.interaction.userCode}</strong>
+              </p>
+            )}
+            {oauth?.interaction?.type === 'prompt' && (
+              <label className="provider-credential-field">
+                <span>{zh ? '一次性响应' : 'One-time response'}</span>
+                <input
+                  type={oauth.interaction.promptType === 'secret' ? 'password' : 'text'}
+                  autoComplete="off"
+                  value={oauthResponse}
+                  placeholder={oauth.interaction.placeholder}
+                  onChange={(event) => setOAuthResponse(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !oauthResponse}
+                  onClick={respondOAuth}
+                >
+                  {zh ? '提交' : 'Submit'}
+                </button>
+              </label>
+            )}
+          </div>
+        )}
+        {error && (
+          <p className="provider-credential-error">
+            {error === 'secure_storage_unavailable'
+              ? zh
+                ? '当前系统没有可用的安全密钥库。请选择“仅本次运行”后重试。'
+                : 'No secure credential backend is available. Choose “This run only” and retry.'
+              : error.includes('model_provider')
+                ? zh
+                  ? '本地服务配置无效。请检查 ID、地址与模型能力。'
+                  : 'The local provider configuration is invalid. Check its IDs, endpoint, and capabilities.'
+                : error.includes('package_')
+                  ? zh
+                    ? `Package 操作失败：${error}`
+                    : `Package operation failed: ${error}`
+                  : zh
+                    ? '凭据操作失败，请重试。'
+                    : 'Credential operation failed. Please retry.'}
+          </p>
+        )}
+        <div className="modal-buttons provider-credential-actions">
+          {provider?.state === 'ready' && (
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={logout}>
+              {zh ? '退出服务商' : 'Sign out provider'}
+            </button>
+          )}
+          {oauth &&
+            oauth.state !== 'ready' &&
+            oauth.state !== 'failed' &&
+            oauth.state !== 'cancelled' && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={cancelOAuth}
+              >
+                {zh ? '取消登录' : 'Cancel sign-in'}
+              </button>
+            )}
+          <span className="provider-credential-action-spacer" />
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            {zh ? '关闭' : 'Close'}
+          </button>
+          {provider?.authMethods.includes('api_key') && (
+            <button type="submit" className="btn btn-primary" disabled={busy || !apiKey}>
+              {busy ? (zh ? '保存中…' : 'Saving…') : zh ? '保存' : 'Save'}
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function SettingsEntry() {
+  const { lang, setLang, t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
   // language flyout: opens on hover, fixed-position so it can escape the
   // sidebar's scroll container (same trick as the project row menu)
@@ -459,15 +1659,13 @@ function AccountEntry({
   const [chanFly, setChanFly] = useState<{ left: number; bottom: number } | null>(null)
   const chanRowRef = useRef<HTMLDivElement>(null)
   const chanCloseTimer = useRef<number | null>(null)
-  const [loggingOut, setLoggingOut] = useState(false)
   const [appVersion, setAppVersion] = useState('')
+  const [providerDialogOpen, setProviderDialogOpen] = useState(false)
+  const [mineruDialogOpen, setMineruDialogOpen] = useState(false)
 
-  // query login state + app version once on mount
+  // Query the version once; the remaining settings read their live state when opened.
   useEffect(() => {
     let alive = true
-    void window.aiOffice.accountStatus?.().then((s) => {
-      if (alive) setStatus(s)
-    })
     void window.aiOffice.getAppVersion?.().then((v) => {
       if (alive && v) setAppVersion(v)
     })
@@ -475,50 +1673,6 @@ function AccountEntry({
       alive = false
     }
   }, [])
-
-  // login progress pushed from main (gsk login CLI output)
-  useEffect(() => {
-    const off = window.aiOffice.onAccountLogin?.((ev) => {
-      if (ev.phase === 'url') {
-        if (ev.url) setAuthUrl(ev.url)
-        if (ev.expiresInSec) loginDeadline.current = Date.now() + ev.expiresInSec * 1000
-      } else if (ev.phase === 'success') {
-        void window.aiOffice.accountStatus().then((s) => {
-          if (s.loggedIn) {
-            setStatus(s)
-            setWaiting(false)
-            setAuthUrl(null)
-          }
-        })
-      } else if (ev.phase === 'error') {
-        setWaiting(false)
-        setAuthUrl(null)
-        setLoginError(
-          ev.error === 'network' ? 'network' : ev.error === 'expired' ? 'expired' : 'failed',
-        )
-      }
-    })
-    return off
-  }, [])
-
-  // config-file polling stays as the fallback success path (works even if progress events are lost)
-  useEffect(() => {
-    if (!waiting) return
-    const timer = setInterval(() => {
-      void window.aiOffice.accountStatus().then((s) => {
-        if (s.loggedIn) {
-          setStatus(s)
-          setWaiting(false)
-          setAuthUrl(null)
-        } else if (Date.now() > loginDeadline.current) {
-          setWaiting(false)
-          setAuthUrl(null)
-          setLoginError('timeout')
-        }
-      })
-    }, LOGIN_POLL_MS)
-    return () => clearInterval(timer)
-  }, [waiting, loginNonce])
 
   // close the menu on outside click
   useEffect(() => {
@@ -534,19 +1688,6 @@ function AccountEntry({
     window.addEventListener('pointerdown', handler)
     return () => window.removeEventListener('pointerdown', handler)
   }, [menuOpen])
-
-  const loggedIn = status?.loggedIn ?? false
-  const email = status?.email ?? ''
-  const initial = email ? email[0].toUpperCase() : loggedIn ? 'G' : '?'
-  const errorText = loginError
-    ? {
-        timeout: t('loginTimeout'),
-        launch: t('loginLaunchFailed'),
-        network: t('loginNetworkError'),
-        expired: t('loginExpired'),
-        failed: t('loginFailed'),
-      }[loginError]
-    : null
 
   const closeMenu = () => {
     setMenuOpen(false)
@@ -624,33 +1765,6 @@ function AccountEntry({
     }
   }, [chanFly])
 
-  const startLogin = () => {
-    // clicking again while waiting = relaunch the login (main kills the stale CLI, so the new device code is the live one)
-    setLoginError(null)
-    setWaiting(true)
-    setAuthUrl(null)
-    setUrlCopied(false)
-    loginDeadline.current = Date.now() + LOGIN_MAX_WAIT_MS
-    setLoginNonce((n) => n + 1)
-    closeMenu()
-    void window.aiOffice.accountLogin().then((launched) => {
-      if (!launched) {
-        setWaiting(false)
-        setLoginError('launch')
-      }
-    })
-  }
-
-  const openLoginUrl = () => void window.aiOffice.openLoginUrl?.()
-
-  const copyLoginUrl = () => {
-    if (!authUrl) return
-    void navigator.clipboard.writeText(authUrl).then(() => {
-      setUrlCopied(true)
-      window.setTimeout(() => setUrlCopied(false), 2000)
-    })
-  }
-
   const handleClick = () => {
     setMenuOpen((v) => {
       if (!v) void window.aiOffice.getUpdateChannel().then(setChannel)
@@ -664,42 +1778,41 @@ function AccountEntry({
     <div className="account-entry">
       {menuOpen && (
         <div className="account-menu" role="menu">
-          {loggedIn ? (
-            <div className="account-menu-info">
-              <span className="account-menu-email" title={email}>
-                {email || t('loggedIn')}
-              </span>
-            </div>
-          ) : (
-            <>
-              <button
-                className="account-menu-item"
-                role="menuitem"
-                onClick={startLogin}
-                title={waiting ? t('waitingLogin') : undefined}
-              >
-                {waiting ? t('waitingShort') : t('loginGenspark')}
-              </button>
-              {waiting && authUrl && (
-                <>
-                  <button
-                    className="account-menu-item login-rescue"
-                    role="menuitem"
-                    onClick={openLoginUrl}
-                  >
-                    {t('loginOpenManually')}
-                  </button>
-                  <button
-                    className="account-menu-item login-rescue"
-                    role="menuitem"
-                    onClick={copyLoginUrl}
-                  >
-                    {urlCopied ? t('loginCopied') : t('loginCopyUrl')}
-                  </button>
-                </>
-              )}
-            </>
-          )}
+          <button
+            className="account-menu-item"
+            role="menuitem"
+            onClick={() => {
+              closeMenu()
+              setProviderDialogOpen(true)
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M3 8.2h10M8 3.2v10M4.4 4.6l7.2 7.2M11.6 4.6l-7.2 7.2"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span>{lang === 'zh' || lang === 'zh-TW' ? '模型服务商' : 'Model provider'}</span>
+          </button>
+          <button
+            className="account-menu-item"
+            role="menuitem"
+            onClick={() => {
+              closeMenu()
+              setMineruDialogOpen(true)
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M3 2.5h7l3 3v8H3zM10 2.5v3h3M5 9h6M5 11h4"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+            </svg>
+            <span>{lang === 'zh' || lang === 'zh-TW' ? 'PDF 转 Word' : 'PDF to Word'}</span>
+          </button>
           <div className="account-menu-divider" />
           <div
             className="lang-row-wrap"
@@ -878,449 +1991,42 @@ function AccountEntry({
               <span className="version-row-value">{appVersion}</span>
             </div>
           )}
-          {loggedIn && (
-            <button
-              className="account-menu-item danger"
-              role="menuitem"
-              disabled={loggingOut}
-              onClick={() => {
-                setLoggingOut(true)
-                void window.aiOffice.accountLogout().then(() => {
-                  setLoggingOut(false)
-                  closeMenu()
-                  setStatus({ loggedIn: false })
-                })
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M6.2 2H3.7A1.7 1.7 0 0 0 2 3.7v8.6A1.7 1.7 0 0 0 3.7 14h2.5"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M10.7 4.9 13.8 8l-3.1 3.1M13.4 8H6.4"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span>{loggingOut ? t('loggingOut') : t('logout')}</span>
-            </button>
-          )}
         </div>
       )}
-      {!menuOpen && waiting && authUrl && (
-        <div className="login-hint" role="status">
-          <button className="login-hint-open" onClick={openLoginUrl}>
-            {t('loginOpenManually')}
-          </button>
-          <button className="login-hint-copy" onClick={copyLoginUrl}>
-            {urlCopied ? t('loginCopied') : t('loginCopyUrl')}
-          </button>
-        </div>
+      {providerDialogOpen && (
+        <ProviderCredentialDialog onClose={() => setProviderDialogOpen(false)} />
       )}
+      {mineruDialogOpen && <MineruOcrDialog onClose={() => setMineruDialogOpen(false)} />}
       <button
         className="account-btn"
         onClick={handleClick}
         aria-expanded={menuOpen}
-        title={
-          loggedIn
-            ? email || t('loggedInGenspark')
-            : waiting
-              ? t('waitingLogin')
-              : (errorText ?? t('loginGenspark'))
-        }
-        aria-label={loggedIn ? t('account') : t('login')}
+        title={lang === 'zh' || lang === 'zh-TW' ? '设置' : 'Settings'}
+        aria-label={lang === 'zh' || lang === 'zh-TW' ? '设置' : 'Settings'}
       >
-        <span
-          className={`account-avatar${loggedIn ? ' logged-in' : ''}${waiting ? ' waiting' : ''}`}
-        >
-          {waiting ? (
-            <svg
-              className="account-spinner"
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-            >
-              <circle
-                cx="8"
-                cy="8"
-                r="6"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                fill="none"
-                strokeDasharray="26"
-                strokeDashoffset="18"
-                strokeLinecap="round"
-              />
-            </svg>
-          ) : (
-            initial
-          )}
+        <span className="account-avatar" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.3" />
+            <path
+              d="M8 1.7v1.5M8 12.8v1.5M1.7 8h1.5M12.8 8h1.5M3.55 3.55l1.06 1.06M11.39 11.39l1.06 1.06M12.45 3.55l-1.06 1.06M4.61 11.39l-1.06 1.06"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
+          </svg>
         </span>
         <span className="account-text">
-          {loggedIn ? (
-            <>
-              <span className="account-name">{email ? email.split('@')[0] : t('loggedIn')}</span>
-              <span className="account-sub" title={email}>
-                {email || 'Genspark'}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="account-name">{waiting ? t('waitingShort') : t('login')}</span>
-              <span className={`account-sub${!waiting && errorText ? ' error' : ''}`}>
-                {!waiting && errorText ? errorText : t('accountGenspark')}
-              </span>
-            </>
-          )}
+          <span className="account-name">
+            {lang === 'zh' || lang === 'zh-TW' ? '设置' : 'Settings'}
+          </span>
+          <span className="account-sub">
+            {lang === 'zh' || lang === 'zh-TW'
+              ? '模型、资源与更新'
+              : 'Models, resources, and updates'}
+          </span>
         </span>
       </button>
     </div>
-  )
-}
-
-// ── Cloud (Genspark web) projects view ──────────────────
-
-/** kind filter segments; labels shared with the recents type filter */
-const CLOUD_FILTERS = [
-  { key: 'all', label: 'filterAll' },
-  { key: 'docs', label: 'filterDocs' },
-  { key: 'sheets', label: 'filterSheets' },
-  { key: 'slides', label: 'filterSlides' },
-] as const satisfies readonly { key: 'all' | CloudProjectKind; label: StringKey }[]
-
-/** module kind → file icon extension */
-const CLOUD_KIND_EXT: Record<string, string> = { docs: 'docx', sheets: 'xlsx', slides: 'pptx' }
-
-/** rows revealed per "load more" step; purely client-side over the local snapshot */
-const CLOUD_REVEAL_STEP = 100
-
-function CloudProjectsView() {
-  const i18n = useI18n()
-  const { t } = i18n
-  const [snapshot, setSnapshot] = useState<CloudProjectsSnapshot | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
-  const [loginWaiting, setLoginWaiting] = useState(false)
-  const [kind, setKind] = useState<'all' | CloudProjectKind>('all')
-  const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<'recent' | 'oldest'>('recent')
-  const [sortMenuOpen, setSortMenuOpen] = useState(false)
-  const [revealed, setRevealed] = useState(CLOUD_REVEAL_STEP)
-  const sortRef = useRef<HTMLDivElement>(null)
-
-  // the local store paints instantly; a background sync replaces it when done.
-  // a failed sync keeps whatever is shown; with nothing shown the
-  // !snapshot && !loading branch below renders the retry state
-  const startSync = () => {
-    setSyncing(true)
-    void window.aiOffice.cloudProjectsSync?.().then((synced) => {
-      setSyncing(false)
-      setLoading(false)
-      if (synced) setSnapshot(synced)
-    })
-  }
-  const startSyncRef = useRef(startSync)
-  startSyncRef.current = startSync
-
-  useEffect(() => {
-    let cancelled = false
-    void window.aiOffice.cloudProjectsCached?.().then((stored) => {
-      if (cancelled || !stored) return
-      setSnapshot((prev) => prev ?? stored)
-      setLoading(false)
-    })
-    startSyncRef.current()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // the sign-in button reuses the account login flow; sync once it lands
-  useEffect(() => {
-    const off = window.aiOffice.onAccountLogin?.((ev) => {
-      if (ev.phase === 'success') {
-        setLoginWaiting(false)
-        startSyncRef.current()
-      } else if (ev.phase === 'error') {
-        setLoginWaiting(false)
-      }
-    })
-    return off
-  }, [])
-
-  useEffect(() => {
-    if (!sortMenuOpen) return
-    const handler = (e: PointerEvent) => {
-      if (!sortRef.current?.contains(e.target as Node)) setSortMenuOpen(false)
-    }
-    window.addEventListener('pointerdown', handler)
-    return () => window.removeEventListener('pointerdown', handler)
-  }, [sortMenuOpen])
-
-  const startLogin = () => {
-    setLoginWaiting(true)
-    void window.aiOffice.accountLogin?.().then((ok) => {
-      if (!ok) setLoginWaiting(false)
-    })
-  }
-
-  const changeKind = (k: 'all' | CloudProjectKind) => {
-    if (k === kind) return
-    setKind(k)
-    setRevealed(CLOUD_REVEAL_STEP)
-  }
-
-  const openProject = (projectUrl: string) => {
-    void window.aiOffice.openCloudProject?.(projectUrl)
-  }
-
-  // filter / search / sort are all local over the snapshot — no requests
-  const q = query.trim().toLowerCase()
-  let list = snapshot?.projects.filter((proj) => kind === 'all' || proj.kind === kind) ?? []
-  if (q) list = list.filter((proj) => proj.title.toLowerCase().includes(q))
-  if (sort === 'oldest') list = [...list].reverse()
-  const visible = list.slice(0, revealed)
-
-  /** time-bucket header: this week → earlier this month → month → month + year */
-  const groupLabel = (ctimeMs: number): string => {
-    if (!ctimeMs) return ''
-    const now = Date.now()
-    if (now - ctimeMs < 7 * 86_400_000 && ctimeMs < now + 86_400_000) {
-      return t('cloudGroupThisWeek')
-    }
-    const d = new Date(ctimeMs)
-    const n = new Date()
-    if (d.getFullYear() === n.getFullYear()) {
-      if (d.getMonth() === n.getMonth()) return t('cloudGroupThisMonth')
-      return new Intl.DateTimeFormat(i18n.dateLocale, { month: 'long' }).format(d)
-    }
-    return new Intl.DateTimeFormat(i18n.dateLocale, { year: 'numeric', month: 'long' }).format(d)
-  }
-
-  const renderRows = () => {
-    const items: ReactElement[] = []
-    let prevLabel = ''
-    for (const proj of visible) {
-      const label = groupLabel(proj.ctimeMs)
-      if (label && label !== prevLabel) {
-        prevLabel = label
-        items.push(
-          <li key={`group-${label}`} className="cloud-group-label" aria-hidden="true">
-            {label}
-          </li>,
-        )
-      }
-      items.push(
-        <li key={proj.projectId}>
-          <button
-            className="cloud-row"
-            title={t('cloudOpenInBrowser')}
-            onClick={() => openProject(proj.projectUrl)}
-          >
-            <FileBadge ext={CLOUD_KIND_EXT[proj.kind] ?? ''} size={22} />
-            <span className="cloud-row-main">
-              <span className="cloud-row-title">{proj.title || t('untitled')}</span>
-              <svg
-                className="cloud-row-external"
-                width="13"
-                height="13"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6.5 3.5H4a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 4 13.5h7A1.5 1.5 0 0 0 12.5 12V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="cloud-row-time">
-              {proj.ctimeMs ? formatModified(proj.ctimeMs, i18n) : ''}
-            </span>
-          </button>
-        </li>,
-      )
-    }
-    return items
-  }
-
-  const renderBody = () => {
-    if (snapshot && !snapshot.available) {
-      return (
-        <p className="empty proj-empty">
-          <span className="empty-hint">{t('cloudLoginHint')}</span>
-          <button className="btn btn-secondary" disabled={loginWaiting} onClick={startLogin}>
-            {loginWaiting ? t('waitingShort') : t('loginGenspark')}
-          </button>
-        </p>
-      )
-    }
-    if (!snapshot) {
-      if (loading || syncing) {
-        return (
-          <div className="load-more" aria-hidden="true">
-            <span className="load-more-spinner" />
-          </div>
-        )
-      }
-      return (
-        <p className="empty proj-empty">
-          <span className="empty-hint">{t('cloudError')}</span>
-          <button className="btn btn-secondary" onClick={() => startSync()}>
-            {t('cloudRetry')}
-          </button>
-        </p>
-      )
-    }
-    if (list.length === 0) {
-      return (
-        <p className="empty proj-empty">
-          <span className="empty-hint">
-            {t(q ? 'cloudNoResults' : kind === 'all' ? 'cloudEmpty' : 'emptyFiltered')}
-          </span>
-        </p>
-      )
-    }
-    return (
-      <div className="cloud-scroll">
-        <ul className="cloud-list">{renderRows()}</ul>
-        {list.length > revealed && (
-          <div className="load-more">
-            <button
-              className="btn btn-secondary"
-              onClick={() => setRevealed((n) => n + CLOUD_REVEAL_STEP)}
-            >
-              {t('cloudLoadMore')}
-            </button>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  const sortValueKey = sort === 'recent' ? 'cloudSortRecent' : 'cloudSortOldest'
-  return (
-    <main className="content">
-      <section className="cloud-projects" aria-label={t('navCloud')}>
-        <header className="cloud-hero">
-          <div className="cloud-hero-top">
-            <h1 className="cloud-title">
-              {t('navCloud')}
-              <span className="cloud-chip">
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M4 12L12 4M6 3.5h6.5V10"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {t('cloudOpenInBrowser')}
-              </span>
-            </h1>
-            {snapshot?.available && (
-              <div className="cloud-actions">
-                <button
-                  className={`cloud-refresh-btn${syncing ? ' syncing' : ''}`}
-                  title={t('cloudRefresh')}
-                  aria-label={t('cloudRefresh')}
-                  disabled={syncing}
-                  onClick={() => startSync()}
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path
-                      d="M13.6 8a5.6 5.6 0 1 1-1.64-3.96M13.6 2.4v3.2h-3.2"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-                <div className="cloud-sort" ref={sortRef}>
-                  <button className="cloud-sort-btn" onClick={() => setSortMenuOpen((o) => !o)}>
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path
-                        d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    {t('cloudSortLabel', { v: t(sortValueKey) })}
-                  </button>
-                  {sortMenuOpen && (
-                    <div className="cloud-sort-menu" role="menu">
-                      {(['recent', 'oldest'] as const).map((key) => (
-                        <button
-                          key={key}
-                          className={sort === key ? 'active' : ''}
-                          onClick={() => {
-                            setSort(key)
-                            setSortMenuOpen(false)
-                            setRevealed(CLOUD_REVEAL_STEP)
-                          }}
-                        >
-                          {t(key === 'recent' ? 'cloudSortRecent' : 'cloudSortOldest')}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          <p className="cloud-subtitle">{t('cloudSubtitle')}</p>
-          {snapshot?.available && (
-            <div className="cloud-controls">
-              <div className="cloud-search">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.4" />
-                  <path
-                    d="M10.5 10.5L14 14"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <input
-                  value={query}
-                  placeholder={t('cloudSearchPlaceholder', { n: snapshot.projects.length })}
-                  onChange={(e) => {
-                    setQuery(e.target.value)
-                    setRevealed(CLOUD_REVEAL_STEP)
-                  }}
-                />
-              </div>
-              <div className="cloud-seg" role="tablist" aria-label={t('filterAria')}>
-                {CLOUD_FILTERS.map((f) => (
-                  <button
-                    key={f.key}
-                    className={kind === f.key ? 'active' : ''}
-                    role="tab"
-                    aria-selected={kind === f.key}
-                    onClick={() => changeKind(f.key)}
-                  >
-                    {t(f.label)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </header>
-        {renderBody()}
-      </section>
-    </main>
   )
 }
 
@@ -1337,26 +2043,11 @@ export function Home() {
   const [navCounts, setNavCounts] = useState({ recent: 0, starred: 0 })
   const [loadingMore, setLoadingMore] = useState(false)
   const [view, setView] = useState<'recent' | 'starred'>('recent')
-  // Genspark web projects take over the content area (like a selected project)
-  const [cloudMode, setCloudMode] = useState(false)
   const [filter, setFilter] = useState('all')
   const [rowMenu, setRowMenu] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [renaming, setRenaming] = useState<{ path: string; value: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null)
-  // name in the greeting; omitted when logged out
-  const [accountName, setAccountName] = useState('')
-  // Genspark Projects is web-account data, so its nav entry only shows when logged in
-  const [loggedIn, setLoggedIn] = useState(false)
-  // single source of account state: AccountEntry reports every change (initial
-  // load, login, logout), keeping the greeting name and the nav entry in sync
-  const handleAccountStatus = useCallback((s: AccountStatus | null) => {
-    const on = s?.loggedIn ?? false
-    setLoggedIn(on)
-    if (!on) setCloudMode(false)
-    const name = on ? (s?.email ?? '').split('@')[0] : ''
-    setAccountName(name ? name[0].toUpperCase() + name.slice(1) : '')
-  }, [])
   const [greetAskKey] = useState(
     () => GREET_ASK_KEYS[Math.floor(Math.random() * GREET_ASK_KEYS.length)]!,
   )
@@ -2082,7 +2773,7 @@ export function Home() {
             ? 'greetAfternoon'
             : 'greetEvening'
     const cjk = lang === 'zh' || lang === 'zh-TW' || lang === 'ja'
-    const greeting = `${t(greetKey)}${accountName ? (cjk ? '，' : ', ') + accountName : ''}${cjk ? '。' : '. '}`
+    const greeting = `${t(greetKey)}${cjk ? '。' : '. '}`
     return (
       <main className="content">
         <section className="quick-start" aria-label={t('secQuickStart')}>
@@ -2210,11 +2901,10 @@ export function Home() {
 
         <nav className="sidebar-nav">
           <button
-            className={`nav-item${view === 'recent' && !selectedProjectId && !cloudMode ? ' active' : ''}`}
+            className={`nav-item${view === 'recent' && !selectedProjectId ? ' active' : ''}`}
             onClick={() => {
               changeView('recent')
               setSelectedProjectId(null)
-              setCloudMode(false)
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -2230,11 +2920,10 @@ export function Home() {
             <span className="nav-count">{navCounts.recent}</span>
           </button>
           <button
-            className={`nav-item${view === 'starred' && !selectedProjectId && !cloudMode ? ' active' : ''}`}
+            className={`nav-item${view === 'starred' && !selectedProjectId ? ' active' : ''}`}
             onClick={() => {
               changeView('starred')
               setSelectedProjectId(null)
-              setCloudMode(false)
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -2248,43 +2937,6 @@ export function Home() {
             <span className="nav-label">{t('navStarred')}</span>
             <span className="nav-count">{navCounts.starred}</span>
           </button>
-          {loggedIn && (
-            <button
-              className={`nav-item${cloudMode && !selectedProjectId ? ' active' : ''}`}
-              onClick={() => {
-                setCloudMode(true)
-                setSelectedProjectId(null)
-                setSelected(new Set())
-                setRowMenu(null)
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M8 1.8l1.55 4.65L14.2 8l-4.65 1.55L8 14.2 6.45 9.55 1.8 8l4.65-1.55z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="nav-label">{t('navCloud')}</span>
-              <svg
-                className="nav-external"
-                width="13"
-                height="13"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6.5 3.5H4a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 4 13.5h7A1.5 1.5 0 0 0 12.5 12V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          )}
         </nav>
 
         {/* project sidebar */}
@@ -2306,16 +2958,10 @@ export function Home() {
           </>
         )}
 
-        <AccountEntry onStatusChange={handleAccountStatus} />
+        <SettingsEntry />
       </aside>
 
-      {selectedProjectId ? (
-        renderProjectContent()
-      ) : cloudMode ? (
-        <CloudProjectsView />
-      ) : (
-        renderGlobalContent()
-      )}
+      {selectedProjectId ? renderProjectContent() : renderGlobalContent()}
 
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>

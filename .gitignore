@@ -1,6 +1,11 @@
 node_modules
+.scratch/pi-agent-platform-migration/prototypes/mineru-docx/live-results/
 out/
 dist/
+coverage/
+apps/pi-agent-runtime/native/windows-job-launcher/target/
+reports/
+evidence/
 release/
 *.log
 .DS_Store
@@ -14,6 +19,8 @@ electron-builder.env
 /scripts/drivers/driver.*.mjs
 /probe*.mjs
 /apps/shell/build/THIRD-PARTY-NOTICES.txt
+/apps/shell/build/sbom.cdx.json
+/apps/shell/build/pi-runtime/
 /example/
 /.task/
 /docs-archive/

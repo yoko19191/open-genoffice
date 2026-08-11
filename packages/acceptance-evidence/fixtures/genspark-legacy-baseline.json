@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "totalOccurrences": 1431,
+  "files": [
+    {
+      "file": ".github/ISSUE_TEMPLATE/config.yml",
+      "totalOccurrences": 1,
+      "fingerprint": "7b67f86357343c363d6cffbc736e1bb8e20558deb46ca433641526cdf5741a31"
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "totalOccurrences": 2,
+      "fingerprint": "8027bb8e306cd590f66aec98fa37d6f2bde038a471e34159a58d001741ece3bb"
+    },
+    {
+      "file": "apps/docs/src/main/docs-main.ts",
+      "totalOccurrences": 53,
+      "fingerprint": "e51bb61f084dc177363091f2cecae40dd63ebb32777757501e21ca34d980db22"
+    },
+    {
+      "file": "apps/docs/src/preload/index.ts",
+      "totalOccurrences": 2,
+      "fingerprint": "a4ff07ba830261fe48583cc6257354e3a1d26921a03309e02e47fcfd7f6dcea8"
+    },
+    {
+      "file": "apps/docs/src/renderer/ai/AiPanel.tsx",
+      "totalOccurrences": 7,
+      "fingerprint": "ac5ca19e10c4c2dec53712fba4e8257b259e57c81f825d21d962ca2cc9ffc8ee"
+    },
+    {
+      "file": "apps/docs/src/renderer/components/icons.tsx",
+      "totalOccurrences": 2,
+      "fingerprint": "56875219579cddd3c1be29ba0efcf1f8401d3e888e7e5dba3761f23ce76eadd7"
+    },
+    {
+      "file": "apps/docs/src/renderer/components/Ribbon.tsx",
+      "totalOccurrences": 5,
+      "fingerprint": "8ff47db9e66af4db20a00124d7e10431fe0b33189fe3564f5c8c37a03943df3e"
+    },
+    {
+      "file": "apps/docs/src/renderer/i18n/strings-ai.ts",
+      "totalOccurrences": 76,
+      "fingerprint": "04876f4214468aab4e598fb711728754ecda4ad058bc1c8e89acf39ca232dd4c"
+    },
+    {
+      "file": "apps/docs/src/renderer/i18n/strings-app.ts",
+      "totalOccurrences": 95,
+      "fingerprint": "e1b949554a911e50d7420da00b7458f3a51c7008fd0cc54b6543db33163cd6ca"
+    },
+    {
+      "file": "apps/docs/src/renderer/i18n/strings-ribbon.ts",
+      "totalOccurrences": 19,
+      "fingerprint": "55f4fd132d91510e89f2ce46d11b3b9bf7453d810621438b5e4aa08812331a35"
+    },
+    {
+      "file": "apps/docs/src/renderer/styles.css",
+      "totalOccurrences": 8,
+      "fingerprint": "a01cd4d9ea5bdf20b140871107ff623c36b9445fe1bb42554219e01ff05ca4ee"
+    },
+    {
+      "file": "apps/docs/src/shared/ipc.ts",
+      "totalOccurrences": 6,
+      "fingerprint": "c83489e4c2d8c11f6c0845a560471186d4fd4f24334eaa4ba2a7beeaafa3cf36"
+    },
+    {
+      "file": "apps/pdf/src/renderer/ai/AiPanel.tsx",
+      "totalOccurrences": 5,
+      "fingerprint": "b5ef44a203f974782332bd0bc21f36e8b7ccde9c6011fca11c4149710908871a"
+    },
+    {
+      "file": "apps/pdf/src/renderer/App.tsx",
+      "totalOccurrences": 2,
+      "fingerprint": "1788a1554d779bc7c3c4b9f2cf65360ab14cc4a6432c483c8c63d4fb8d41ac03"
+    },
+    {
+      "file": "apps/pdf/src/renderer/i18n/strings.ts",
+      "totalOccurrences": 57,
+      "fingerprint": "793f53aa711c8bdc81003ed322037bdf9cd5bd468b4c5e5f42d7e73672f4543a"
+    },
+    {
+      "file": "apps/pdf/src/renderer/styles.css",
+      "totalOccurrences": 3,
+      "fingerprint": "3cc68655d44750f7e84577e098b19cbda2d54f79325e5336ed6cba46e1095115"
+    },
+    {
+      "file": "apps/sheets/native/xlsx-engine/src/lib.rs",
+      "totalOccurrences": 1,
+      "fingerprint": "5171c9873ac131d8d9f5f9310449b9f49eb9dbf127c4775d6ae838bcffb0c66e"
+    },
+    {
+      "file": "apps/sheets/src/main/sheets-main.ts",
+      "totalOccurrences": 56,
+      "fingerprint": "51bc2b2f9d4a3d9301bd7a35dae9aff0853da0d5e50219585b4fdbfea8604028"
+    },
+    {
+      "file": "apps/sheets/src/preload/index.ts",
+      "totalOccurrences": 3,
+      "fingerprint": "52a0b619958e89654b51af41af541685a8a3edb30e70a6c3e04f65410a7ac930"
+    },
+    {
+      "file": "apps/sheets/src/renderer/ai/AiChatPanel.tsx",
+      "totalOccurrences": 8,
+      "fingerprint": "47bcbabf63f56538f83e016239dc8bd38e27f637ec6d6a8ce51e2d9b97ba5196"
+    },
+    {
+      "file": "apps/sheets/src/renderer/App.tsx",
+      "totalOccurrences": 4,
+      "fingerprint": "ea70edadabd2d0f53332d44889da19da816c23a543a1eaa001e8772f5fab634c"
+    },
+    {
+      "file": "apps/sheets/src/renderer/ExcelShell.tsx",
+      "totalOccurrences": 3,
+      "fingerprint": "fede3dfa89788ced6e03f97ff340b2c74b48c64f9f17deb38f66bb8b189b1a8d"
+    },
+    {
+      "file": "apps/sheets/src/renderer/i18n/strings-ai.ts",
+      "totalOccurrences": 152,
+      "fingerprint": "0e4896fe15f4b04715b135044518e5a398a224810019bdfee11e4385c08dac5d"
+    },
+    {
+      "file": "apps/sheets/src/renderer/ribbon-icons.tsx",
+      "totalOccurrences": 2,
+      "fingerprint": "662bc0c150f7c61cbb9d8c67f69cb881e29e4a9b5e7a2724a2698d17f020c063"
+    },
+    {
+      "file": "apps/sheets/src/renderer/styles.css",
+      "totalOccurrences": 9,
+      "fingerprint": "54cdf0edc1d93094b3d247b084300653a9d99a1f0b36729dc441f65ea30f70d5"
+    },
+    {
+      "file": "apps/sheets/src/shared/desktop-api.ts",
+      "totalOccurrences": 5,
+      "fingerprint": "4d63e803d76481798649686ff499c69f8dc2ab4a20da15bae124f3c44c3fec8b"
+    },
+    {
+      "file": "apps/sheets/src/shared/ipc-channels.ts",
+      "totalOccurrences": 2,
+      "fingerprint": "d838ced05f699cb5d400d606c7bb432a48785e9b0251344f355c20b6f58dd98a"
+    },
+    {
+      "file": "apps/shell/electron-builder.cjs",
+      "totalOccurrences": 15,
+      "fingerprint": "89ca62d094f9a7c98297d4dd317f128e9fd59e9fee4c03cebf3d9719951a77d3"
+    },
+    {
+      "file": "apps/shell/src/main/cloud-projects.ts",
+      "totalOccurrences": 5,
+      "fingerprint": "21905e880660941936dbb21eb8ce9665a0eb8f5e73c0269a97aec3f554b201eb"
+    },
+    {
+      "file": "apps/shell/src/main/index.ts",
+      "totalOccurrences": 9,
+      "fingerprint": "20c1432c84c684eb71d04bdaea90a32ac4c3f50f2c96322f2ce977e8b2569b57"
+    },
+    {
+      "file": "apps/shell/src/main/tab-manager.ts",
+      "totalOccurrences": 1,
+      "fingerprint": "c04d4666778685244d48dea986a3141d607634f0167d6601e488f964661a0eb2"
+    },
+    {
+      "file": "apps/shell/src/renderer/src/home.css",
+      "totalOccurrences": 3,
+      "fingerprint": "cc189bcd4f0ffb502d30584c3035b299da5c3d27c5f824eebd97737a921d8c74"
+    },
+    {
+      "file": "apps/shell/src/renderer/src/Home.tsx",
+      "totalOccurrences": 12,
+      "fingerprint": "dfa648f6ee4db2e65403f40628dc8cf09464fde63cc2f1ff312133fb3157f053"
+    },
+    {
+      "file": "apps/shell/src/renderer/src/onboarding.css",
+      "totalOccurrences": 2,
+      "fingerprint": "6a70097a1ebbd308a067ff8c7ce0e8c668f3d5bf0680f095c3d98e4508be44ff"
+    },
+    {
+      "file": "apps/shell/src/renderer/src/strings.ts",
+      "totalOccurrences": 228,
+      "fingerprint": "19838846718b7cb3e179ee119f6850e7cb51ecf03a8cbec5ab7f8190a9689d45"
+    },
+    {
+      "file": "apps/shell/src/shared/home-api.ts",
+      "totalOccurrences": 10,
+      "fingerprint": "9ba0c4d1da53507aef33cb0ea18cdac785b23c2398ac6b6faa4b38bdf0a2c280"
+    },
+    {
+      "file": "apps/slides/src/main/ai-ipc.ts",
+      "totalOccurrences": 15,
+      "fingerprint": "15798eea64c24f701a7b35123771786bc43f27ac4d71b97f55f0b9164efc0e4a"
+    },
+    {
+      "file": "apps/slides/src/main/i18n-main.ts",
+      "totalOccurrences": 95,
+      "fingerprint": "b9b32ed9959ff8f99f69a4be2a5de84fdf1f851c7f90c08cdc58da997601c626"
+    },
+    {
+      "file": "apps/slides/src/main/slides-main.ts",
+      "totalOccurrences": 13,
+      "fingerprint": "5050b355fe08d9312f42ddb707f423efe4a739c8448faf5e76f9fa66029abcd6"
+    },
+    {
+      "file": "apps/slides/src/preload/index.ts",
+      "totalOccurrences": 4,
+      "fingerprint": "e96072eeab4e17b7d150c74d6f495fe1b571a146268bb035e1e19d55c8962b32"
+    },
+    {
+      "file": "apps/slides/src/renderer/ai/AiPanel.tsx",
+      "totalOccurrences": 10,
+      "fingerprint": "64caf545170cfb5c0b68f422c408189cbdee7b0eb6dbc27409b0a352f96f5cb8"
+    },
+    {
+      "file": "apps/slides/src/renderer/ai/slides-skill.ts",
+      "totalOccurrences": 11,
+      "fingerprint": "52266209dfc2f50ec86b8c533af1472a7c92d8f55f7f0b8e77de5320f225552b"
+    },
+    {
+      "file": "apps/slides/src/renderer/App.tsx",
+      "totalOccurrences": 4,
+      "fingerprint": "f0393dec617995cacb36af545d4c2443b4aaab92fc511d4fed53031c3f10b39a"
+    },
+    {
+      "file": "apps/slides/src/renderer/components/icons.tsx",
+      "totalOccurrences": 2,
+      "fingerprint": "56875219579cddd3c1be29ba0efcf1f8401d3e888e7e5dba3761f23ce76eadd7"
+    },
+    {
+      "file": "apps/slides/src/renderer/components/RibbonHomeTab.tsx",
+      "totalOccurrences": 4,
+      "fingerprint": "6c0281f8b74875608e52f9e2ec4eaf39bbb308b32092beaa9b5c63c42950d735"
+    },
+    {
+      "file": "apps/slides/src/renderer/i18n/strings-ai.ts",
+      "totalOccurrences": 76,
+      "fingerprint": "04876f4214468aab4e598fb711728754ecda4ad058bc1c8e89acf39ca232dd4c"
+    },
+    {
+      "file": "apps/slides/src/renderer/i18n/strings-app.ts",
+      "totalOccurrences": 57,
+      "fingerprint": "41dd2d62aed6fde14a732f985d31e3c2b15a1d9dfd9223b585b42039037d26cf"
+    },
+    {
+      "file": "apps/slides/src/renderer/i18n/strings-ribbon.ts",
+      "totalOccurrences": 19,
+      "fingerprint": "55f4fd132d91510e89f2ce46d11b3b9bf7453d810621438b5e4aa08812331a35"
+    },
+    {
+      "file": "apps/slides/src/renderer/styles.css",
+      "totalOccurrences": 11,
+      "fingerprint": "7ac59ff3f3b6fabc357d84ff7529d852e2e911851ea082a177f84e3a496e4d10"
+    },
+    {
+      "file": "apps/slides/src/shared/ipc.ts",
+      "totalOccurrences": 14,
+      "fingerprint": "d5e49418c7b85e2ddd4148813c211812b01d2d9a2817aeb727d25bae5c391be9"
+    },
+    {
+      "file": "package-lock.json",
+      "totalOccurrences": 10,
+      "fingerprint": "e16d9d576be67af61b8295a47ae3fe6b4cbc2a6133997344bd1c079ceaf50d89"
+    },
+    {
+      "file": "package.json",
+      "totalOccurrences": 5,
+      "fingerprint": "30158498fd54db98f8cee577f8128fff66653f777196135cfb9e5b03838119eb"
+    },
+    {
+      "file": "packages/ai-provider/src/chat.ts",
+      "totalOccurrences": 9,
+      "fingerprint": "78bb6ede1df95c9637d9805ad4f423f05407b7ac0c3aaa30b69a21bb37b48030"
+    },
+    {
+      "file": "packages/ai-provider/src/http-error.ts",
+      "totalOccurrences": 1,
+      "fingerprint": "33e7020e1a0e42d8ad1bcef237a80a48e8db8470652170da8c01ea020197825b"
+    },
+    {
+      "file": "packages/ai-provider/src/index.ts",
+      "totalOccurrences": 2,
+      "fingerprint": "bbb4d59d6ee1b5944d46053fe449db9ca7a7f0345f5ac13bf1970d1378ed4c74"
+    },
+    {
+      "file": "packages/ai-provider/src/providers.ts",
+      "totalOccurrences": 20,
+      "fingerprint": "bfddd1baa2215b75f0a620c5a3dd686f980cfb12709d1038c95016fb38d8bf57"
+    },
+    {
+      "file": "packages/ai-provider/src/stream.ts",
+      "totalOccurrences": 13,
+      "fingerprint": "cc1279832ebf9ba571e96a152d343ca1dae0a26ab3e24b13a69e298ae6bde98f"
+    },
+    {
+      "file": "packages/ai-provider/src/types.ts",
+      "totalOccurrences": 4,
+      "fingerprint": "b2e29ee30731f6c89440dcf9f31c9f31c7631f0fe49eba4b69d74f3369e7d6e0"
+    },
+    {
+      "file": "packages/ai-search/package.json",
+      "totalOccurrences": 2,
+      "fingerprint": "6612b413092847cfa4adfe85907ee055d8e9e2e18e945f1a28e24e0bcf06c7bf"
+    },
+    {
+      "file": "packages/ai-search/src/genoffice-auth.ts",
+      "totalOccurrences": 8,
+      "fingerprint": "9bf82517e33d24fa6364dd266da7d76db8666443d158b979534436b6c1df3766"
+    },
+    {
+      "file": "packages/ai-search/src/gsk.ts",
+      "totalOccurrences": 51,
+      "fingerprint": "94473b88847d5f55474d9a40b6d8a65313544de581e52b3cfc6a0b04ad0a96d6"
+    },
+    {
+      "file": "packages/ai-search/src/index.ts",
+      "totalOccurrences": 9,
+      "fingerprint": "b49d0c778bc5910d3a7f92cd6e6377564091fd069cc2f70323cb5d65876932cb"
+    },
+    {
+      "file": "packages/ai-search/src/shared.ts",
+      "totalOccurrences": 1,
+      "fingerprint": "ce365ecc9e7203b1db5540237eb32a42f7de78012b0f9ee2d785edb0a1a08fd8"
+    },
+    {
+      "file": "packages/electron-utils/src/remote-image.ts",
+      "totalOccurrences": 8,
+      "fingerprint": "ef936142e61123086cc6d110d4311090ee5b8b5e2309cec164393bb81fadb8a4"
+    },
+    {
+      "file": "packages/ui/src/AiComposer.tsx",
+      "totalOccurrences": 2,
+      "fingerprint": "791f0a076c9f92ebd52737af4ba67b868b5ede40858969bfd6600b31c96c4e8a"
+    }
+  ]
+}

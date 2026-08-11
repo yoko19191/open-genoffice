@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "commit": "f052c51ff6b49a401cdccae5153147e7ebaaaf4f",
+  "acceptanceIds": [
+    "AR-008",
+    "GX-002",
+    "PK-002"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {},
+  "fixtureSources": {},
+  "reportHashes": {
+    "upgrade": "4fbc403085c3cd6e80219684c5e32938e637732fdb44f2a8582064052cf97e43"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint -- --quiet",
+    "npm run format:check",
+    "npm run build:all",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero",
+    "targeted cleanup coverage: 96.21/96.73/100/95.79",
+    "targeted Resource Home coverage: 97.91/97.05/100/97.50"
+  ],
+  "results": [
+    {
+      "suite": "upgrade",
+      "status": "passed",
+      "report": "evidence/g9/issue-43/reports/upgrade.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

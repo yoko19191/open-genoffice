@@ -14,26 +14,20 @@
  * app-update.yml into the app and in-app auto-update stays disabled.
  */
 
-const { existsSync } = require('node:fs')
+const { existsSync, readFileSync } = require('node:fs')
+const { execFileSync } = require('node:child_process')
 const { join } = require('node:path')
+const { Arch } = require('builder-util')
 
 const updateUrl = process.env.GENOFFICE_UPDATE_URL
+const unsignedBuild = process.env.GENOFFICE_UNSIGNED_BUILD === '1'
 
-// The gsk CLI tree below is copied verbatim from node_modules, and the
-// nested commander path depends on npm's current hoisting layout — fail the
-// build with a clear message if an install ever changes it, instead of
-// shipping an installer with a broken gsk runtime.
 // LICENSES.chromium.html only exists after the Electron binary download —
 // since Electron 42 that no longer happens during `npm ci` (the postinstall
 // script was replaced by the lazy `install-electron` bin), and electron-builder
 // exits 0 on a missing extraResources source, so without this check the
 // installer would silently ship without the Chromium license.
-for (const rel of [
-  '../../node_modules/@genspark/cli',
-  '../../node_modules/@genspark/cli/node_modules/commander',
-  '../../node_modules/ws',
-  '../../node_modules/electron/dist/LICENSES.chromium.html',
-]) {
+for (const rel of ['../../node_modules/electron/dist/LICENSES.chromium.html']) {
   if (!existsSync(join(__dirname, rel))) {
     throw new Error(
       `electron-builder extraResources source missing: ${rel} (npm hoisting changed?)`,
@@ -60,6 +54,47 @@ function assertModuleTreesPresent() {
   }
 }
 
+function assertSbomPresent() {
+  const path = join(__dirname, 'build/sbom.cdx.json')
+  let sbom
+  try {
+    sbom = JSON.parse(readFileSync(path, 'utf8'))
+  } catch {
+    throw new Error('electron-builder SBOM source missing or invalid (run npm run sbom first)')
+  }
+  const componentNames = new Set(
+    Array.isArray(sbom.components) ? sbom.components.map((component) => component?.name) : [],
+  )
+  if (
+    sbom.bomFormat !== 'CycloneDX' ||
+    sbom.specVersion !== '1.5' ||
+    !componentNames.has('node') ||
+    !componentNames.has('pi-agent-runtime')
+  ) {
+    throw new Error('electron-builder SBOM contract invalid')
+  }
+}
+
+function assertPiRuntimeBundle(context) {
+  const arch = Arch[context.arch]
+  if (!['arm64', 'x64'].includes(arch)) {
+    throw new Error('Pi Runtime bundle target architecture is unsupported')
+  }
+  execFileSync(
+    process.execPath,
+    [
+      join(__dirname, '../../tools/verify-pi-runtime-bundle.mjs'),
+      '--bundle',
+      join(__dirname, 'build/pi-runtime'),
+      '--platform',
+      context.electronPlatformName,
+      '--arch',
+      arch,
+    ],
+    { stdio: 'pipe' },
+  )
+}
+
 /** @type {import('electron-builder').Configuration} */
 const config = {
   appId: 'com.genoffice.app',
@@ -76,6 +111,10 @@ const config = {
     {
       from: 'build/THIRD-PARTY-NOTICES.txt',
       to: 'THIRD-PARTY-NOTICES.txt',
+    },
+    {
+      from: 'build/sbom.cdx.json',
+      to: 'sbom.cdx.json',
     },
     {
       from: '../../node_modules/electron/dist/LICENSES.chromium.html',
@@ -98,16 +137,12 @@ const config = {
       to: 'modules/pdf',
     },
     {
-      from: '../../node_modules/@genspark/cli',
-      to: 'gsk/node_modules/@genspark/cli',
+      from: 'build/pi-runtime',
+      to: 'pi-runtime',
     },
     {
-      from: '../../node_modules/@genspark/cli/node_modules/commander',
-      to: 'gsk/node_modules/commander',
-    },
-    {
-      from: '../../node_modules/ws',
-      to: 'gsk/node_modules/ws',
+      from: '../../tools/package-network-recorder.cjs',
+      to: 'diagnostics/package-network-recorder.cjs',
     },
   ],
   // `mimeType` is read only by the Linux target, where it becomes the
@@ -176,7 +211,7 @@ const config = {
     ],
     extraResources: [
       {
-        from: '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe',
+        from: '../sheets/native/xlsx-engine/target/release/xlsx-sidecar.exe',
         to: 'native/xlsx-sidecar.exe',
       },
     ],
@@ -217,17 +252,31 @@ const config = {
   nsis: {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
+    // Product data is not application payload. Removing Resource Home or
+    // credentials requires a separate, explicit in-product confirmation.
+    deleteAppDataOnUninstall: false,
   },
-  beforePack: async () => {
+  beforePack: async (context) => {
     assertModuleTreesPresent()
+    assertSbomPresent()
+    assertPiRuntimeBundle(context)
   },
   dmg: {
-    sign: true,
+    sign: !unsignedBuild,
   },
-  afterAllArtifactBuild: 'build/notarize-dmg.js',
 }
 
-if (updateUrl) {
+if (unsignedBuild) {
+  config.artifactName = 'GenOffice-${version}-${os}-${arch}-unsigned.${ext}'
+  config.linux.artifactName = 'GenOffice-${version}-linux-x64-unsigned.${ext}'
+  config.mac.identity = null
+  config.mac.notarize = false
+} else {
+  config.linux.artifactName = 'GenOffice-${version}-linux-x64.${ext}'
+  config.afterAllArtifactBuild = 'build/notarize-dmg.js'
+}
+
+if (updateUrl && !unsignedBuild) {
   config.publish = [
     {
       provider: 'generic',

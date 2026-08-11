@@ -1,0 +1,313 @@
+{
+  "numTotalTestSuites": 4,
+  "numPassedTestSuites": 4,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 22,
+  "numPassedTests": 22,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786380032423,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "redacted Provider Operation store"
+          ],
+          "fullName": "redacted Provider Operation store commits generation-CAS state without provider IDs, URLs, paths or document content",
+          "status": "passed",
+          "title": "commits generation-CAS state without provider IDs, URLs, paths or document content",
+          "duration": 25.81079200000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "redacted Provider Operation store"
+          ],
+          "fullName": "redacted Provider Operation store serializes concurrent commits and rejects stale generations or invalid records",
+          "status": "passed",
+          "title": "serializes concurrent commits and rejects stale generations or invalid records",
+          "duration": 22.173917000000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "redacted Provider Operation store"
+          ],
+          "fullName": "redacted Provider Operation store persists only the documented safe provider progress projection",
+          "status": "passed",
+          "title": "persists only the documented safe provider progress projection",
+          "duration": 26.481749999999977,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "redacted Provider Operation store"
+          ],
+          "fullName": "redacted Provider Operation store fails closed on corrupt persisted state without overwriting it",
+          "status": "passed",
+          "title": "fails closed on corrupt persisted state without overwriting it",
+          "duration": 1.293959000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786380032569,
+      "endTime": 1786380032645.294,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/agent-resource/tests/provider-operation-store.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore registers and pages a scope-bound UTF-8 text attachment without exposing its path",
+          "status": "passed",
+          "title": "registers and pages a scope-bound UTF-8 text attachment without exposing its path",
+          "duration": 22.328749999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore fails closed for text scope mismatch, invalid content and metadata drift",
+          "status": "passed",
+          "title": "fails closed for text scope mismatch, invalid content and metadata drift",
+          "duration": 20.663708000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects invalid text registration scope, empty content, duplicates and invalid roots",
+          "status": "passed",
+          "title": "rejects invalid text registration scope, empty content, duplicates and invalid roots",
+          "duration": 21.68945899999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore cleans a partial text write and normalizes unexpected read failures",
+          "status": "passed",
+          "title": "cleans a partial text write and normalizes unexpected read failures",
+          "duration": 6.170749999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects malformed text metadata and externally introduced NUL content",
+          "status": "passed",
+          "title": "rejects malformed text metadata and externally introduced NUL content",
+          "duration": 21.592083000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore allows a document-scoped attachment across runs but never across documents",
+          "status": "passed",
+          "title": "allows a document-scoped attachment across runs but never across documents",
+          "duration": 19.079875000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore atomically registers and reopens one scope-bound verified PNG ArtifactRef",
+          "status": "passed",
+          "title": "atomically registers and reopens one scope-bound verified PNG ArtifactRef",
+          "duration": 20.32691699999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore discards only a scope-verified run image",
+          "status": "passed",
+          "title": "discards only a scope-verified run image",
+          "duration": 18.62591699999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects malformed open scope {\"artifactId\":\"bad\",\"documentId\":\"22222222-2222-4222-8222-222222222222\",\"runId\":\"33333333-3333-4333-8333-333333333333\"}",
+          "status": "passed",
+          "title": "rejects malformed open scope {\"artifactId\":\"bad\",\"documentId\":\"22222222-2222-4222-8222-222222222222\",\"runId\":\"33333333-3333-4333-8333-333333333333\"}",
+          "duration": 0.6158750000000168,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects malformed open scope {\"artifactId\":\"11111111-1111-4111-8111-111111111111\",\"documentId\":\"bad\",\"runId\":\"33333333-3333-4333-8333-333333333333\"}",
+          "status": "passed",
+          "title": "rejects malformed open scope {\"artifactId\":\"11111111-1111-4111-8111-111111111111\",\"documentId\":\"bad\",\"runId\":\"33333333-3333-4333-8333-333333333333\"}",
+          "duration": 0.2482079999999769,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects malformed open scope {\"artifactId\":\"11111111-1111-4111-8111-111111111111\",\"documentId\":\"22222222-2222-4222-8222-222222222222\",\"runId\":\"bad\"}",
+          "status": "passed",
+          "title": "rejects malformed open scope {\"artifactId\":\"11111111-1111-4111-8111-111111111111\",\"documentId\":\"22222222-2222-4222-8222-222222222222\",\"runId\":\"bad\"}",
+          "duration": 0.3182499999999777,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects cross-document/run access, hash drift, metadata drift and symlinks",
+          "status": "passed",
+          "title": "rejects cross-document/run access, hash drift, metadata drift and symlinks",
+          "duration": 21.05204200000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects invalid registration fields, bytes, dimensions and duplicate identities",
+          "status": "passed",
+          "title": "rejects invalid registration fields, bytes, dimensions and duplicate identities",
+          "duration": 18.156042000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore supports an omitted display name and rejects invalid metadata and store failures",
+          "status": "passed",
+          "title": "supports an omitted display name and rejects invalid metadata and store failures",
+          "duration": 18.828583000000037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore removes partial output when an atomic write fails",
+          "status": "passed",
+          "title": "removes partial output when an atomic write fails",
+          "duration": 5.331541000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore registers document-scoped WAV media and opens it from any run in the document",
+          "status": "passed",
+          "title": "registers document-scoped WAV media and opens it from any run in the document",
+          "duration": 21.42874999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore keeps run-scoped MP4 media bound to one run and detects tampering",
+          "status": "passed",
+          "title": "keeps run-scoped MP4 media bound to one run and detects tampering",
+          "duration": 20.50524999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ScopedArtifactStore"
+          ],
+          "fullName": "ScopedArtifactStore rejects malformed media registration, duplicate identities and partial writes",
+          "status": "passed",
+          "title": "rejects malformed media registration, duplicate identities and partial writes",
+          "duration": 26.375249999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786380032643,
+      "endTime": 1786380032926.3752,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/agent-resource/tests/scoped-artifact-store.test.ts"
+    }
+  ]
+}

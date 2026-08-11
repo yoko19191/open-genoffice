@@ -4,12 +4,14 @@ declare module '*.md?raw' {
 }
 
 import type { DesktopApi } from '../shared/desktop-api'
-import type { ProjectApi } from '@genoffice/project-store'
+import type { AgentSessionPreloadApi } from '@genoffice/electron-utils/agent-session-preload'
+import type { SheetsOfficeToolsApi } from '../shared/sheets-office-tools'
 
 declare global {
   interface Window {
     readonly desktopApi: DesktopApi
-    readonly projectApi: ProjectApi
+    readonly agentSession: AgentSessionPreloadApi
+    readonly sheetsOfficeTools: SheetsOfficeToolsApi
   }
 }
 

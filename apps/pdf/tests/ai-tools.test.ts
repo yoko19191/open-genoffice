@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import { AGENT_TOOLS, executePdfTool, type PdfAiDeps } from '../src/renderer/ai/tools'
+import { PDF_OFFICE_TOOL_DEFINITIONS } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
+import { executePdfTool, type PdfAiDeps } from '../src/renderer/ai/tools'
 import type { SearchIndex } from '../src/renderer/search'
 import type { FormValueInput } from '../src/shared/ipc'
 
@@ -63,25 +64,12 @@ function makeDeps(over: Partial<PdfAiDeps> = {}): PdfAiDeps {
 
 const call = (name: string, input: Record<string, unknown> = {}) => ({ id: 't1', name, input })
 
-describe('AGENT_TOOLS definitions', () => {
-  it('declares unique names and object input schemas with required fields present', () => {
-    const names = AGENT_TOOLS.map((t) => t.name)
-    expect(new Set(names).size).toBe(names.length)
-    for (const tool of AGENT_TOOLS) {
-      expect(tool.description ?? tool.name).toBeTruthy()
-      expect(tool.inputSchema.type).toBe('object')
-      const props = tool.inputSchema.properties as Record<string, unknown>
-      for (const req of (tool.inputSchema.required as string[] | undefined) ?? []) {
-        expect(props).toHaveProperty(req)
-      }
-    }
-  })
-
-  it('every declared tool is handled by executePdfTool', async () => {
+describe('PDF catalog executor completeness', () => {
+  it('handles every alias from the shared product-owned catalog', async () => {
     // A tool falling into the default branch would return "Unknown tool"
     const deps = makeDeps({ doc: () => null, searchIndex: () => null })
-    for (const tool of AGENT_TOOLS) {
-      const result = await executePdfTool(deps, call(tool.name, { page: 1, start: 1 }))
+    for (const tool of PDF_OFFICE_TOOL_DEFINITIONS) {
+      const result = await executePdfTool(deps, call(tool.modelAlias, { page: 1, start: 1 }))
       expect(result.output).not.toContain('Unknown tool')
     }
   })
@@ -198,6 +186,24 @@ describe('markup_text', () => {
     )
     expect(ro.isError).toBe(true)
     expect(ro.output).toContain('read-only')
+  })
+
+  it('does not mutate when AbortSignal fires while text lookup is pending', async () => {
+    let release!: (index: SearchIndex) => void
+    const index = new Promise<SearchIndex>((resolve) => {
+      release = resolve
+    })
+    const deps = makeDeps({ searchIndex: () => index })
+    const controller = new AbortController()
+    const pending = executePdfTool(
+      deps,
+      call('markup_text', { page: 1, text: 'Hello', type: 'highlight' }),
+      controller.signal,
+    )
+    controller.abort()
+    release(INDEX)
+    await expect(pending).resolves.toMatchObject({ isError: true, errorCode: 'tool_failed' })
+    expect(deps.addMarkup).not.toHaveBeenCalled()
   })
 })
 
@@ -335,6 +341,16 @@ describe('rotate_page / delete_page', () => {
       expect(deps.rotatePage).not.toHaveBeenCalled()
       expect(deps.deletePage).not.toHaveBeenCalled()
     }
+  })
+
+  it('does not dispatch a synchronous mutation when already aborted', async () => {
+    const deps = makeDeps()
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      executePdfTool(deps, call('delete_page', { page: 1 }), controller.signal),
+    ).resolves.toMatchObject({ isError: true, errorCode: 'tool_failed' })
+    expect(deps.deletePage).not.toHaveBeenCalled()
   })
 })
 

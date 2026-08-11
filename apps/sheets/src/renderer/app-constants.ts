@@ -209,10 +209,6 @@ export const CELL_STYLE_PRESETS: Record<string, CellFormatPatch[]> = {
   accent1: [{ fillColor: '#4472C4', fontColor: '#FFFFFF' }],
 }
 
-/** Legacy localStorage history key: history now lives in project-store (per
- * workbook); this key is only kept for the one-time migration */
-export const CHAT_STORAGE_KEY = 'ai-excel-chat-history'
-
 /** Cap on persisted tool args/output in transcripts (the store layer has another
  * 16k truncation as backstop) */
 export const PERSIST_TOOL_FIELD_MAX = 16_000

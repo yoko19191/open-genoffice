@@ -29,4 +29,33 @@ function assertPromotable(candidate, currentStable, force) {
   }
 }
 
-module.exports = { ymlVersion, semverNewer, assertPromotable }
+const RELEASE_PLATFORMS = Object.freeze(
+  [
+    {
+      flag: '--mac',
+      archive: (version) => `GenOffice-mac-arm64-${version}.yml`,
+      feed: 'latest-mac.yml',
+      betaFeed: 'beta-mac.yml',
+      installer: (version) => `GenOffice-${version}-arm64.dmg`,
+      alias: 'GenOffice.dmg',
+    },
+    {
+      flag: '--win',
+      archive: (version) => `GenOffice-win-${version}.yml`,
+      feed: 'latest.yml',
+      betaFeed: 'beta.yml',
+      installer: (version) => `GenOfficeSetup-v${version}.exe`,
+      alias: 'GenOfficeSetup.exe',
+    },
+    {
+      flag: '--linux',
+      archive: (version) => `GenOffice-linux-x64-${version}.yml`,
+      feed: 'latest-linux.yml',
+      betaFeed: 'beta-linux.yml',
+      installer: (version) => `GenOffice-${version}-linux-x64.AppImage`,
+      alias: 'GenOffice.AppImage',
+    },
+  ].map(Object.freeze),
+)
+
+module.exports = { ymlVersion, semverNewer, assertPromotable, RELEASE_PLATFORMS }

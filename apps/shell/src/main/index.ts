@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
 import {
   copyFileSync,
   cpSync,
@@ -16,6 +18,7 @@ import {
   dialog,
   ipcMain,
   nativeImage,
+  safeStorage,
   session,
   shell,
   webContents,
@@ -32,6 +35,20 @@ import menuPdfIcon2x from './assets/menu-pdf@2x.png?asset'
 import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@genoffice/i18n'
+import { RUNTIME_VERSION, type ArtifactRef } from '@genoffice/agent-runtime-protocol'
+import {
+  DOCS_OFFICE_TOOL_CATALOG_BINDING,
+  PDF_OFFICE_TOOL_CATALOG_BINDING,
+  SHEETS_OFFICE_TOOL_CATALOG_BINDING,
+  SLIDES_OFFICE_TOOL_CATALOG_BINDING,
+} from '@genoffice/agent-runtime-protocol/office-tool-catalog'
+import {
+  DocumentBindingStore,
+  DocumentSessionIndexStore,
+  ScopedArtifactStore,
+  findCanonicalProjectRoot,
+  type DocumentFormat,
+} from '@genoffice/agent-resource'
 import {
   appMenuLabels,
   contextMenuLabels,
@@ -41,26 +58,18 @@ import {
   showOpenDialogWithMemory,
   showSaveDialogWithMemory,
   windowMenuTemplate,
+  createInstalledPiRuntimeService,
+  AgentSessionBroker,
+  installAgentSessionIpc,
+  MineruOcrService,
+  MineruOcrServiceError,
+  MediaPreparationService,
+  MediaPreparationServiceError,
+  SecureStorageBroker,
+  safeExternalUrl,
 } from '@genoffice/electron-utils'
 import { readAppSettings, writeAppSetting } from './app-settings'
-import {
-  clearCloudProjectsStore,
-  cloudProjectExternalUrl,
-  readCloudProjectsStore,
-  syncCloudProjects,
-} from './cloud-projects'
 import { ProjectStore } from '@genoffice/project-store'
-import {
-  ensureGenofficeLogin,
-  genofficeLogout,
-  gskConvertPdfToDocx,
-  gskLoginInfo,
-  hasGskAuth,
-  loadGenofficeAuth,
-  resolveGskEntry,
-  setGskProxyUrl,
-  startGenofficeLogin,
-} from '@genoffice/ai-search'
 
 import {
   buildDocsMenu,
@@ -73,7 +82,6 @@ import {
   recordRecentFile,
   removeRecentFiles,
   replaceRecentFile,
-  registerAiIpc,
   registerProjectIpc,
   toggleStarredFile,
   registerDocsIpc,
@@ -85,8 +93,15 @@ import {
   setDocsFileSavedHook,
   setSessionPathResolver,
   defaultSaveDir,
+  docsOfficeToolRendererClient,
   uniquePathIn,
 } from '../../../docs/src/main/docs-main'
+import { DocsOfficeToolHost } from '../../../docs/src/main/agent-tools/docs-office-tool-host'
+import {
+  DOCS_AGENT_ARTIFACT_CHANNELS,
+  type DocsTextArtifact,
+} from '../../../docs/src/shared/agent-artifacts'
+import { importDocsTextArtifact } from './docs-text-artifact-importer'
 import { blankXlsxBuffer } from '../../../sheets/src/gateway/csv-import'
 import {
   configureSheetsRuntime,
@@ -103,9 +118,11 @@ import {
   setSheetsExtraFileMenuItems,
   setSheetsShellWindow,
   setSheetsWorkbookOpenedHook,
+  sheetsOfficeToolRendererClient,
   startSheetsCaptureServer,
   stopSheetsSidecar,
 } from '../../../sheets/src/main/sheets-main'
+import { SheetsOfficeToolHost } from '../../../sheets/src/main/agent-tools/sheets-office-tool-host'
 import {
   configureSlidesRuntime,
   installSlidesMenu,
@@ -116,7 +133,15 @@ import {
   setSlidesOpenedHook,
   setSlidesShellWindow,
   slidesFileRenamed,
+  slidesOfficeToolRendererClient,
 } from '../../../slides/src/main/slides-main'
+import { SlidesOfficeToolHost } from '../../../slides/src/main/agent-tools/slides-office-tool-host'
+import {
+  SLIDES_AGENT_MEDIA_CHANNELS,
+  type SlidesMediaArtifact,
+} from '../../../slides/src/shared/agent-media-artifacts'
+import { importMediaArtifact } from './media-artifact-importer'
+import { ElectronVideoFrameExtractor } from './electron-video-frame-extractor'
 import {
   configurePdfRuntime,
   flushPdfSave,
@@ -124,8 +149,10 @@ import {
   requestPdfClose,
   requestPdfSaveAs,
   setPdfSaveAsInFlight,
+  pdfOfficeToolRendererClient,
 } from '../../../pdf/src/main/pdf-main'
-import type { AccountLoginEvent, RecentEntry, RecentPage, RenameResult } from '../shared/home-api'
+import { PdfOfficeToolHost } from '../../../pdf/src/main/agent-tools/pdf-office-tool-host'
+import type { RecentEntry, RecentPage, RenameResult } from '../shared/home-api'
 import { HOME_CHANNELS } from '../shared/home-api'
 import type { TabKind } from '../shared/tabs-api'
 import { TABS_CHANNELS } from '../shared/tabs-api'
@@ -134,6 +161,18 @@ import { normalizeRecentQuery, pageRecentPaths, statExistingPaths } from './rece
 import { TabManager } from './tab-manager'
 import { applyUpdateChannel, initAutoUpdater } from './updater'
 import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
+import { PI_RUNTIME_CHANNELS } from '../shared/pi-runtime-api'
+import { installProviderCredentialIpc } from './provider-credential-ipc'
+import { installModelManagementIpc } from './model-management-ipc'
+import { McpOAuthLoopback } from './mcp-oauth-loopback'
+import { installMineruOcrIpc } from './mineru-ocr-ipc'
+import { LegacyCleanupStartup } from './legacy-cleanup-startup'
+import { resolveAgentResourceHome, resolveShellUserDataPath } from './user-data-path'
+import {
+  installChromiumPackageNetworkAudit,
+  packageNetworkAuditEnabled,
+} from './package-network-audit'
+import { collectPackageAuditSnapshot, startPackageAuditServer } from './package-audit-server'
 
 /**
  * GenOffice unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -147,16 +186,34 @@ import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
 // ANY unpacked run (`npm run shell`, `npm run dev`, `npx electron .`) must not
 // share the installed app's userData or single-instance lock — otherwise a dev
 // run silently quits and forwards its argv to the running installed GenOffice.
-// GENOFFICE_USER_DATA: test drivers point this at a scratch dir so an
-// automated instance can run alongside the dev instance (separate lock).
-if (!app.isPackaged)
-  app.setPath(
-    'userData',
-    process.env.GENOFFICE_USER_DATA ?? join(app.getPath('appData'), 'GenOffice Dev'),
+// GENOFFICE_USER_DATA lets package smoke tests use an explicit scratch profile.
+const shellUserDataPath = resolveShellUserDataPath({
+  isPackaged: app.isPackaged,
+  appData: app.getPath('appData'),
+  override: process.env.GENOFFICE_USER_DATA,
+})
+if (shellUserDataPath) app.setPath('userData', shellUserDataPath)
+const packageNetworkAudit = {
+  isPackaged: app.isPackaged,
+  enabled: process.env.GENOFFICE_PACKAGE_NETWORK_AUDIT,
+  reportPath: process.env.GENOFFICE_NETWORK_REPORT,
+  surface: process.env.GENOFFICE_NETWORK_SURFACE,
+}
+const packageNetworkAuditConfig = packageNetworkAuditEnabled(packageNetworkAudit)
+  ? packageNetworkAudit
+  : undefined
+const packageAuditToken = process.env.GENOFFICE_PACKAGE_AUDIT_TOKEN
+const packageAuditEndpoint = process.env.GENOFFICE_PACKAGE_AUDIT_ENDPOINT
+delete process.env.GENOFFICE_PACKAGE_AUDIT_TOKEN
+delete process.env.GENOFFICE_PACKAGE_AUDIT_ENDPOINT
+if (packageNetworkAuditConfig) {
+  createRequire(__filename)(
+    join(process.resourcesPath, 'diagnostics', 'package-network-recorder.cjs'),
   )
+}
 
 // The product rename from "AI Office" to GenOffice changed the userData path; migrate old user data once
-if (app.isPackaged) {
+if (app.isPackaged && !packageNetworkAuditConfig) {
   const oldDir = join(app.getPath('appData'), 'AI Office')
   const newDir = app.getPath('userData')
   const newEmpty = !existsSync(newDir) || readdirSync(newDir).length === 0
@@ -183,6 +240,167 @@ const PDF_OUT = app.isPackaged
 const SIDECAR_BIN = app.isPackaged
   ? join(process.resourcesPath, 'native', SIDECAR_EXE)
   : join(APPS_ROOT, 'sheets', 'native', 'xlsx-engine', 'target', 'release', SIDECAR_EXE)
+const PI_RUNTIME_ROOT = app.isPackaged
+  ? join(process.resourcesPath, 'pi-runtime')
+  : (process.env.GENOFFICE_PI_RUNTIME_BUNDLE ?? join(process.resourcesPath, 'pi-runtime'))
+const AGENT_RESOURCE_HOME = resolveAgentResourceHome({
+  home: app.getPath('home'),
+  packageAudit: packageNetworkAuditConfig !== undefined,
+  auditOverride: process.env.GENOFFICE_PACKAGE_AGENT_RESOURCE_HOME,
+})
+const legacyCleanupStartup = new LegacyCleanupStartup({
+  resourceHome: AGENT_RESOURCE_HOME,
+  userData: app.getPath('userData'),
+  legacyHome: packageNetworkAuditConfig
+    ? join(dirname(AGENT_RESOURCE_HOME), '.genoffice')
+    : join(app.getPath('home'), '.genoffice'),
+  platform: process.platform,
+  runtimeVersion: RUNTIME_VERSION,
+  audit: (record) => {
+    const write = record.status === 'completed' ? console.info : console.warn
+    write('[legacy-agent-cleanup]', JSON.stringify(record))
+  },
+})
+let secureStorageBrokerPromise: Promise<SecureStorageBroker> | undefined
+function secureStorageBroker(): Promise<SecureStorageBroker> {
+  secureStorageBrokerPromise ??= app.whenReady().then(() =>
+    SecureStorageBroker.create({
+      rootDirectory: AGENT_RESOURCE_HOME,
+      runtimeVersion: RUNTIME_VERSION,
+      platform: process.platform,
+      safeStorage,
+    }),
+  )
+  return secureStorageBrokerPromise
+}
+const credentialBroker = {
+  put: async (input: Parameters<SecureStorageBroker['put']>[0]) =>
+    (await secureStorageBroker()).put(input),
+  rotate: async (input: Parameters<SecureStorageBroker['rotate']>[0]) =>
+    (await secureStorageBroker()).rotate(input),
+  get: async (slot: string) => (await secureStorageBroker()).get(slot),
+  status: async (slot: string) => (await secureStorageBroker()).status(slot),
+  delete: async (slot: string, expectedGeneration: number) =>
+    (await secureStorageBroker()).delete(slot, expectedGeneration),
+  putOperationCapsule: async (input: Parameters<SecureStorageBroker['putOperationCapsule']>[0]) =>
+    (await secureStorageBroker()).putOperationCapsule(input),
+  getOperationCapsule: async (operationId: string) =>
+    (await secureStorageBroker()).getOperationCapsule(operationId),
+  deleteOperationCapsule: async (operationId: string, expectedGeneration: number) =>
+    (await secureStorageBroker()).deleteOperationCapsule(operationId, expectedGeneration),
+}
+const mineruOcrService = new MineruOcrService({
+  rootDirectory: AGENT_RESOURCE_HOME,
+  platform: process.platform,
+  credentialBroker,
+})
+const pdfOfficeToolHost = { current: undefined as PdfOfficeToolHost | undefined }
+const docsOfficeToolHost = { current: undefined as DocsOfficeToolHost | undefined }
+const sheetsOfficeToolHost = { current: undefined as SheetsOfficeToolHost | undefined }
+const slidesOfficeToolHost = { current: undefined as SlidesOfficeToolHost | undefined }
+const scopedArtifactStore = new ScopedArtifactStore({
+  rootDirectory: join(AGENT_RESOURCE_HOME, 'assets', 'artifacts'),
+})
+const authorizedTextArtifacts = new Map<
+  string,
+  { documentId: string; artifact: DocsTextArtifact }
+>()
+const authorizedMediaArtifacts = new Map<
+  string,
+  { documentId: string; artifact: SlidesMediaArtifact }
+>()
+const mediaPreparationService = new MediaPreparationService({
+  artifactStore: scopedArtifactStore,
+  frameExtractor: new ElectronVideoFrameExtractor(),
+  randomUUID,
+})
+const activeMediaPreparations = new Map<
+  string,
+  { documentId: string; controller: AbortController }
+>()
+const piRuntimeService = createInstalledPiRuntimeService({
+  bundleRoot: PI_RUNTIME_ROOT,
+  platform: process.platform,
+  arch: process.arch as 'arm64' | 'x64',
+  parentPid: process.pid,
+  resourceHome: AGENT_RESOURCE_HOME,
+  ...(app.isPackaged ? { beforeStart: () => legacyCleanupStartup.run() } : {}),
+  credentialBroker,
+  officeToolHost: {
+    invoke: (request) => {
+      if (request.toolId.startsWith('office:docs:') && docsOfficeToolHost.current) {
+        return docsOfficeToolHost.current.invoke(request)
+      }
+      if (request.toolId.startsWith('office:pdf:') && pdfOfficeToolHost.current) {
+        return pdfOfficeToolHost.current.invoke(request)
+      }
+      if (request.toolId.startsWith('office:sheets:') && sheetsOfficeToolHost.current) {
+        return sheetsOfficeToolHost.current.invoke(request)
+      }
+      if (request.toolId.startsWith('office:slides:') && slidesOfficeToolHost.current) {
+        return slidesOfficeToolHost.current.invoke(request)
+      }
+      return Promise.reject(
+        Object.assign(new Error('executor_unavailable'), {
+          code: 'executor_unavailable',
+        }),
+      )
+    },
+    abort: (request) => {
+      if (tabManager?.agentWebContentsFor(request.documentId, 'docs')) {
+        return docsOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+      }
+      if (tabManager?.agentWebContentsFor(request.documentId, 'sheets')) {
+        return sheetsOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+      }
+      if (tabManager?.agentWebContentsFor(request.documentId, 'slides')) {
+        return slidesOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+      }
+      return pdfOfficeToolHost.current?.abort(request) ?? Promise.resolve(false)
+    },
+  },
+  mediaPreparationHost: {
+    prepare: async (request, parentSignal) => {
+      if (activeMediaPreparations.has(request.operationId)) {
+        throw new MediaPreparationServiceError('media_malformed')
+      }
+      if (
+        request.artifact.mediaType !== 'image/png' &&
+        request.artifact.mediaType !== 'audio/wav' &&
+        request.artifact.mediaType !== 'video/mp4'
+      ) {
+        throw new MediaPreparationServiceError('media_strategy_unsupported')
+      }
+      const controller = new AbortController()
+      const abort = () => controller.abort()
+      parentSignal.addEventListener('abort', abort, { once: true })
+      activeMediaPreparations.set(request.operationId, {
+        documentId: request.documentId,
+        controller,
+      })
+      try {
+        return await mediaPreparationService.prepare(
+          {
+            ...request,
+            artifact: request.artifact as ArtifactRef & {
+              mediaType: 'image/png' | 'audio/wav' | 'video/mp4'
+            },
+          },
+          controller.signal,
+        )
+      } finally {
+        parentSignal.removeEventListener('abort', abort)
+        activeMediaPreparations.delete(request.operationId)
+      }
+    },
+    abort: async ({ operationId, documentId }) => {
+      const active = activeMediaPreparations.get(operationId)
+      if (!active || active.documentId !== documentId) return false
+      active.controller.abort()
+      return true
+    },
+  },
+})
 
 configureDocsRuntime({
   preloadPath: join(DOCS_OUT, 'preload', 'index.js'),
@@ -239,12 +457,6 @@ function currentUpdateChannel(): UpdateChannel {
   return isUpdateChannel(saved) ? saved : 'stable'
 }
 
-// ---- first-run onboarding ----
-// The GenTeam community page opened from the onboarding's second slide.
-// Stable short link served by the genspark.ai site; it 302s to the tokened
-// invite link, which stays out of this repo and rotates server-side.
-const GENTEAM_URL = 'https://www.genspark.ai/genoffice/join'
-
 const tMain = createI18n({
   zh: {
     menuFile: '文件',
@@ -280,16 +492,9 @@ const tMain = createI18n({
     menuHelp: '帮助',
     thirdPartyNotices: '第三方软件声明',
     menuExportDocx: '导出为 Word…',
-    pdfDocxLoginMsg: '导出为 Word 需要登录 Genspark 账号。',
-    pdfDocxLoginDetail: '点击“登录”将打开浏览器完成授权，完成后请重新点击导出。',
-    pdfDocxBtnLogin: '登录',
-    pdfDocxConfirmMsg: '将此 PDF 上传到 Genspark 云端转换为 Word？',
-    pdfDocxConfirmDetail: '本次转换将消耗 5 credits，文件将上传至云端处理。',
-    pdfDocxConfirmBalance: '当前余额 {balance} credits。',
     pdfDocxBtnConvert: '继续',
     btnCancel: '取消',
     pdfDocxFailedMsg: '导出为 Word 失败',
-    pdfDocxNoCliMsg: '无法登录 Genspark：缺少必需组件（gsk），请重新安装应用。',
     pdfDocxBusyMsg: '正在转换中，请等待当前导出完成。',
   },
   en: {
@@ -326,19 +531,9 @@ const tMain = createI18n({
     menuHelp: 'Help',
     thirdPartyNotices: 'Third-Party Notices',
     menuExportDocx: 'Export as Word…',
-    pdfDocxLoginMsg: 'Exporting as Word requires signing in to Genspark.',
-    pdfDocxLoginDetail:
-      'Clicking “Sign In” opens your browser to authorize; once done, click Export again.',
-    pdfDocxBtnLogin: 'Sign In',
-    pdfDocxConfirmMsg: 'Upload this PDF to Genspark cloud and convert it to Word?',
-    pdfDocxConfirmDetail:
-      'The conversion costs 5 credits. The file will be uploaded for cloud processing.',
-    pdfDocxConfirmBalance: 'Current balance: {balance} credits.',
     pdfDocxBtnConvert: 'Continue',
     btnCancel: 'Cancel',
     pdfDocxFailedMsg: 'Export as Word failed',
-    pdfDocxNoCliMsg:
-      'Cannot sign in to Genspark: a required component (gsk) is missing. Please reinstall the app.',
     pdfDocxBusyMsg: 'A Word export is already in progress. Please wait for it to finish.',
   },
   ja: {
@@ -375,19 +570,9 @@ const tMain = createI18n({
     menuHelp: 'ヘルプ',
     thirdPartyNotices: 'サードパーティソフトウェアに関する通知',
     menuExportDocx: 'Word として書き出す…',
-    pdfDocxLoginMsg: 'Word への書き出しには Genspark へのログインが必要です。',
-    pdfDocxLoginDetail:
-      '「ログイン」をクリックするとブラウザで認証します。完了後、もう一度書き出しを実行してください。',
-    pdfDocxBtnLogin: 'ログイン',
-    pdfDocxConfirmMsg: 'この PDF を Genspark クラウドにアップロードして Word に変換しますか？',
-    pdfDocxConfirmDetail:
-      '変換には 5 クレジットを消費します。ファイルはクラウドにアップロードされ処理されます。',
-    pdfDocxConfirmBalance: '現在の残高：{balance} クレジット。',
     pdfDocxBtnConvert: '続行',
     btnCancel: 'キャンセル',
     pdfDocxFailedMsg: 'Word への書き出しに失敗しました',
-    pdfDocxNoCliMsg:
-      'Genspark にサインインできません：必要なコンポーネント（gsk）が見つかりません。アプリを再インストールしてください。',
     pdfDocxBusyMsg: 'Word への書き出しが進行中です。完了までお待ちください。',
   },
   ko: {
@@ -424,19 +609,9 @@ const tMain = createI18n({
     menuHelp: '도움말',
     thirdPartyNotices: '타사 소프트웨어 고지',
     menuExportDocx: 'Word로 내보내기…',
-    pdfDocxLoginMsg: 'Word로 내보내려면 Genspark 로그인이 필요합니다.',
-    pdfDocxLoginDetail:
-      '“로그인”을 클릭하면 브라우저에서 인증합니다. 완료 후 내보내기를 다시 클릭하세요.',
-    pdfDocxBtnLogin: '로그인',
-    pdfDocxConfirmMsg: '이 PDF를 Genspark 클라우드에 업로드하여 Word로 변환할까요?',
-    pdfDocxConfirmDetail:
-      '변환에는 5 크레딧이 소모됩니다. 파일은 클라우드로 업로드되어 처리됩니다.',
-    pdfDocxConfirmBalance: '현재 잔액: {balance} 크레딧.',
     pdfDocxBtnConvert: '계속',
     btnCancel: '취소',
     pdfDocxFailedMsg: 'Word로 내보내기 실패',
-    pdfDocxNoCliMsg:
-      'Genspark에 로그인할 수 없습니다. 필수 구성 요소(gsk)가 없습니다. 앱을 다시 설치해 주세요.',
     pdfDocxBusyMsg: 'Word 내보내기가 이미 진행 중입니다. 완료될 때까지 기다려 주세요.',
   },
   fr: {
@@ -473,19 +648,9 @@ const tMain = createI18n({
     menuHelp: 'Aide',
     thirdPartyNotices: 'Mentions relatives aux logiciels tiers',
     menuExportDocx: 'Exporter en Word…',
-    pdfDocxLoginMsg: "L'export en Word nécessite une connexion à Genspark.",
-    pdfDocxLoginDetail:
-      "Cliquez sur « Se connecter » pour autoriser dans le navigateur, puis relancez l'export.",
-    pdfDocxBtnLogin: 'Se connecter',
-    pdfDocxConfirmMsg: 'Téléverser ce PDF vers le cloud Genspark pour le convertir en Word ?',
-    pdfDocxConfirmDetail:
-      'La conversion coûte 5 crédits. Le fichier sera téléversé pour traitement dans le cloud.',
-    pdfDocxConfirmBalance: 'Solde actuel : {balance} crédits.',
     pdfDocxBtnConvert: 'Continuer',
     btnCancel: 'Annuler',
     pdfDocxFailedMsg: "Échec de l'export en Word",
-    pdfDocxNoCliMsg:
-      "Connexion à Genspark impossible : un composant requis (gsk) est manquant. Veuillez réinstaller l'application.",
     pdfDocxBusyMsg: "Un export en Word est déjà en cours. Veuillez attendre qu'il se termine.",
   },
   de: {
@@ -522,19 +687,9 @@ const tMain = createI18n({
     menuHelp: 'Hilfe',
     thirdPartyNotices: 'Hinweise zu Drittanbietersoftware',
     menuExportDocx: 'Als Word exportieren…',
-    pdfDocxLoginMsg: 'Für den Word-Export ist eine Anmeldung bei Genspark erforderlich.',
-    pdfDocxLoginDetail:
-      'Klicken Sie auf „Anmelden“, um die Autorisierung im Browser abzuschließen, und starten Sie den Export danach erneut.',
-    pdfDocxBtnLogin: 'Anmelden',
-    pdfDocxConfirmMsg: 'Dieses PDF in die Genspark-Cloud hochladen und in Word konvertieren?',
-    pdfDocxConfirmDetail:
-      'Die Konvertierung kostet 5 Credits. Die Datei wird zur Verarbeitung in die Cloud hochgeladen.',
-    pdfDocxConfirmBalance: 'Aktuelles Guthaben: {balance} Credits.',
     pdfDocxBtnConvert: 'Fortfahren',
     btnCancel: 'Abbrechen',
     pdfDocxFailedMsg: 'Word-Export fehlgeschlagen',
-    pdfDocxNoCliMsg:
-      'Anmeldung bei Genspark nicht möglich: Eine erforderliche Komponente (gsk) fehlt. Bitte installieren Sie die App neu.',
     pdfDocxBusyMsg: 'Ein Word-Export läuft bereits. Bitte warten Sie, bis er abgeschlossen ist.',
   },
   es: {
@@ -571,19 +726,9 @@ const tMain = createI18n({
     menuHelp: 'Ayuda',
     thirdPartyNotices: 'Avisos de software de terceros',
     menuExportDocx: 'Exportar como Word…',
-    pdfDocxLoginMsg: 'Para exportar como Word es necesario iniciar sesión en Genspark.',
-    pdfDocxLoginDetail:
-      'Al hacer clic en «Iniciar sesión» se abrirá el navegador para autorizar; después, vuelve a hacer clic en Exportar.',
-    pdfDocxBtnLogin: 'Iniciar sesión',
-    pdfDocxConfirmMsg: '¿Subir este PDF a la nube de Genspark para convertirlo a Word?',
-    pdfDocxConfirmDetail:
-      'La conversión cuesta 5 créditos. El archivo se subirá para procesarse en la nube.',
-    pdfDocxConfirmBalance: 'Saldo actual: {balance} créditos.',
     pdfDocxBtnConvert: 'Continuar',
     btnCancel: 'Cancelar',
     pdfDocxFailedMsg: 'Error al exportar como Word',
-    pdfDocxNoCliMsg:
-      'No se puede iniciar sesión en Genspark: falta un componente necesario (gsk). Reinstale la aplicación.',
     pdfDocxBusyMsg: 'Ya hay una exportación a Word en curso. Espera a que termine.',
   },
   th: {
@@ -620,18 +765,9 @@ const tMain = createI18n({
     menuHelp: 'วิธีใช้',
     thirdPartyNotices: 'ประกาศเกี่ยวกับซอฟต์แวร์ของบุคคลที่สาม',
     menuExportDocx: 'ส่งออกเป็น Word…',
-    pdfDocxLoginMsg: 'การส่งออกเป็น Word ต้องเข้าสู่ระบบ Genspark',
-    pdfDocxLoginDetail:
-      'คลิก “เข้าสู่ระบบ” เพื่อเปิดเบราว์เซอร์ยืนยันตัวตน เสร็จแล้วให้คลิกส่งออกอีกครั้ง',
-    pdfDocxBtnLogin: 'เข้าสู่ระบบ',
-    pdfDocxConfirmMsg: 'อัปโหลด PDF นี้ไปยังคลาวด์ Genspark เพื่อแปลงเป็น Word หรือไม่?',
-    pdfDocxConfirmDetail: 'การแปลงใช้ 5 เครดิต ไฟล์จะถูกอัปโหลดเพื่อประมวลผลบนคลาวด์',
-    pdfDocxConfirmBalance: 'ยอดคงเหลือปัจจุบัน: {balance} เครดิต',
     pdfDocxBtnConvert: 'ดำเนินการต่อ',
     btnCancel: 'ยกเลิก',
     pdfDocxFailedMsg: 'ส่งออกเป็น Word ไม่สำเร็จ',
-    pdfDocxNoCliMsg:
-      'ไม่สามารถลงชื่อเข้าใช้ Genspark ได้: ไม่พบคอมโพเนนต์ที่จำเป็น (gsk) โปรดติดตั้งแอปใหม่',
     pdfDocxBusyMsg: 'กำลังส่งออกเป็น Word อยู่ โปรดรอให้เสร็จสิ้นก่อน',
   },
   id: {
@@ -668,19 +804,9 @@ const tMain = createI18n({
     menuHelp: 'Bantuan',
     thirdPartyNotices: 'Pemberitahuan Perangkat Lunak Pihak Ketiga',
     menuExportDocx: 'Ekspor sebagai Word…',
-    pdfDocxLoginMsg: 'Ekspor sebagai Word memerlukan login ke Genspark.',
-    pdfDocxLoginDetail:
-      'Klik “Masuk” untuk membuka browser dan memberi otorisasi; setelah selesai, klik Ekspor lagi.',
-    pdfDocxBtnLogin: 'Masuk',
-    pdfDocxConfirmMsg: 'Unggah PDF ini ke cloud Genspark untuk dikonversi ke Word?',
-    pdfDocxConfirmDetail:
-      'Konversi ini menggunakan 5 kredit. File akan diunggah untuk diproses di cloud.',
-    pdfDocxConfirmBalance: 'Saldo saat ini: {balance} kredit.',
     pdfDocxBtnConvert: 'Lanjutkan',
     btnCancel: 'Batal',
     pdfDocxFailedMsg: 'Gagal mengekspor sebagai Word',
-    pdfDocxNoCliMsg:
-      'Tidak dapat masuk ke Genspark: komponen yang diperlukan (gsk) tidak ditemukan. Silakan instal ulang aplikasi.',
     pdfDocxBusyMsg: 'Ekspor ke Word sedang berlangsung. Harap tunggu hingga selesai.',
   },
   ru: {
@@ -717,19 +843,9 @@ const tMain = createI18n({
     menuHelp: 'Справка',
     thirdPartyNotices: 'Уведомления о стороннем ПО',
     menuExportDocx: 'Экспортировать в Word…',
-    pdfDocxLoginMsg: 'Для экспорта в Word требуется вход в Genspark.',
-    pdfDocxLoginDetail:
-      'Нажмите «Войти», чтобы авторизоваться в браузере, затем снова запустите экспорт.',
-    pdfDocxBtnLogin: 'Войти',
-    pdfDocxConfirmMsg: 'Загрузить этот PDF в облако Genspark и конвертировать в Word?',
-    pdfDocxConfirmDetail:
-      'Конвертация стоит 5 кредитов. Файл будет загружен для обработки в облаке.',
-    pdfDocxConfirmBalance: 'Текущий баланс: {balance} кредитов.',
     pdfDocxBtnConvert: 'Продолжить',
     btnCancel: 'Отмена',
     pdfDocxFailedMsg: 'Не удалось экспортировать в Word',
-    pdfDocxNoCliMsg:
-      'Не удаётся войти в Genspark: отсутствует необходимый компонент (gsk). Переустановите приложение.',
     pdfDocxBusyMsg: 'Экспорт в Word уже выполняется. Дождитесь его завершения.',
   },
   ar: {
@@ -766,18 +882,9 @@ const tMain = createI18n({
     menuHelp: 'تعليمات',
     thirdPartyNotices: 'إشعارات برامج الجهات الخارجية',
     menuExportDocx: 'تصدير كملف Word…',
-    pdfDocxLoginMsg: 'يتطلب التصدير كملف Word تسجيل الدخول إلى Genspark.',
-    pdfDocxLoginDetail:
-      'انقر على «تسجيل الدخول» لفتح المتصفح وإتمام التفويض، ثم انقر على التصدير مرة أخرى.',
-    pdfDocxBtnLogin: 'تسجيل الدخول',
-    pdfDocxConfirmMsg: 'رفع هذا الـ PDF إلى سحابة Genspark وتحويله إلى Word؟',
-    pdfDocxConfirmDetail: 'يكلف التحويل 5 أرصدة. سيتم رفع الملف للمعالجة في السحابة.',
-    pdfDocxConfirmBalance: 'الرصيد الحالي: {balance} من الأرصدة.',
     pdfDocxBtnConvert: 'متابعة',
     btnCancel: 'إلغاء',
     pdfDocxFailedMsg: 'فشل التصدير كملف Word',
-    pdfDocxNoCliMsg:
-      'تعذّر تسجيل الدخول إلى Genspark: المكوّن المطلوب (gsk) مفقود. يُرجى إعادة تثبيت التطبيق.',
     pdfDocxBusyMsg: 'يجري حاليًا تصدير إلى Word. يُرجى الانتظار حتى يكتمل.',
   },
   pt: {
@@ -814,19 +921,9 @@ const tMain = createI18n({
     menuHelp: 'Ajuda',
     thirdPartyNotices: 'Avisos de software de terceiros',
     menuExportDocx: 'Exportar como Word…',
-    pdfDocxLoginMsg: 'Exportar como Word requer login no Genspark.',
-    pdfDocxLoginDetail:
-      'Clique em “Entrar” para autorizar no navegador; depois, clique em Exportar novamente.',
-    pdfDocxBtnLogin: 'Entrar',
-    pdfDocxConfirmMsg: 'Enviar este PDF para a nuvem do Genspark e convertê-lo em Word?',
-    pdfDocxConfirmDetail:
-      'A conversão custa 5 créditos. O arquivo será enviado para processamento na nuvem.',
-    pdfDocxConfirmBalance: 'Saldo atual: {balance} créditos.',
     pdfDocxBtnConvert: 'Continuar',
     btnCancel: 'Cancelar',
     pdfDocxFailedMsg: 'Falha ao exportar como Word',
-    pdfDocxNoCliMsg:
-      'Não é possível iniciar sessão no Genspark: falta um componente necessário (gsk). Reinstale o aplicativo.',
     pdfDocxBusyMsg: 'Já há uma exportação para Word em andamento. Aguarde a conclusão.',
   },
   it: {
@@ -863,19 +960,9 @@ const tMain = createI18n({
     menuHelp: 'Aiuto',
     thirdPartyNotices: 'Note sul software di terze parti',
     menuExportDocx: 'Esporta come Word…',
-    pdfDocxLoginMsg: 'Per esportare come Word è necessario accedere a Genspark.',
-    pdfDocxLoginDetail:
-      'Fai clic su “Accedi” per autorizzare nel browser; al termine, fai di nuovo clic su Esporta.',
-    pdfDocxBtnLogin: 'Accedi',
-    pdfDocxConfirmMsg: 'Caricare questo PDF sul cloud Genspark e convertirlo in Word?',
-    pdfDocxConfirmDetail:
-      "La conversione costa 5 crediti. Il file verrà caricato per l'elaborazione nel cloud.",
-    pdfDocxConfirmBalance: 'Saldo attuale: {balance} crediti.',
     pdfDocxBtnConvert: 'Continua',
     btnCancel: 'Annulla',
     pdfDocxFailedMsg: 'Esportazione in Word non riuscita',
-    pdfDocxNoCliMsg:
-      "Impossibile accedere a Genspark: manca un componente necessario (gsk). Reinstallare l'app.",
     pdfDocxBusyMsg: "Un'esportazione in Word è già in corso. Attendi il completamento.",
   },
   pl: {
@@ -912,19 +999,9 @@ const tMain = createI18n({
     menuHelp: 'Pomoc',
     thirdPartyNotices: 'Informacje o oprogramowaniu innych firm',
     menuExportDocx: 'Eksportuj jako Word…',
-    pdfDocxLoginMsg: 'Eksport do formatu Word wymaga zalogowania do Genspark.',
-    pdfDocxLoginDetail:
-      'Kliknij „Zaloguj się”, aby autoryzować w przeglądarce; po zakończeniu kliknij Eksportuj ponownie.',
-    pdfDocxBtnLogin: 'Zaloguj się',
-    pdfDocxConfirmMsg: 'Przesłać ten PDF do chmury Genspark i przekonwertować na Word?',
-    pdfDocxConfirmDetail:
-      'Konwersja kosztuje 5 kredytów. Plik zostanie przesłany do przetworzenia w chmurze.',
-    pdfDocxConfirmBalance: 'Aktualne saldo: {balance} kredytów.',
     pdfDocxBtnConvert: 'Kontynuuj',
     btnCancel: 'Anuluj',
     pdfDocxFailedMsg: 'Eksport do formatu Word nie powiódł się',
-    pdfDocxNoCliMsg:
-      'Nie można zalogować się do Genspark: brakuje wymaganego komponentu (gsk). Zainstaluj aplikację ponownie.',
     pdfDocxBusyMsg: 'Eksport do formatu Word już trwa. Poczekaj na jego zakończenie.',
   },
   nl: {
@@ -961,19 +1038,9 @@ const tMain = createI18n({
     menuHelp: 'Help',
     thirdPartyNotices: 'Kennisgevingen over software van derden',
     menuExportDocx: 'Exporteren als Word…',
-    pdfDocxLoginMsg: 'Exporteren als Word vereist inloggen bij Genspark.',
-    pdfDocxLoginDetail:
-      'Klik op “Inloggen” om in de browser te autoriseren; klik daarna opnieuw op Exporteren.',
-    pdfDocxBtnLogin: 'Inloggen',
-    pdfDocxConfirmMsg: 'Deze PDF uploaden naar de Genspark-cloud en converteren naar Word?',
-    pdfDocxConfirmDetail:
-      'De conversie kost 5 credits. Het bestand wordt geüpload voor verwerking in de cloud.',
-    pdfDocxConfirmBalance: 'Huidig saldo: {balance} credits.',
     pdfDocxBtnConvert: 'Doorgaan',
     btnCancel: 'Annuleren',
     pdfDocxFailedMsg: 'Exporteren als Word mislukt',
-    pdfDocxNoCliMsg:
-      'Kan niet inloggen bij Genspark: een vereist onderdeel (gsk) ontbreekt. Installeer de app opnieuw.',
     pdfDocxBusyMsg: 'Er is al een Word-export bezig. Wacht tot deze is voltooid.',
   },
   ms: {
@@ -1010,19 +1077,9 @@ const tMain = createI18n({
     menuHelp: 'Bantuan',
     thirdPartyNotices: 'Notis Perisian Pihak Ketiga',
     menuExportDocx: 'Eksport sebagai Word…',
-    pdfDocxLoginMsg: 'Eksport sebagai Word memerlukan log masuk ke Genspark.',
-    pdfDocxLoginDetail:
-      'Klik “Log Masuk” untuk membuka pelayar dan memberi kebenaran; selepas selesai, klik Eksport sekali lagi.',
-    pdfDocxBtnLogin: 'Log Masuk',
-    pdfDocxConfirmMsg: 'Muat naik PDF ini ke awan Genspark untuk ditukar kepada Word?',
-    pdfDocxConfirmDetail:
-      'Penukaran ini menggunakan 5 kredit. Fail akan dimuat naik untuk diproses di awan.',
-    pdfDocxConfirmBalance: 'Baki semasa: {balance} kredit.',
     pdfDocxBtnConvert: 'Teruskan',
     btnCancel: 'Batal',
     pdfDocxFailedMsg: 'Gagal mengeksport sebagai Word',
-    pdfDocxNoCliMsg:
-      'Tidak dapat log masuk ke Genspark: komponen yang diperlukan (gsk) tiada. Sila pasang semula aplikasi.',
     pdfDocxBusyMsg: 'Eksport ke Word sedang dijalankan. Sila tunggu sehingga selesai.',
   },
   he: {
@@ -1059,16 +1116,9 @@ const tMain = createI18n({
     menuHelp: 'עזרה',
     thirdPartyNotices: 'הודעות על תוכנות צד שלישי',
     menuExportDocx: 'ייצוא כ-Word…',
-    pdfDocxLoginMsg: 'ייצוא כ-Word דורש התחברות ל-Genspark.',
-    pdfDocxLoginDetail: 'לחיצה על ”התחברות” תפתח את הדפדפן לאישור; בסיום, לחצו שוב על ייצוא.',
-    pdfDocxBtnLogin: 'התחברות',
-    pdfDocxConfirmMsg: 'להעלות את ה-PDF לענן של Genspark ולהמיר אותו ל-Word?',
-    pdfDocxConfirmDetail: 'ההמרה עולה 5 קרדיטים. הקובץ יועלה לעיבוד בענן.',
-    pdfDocxConfirmBalance: 'יתרה נוכחית: {balance} קרדיטים.',
     pdfDocxBtnConvert: 'המשך',
     btnCancel: 'ביטול',
     pdfDocxFailedMsg: 'הייצוא כ-Word נכשל',
-    pdfDocxNoCliMsg: 'לא ניתן להתחבר ל-Genspark: רכיב נדרש (gsk) חסר. נא להתקין מחדש את האפליקציה.',
     pdfDocxBusyMsg: 'ייצוא ל-Word כבר מתבצע. נא להמתין לסיומו.',
   },
   hi: {
@@ -1105,19 +1155,9 @@ const tMain = createI18n({
     menuHelp: 'सहायता',
     thirdPartyNotices: 'तृतीय-पक्ष सॉफ़्टवेयर सूचनाएँ',
     menuExportDocx: 'Word के रूप में निर्यात करें…',
-    pdfDocxLoginMsg: 'Word के रूप में निर्यात करने के लिए Genspark में लॉगिन आवश्यक है।',
-    pdfDocxLoginDetail:
-      '“लॉगिन” पर क्लिक करने से ब्राउज़र में प्राधिकरण खुलेगा; पूरा होने पर फिर से निर्यात पर क्लिक करें।',
-    pdfDocxBtnLogin: 'लॉगिन',
-    pdfDocxConfirmMsg: 'इस PDF को Genspark क्लाउड पर अपलोड करके Word में बदलें?',
-    pdfDocxConfirmDetail:
-      'रूपांतरण में 5 क्रेडिट लगते हैं। फ़ाइल क्लाउड में प्रोसेसिंग के लिए अपलोड की जाएगी।',
-    pdfDocxConfirmBalance: 'वर्तमान शेष: {balance} क्रेडिट।',
     pdfDocxBtnConvert: 'जारी रखें',
     btnCancel: 'रद्द करें',
     pdfDocxFailedMsg: 'Word के रूप में निर्यात विफल रहा',
-    pdfDocxNoCliMsg:
-      'Genspark में साइन इन नहीं किया जा सकता: आवश्यक घटक (gsk) मौजूद नहीं है। कृपया ऐप को फिर से इंस्टॉल करें।',
     pdfDocxBusyMsg: 'Word के रूप में निर्यात पहले से चल रहा है। कृपया पूरा होने तक प्रतीक्षा करें।',
   },
   'zh-TW': {
@@ -1154,16 +1194,9 @@ const tMain = createI18n({
     menuHelp: '說明',
     thirdPartyNotices: '第三方軟體聲明',
     menuExportDocx: '匯出為 Word…',
-    pdfDocxLoginMsg: '匯出為 Word 需要登入 Genspark 帳號。',
-    pdfDocxLoginDetail: '點擊「登入」將開啟瀏覽器完成授權，完成後請重新點擊匯出。',
-    pdfDocxBtnLogin: '登入',
-    pdfDocxConfirmMsg: '將此 PDF 上傳到 Genspark 雲端轉換為 Word？',
-    pdfDocxConfirmDetail: '本次轉換將消耗 5 credits，檔案將上傳至雲端處理。',
-    pdfDocxConfirmBalance: '目前餘額 {balance} credits。',
     pdfDocxBtnConvert: '繼續',
     btnCancel: '取消',
     pdfDocxFailedMsg: '匯出為 Word 失敗',
-    pdfDocxNoCliMsg: '無法登入 Genspark：缺少必要元件（gsk），請重新安裝應用程式。',
     pdfDocxBusyMsg: '正在轉換中，請等待目前的匯出完成。',
   },
 })
@@ -1174,7 +1207,34 @@ const tm = (key: Parameters<typeof tMain>[1], params?: Parameters<typeof tMain>[
 // ---- the shell window + its tab manager (recreated if the user closes it on macOS) ----
 
 let shellWindow: BrowserWindow | null = null
+let packageAuditServer: { close(): Promise<void> } | undefined
 let tabManager: TabManager | null = null
+
+if (packageNetworkAuditConfig && (packageAuditToken || packageAuditEndpoint)) {
+  void startPackageAuditServer({
+    token: packageAuditToken,
+    endpoint: packageAuditEndpoint,
+    collect: () => {
+      const auditWindow = shellWindow
+      if (!auditWindow) throw new Error('package_audit_window_unavailable')
+      return collectPackageAuditSnapshot({
+        isPackaged: app.isPackaged,
+        userData: app.getPath('userData'),
+        expectedUserData: shellUserDataPath ?? '',
+        executeJavaScript: (script) => auditWindow.webContents.executeJavaScript(script, true),
+        capturePage: () => auditWindow.webContents.capturePage(),
+      })
+    },
+    shutdown: () => setImmediate(() => app.quit()),
+  })
+    .then((server) => {
+      packageAuditServer = server
+    })
+    .catch(() => {
+      console.error('package_audit_server_failed')
+      app.quit()
+    })
+}
 
 /**
  * When the user creates a file from a specific project view, remember which
@@ -1182,6 +1242,286 @@ let tabManager: TabManager | null = null
  * Consumed by each app's saveHook once the file first hits disk (P1 item 3).
  */
 const pendingNewFileProject = new Map<string, string>()
+
+const documentBindingStore = new DocumentBindingStore({
+  rootDirectory: AGENT_RESOURCE_HOME,
+  platform: process.platform,
+})
+const documentSessionIndexStore = new DocumentSessionIndexStore({
+  rootDirectory: AGENT_RESOURCE_HOME,
+  platform: process.platform,
+})
+
+function agentDocumentType(kind: Exclude<TabKind, 'home'>): {
+  format: DocumentFormat
+  pendingProjectKey?: string
+} {
+  switch (kind) {
+    case 'docs':
+      return { format: 'docx', pendingProjectKey: 'doc' }
+    case 'sheets':
+      return { format: 'xlsx', pendingProjectKey: 'sheet' }
+    case 'slides':
+      return { format: 'pptx', pendingProjectKey: 'slide' }
+    case 'pdf':
+      return { format: 'pdf' }
+  }
+}
+
+const tabDocumentBindings = {
+  async open(kind: Exclude<TabKind, 'home'>, filePath?: string) {
+    const { format, pendingProjectKey } = agentDocumentType(kind)
+    const pendingProjectId = pendingProjectKey
+      ? pendingNewFileProject.get(pendingProjectKey)
+      : undefined
+    const projectId =
+      pendingProjectId ??
+      (filePath
+        ? new ProjectStore(app.getPath('userData')).resolveProjectForFile(filePath)
+        : 'default')
+    return filePath
+      ? documentBindingStore.openOrCreate({ projectId, format, canonicalPath: filePath })
+      : documentBindingStore.createUnsaved({ projectId, format })
+  },
+  bindPath(documentId: string, filePath: string) {
+    return documentBindingStore.bindPath(documentId, filePath, 'in_app')
+  },
+}
+
+const agentSessionBroker = new AgentSessionBroker(piRuntimeService, {
+  authorize: (webContentsId, documentId) =>
+    tabManager?.authorizeAgentDocument(webContentsId, documentId) ?? false,
+  randomUUID,
+  rollbackRun: (documentId, runId) => {
+    if (tabManager?.agentWebContentsFor(documentId, 'docs')) {
+      return docsOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)
+    }
+    if (tabManager?.agentWebContentsFor(documentId, 'sheets')) {
+      return sheetsOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)
+    }
+    if (tabManager?.agentWebContentsFor(documentId, 'slides')) {
+      return slidesOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)
+    }
+    return pdfOfficeToolHost.current?.rollback(documentId, runId) ?? Promise.resolve(false)
+  },
+  resolveOfficeToolCatalog: (webContentsId) =>
+    tabManager?.agentDocumentKindFor(webContentsId) === 'pdf'
+      ? PDF_OFFICE_TOOL_CATALOG_BINDING
+      : tabManager?.agentDocumentKindFor(webContentsId) === 'docs'
+        ? DOCS_OFFICE_TOOL_CATALOG_BINDING
+        : tabManager?.agentDocumentKindFor(webContentsId) === 'sheets'
+          ? SHEETS_OFFICE_TOOL_CATALOG_BINDING
+          : undefined,
+  resolveProjectRoot: async (documentId) => {
+    const binding = await documentBindingStore.get(documentId)
+    return binding.state === 'bound' && binding.canonicalPath
+      ? findCanonicalProjectRoot(binding.canonicalPath)
+      : undefined
+  },
+  validateArtifacts: (_webContentsId, documentId, artifacts) =>
+    artifacts.every((artifact) => {
+      const authorized =
+        authorizedTextArtifacts.get(artifact.artifactId) ??
+        authorizedMediaArtifacts.get(artifact.artifactId)
+      return (
+        authorized?.documentId === documentId &&
+        JSON.stringify(authorized.artifact) === JSON.stringify(artifact)
+      )
+    }),
+  currentSessions: {
+    resolveCurrent: async (documentId, create) =>
+      (await documentSessionIndexStore.resolveCurrent(documentId, create)).currentSessionId,
+    assertCurrent: (documentId, sessionId) =>
+      documentSessionIndexStore.assertCurrent(documentId, sessionId),
+    advanceCurrent: (documentId, expectedSessionId, sessionId) =>
+      documentSessionIndexStore.advanceCurrent(documentId, expectedSessionId, sessionId),
+  },
+})
+
+function registerAgentArtifactIpc(): void {
+  ipcMain.handle(DOCS_AGENT_ARTIFACT_CHANNELS.pickText, async (event) => {
+    const documentId = tabManager ? await tabManager.agentDocumentIdFor(event.sender.id) : undefined
+    if (
+      !documentId ||
+      tabManager?.agentDocumentKindFor(event.sender.id) !== 'docs' ||
+      !tabManager.authorizeAgentDocument(event.sender.id, documentId)
+    ) {
+      throw new Error('document_access_denied')
+    }
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? shellWindow ?? undefined
+    const picked = await showOpenDialogWithMemory(dialog, owner, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择文本附件'
+          : 'Select text attachment',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Text', extensions: ['txt', 'md', 'markdown', 'csv', 'json', 'html', 'htm'] },
+      ],
+    })
+    const path = picked.canceled ? undefined : picked.filePaths[0]
+    if (!path) return null
+    const artifact = await importDocsTextArtifact({
+      path,
+      documentId,
+      artifactStore: scopedArtifactStore,
+      randomUUID,
+    })
+    authorizedTextArtifacts.set(artifact.artifactId, { documentId, artifact })
+    return artifact
+  })
+  ipcMain.handle(SLIDES_AGENT_MEDIA_CHANNELS.pick, async (event) => {
+    const documentId = tabManager ? await tabManager.agentDocumentIdFor(event.sender.id) : undefined
+    if (
+      !documentId ||
+      tabManager?.agentDocumentKindFor(event.sender.id) !== 'slides' ||
+      !tabManager.authorizeAgentDocument(event.sender.id, documentId)
+    ) {
+      throw new Error('document_access_denied')
+    }
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? shellWindow ?? undefined
+    const picked = await showOpenDialogWithMemory(dialog, owner, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择音频或视频附件'
+          : 'Select audio or video attachment',
+      properties: ['openFile'],
+      filters: [{ name: 'Media', extensions: ['wav', 'mp4'] }],
+    })
+    const path = picked.canceled ? undefined : picked.filePaths[0]
+    if (!path) return null
+    const artifact = await importMediaArtifact({
+      path,
+      documentId,
+      artifactStore: scopedArtifactStore,
+      randomUUID,
+    })
+    authorizedMediaArtifacts.set(artifact.artifactId, { documentId, artifact })
+    return artifact
+  })
+  ipcMain.handle(SLIDES_AGENT_MEDIA_CHANNELS.openModelSettings, async (event) => {
+    const documentId = tabManager ? await tabManager.agentDocumentIdFor(event.sender.id) : undefined
+    if (
+      !documentId ||
+      tabManager?.agentDocumentKindFor(event.sender.id) !== 'slides' ||
+      !tabManager.authorizeAgentDocument(event.sender.id, documentId)
+    ) {
+      throw new Error('document_access_denied')
+    }
+    tabManager.activateTab('home')
+  })
+}
+
+const pdfToolIds = new Set(PDF_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
+pdfOfficeToolHost.current = new PdfOfficeToolHost({
+  resolveRenderer: (documentId) => {
+    const contents = tabManager?.agentWebContentsFor(documentId, 'pdf')
+    return contents ? pdfOfficeToolRendererClient(contents.id) : undefined
+  },
+  validateBinding: async (request) => {
+    const contents = tabManager?.agentWebContentsFor(request.documentId, 'pdf')
+    return contents
+      ? (tabManager?.authorizeAgentDocument(contents.id, request.documentId) ?? false)
+      : false
+  },
+  validatePermissionSnapshot: async (request) =>
+    request.permissionSnapshot.toolIds.every((toolId) => pdfToolIds.has(toolId)) &&
+    (request.permissionSnapshot.toolIds.length > 0 ||
+      (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
+  authorizeMutationGrant: async (request) =>
+    request.actor.type === 'subagent' &&
+    request.mutationGrantId !== undefined &&
+    agentSessionBroker.authorizeMutationGrant({
+      grantId: request.mutationGrantId,
+      subagentRunId: request.actor.subagentRunId,
+      documentId: request.documentId,
+      toolId: request.toolId,
+    }),
+})
+
+const docsToolIds = new Set(DOCS_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
+docsOfficeToolHost.current = new DocsOfficeToolHost({
+  resolveRenderer: (documentId) => {
+    const contents = tabManager?.agentWebContentsFor(documentId, 'docs')
+    return contents ? docsOfficeToolRendererClient(contents.id) : undefined
+  },
+  validateBinding: async (request) => {
+    const contents = tabManager?.agentWebContentsFor(request.documentId, 'docs')
+    return contents
+      ? (tabManager?.authorizeAgentDocument(contents.id, request.documentId) ?? false)
+      : false
+  },
+  validatePermissionSnapshot: async (request) =>
+    request.permissionSnapshot.toolIds.every((toolId) => docsToolIds.has(toolId)) &&
+    (request.permissionSnapshot.toolIds.length > 0 ||
+      (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
+  authorizeMutationGrant: async (request) =>
+    request.actor.type === 'subagent' &&
+    request.mutationGrantId !== undefined &&
+    agentSessionBroker.authorizeMutationGrant({
+      grantId: request.mutationGrantId,
+      subagentRunId: request.actor.subagentRunId,
+      documentId: request.documentId,
+      toolId: request.toolId,
+    }),
+  openImage: (input) => scopedArtifactStore.openImage(input),
+})
+
+const sheetsToolIds = new Set(SHEETS_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
+sheetsOfficeToolHost.current = new SheetsOfficeToolHost({
+  resolveRenderer: (documentId) => {
+    const contents = tabManager?.agentWebContentsFor(documentId, 'sheets')
+    return contents ? sheetsOfficeToolRendererClient(contents.id) : undefined
+  },
+  validateBinding: async (request) => {
+    const contents = tabManager?.agentWebContentsFor(request.documentId, 'sheets')
+    return contents
+      ? (tabManager?.authorizeAgentDocument(contents.id, request.documentId) ?? false)
+      : false
+  },
+  validatePermissionSnapshot: async (request) =>
+    request.permissionSnapshot.toolIds.every((toolId) => sheetsToolIds.has(toolId)) &&
+    (request.permissionSnapshot.toolIds.length > 0 ||
+      (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
+  authorizeMutationGrant: async (request) =>
+    request.actor.type === 'subagent' &&
+    request.mutationGrantId !== undefined &&
+    agentSessionBroker.authorizeMutationGrant({
+      grantId: request.mutationGrantId,
+      subagentRunId: request.actor.subagentRunId,
+      documentId: request.documentId,
+      toolId: request.toolId,
+    }),
+  openImage: (input) => scopedArtifactStore.openImage(input),
+})
+
+const slidesToolIds = new Set(SLIDES_OFFICE_TOOL_CATALOG_BINDING.descriptors.map(({ id }) => id))
+slidesOfficeToolHost.current = new SlidesOfficeToolHost({
+  resolveRenderer: (documentId) => {
+    const contents = tabManager?.agentWebContentsFor(documentId, 'slides')
+    return contents ? slidesOfficeToolRendererClient(contents.id) : undefined
+  },
+  validateBinding: async (request) => {
+    const contents = tabManager?.agentWebContentsFor(request.documentId, 'slides')
+    return contents
+      ? (tabManager?.authorizeAgentDocument(contents.id, request.documentId) ?? false)
+      : false
+  },
+  validatePermissionSnapshot: async (request) =>
+    request.permissionSnapshot.toolIds.every((toolId) => slidesToolIds.has(toolId)) &&
+    (request.permissionSnapshot.toolIds.length > 0 ||
+      (request.actor.type === 'subagent' && request.mutationGrantId !== undefined)),
+  authorizeMutationGrant: async (request) =>
+    request.actor.type === 'subagent' &&
+    request.mutationGrantId !== undefined &&
+    agentSessionBroker.authorizeMutationGrant({
+      grantId: request.mutationGrantId,
+      subagentRunId: request.actor.subagentRunId,
+      documentId: request.documentId,
+      toolId: request.toolId,
+    }),
+  openImage: (input) => scopedArtifactStore.openImage(input),
+})
 
 /**
  * P1: after a file first hits disk, if a pending project was set earlier via
@@ -1260,6 +1600,8 @@ function createShellWindow(): void {
         : kind === 'slides'
           ? tm('untitledDeck')
           : tm('untitledSheet'),
+    (webContentsId) => agentSessionBroker.disconnect(webContentsId),
+    tabDocumentBindings,
   )
   tabManager = manager
 
@@ -1283,13 +1625,13 @@ function createShellWindow(): void {
   setSlidesCloseTabHook(() => manager.closeActiveTab())
   // When ⌘O opens a file inside a tab, sync the tab title/path (used for de-dup by path) and record it as recent.
   // The first save / save-as fires this too, so applyPendingProject also runs here.
-  setSheetsWorkbookOpenedHook((wc, path) => {
-    manager.setTabFileFor(wc.id, path)
+  setSheetsWorkbookOpenedHook((wc, path, transition) => {
+    manager.setTabFileFor(wc.id, path, transition)
     recordRecentFile(path)
     applyPendingProject(path)
   })
-  setSlidesOpenedHook((wc, path) => {
-    manager.setTabFileFor(wc.id, path)
+  setSlidesOpenedHook((wc, path, transition) => {
+    manager.setTabFileFor(wc.id, path, transition)
     recordRecentFile(path)
     applyPendingProject(path)
   })
@@ -1520,51 +1862,6 @@ function statEntries(paths: string[]): RecentEntry[] {
 }
 
 function registerHomeIpc(): void {
-  // signed-in means GenOffice's own device-code login; the shared gsk CLI key
-  // is only a silent fallback, deliberately not shown here to nudge users onto our key
-  ipcMain.handle(HOME_CHANNELS.accountStatus, async () => {
-    if (!loadGenofficeAuth()) return { loggedIn: false }
-    await proxyBootstrap
-    const info = await gskLoginInfo()
-    return info ? { loggedIn: true, email: info.email } : { loggedIn: true }
-  })
-
-  // login progress is streamed to the requesting renderer; the auth URL is
-  // kept main-side so the "open manually" rescue never opens a renderer-supplied URL
-  let pendingLoginUrl = ''
-  ipcMain.handle(HOME_CHANNELS.accountLogin, async (event) => {
-    const sender = event.sender
-    pendingLoginUrl = ''
-    await proxyBootstrap
-    const send = (payload: AccountLoginEvent) => {
-      if (!sender.isDestroyed()) sender.send(HOME_CHANNELS.accountLoginEvent, payload)
-    }
-    // open the browser on the first url event only; later events refresh the rescue URL
-    let opened = false
-    const launched = startGenofficeLogin((progress) => {
-      if (progress.url) {
-        pendingLoginUrl = progress.url
-        if (!opened) {
-          opened = true
-          void shell.openExternal(progress.url)
-        }
-      }
-      send(progress)
-    })
-    if (launched) send({ phase: 'launched' })
-    return launched
-  })
-
-  ipcMain.handle(HOME_CHANNELS.accountLoginOpenUrl, () => {
-    if (pendingLoginUrl) void shell.openExternal(pendingLoginUrl)
-  })
-
-  ipcMain.handle(HOME_CHANNELS.accountLogout, async () => {
-    await genofficeLogout()
-    // the cloud projects cache belongs to the account that just signed out
-    clearCloudProjectsStore(cloudProjectsStorePath())
-  })
-
   ipcMain.handle(HOME_CHANNELS.getAppVersion, (): string => app.getVersion())
 
   ipcMain.handle(HOME_CHANNELS.recents, (_event, query: unknown): RecentPage =>
@@ -1736,25 +2033,6 @@ function registerHomeIpc(): void {
 
   ipcMain.handle(HOME_CHANNELS.setOnboardingSeen, () => {
     writeAppSetting(APP_SETTINGS_PATH(), 'onboardingSeen', true)
-  })
-
-  ipcMain.handle(HOME_CHANNELS.openGenTeam, () => {
-    shell.openExternal(GENTEAM_URL).catch(() => {
-      // no browser handler available; nothing actionable for the user here
-    })
-  })
-
-  const cloudProjectsStorePath = () => join(app.getPath('userData'), 'cloud-projects.json')
-
-  ipcMain.handle(HOME_CHANNELS.cloudProjectsCached, () =>
-    readCloudProjectsStore(cloudProjectsStorePath()),
-  )
-
-  ipcMain.handle(HOME_CHANNELS.cloudProjects, () => syncCloudProjects(cloudProjectsStorePath()))
-
-  ipcMain.handle(HOME_CHANNELS.openCloudProject, (_event, projectUrl: unknown) => {
-    const url = cloudProjectExternalUrl(projectUrl)
-    if (url) void shell.openExternal(url)
   })
 }
 
@@ -2008,64 +2286,68 @@ async function savePdfAs(): Promise<void> {
 
 /**
  * In-flight guard: covers the whole flow (dialogs included, conversion takes
- * ~10s+) so re-triggering from the menu can never start a second paid conversion
+ * ~10s+) so re-triggering from the menu can never start a second conversion
  */
 let exportingPdfDocx = false
+let activePdfOcrOperationId: string | undefined
 
 /**
- * Export as Word for pdf tabs: flush pending edits, confirm the 5-credit cost,
- * pick the destination, then upload + cloud-convert via gsk file_convert. Not
- * logged in → offer browser login and let the user re-trigger the export
- * afterwards. The destination is picked before converting so cancelling the
- * save dialog never wastes a paid conversion.
+ * Export as Word for PDF tabs through the explicitly enabled MinerU provider.
+ * The destination is selected before one PDF is uploaded as one VLM batch.
  */
 async function exportPdfAsDocx(): Promise<void> {
   const tab = tabManager?.activePdfTab()
   if (!tab?.filePath || !shellWindow) return
   if (exportingPdfDocx) {
-    // Re-triggered while a previous export (dialogs or cloud conversion) is
-    // still in flight: tell the user instead of silently ignoring the click.
-    void dialog.showMessageBox(shellWindow, {
-      type: 'info',
+    const activeOperationId = activePdfOcrOperationId
+    const response = await dialog.showMessageBox(shellWindow, {
+      type: activeOperationId ? 'warning' : 'info',
       message: tm('pdfDocxBusyMsg'),
+      detail: activeOperationId
+        ? currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '停止本地等待与下载后，MinerU 远端任务仍可能继续运行。'
+          : 'Stopping local polling and download may not stop the remote MinerU operation.'
+        : undefined,
+      buttons: activeOperationId
+        ? [
+            currentLang() === 'zh' || currentLang() === 'zh-TW' ? '停止本地任务' : 'Stop locally',
+            tm('btnCancel'),
+          ]
+        : [tm('btnCancel')],
+      cancelId: activeOperationId ? 1 : 0,
+      defaultId: activeOperationId ? 1 : 0,
+      noLink: true,
     })
+    if (activeOperationId && response.response === 0) {
+      await mineruOcrService.cancel(activeOperationId).catch(() => undefined)
+    }
     return
   }
   exportingPdfDocx = true
   try {
-    if (!(await flushPdfSave(tab.webContents))) return
-    if (!hasGskAuth()) {
-      // hasGskAuth() is also false when the gsk CLI itself cannot be resolved
-      // (broken install); Sign In could not launch in that case, so surface
-      // the real problem instead of a login dialog that cannot succeed.
-      if (!resolveGskEntry()) {
-        void dialog.showMessageBox(shellWindow, {
-          type: 'error',
-          message: tm('pdfDocxNoCliMsg'),
-        })
-        return
-      }
-      const { response } = await dialog.showMessageBox(shellWindow, {
+    const provider = await mineruOcrService.status()
+    if (!provider.enabled || provider.credential !== 'available') {
+      await dialog.showMessageBox(shellWindow, {
         type: 'info',
-        message: tm('pdfDocxLoginMsg'),
-        detail: tm('pdfDocxLoginDetail'),
-        buttons: [tm('pdfDocxBtnLogin'), tm('btnCancel')],
-        defaultId: 0,
-        cancelId: 1,
-        noLink: true,
+        message:
+          currentLang() === 'zh' || currentLang() === 'zh-TW'
+            ? '请先在首页账户菜单的“PDF 转 Word”中阅读上传说明并启用 MinerU。'
+            : 'Open PDF to Word from the Home account menu, review the upload disclosure, and enable MinerU first.',
+        buttons: [tm('btnCancel')],
       })
-      if (response === 0) ensureGenofficeLogin((url) => void shell.openExternal(url))
       return
     }
-    const balance = (await gskLoginInfo())?.creditBalance
-    const balanceLine =
-      balance === undefined
-        ? ''
-        : ` ${tm('pdfDocxConfirmBalance', { balance: Math.floor(balance).toLocaleString('en-US') })}`
+    if (!(await flushPdfSave(tab.webContents))) return
     const confirm = await dialog.showMessageBox(shellWindow, {
       type: 'question',
-      message: tm('pdfDocxConfirmMsg'),
-      detail: `${tm('pdfDocxConfirmDetail')}${balanceLine}`,
+      message:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '将当前 PDF 上传到 MinerU 云端并转换为 Word？'
+          : 'Upload the current PDF to MinerU and convert it to Word?',
+      detail:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '本次只提交这一个 PDF，使用 VLM 并请求 DOCX；不会切换到其他转换服务。'
+          : 'This submits exactly one PDF, uses VLM, requests DOCX, and never falls back to another conversion service.',
       buttons: [tm('pdfDocxBtnConvert'), tm('btnCancel')],
       defaultId: 0,
       cancelId: 1,
@@ -2080,7 +2362,7 @@ async function exportPdfAsDocx(): Promise<void> {
     // If the destination is already open in a docs tab, close it first (its
     // normal unsaved-changes guard applies) so the converted file opens fresh
     // instead of leaving a stale tab whose next save would clobber the result.
-    // Cancelling the close aborts the export before any credits are spent.
+    // Cancelling the close aborts the export before the PDF is uploaded.
     const staleTabId = tabManager?.findDocsTabByPath(picked.filePath)
     if (staleTabId) {
       await tabManager?.closeTab(staleTabId)
@@ -2091,20 +2373,74 @@ async function exportPdfAsDocx(): Promise<void> {
       if (tabManager?.findDocsTabByPath(picked.filePath)) return
     }
     shellWindow.setProgressBar(2)
-    const bytes = await gskConvertPdfToDocx(tab.filePath)
-    writeFileSync(picked.filePath, bytes)
-    openDocumentPath(picked.filePath)
+    const operationId = randomUUID()
+    activePdfOcrOperationId = operationId
+    const documentId = await tabManager!.agentDocumentIdFor(tab.webContents.id)
+    await mineruOcrService.convert({
+      operationId,
+      documentId,
+      sourcePath: tab.filePath,
+    })
+    await mineruOcrService.exportArtifact(operationId, picked.filePath)
+    recordRecentFile(picked.filePath)
+    tabManager?.openDocsBesidePdf(tab.id, picked.filePath)
+    await dialog.showMessageBox(shellWindow, {
+      type: 'info',
+      message:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? 'DOCX 已生成，并与原 PDF 并排打开。'
+          : 'The DOCX is ready and opened beside the original PDF.',
+      detail:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '保真边界：转换优先保留可编辑正文和阅读顺序，不保证结构化公式、原始栏布局、页数、字体、图内可搜索文字、扫描底图或逐像素版式。请与原 PDF 并排对照。'
+          : 'Fidelity boundary: conversion prioritizes editable body text and reading order. It does not guarantee structured equations, original column layout, page count, fonts, searchable text inside images, scanned page backgrounds, or pixel-identical layout. Compare the DOCX side by side with the original PDF.',
+      buttons: [currentLang() === 'zh' || currentLang() === 'zh-TW' ? '知道了' : 'OK'],
+    })
   } catch (err) {
     if (shellWindow && !shellWindow.isDestroyed()) {
       void dialog.showMessageBox(shellWindow, {
         type: 'error',
         message: tm('pdfDocxFailedMsg'),
-        detail: err instanceof Error ? err.message : String(err),
+        detail: err instanceof MineruOcrServiceError ? err.code : 'mineru_operation_failed',
       })
     }
   } finally {
     exportingPdfDocx = false
+    activePdfOcrOperationId = undefined
     if (shellWindow && !shellWindow.isDestroyed()) shellWindow.setProgressBar(-1)
+  }
+}
+
+async function recoverMineruOcrOperations(): Promise<void> {
+  const recovered = await mineruOcrService.recoverPending()
+  for (const result of recovered) {
+    if (!shellWindow || shellWindow.isDestroyed()) return
+    const choice = await dialog.showMessageBox(shellWindow, {
+      type: 'info',
+      message:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '上次中断的 MinerU 转换已经完成。'
+          : 'A MinerU conversion interrupted by the previous app session has completed.',
+      detail:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '恢复过程只继续轮询和下载原任务，没有重新提交 PDF。转换优先保留可编辑正文和阅读顺序，不保证结构化公式、原始栏布局、页数、字体、图内可搜索文字、扫描底图或逐像素版式。'
+          : 'Recovery only polled and downloaded the original operation; it did not resubmit the PDF. Conversion prioritizes editable body text and reading order, without guaranteeing structured equations, original column layout, page count, fonts, searchable text inside images, scanned page backgrounds, or pixel-identical layout.',
+      buttons: [
+        currentLang() === 'zh' || currentLang() === 'zh-TW' ? '另存为…' : 'Save As…',
+        tm('btnCancel'),
+      ],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    })
+    if (choice.response !== 0) continue
+    const picked = await showSaveDialogWithMemory(dialog, shellWindow, {
+      defaultPath: `MinerU-${result.operation.operationId.slice(0, 8)}.docx`,
+      filters: [{ name: tm('filterWord'), extensions: ['docx'] }],
+    })
+    if (picked.canceled || !picked.filePath) continue
+    await mineruOcrService.exportArtifact(result.operation.operationId, picked.filePath)
+    openDocumentPath(picked.filePath)
   }
 }
 
@@ -2150,7 +2486,6 @@ function installDockMenu(): void {
 // Prefer proxy env vars (terminal launch); a packaged app launched from Finder inherits no shell
 // env vars, so fall back to the system HTTP proxy. The renderer uses Chromium's system proxy and
 // is unaffected. Same bootstrap as slides-main startSlidesStandalone.
-// awaited by login IPC so the first status probe / login click cannot race the proxy resolution
 let proxyBootstrap: Promise<void> = Promise.resolve()
 
 async function installMainProcessProxy(): Promise<void> {
@@ -2164,9 +2499,9 @@ async function installMainProcessProxy(): Promise<void> {
   ].find((v) => v && /^https?:\/\//.test(v))
   if (!proxyUrl) {
     try {
-      // PAC/rule proxies answer per-host: probe the host the login flow, the
-      // Genspark LLM proxy and the gsk CLI actually target
-      const resolved = await session.defaultSession.resolveProxy('https://www.genspark.ai/')
+      // PAC/rule proxies answer per host; use a neutral HTTPS endpoint to
+      // discover the route used by configurable model providers.
+      const resolved = await session.defaultSession.resolveProxy('https://example.com/')
       const m = /PROXY\s+([^;\s]+)/.exec(resolved)
       if (m) proxyUrl = `http://${m[1]}`
     } catch {
@@ -2174,9 +2509,6 @@ async function installMainProcessProxy(): Promise<void> {
     }
   }
   if (!proxyUrl) return
-  // spawned gsk CLI children (login/search/…) do their own fetch and never see
-  // the dispatcher below — forward the proxy to them via env
-  setGskProxyUrl(proxyUrl)
   try {
     const { ProxyAgent, setGlobalDispatcher } = await import('undici')
     setGlobalDispatcher(new ProxyAgent(proxyUrl))
@@ -2225,11 +2557,67 @@ app.on('second-instance', (_event, argv, _cwd, additionalData) => {
 
 installNavigationGuard(app)
 installContextMenu(app, () => contextMenuLabels(currentLang()))
-registerAiIpc()
 registerProjectIpc()
 registerDocsIpc()
+registerAgentArtifactIpc()
 registerHomeIpc()
 registerTabsIpc()
+const disposeAgentSessionIpc = installAgentSessionIpc(ipcMain, agentSessionBroker, {
+  documentIdFor: (webContentsId) => {
+    if (!tabManager) throw new Error('document_binding_not_found')
+    return tabManager.agentDocumentIdFor(webContentsId)
+  },
+})
+ipcMain.handle(PI_RUNTIME_CHANNELS.health, () =>
+  legacyCleanupStartup.projectHealth(piRuntimeService.health()),
+)
+installProviderCredentialIpc(ipcMain, piRuntimeService, () =>
+  shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null,
+)
+installMineruOcrIpc(ipcMain, mineruOcrService, () =>
+  shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null,
+)
+const mcpOAuthLoopback = new McpOAuthLoopback({
+  service: piRuntimeService,
+  openAuthorizationUrl: async (url) => {
+    const safeUrl = safeExternalUrl(url)
+    if (!safeUrl) throw new Error('mcp_oauth_url_invalid')
+    await shell.openExternal(safeUrl)
+  },
+})
+installModelManagementIpc(
+  ipcMain,
+  piRuntimeService,
+  () => (shellWindow && !shellWindow.isDestroyed() ? shellWindow.webContents : null),
+  async (url) => {
+    const safeUrl = safeExternalUrl(url, { allowedProtocols: ['https:'] })
+    if (!safeUrl) throw new Error('oauth_url_invalid')
+    await shell.openExternal(safeUrl)
+  },
+  async () => {
+    const win = shellWindow ?? BrowserWindow.getFocusedWindow()
+    const result = await showOpenDialogWithMemory(dialog, win, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择 Agent 项目'
+          : 'Select Agent project',
+      properties: ['openDirectory'],
+    })
+    return result.canceled ? undefined : result.filePaths[0]
+  },
+  async () => {
+    const win = shellWindow ?? BrowserWindow.getFocusedWindow()
+    const result = await showOpenDialogWithMemory(dialog, win, {
+      title:
+        currentLang() === 'zh' || currentLang() === 'zh-TW'
+          ? '选择 Pi Package 目录'
+          : 'Select Pi Package directory',
+      properties: ['openDirectory'],
+    })
+    return result.canceled ? undefined : result.filePaths[0]
+  },
+  mcpOAuthLoopback,
+)
 
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here
 setSessionPathResolver(resolveSheetsSessionPath)
@@ -2243,6 +2631,13 @@ app.whenReady().then(() => {
     return
   }
 
+  if (packageNetworkAuditConfig) {
+    installChromiumPackageNetworkAudit(
+      session.defaultSession.webRequest,
+      packageNetworkAuditConfig.reportPath,
+      packageNetworkAuditConfig.surface,
+    )
+  }
   proxyBootstrap = installMainProcessProxy()
   app.setAccessibilitySupportEnabled(true)
   // Settle the shared uiLang from saved settings BEFORE any tab renderer can
@@ -2250,8 +2645,10 @@ app.whenReady().then(() => {
   // mutable lang, whose 'zh' default otherwise wins the race for whichever
   // tab loads first (e.g. sheets booting in Chinese while docs shows English).
   currentLang()
+  void piRuntimeService.initialize()
   startSheetsCaptureServer()
   createShellWindow()
+  void proxyBootstrap.then(() => recoverMineruOcrOperations()).catch(() => undefined)
   // deferred to ready: labels need currentLang(), which reads app.getLocale()
   installBackToHomeItems()
   installDockMenu()
@@ -2269,8 +2666,24 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+let piRuntimeShutdownStarted = false
+
+app.on('before-quit', (event) => {
+  if (packageAuditServer) {
+    const server = packageAuditServer
+    packageAuditServer = undefined
+    void server.close()
+  }
   // No close prompt may fall through to "Save" during shutdown
   markSheetsShuttingDown()
   stopSheetsSidecar()
+  if (!piRuntimeShutdownStarted && piRuntimeService.health().state !== 'stopped') {
+    piRuntimeShutdownStarted = true
+    event.preventDefault()
+    void mcpOAuthLoopback
+      .shutdown()
+      .then(() => disposeAgentSessionIpc())
+      .then(() => piRuntimeService.shutdown())
+      .finally(() => app.quit())
+  }
 })

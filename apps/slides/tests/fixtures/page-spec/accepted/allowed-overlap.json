@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "title": "合法叠放",
+  "canvas": { "widthPx": 1280, "heightPx": 720 },
+  "background": { "color": "#FFFFFF" },
+  "elements": [
+    {
+      "id": "card",
+      "kind": "shape",
+      "shape": "rect",
+      "x": 120,
+      "y": 120,
+      "w": 640,
+      "h": 320,
+      "fill": "#102A43",
+      "allowOverlapWith": ["label"]
+    },
+    {
+      "id": "label",
+      "kind": "text",
+      "x": 180,
+      "y": 180,
+      "w": 480,
+      "h": 90,
+      "text": "明确允许的叠放",
+      "fontSizePt": 28,
+      "color": "#FFFFFF",
+      "allowOverlapWith": ["card"]
+    }
+  ]
+}

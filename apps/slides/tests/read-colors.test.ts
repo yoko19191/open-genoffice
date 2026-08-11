@@ -11,7 +11,7 @@ import type {
   PlacedBox,
 } from '@genoffice/pptx-render'
 import { runLayoutScript, type LayoutScriptElement } from '../src/renderer/ai/layout-script'
-import { createSlidesSkill, type DeckAccess } from '../src/renderer/ai/slides-skill'
+import { createSlidesSkill, type DeckAccess } from './helpers/slides-native-harness'
 
 const box = (x: number, y: number, w: number, h: number): PlacedBox => ({
   x,

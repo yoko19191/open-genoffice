@@ -1,0 +1,818 @@
+import { Type, type TObject } from '@sinclair/typebox'
+import { Value } from '@sinclair/typebox/value'
+import catalog from '../fixtures/office-tool-catalog-baseline.json' with { type: 'json' }
+import {
+  SheetsWorkbookOperationSchema,
+  parseSheetsWorkbookOperation,
+  sheetsWorkbookOperationsInput,
+} from './sheets-workbook-schema'
+import { SLIDES_OFFICE_TOOL_SCHEMAS, type SlidesOfficeToolAlias } from './slides-office-tool-schema'
+import {
+  parseSlidePageCommitInput,
+  parseSlidePageSpec,
+  type SlidePageCommitInput,
+  type SlidePageElement,
+  type SlidePageSpec,
+} from './slide-page-spec-schema'
+
+type OfficeToolCatalogBinding = {
+  app: 'docs' | 'pdf' | 'sheets' | 'slides'
+  catalogHash: string
+  descriptors: Array<{
+    id: string
+    modelAlias: string
+    effect: 'read' | 'mutation' | 'external'
+  }>
+}
+
+export type OfficeToolDefinition = OfficeToolCatalogBinding['descriptors'][number] & {
+  label: string
+  description: string
+  parameters: TObject
+}
+
+function definition(
+  app: 'docs' | 'pdf' | 'sheets' | 'slides',
+  modelAlias: string,
+  effect: 'read' | 'mutation' | 'external',
+  description: string,
+  parameters: TObject,
+): OfficeToolDefinition {
+  return {
+    id: `office:${app}:${modelAlias}`,
+    modelAlias,
+    effect,
+    label: modelAlias.replaceAll('_', ' '),
+    description,
+    parameters,
+  }
+}
+
+function pdfDefinition(
+  modelAlias: string,
+  effect: 'read' | 'mutation' | 'external',
+  description: string,
+  parameters: TObject,
+): OfficeToolDefinition {
+  return definition('pdf', modelAlias, effect, description, parameters)
+}
+
+function docsDefinition(
+  modelAlias: string,
+  effect: 'read' | 'mutation',
+  description: string,
+  parameters: TObject,
+): OfficeToolDefinition {
+  return definition('docs', modelAlias, effect, description, parameters)
+}
+
+function sheetsDefinition(
+  modelAlias: string,
+  effect: 'read' | 'mutation',
+  description: string,
+  parameters: TObject,
+): OfficeToolDefinition {
+  return definition('sheets', modelAlias, effect, description, parameters)
+}
+
+function slidesDefinition(
+  modelAlias: SlidesOfficeToolAlias,
+  effect: 'read' | 'mutation',
+  description: string,
+): OfficeToolDefinition {
+  return definition(
+    'slides',
+    modelAlias,
+    effect,
+    description,
+    SLIDES_OFFICE_TOOL_SCHEMAS[modelAlias],
+  )
+}
+
+const emptyInput = () => Type.Object({}, { additionalProperties: false })
+const pageInput = () =>
+  Type.Object({ page: Type.Integer({ minimum: 1 }) }, { additionalProperties: false })
+
+export const PDF_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
+  pdfDefinition(
+    'read_pages',
+    'read',
+    'Read text from at most ten original PDF pages. Read relevant pages before answering.',
+    Type.Object(
+      {
+        start: Type.Integer({ minimum: 1 }),
+        end: Type.Optional(Type.Integer({ minimum: 1 })),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  pdfDefinition(
+    'search_text',
+    'read',
+    'Search local PDF text and return at most forty page-numbered excerpts.',
+    Type.Object(
+      { query: Type.String({ minLength: 1, maxLength: 4_096 }) },
+      { additionalProperties: false },
+    ),
+  ),
+  pdfDefinition(
+    'goto_page',
+    'external',
+    'Scroll the user view to an original PDF page.',
+    pageInput(),
+  ),
+  pdfDefinition(
+    'markup_text',
+    'mutation',
+    'Mark an exact text occurrence on an original PDF page.',
+    Type.Object(
+      {
+        page: Type.Integer({ minimum: 1 }),
+        text: Type.String({ minLength: 1, maxLength: 24_000 }),
+        type: Type.Union([
+          Type.Literal('highlight'),
+          Type.Literal('underline'),
+          Type.Literal('strikeout'),
+        ]),
+        all: Type.Optional(Type.Boolean()),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  pdfDefinition(
+    'list_form_fields',
+    'read',
+    'List PDF form fields, options and current unsaved values.',
+    emptyInput(),
+  ),
+  pdfDefinition(
+    'fill_form_field',
+    'mutation',
+    'Fill a PDF form field after reading the current field inventory.',
+    Type.Object(
+      {
+        name: Type.String({ minLength: 1, maxLength: 1_024 }),
+        value: Type.Optional(Type.String({ maxLength: 24_000 })),
+        checked: Type.Optional(Type.Boolean()),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  pdfDefinition(
+    'rotate_page',
+    'mutation',
+    'Rotate an original PDF page by 90 degrees.',
+    Type.Object(
+      {
+        page: Type.Integer({ minimum: 1 }),
+        direction: Type.Union([Type.Literal('left'), Type.Literal('right')]),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  pdfDefinition(
+    'delete_page',
+    'mutation',
+    'Delete an original PDF page while preserving at least one page.',
+    pageInput(),
+  ),
+  pdfDefinition('get_outline', 'read', 'Read the local PDF outline.', emptyInput()),
+]
+
+const uuid = () =>
+  Type.String({
+    pattern:
+      '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  })
+const blockIndex = () => Type.Integer({ minimum: 0, maximum: 1_000_000 })
+const nullable = <T extends ReturnType<typeof Type.String> | ReturnType<typeof Type.Number>>(
+  schema: T,
+) => Type.Union([schema, Type.Null()])
+const literalUnion = <T extends readonly string[]>(values: T) =>
+  Type.Union(values.map((value) => Type.Literal(value)))
+
+const DocsTargetSchema = Type.Intersect([
+  Type.Object(
+    {
+      nodeType: Type.Optional(
+        literalUnion(['docHeading', 'docParagraph', 'docListItem', 'image'] as const),
+      ),
+      headingLevel: Type.Optional(Type.Integer({ minimum: 1, maximum: 6 })),
+      containsText: Type.Optional(Type.String({ minLength: 1, maxLength: 24_000 })),
+      matchCase: Type.Optional(Type.Boolean()),
+      blockIndexes: Type.Optional(
+        Type.Array(blockIndex(), { minItems: 1, maxItems: 1_024, uniqueItems: true }),
+      ),
+      scope: Type.Optional(literalUnion(['selection', 'document'] as const)),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Union([
+    Type.Object({ nodeType: Type.String() }),
+    Type.Object({ headingLevel: Type.Integer() }),
+    Type.Object({ containsText: Type.String() }),
+    Type.Object({ blockIndexes: Type.Array(Type.Integer(), { minItems: 1 }) }),
+    Type.Object({ scope: Type.Literal('selection') }),
+  ]),
+])
+
+const textStyleFields = [
+  'color',
+  'highlight',
+  'sizeHalfPoints',
+  'font',
+  'bold',
+  'italic',
+  'underline',
+  'strike',
+  'baselineOffset',
+  'link',
+] as const
+const paragraphStyleFields = [
+  'align',
+  'lineSpacing',
+  'indentLeft',
+  'indentRight',
+  'indentFirstLine',
+  'spaceBefore',
+  'spaceAfter',
+  'pageBreakBefore',
+  'shadingFill',
+  'borders',
+] as const
+
+const DocsCommandSchema = Type.Union([
+  Type.Object(
+    {
+      updateTextStyle: Type.Object(
+        {
+          target: DocsTargetSchema,
+          style: Type.Object(
+            {
+              color: Type.Optional(nullable(Type.String({ maxLength: 128 }))),
+              highlight: Type.Optional(nullable(Type.String({ maxLength: 128 }))),
+              sizeHalfPoints: Type.Optional(nullable(Type.Number({ minimum: 1, maximum: 2_000 }))),
+              font: Type.Optional(nullable(Type.String({ maxLength: 256 }))),
+              bold: Type.Optional(Type.Boolean()),
+              italic: Type.Optional(Type.Boolean()),
+              underline: Type.Optional(Type.Boolean()),
+              strike: Type.Optional(Type.Boolean()),
+              baselineOffset: Type.Optional(
+                Type.Union([
+                  literalUnion(['SUPERSCRIPT', 'SUBSCRIPT', 'NONE'] as const),
+                  Type.Null(),
+                ]),
+              ),
+              link: Type.Optional(
+                Type.Union([
+                  Type.Object(
+                    { url: Type.String({ minLength: 1, maxLength: 4_096 }) },
+                    { additionalProperties: false },
+                  ),
+                  Type.Null(),
+                ]),
+              ),
+            },
+            { additionalProperties: false, minProperties: 1 },
+          ),
+          fields: Type.Array(literalUnion(textStyleFields), {
+            minItems: 1,
+            maxItems: textStyleFields.length,
+            uniqueItems: true,
+          }),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      updateParagraphStyle: Type.Object(
+        {
+          target: DocsTargetSchema,
+          style: Type.Object(
+            {
+              align: Type.Optional(
+                Type.Union([
+                  literalUnion(['left', 'center', 'right', 'justify'] as const),
+                  Type.Null(),
+                ]),
+              ),
+              lineSpacing: Type.Optional(nullable(Type.Number({ minimum: 0, maximum: 100 }))),
+              indentLeft: Type.Optional(
+                nullable(Type.Number({ minimum: -100_000, maximum: 100_000 })),
+              ),
+              indentRight: Type.Optional(
+                nullable(Type.Number({ minimum: -100_000, maximum: 100_000 })),
+              ),
+              indentFirstLine: Type.Optional(
+                nullable(Type.Number({ minimum: -100_000, maximum: 100_000 })),
+              ),
+              spaceBefore: Type.Optional(nullable(Type.Number({ minimum: 0, maximum: 100_000 }))),
+              spaceAfter: Type.Optional(nullable(Type.Number({ minimum: 0, maximum: 100_000 }))),
+              pageBreakBefore: Type.Optional(Type.Boolean()),
+              shadingFill: Type.Optional(nullable(Type.String({ maxLength: 128 }))),
+              borders: Type.Optional(nullable(Type.String({ maxLength: 32 }))),
+            },
+            { additionalProperties: false, minProperties: 1 },
+          ),
+          fields: Type.Array(literalUnion(paragraphStyleFields), {
+            minItems: 1,
+            maxItems: paragraphStyleFields.length,
+            uniqueItems: true,
+          }),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      setHeadingLevel: Type.Object(
+        { target: DocsTargetSchema, level: Type.Integer({ minimum: 0, maximum: 6 }) },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      replaceAllText: Type.Object(
+        {
+          containsText: Type.String({ minLength: 1, maxLength: 24_000 }),
+          replaceText: Type.String({ maxLength: 24_000 }),
+          matchCase: Type.Optional(Type.Boolean()),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      deleteBlocks: Type.Object({ target: DocsTargetSchema }, { additionalProperties: false }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      moveBlocks: Type.Object(
+        {
+          blockIndexes: Type.Array(blockIndex(), {
+            minItems: 1,
+            maxItems: 1_024,
+            uniqueItems: true,
+          }),
+          afterBlockIndex: Type.Integer({ minimum: -1, maximum: 1_000_000 }),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      createParagraphBullets: Type.Object(
+        {
+          target: DocsTargetSchema,
+          bulletPreset: Type.Optional(
+            Type.String({ pattern: '^(BULLET|NUMBERED)', maxLength: 128 }),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      deleteParagraphBullets: Type.Object(
+        { target: DocsTargetSchema },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      updateImageProperties: Type.Object(
+        {
+          target: DocsTargetSchema,
+          properties: Type.Object(
+            {
+              widthPx: Type.Optional(nullable(Type.Number({ minimum: 1, maximum: 16_384 }))),
+              heightPx: Type.Optional(nullable(Type.Number({ minimum: 1, maximum: 16_384 }))),
+              align: Type.Optional(
+                Type.Union([literalUnion(['left', 'center', 'right'] as const), Type.Null()]),
+              ),
+            },
+            { additionalProperties: false, minProperties: 1 },
+          ),
+          fields: Type.Array(literalUnion(['widthPx', 'heightPx', 'align'] as const), {
+            minItems: 1,
+            maxItems: 3,
+            uniqueItems: true,
+          }),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      insertToc: Type.Object(
+        { afterBlockIndex: Type.Integer({ minimum: -1, maximum: 1_000_000 }) },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+])
+
+const chartKind = () => literalUnion(['bar', 'line', 'pie'] as const)
+const chartValues = () =>
+  Type.Array(Type.Union([Type.Number(), Type.Null()]), { minItems: 1, maxItems: 1_024 })
+
+export const DOCS_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
+  docsDefinition(
+    'get_document_context',
+    'read',
+    'Read the live block list, selection, tracked-deletion state and document statistics.',
+    emptyInput(),
+  ),
+  docsDefinition(
+    'read_blocks',
+    'read',
+    'Read restricted HTML for a current block range with 24k character pagination.',
+    Type.Object(
+      {
+        startBlockIndex: blockIndex(),
+        endBlockIndex: blockIndex(),
+        offset: Type.Optional(Type.Integer({ minimum: 0, maximum: 1_000_000_000 })),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  docsDefinition(
+    'insert_content',
+    'mutation',
+    'Insert restricted HTML at the cursor or after a current block index.',
+    Type.Object(
+      {
+        html: Type.String({ minLength: 1, maxLength: 1_000_000 }),
+        afterBlockIndex: Type.Optional(Type.Integer({ minimum: -1, maximum: 1_000_000 })),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  docsDefinition(
+    'replace_blocks',
+    'mutation',
+    'Replace a current block range with restricted HTML.',
+    Type.Object(
+      {
+        startBlockIndex: blockIndex(),
+        endBlockIndex: blockIndex(),
+        html: Type.String({ minLength: 1, maxLength: 1_000_000 }),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  docsDefinition(
+    'apply_commands',
+    'mutation',
+    'Execute at most 64 typed document commands sequentially in one tool transaction.',
+    Type.Object(
+      { commands: Type.Array(DocsCommandSchema, { minItems: 1, maxItems: 64 }) },
+      { additionalProperties: false },
+    ),
+  ),
+  docsDefinition(
+    'insert_image',
+    'mutation',
+    'Insert one scope-bound PNG ArtifactRef without renderer network or path access.',
+    Type.Object(
+      {
+        artifactId: uuid(),
+        maxWidthPx: Type.Optional(Type.Integer({ minimum: 1, maximum: 4_096 })),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  docsDefinition(
+    'insert_chart',
+    'mutation',
+    'Insert a native editable bar, line or pie chart.',
+    Type.Object(
+      {
+        kind: chartKind(),
+        title: Type.Optional(Type.String({ maxLength: 4_096 })),
+        categories: Type.Array(Type.String({ maxLength: 4_096 }), {
+          minItems: 1,
+          maxItems: 1_024,
+        }),
+        series: Type.Array(
+          Type.Object(
+            {
+              name: Type.Optional(Type.String({ maxLength: 4_096 })),
+              values: chartValues(),
+            },
+            { additionalProperties: false },
+          ),
+          { minItems: 1, maxItems: 128 },
+        ),
+        afterBlockIndex: Type.Optional(Type.Integer({ minimum: -1, maximum: 1_000_000 })),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+  docsDefinition(
+    'edit_chart',
+    'mutation',
+    'Edit an existing native or generated chart without changing its point cardinality.',
+    Type.Object(
+      {
+        blockIndex: blockIndex(),
+        title: Type.Optional(Type.String({ maxLength: 4_096 })),
+        categories: Type.Optional(
+          Type.Array(Type.Union([Type.String({ maxLength: 4_096 }), Type.Null()]), {
+            minItems: 1,
+            maxItems: 1_024,
+          }),
+        ),
+        series: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                index: Type.Integer({ minimum: 0, maximum: 127 }),
+                name: Type.Optional(Type.String({ maxLength: 4_096 })),
+                values: Type.Optional(chartValues()),
+              },
+              { additionalProperties: false },
+            ),
+            { minItems: 1, maxItems: 128 },
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+  ),
+]
+
+const sheetsCellRange = () =>
+  Type.String({ pattern: '^[A-Z]{1,3}[1-9][0-9]{0,6}(:[A-Z]{1,3}[1-9][0-9]{0,6})?$' })
+const sheetsCellAddress = () => Type.String({ pattern: '^[A-Z]{1,3}[1-9][0-9]{0,6}$' })
+
+export const SHEETS_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
+  sheetsDefinition(
+    'get_workbook_context',
+    'read',
+    'Read live sheets, data extents, selection, loaded viewport, merges and chart summaries.',
+    emptyInput(),
+  ),
+  sheetsDefinition(
+    'read_range',
+    'read',
+    'Read formulas and values from at most 2000 cells in one rectangular workbook range.',
+    Type.Object({ range: sheetsCellRange() }, { additionalProperties: false }),
+  ),
+  sheetsDefinition(
+    'read_formats',
+    'read',
+    'Read explicit formats from at most 200 cells in one rectangular workbook range.',
+    Type.Object({ range: sheetsCellRange() }, { additionalProperties: false }),
+  ),
+  sheetsDefinition(
+    'read_sheet_features',
+    'read',
+    'Read filters, conditional formats, validation, names, panes, protection and visuals.',
+    Type.Object(
+      { sheetId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })) },
+      { additionalProperties: false },
+    ),
+  ),
+  sheetsDefinition(
+    'read_cells',
+    'read',
+    'Read formulas and values from at most 100 scattered normalized cell addresses.',
+    Type.Object(
+      { addresses: Type.Array(sheetsCellAddress(), { minItems: 1, maxItems: 100 }) },
+      { additionalProperties: false },
+    ),
+  ),
+  sheetsDefinition(
+    'propose_operations',
+    'mutation',
+    'Expand, prevalidate and atomically apply a batch from the exact 52-operation workbook DSL.',
+    sheetsWorkbookOperationsInput(),
+  ),
+]
+
+export const SLIDES_OFFICE_TOOL_DEFINITIONS: readonly OfficeToolDefinition[] = [
+  slidesDefinition('get_deck_context', 'read', 'Read the current deck outline and selection.'),
+  slidesDefinition('read_slide', 'read', 'Read every current element on one slide.'),
+  slidesDefinition('set_element_text', 'mutation', 'Replace one current element text payload.'),
+  slidesDefinition('set_element_style', 'mutation', 'Update one current element text style.'),
+  slidesDefinition(
+    'set_element_transform',
+    'mutation',
+    'Move, resize or rotate one current element.',
+  ),
+  slidesDefinition(
+    'execute_slide_script',
+    'mutation',
+    'Run one restricted 25k-character slide edit script in a tool transaction.',
+  ),
+  slidesDefinition('set_element_fill', 'mutation', 'Update one current element solid fill.'),
+  slidesDefinition(
+    'set_element_stroke',
+    'mutation',
+    'Update or remove one current element stroke.',
+  ),
+  slidesDefinition(
+    'insert_image',
+    'mutation',
+    'Insert one scope-bound image ArtifactRef without renderer URL or path access.',
+  ),
+  slidesDefinition('delete_slide', 'mutation', 'Delete one current slide.'),
+  slidesDefinition('add_slide', 'mutation', 'Clone one current slide layout into a new slide.'),
+  slidesDefinition('add_text_box', 'mutation', 'Add one native text box.'),
+  slidesDefinition('add_shape', 'mutation', 'Add one native preset shape.'),
+  slidesDefinition('add_chart', 'mutation', 'Add one native editable chart with data provenance.'),
+  slidesDefinition('add_smartart', 'mutation', 'Add one editable SmartArt-style composition.'),
+  slidesDefinition('add_table', 'mutation', 'Add one native editable table.'),
+  slidesDefinition('edit_table_cell', 'mutation', 'Replace one current table cell text payload.'),
+  slidesDefinition(
+    'edit_table_structure',
+    'mutation',
+    'Insert or delete one row or column in a tool transaction.',
+  ),
+  slidesDefinition('edit_table_style', 'mutation', 'Update one current table style.'),
+  slidesDefinition('edit_chart', 'mutation', 'Update one current native chart.'),
+  slidesDefinition(
+    'set_slide_background',
+    'mutation',
+    'Set a solid background or one scope-bound image ArtifactRef.',
+  ),
+  slidesDefinition('delete_element', 'mutation', 'Delete one current top-level element.'),
+  slidesDefinition('ungroup_element', 'mutation', 'Ungroup one current group element.'),
+  slidesDefinition(
+    'commit_slide_page',
+    'mutation',
+    'Validate, render, reopen, audit and atomically append, insert or replace one editable page.',
+  ),
+]
+
+function descriptorProjection(definitions: readonly OfficeToolDefinition[]) {
+  return definitions.map(({ id, modelAlias, effect }) => ({ id, modelAlias, effect }))
+}
+
+const pdfDescriptors = descriptorProjection(PDF_OFFICE_TOOL_DEFINITIONS)
+const docsDescriptors = descriptorProjection(DOCS_OFFICE_TOOL_DEFINITIONS)
+const sheetsDescriptors = descriptorProjection(SHEETS_OFFICE_TOOL_DEFINITIONS)
+const slidesDescriptors = descriptorProjection(SLIDES_OFFICE_TOOL_DEFINITIONS)
+
+export const DOCS_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
+  app: 'docs',
+  catalogHash: '8981cc5f0b46f5483102d01e0dc8f2620b0c4a84db7627b47648a4e84672be9f',
+  descriptors: docsDescriptors,
+}
+
+export const PDF_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
+  app: 'pdf',
+  catalogHash: 'c7df023595cbfa4780424841dd03f18cc21156c534fb24fc6e6b225571956e82',
+  descriptors: pdfDescriptors,
+}
+
+export const SHEETS_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
+  app: 'sheets',
+  catalogHash: '0904d366ddf21423a9a01b0709d508c9cb74b620db11c8e2881fa0115d3d04a8',
+  descriptors: sheetsDescriptors,
+}
+
+export const SLIDES_OFFICE_TOOL_CATALOG_BINDING: OfficeToolCatalogBinding = {
+  app: 'slides',
+  catalogHash: 'f97ef27d662ffd344c604b5aa427697f5b6a9fffd6e2a8dc8d9abbd4c07cfb2b',
+  descriptors: slidesDescriptors,
+}
+
+export function resolveOfficeToolDefinitions(
+  binding: OfficeToolCatalogBinding,
+): readonly OfficeToolDefinition[] {
+  if (
+    binding.app === 'pdf' &&
+    binding.catalogHash === PDF_OFFICE_TOOL_CATALOG_BINDING.catalogHash &&
+    JSON.stringify(binding.descriptors) ===
+      JSON.stringify(PDF_OFFICE_TOOL_CATALOG_BINDING.descriptors)
+  ) {
+    return PDF_OFFICE_TOOL_DEFINITIONS
+  }
+  if (
+    binding.app === 'docs' &&
+    binding.catalogHash === DOCS_OFFICE_TOOL_CATALOG_BINDING.catalogHash &&
+    JSON.stringify(binding.descriptors) ===
+      JSON.stringify(DOCS_OFFICE_TOOL_CATALOG_BINDING.descriptors)
+  ) {
+    return DOCS_OFFICE_TOOL_DEFINITIONS
+  }
+  if (
+    binding.app === 'sheets' &&
+    binding.catalogHash === SHEETS_OFFICE_TOOL_CATALOG_BINDING.catalogHash &&
+    JSON.stringify(binding.descriptors) ===
+      JSON.stringify(SHEETS_OFFICE_TOOL_CATALOG_BINDING.descriptors)
+  ) {
+    return SHEETS_OFFICE_TOOL_DEFINITIONS
+  }
+  if (
+    binding.app === 'slides' &&
+    binding.catalogHash === SLIDES_OFFICE_TOOL_CATALOG_BINDING.catalogHash &&
+    JSON.stringify(binding.descriptors) ===
+      JSON.stringify(SLIDES_OFFICE_TOOL_CATALOG_BINDING.descriptors)
+  ) {
+    return SLIDES_OFFICE_TOOL_DEFINITIONS
+  }
+  throw new Error('office_tool_catalog_mismatch')
+}
+
+export function parsePdfOfficeToolInput(toolId: string, value: unknown): unknown {
+  const descriptor = PDF_OFFICE_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
+  if (!descriptor) throw new Error('tool_not_in_snapshot')
+  if (Value.Check(descriptor.parameters, value)) return value
+  throw new Error('invalid_tool_arguments')
+}
+
+export function parseDocsOfficeToolInput(toolId: string, value: unknown): unknown {
+  const descriptor = DOCS_OFFICE_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
+  if (!descriptor) throw new Error('tool_not_in_snapshot')
+  if (Value.Check(descriptor.parameters, value)) return value
+  throw new Error('invalid_tool_arguments')
+}
+
+export function parseSheetsOfficeToolInput(toolId: string, value: unknown): unknown {
+  const descriptor = SHEETS_OFFICE_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
+  if (!descriptor) throw new Error('tool_not_in_snapshot')
+  if (!Value.Check(descriptor.parameters, value)) throw new Error('invalid_tool_arguments')
+  if (toolId !== 'office:sheets:propose_operations') return value
+  const input = value as { summary: string; operations: unknown[] }
+  const summary = input.summary.trim()
+  if (!summary) throw new Error('invalid_tool_arguments')
+  try {
+    return { summary, operations: input.operations.map(parseSheetsWorkbookOperation) }
+  } catch {
+    throw new Error('invalid_tool_arguments')
+  }
+}
+
+export function parseSlidesOfficeToolInput(toolId: string, value: unknown): unknown {
+  const descriptor = SLIDES_OFFICE_TOOL_DEFINITIONS.find(({ id }) => id === toolId)
+  if (!descriptor) throw new Error('tool_not_in_snapshot')
+  if (!Value.Check(descriptor.parameters, value)) throw new Error('invalid_tool_arguments')
+  if (toolId === 'office:slides:commit_slide_page') return parseSlidePageCommitInput(value)
+  const input = value as Record<string, unknown>
+  if (toolId === 'office:slides:set_slide_background') {
+    const hasColor = typeof input.color === 'string'
+    const hasArtifact = typeof input.artifactId === 'string'
+    if (hasColor === hasArtifact) throw new Error('invalid_tool_arguments')
+  }
+  if (toolId === 'office:slides:edit_chart' && input.series !== undefined && !input.dataSource) {
+    throw new Error('invalid_tool_arguments')
+  }
+  return value
+}
+
+export { SheetsWorkbookOperationSchema }
+export { parseSlidePageSpec }
+export type { SlidePageCommitInput, SlidePageElement, SlidePageSpec }
+
+export type OfficeToolCatalogMetadata = {
+  modelAlias: string
+  effect: 'read' | 'mutation' | 'external'
+}
+
+/** Resolves only canonical Office tools from the frozen migration catalog. */
+export function resolveOfficeToolCatalogMetadata(
+  canonicalToolId: string,
+): OfficeToolCatalogMetadata | undefined {
+  if (!canonicalToolId.startsWith('office:')) return undefined
+  const migratedDefinition = [
+    ...PDF_OFFICE_TOOL_DEFINITIONS,
+    ...DOCS_OFFICE_TOOL_DEFINITIONS,
+    ...SHEETS_OFFICE_TOOL_DEFINITIONS,
+    ...SLIDES_OFFICE_TOOL_DEFINITIONS,
+  ].find(({ id }) => id === canonicalToolId)
+  if (migratedDefinition) {
+    return {
+      modelAlias: migratedDefinition.modelAlias,
+      effect: migratedDefinition.effect,
+    }
+  }
+  const entry = catalog.entries.find(({ targetId }) => targetId === canonicalToolId)
+  if (!entry) return undefined
+  return {
+    modelAlias: entry.legacyAlias,
+    effect: entry.effect as OfficeToolCatalogMetadata['effect'],
+  }
+}

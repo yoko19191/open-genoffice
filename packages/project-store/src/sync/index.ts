@@ -1,0 +1,59 @@
+export {
+  canonicalJsonBytes,
+  canonicalizeSyncPath,
+  assertCanonicalPathSet,
+  sha256Hex,
+} from './canonical.js'
+export { InMemorySyncObjectStore } from './memory-object-store.js'
+export { FileConflictCopyStore } from './conflict-copy-store.js'
+export type {
+  ConflictBranch,
+  ConflictChoice,
+  ConflictCopyDescriptor,
+  ConflictSource,
+  OpenConflictInput,
+  ProjectConflictStore,
+  ProjectSyncConflict,
+} from './conflict-copy-store.js'
+export { GlobalAssetSyncReconciler, ProjectSyncReconciler } from './project-sync-reconciler.js'
+export type {
+  ConflictFaultStage,
+  ConflictResolutionResult,
+  DivergenceReconcileResult,
+  PublishResult,
+  RestoreResult,
+  GlobalAssetSyncReconcilerOptions,
+  ProjectSyncReconcilerOptions,
+} from './project-sync-reconciler.js'
+export { FileReconcileIntentStore } from './reconcile-intent-store.js'
+export { S3ObjectStore } from './s3-object-store.js'
+export type { S3ClientPort, S3ObjectStoreOptions } from './s3-object-store.js'
+export {
+  CredentialSlotDescriptionSchema,
+  GlobalAssetSyncKindSchema,
+  ProjectManifestEntrySchema,
+  ProjectSyncKindSchema,
+  ProjectSyncManifestSchema,
+  ReconcileIntentSchema,
+  SyncHeadSchema,
+  SyncKindSchema,
+  SyncScopeIdSchema,
+  SyncRevisionSchema,
+} from './schema.js'
+export { WebDavObjectStore } from './webdav-object-store.js'
+export type {
+  CredentialSlotDescription,
+  ProjectManifestEntry,
+  ProjectSyncEntry,
+  ProjectSyncKind,
+  ProjectSyncManifest,
+  ProviderDiagnostics,
+  ReconcileIntent,
+  ReconcileIntentStore,
+  RemoteBase,
+  SyncHead,
+  SyncKind,
+  SyncNamespace,
+  SyncObjectStore,
+  SyncRevision,
+} from './types.js'

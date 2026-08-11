@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "commit": "b5a2f273b9ad9f7fd6b4515f508c9d4529a8cb32",
+  "acceptanceIds": [
+    "GX-002",
+    "MD-002",
+    "SS-012"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "modelMediaProvider": "f91e9b38596b928887df174f817bf6b23e0f7294251394f2abfb4a9ecdad9395",
+    "mediaPreparation": "0af0e4dd889b4ee09ce9c05898f642260428667966e5c15c18eef76aded2f6ad",
+    "mediaArtifact": "787eb2f7e4952feb0e5c04ba43c2860aa34a7cb14f6bda056de93381c0016344"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build:all",
+    "npm run lint -- --quiet",
+    "npm run format:check",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g5/issue-26/reports/protocol.json"
+    },
+    {
+      "suite": "artifact",
+      "status": "passed",
+      "report": "evidence/g5/issue-26/reports/artifact.json"
+    },
+    {
+      "suite": "electron",
+      "status": "passed",
+      "report": "evidence/g5/issue-26/reports/electron.json"
+    },
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g5/issue-26/reports/runtime.json"
+    },
+    {
+      "suite": "docs",
+      "status": "passed",
+      "report": "evidence/g5/issue-26/reports/docs.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g5/issue-26/reports/shell.json"
+    },
+    {
+      "suite": "slides",
+      "status": "passed",
+      "report": "evidence/g5/issue-26/reports/slides.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

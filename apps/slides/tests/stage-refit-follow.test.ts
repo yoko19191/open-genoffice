@@ -150,6 +150,15 @@ beforeAll(() => {
     get: () => stageSize.h,
   })
   ;(window as unknown as { slidesApi: unknown }).slidesApi = makeSlidesApi()
+  ;(window as unknown as { agentSession: unknown }).agentSession = {
+    documentId: async () => {
+      throw new Error('offline')
+    },
+    connect: vi.fn(),
+    command: vi.fn(),
+    disconnect: vi.fn(),
+    onEvent: () => () => {},
+  }
 })
 
 afterEach(() => {

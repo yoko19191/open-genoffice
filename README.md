@@ -10,33 +10,11 @@ around AI editing as a first-class workflow rather than a bolted-on chat box.
 
 ## Download
 
-| Platform                        | Requirements                                | Download                                                                                                                             |
-| ------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **macOS** (Apple Silicon)       | macOS 11+                                   | [GenOffice-0.5.83-arm64.dmg](https://github.com/genspark-ai/genoffice/releases/download/v0.5.83/GenOffice-0.5.83-arm64.dmg)          |
-| **Windows** (x64)               | Windows 10+                                 | [GenOfficeSetup-v0.5.79.exe](https://github.com/genspark-ai/genoffice/releases/download/v0.5.83/GenOfficeSetup-v0.5.79.exe)          |
-| **Linux** — Debian / Ubuntu     | x86_64, glibc 2.34+ (Ubuntu 22.04 or newer) | [genoffice_0.5.149_amd64.deb](https://github.com/genspark-ai/genoffice/releases/download/linux-v0.5.149/genoffice_0.5.149_amd64.deb) |
-| **Linux** — other distributions | x86_64, glibc 2.34+, FUSE 2                 | [GenOffice-0.5.149.AppImage](https://github.com/genspark-ai/genoffice/releases/download/linux-v0.5.149/GenOffice-0.5.149.AppImage)   |
-
-All builds come from `main`; the macOS and Windows installers are signed.
-Older versions are on the [Releases](https://github.com/genspark-ai/genoffice/releases) page.
-
-### Installing on Linux
-
-The deb installs with apt — it pulls in the dependencies and adds GenOffice
-to the applications menu:
-
-```bash
-sudo apt install ./genoffice_0.5.149_amd64.deb
-```
-
-The AppImage instead runs in place: install the FUSE 2 runtime
-(`sudo apt install libfuse2`; on Ubuntu 24.04 the package is `libfuse2t64`),
-make the file executable, then run it:
-
-```bash
-chmod +x GenOffice-0.5.149.AppImage
-./GenOffice-0.5.149.AppImage
-```
+The Pi Agent Platform release candidate is still being validated on macOS
+arm64, Windows x64, and Linux x64. Installers will appear on the
+[Releases](https://github.com/yoko19191/open-genoffice/releases) page only after
+the same candidate passes native installation, signing, upgrade, and process
+cleanup checks. Until then, build from source with the commands below.
 
 ## Apps
 
@@ -52,8 +30,10 @@ Every app embeds the same AI panel: block-granular AI editing with version
 snapshots and diffs in docs, a tool-calling agent over workbook/slide/PDF
 state in the others.
 
-**AI providers.** The apps sign in to a Genspark account and route model
-calls through the Genspark service side; no model API key is stored locally.
+**AI providers.** The shared Pi Agent Runtime supports explicitly selected
+cloud models, local OpenAI-compatible endpoints, and Codex OAuth. Secrets are
+written through the main process into the operating system's secure storage;
+renderers receive only credential status and opaque references.
 
 ## Engine packages
 
@@ -65,11 +45,12 @@ All pure TypeScript, no Electron dependency, unit-tested (except the UI kit):
 - `packages/pptx-engine` / `packages/pptx-render` — pptx model and rendering.
 - `packages/file-parse` — text extraction for AI attachments (office formats,
   text formats).
-- `packages/agent-core` — the AI agent loop and skill composition shared by
-  every app.
-- `packages/ai-provider` — provider abstraction and streaming for the model
-  backends.
-- `packages/ai-search` — Genspark auth + web/image search tools.
+- `packages/agent-runtime-protocol` — the versioned Runtime, Session, Office
+  tool, and platform-tool schemas shared across process boundaries.
+- `packages/agent-resource` — document bindings, Resource Home, credentials,
+  artifacts, package activation, and project trust.
+- `packages/ai-search` — standalone Serper/DuckDuckGo search helpers; the Pi
+  Runtime exposes the corresponding credential-aware platform tools.
 - `packages/i18n`, `packages/ui`, `packages/project-store`,
   `packages/electron-utils` — shared i18n core, React UI kit, recent-files
   store, and Electron main-process helpers.
@@ -129,6 +110,6 @@ GenOffice is licensed under the [Apache License 2.0](LICENSE), with one
 exception: the `ee/` directory is reserved for future enterprise modules and
 is covered by the [GenOffice Enterprise License](ee/LICENSE).
 
-The GenOffice and Genspark names and logos are trademarks of Mainfunc, Inc.
-The Apache-2.0 license does not grant permission to use them (see section 6);
-forks should use their own branding.
+The GenOffice name and logo may be protected as trademarks. The Apache-2.0
+license does not grant trademark rights (see section 6); forks should use their
+own branding.

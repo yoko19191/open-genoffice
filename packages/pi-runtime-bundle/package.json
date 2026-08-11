@@ -1,0 +1,26 @@
+{
+  "name": "@genoffice/pi-runtime-bundle",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "description": "Build-time and installed-resource verification for the Pi Runtime bundle",
+  "exports": {
+    ".": "./src/index.ts",
+    "./builder": "./src/builder.ts",
+    "./node-distribution": "./src/node-distribution.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@genoffice/agent-runtime-protocol": "*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
+    "esbuild": "0.25.12",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

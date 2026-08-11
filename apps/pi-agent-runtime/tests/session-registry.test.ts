@@ -1,0 +1,2076 @@
+import { createHmac } from 'node:crypto'
+import { appendFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import type { MutationGrantProjection } from '@genoffice/agent-runtime-protocol'
+import { PDF_OFFICE_TOOL_CATALOG_BINDING } from '@genoffice/agent-runtime-protocol/office-tool-catalog'
+import { CapabilitySnapshotError, createCapabilitySnapshot } from '@genoffice/agent-resource'
+import { RuntimeSessionError, createSessionRegistry } from '../src'
+import { UserActionRegistry } from '../src/user-action-registry'
+import type {
+  SessionMutationGrantRegistry,
+  SessionSubagentCoordinator,
+  SubagentCoordinatorEvent,
+  SubagentRunProjection,
+} from '../src'
+
+const roots: string[] = []
+const operationId = '11111111-1111-4111-8111-111111111111'
+const documentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+
+async function harness() {
+  const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-registry-'))
+  roots.push(dataRoot)
+  let uuid = 0
+  const registry = createSessionRegistry({
+    dataRoot,
+    instanceId: 'instance-1',
+    cursorSecret: Buffer.alloc(32, 7),
+    randomUUID: () => {
+      uuid += 1
+      return `${String(uuid).padStart(8, '0')}-0000-4000-8000-000000000000`
+    },
+    now: () => new Date('2026-08-09T12:00:00.000Z'),
+  })
+  return { dataRoot, registry }
+}
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+
+function fakePiSession(options: {
+  sessionFile?: string
+  messages?: Array<Record<string, unknown>>
+  entries?: Array<{ id: string; parentId: string | null; type: string }>
+  getLeafId?: () => string | undefined
+  prompt?: (emit: (event: AgentSessionEvent) => void) => Promise<void>
+  abort?: () => Promise<void>
+  fork?: (
+    newSessionId: string,
+    parentSessionId: string,
+  ) => Promise<{ sessionId: string; sessionFile: string; activeLeafId: string }>
+  navigate?: (targetEntryId: string) => Promise<{ activeLeafId: string }>
+}) {
+  let listener: (event: AgentSessionEvent) => void = () => {}
+  const dispose = () => {}
+  return {
+    handle: {
+      session: { sessionFile: options.sessionFile },
+      sessionManager: {
+        getBranch: () => options.messages ?? [],
+        getLeafId: () => options.getLeafId?.(),
+        getEntries: () => options.entries ?? [],
+      },
+      subscribe: (next: (event: AgentSessionEvent) => void) => {
+        listener = next
+        return dispose
+      },
+      prompt: async () => options.prompt?.(listener),
+      abort: async () => options.abort?.(),
+      fork: async (newSessionId: string, parentSessionId: string) => {
+        if (!options.fork) throw new Error('session_fork_unavailable')
+        return options.fork(newSessionId, parentSessionId)
+      },
+      navigate: async (targetEntryId: string) => {
+        if (!options.navigate) throw new Error('branch_not_found')
+        return options.navigate(targetEntryId)
+      },
+      dispose,
+    },
+    emit: (event: AgentSessionEvent) => listener(event),
+  }
+}
+
+describe('document-bound Pi Session registry', () => {
+  it('persists one exact Office catalog binding and rejects open-time drift', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-office-catalog-'))
+    roots.push(dataRoot)
+    const firstFake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    const createPiSession = vi.fn(async () => firstFake.handle as never)
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-office-catalog-1',
+      cursorSecret: Buffer.alloc(32, 47),
+      randomUUID: () => '11111111-1111-4111-8111-111111111111',
+      createPiSession,
+    })
+    const created = await first.create({
+      operationId,
+      documentId,
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    expect(createPiSession).toHaveBeenCalledWith(
+      expect.objectContaining({ officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING }),
+    )
+    expect((await first.listBindings())[0]).toMatchObject({
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    await first.shutdown()
+
+    const secondFake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    const reopenPiSession = vi.fn(async () => secondFake.handle as never)
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-office-catalog-2',
+      cursorSecret: Buffer.alloc(32, 48),
+      createPiSession: reopenPiSession,
+    })
+    await expect(
+      second.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+        officeToolCatalog: {
+          ...PDF_OFFICE_TOOL_CATALOG_BINDING,
+          catalogHash: '0'.repeat(64),
+        },
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('office_tool_catalog_mismatch'))
+    expect(reopenPiSession).not.toHaveBeenCalled()
+    await expect(
+      second.open({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId: created.sessionId,
+        documentId,
+        officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+      }),
+    ).resolves.toMatchObject({ sessionId: created.sessionId, documentId })
+    expect(reopenPiSession).toHaveBeenCalledWith(
+      expect.objectContaining({ officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING }),
+    )
+    await second.shutdown()
+  })
+
+  it('projects Mutation Grants and routes exact issue and document revocation through the Session', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-mutation-grant-'))
+    roots.push(dataRoot)
+    let listener: Parameters<SessionMutationGrantRegistry['onEvent']>[0] = () => {}
+    const pending = {
+      requestId: 'grant-request-1',
+      subagentRunId: 'subagent-run-1',
+      role: 'Reviewer',
+      exactToolIds: ['office:docs:insert_content'],
+      requestedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'pending' as const,
+    }
+    let grants: MutationGrantProjection[] = [pending]
+    const revokeForDocument = vi.fn(async () => undefined)
+    const mutationGrants: SessionMutationGrantRegistry = {
+      onEvent: (next) => {
+        listener = next
+        return () => {
+          listener = () => {}
+        }
+      },
+      listForSession: () => structuredClone(grants),
+      issue: vi.fn(async (_requestId, receipt) => {
+        const active = {
+          ...pending,
+          grantId: receipt.grantId,
+          expiresAt: receipt.expiresAt,
+          status: 'active' as const,
+        }
+        grants = [active]
+        listener({ parentSessionId: sessionId, documentId, projection: active })
+        return active
+      }),
+      deny: vi.fn(),
+      revoke: vi.fn(),
+      revokeForRun: vi.fn(async () => undefined),
+      revokeForParentRun: vi.fn(async () => undefined),
+      revokeForDocument,
+    }
+    const fake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-mutation-grant',
+      cursorSecret: Buffer.alloc(32, 46),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+      mutationGrants,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const sessionId = created.sessionId
+    expect(created.snapshot.mutationGrants).toEqual([pending])
+    const receipt = {
+      grantId: 'grant-1',
+      subagentRunId: 'subagent-run-1',
+      documentId,
+      exactToolIds: ['office:docs:insert_content'],
+      issuedByUserActionId: 'user-action-1',
+      issuedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:05:00.000Z',
+      status: 'active' as const,
+    }
+    for (const [suffix, requestId, candidateReceipt] of [
+      ['missing', 'missing-request', receipt],
+      ['wrong-run', pending.requestId, { ...receipt, subagentRunId: 'other-run' }],
+      [
+        'wrong-document',
+        pending.requestId,
+        { ...receipt, documentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1' },
+      ],
+    ] as const) {
+      await expect(
+        registry.issueMutationGrant({
+          operationId: `invalid-${suffix}`,
+          sessionId,
+          documentId,
+          requestId,
+          receipt: candidateReceipt,
+        }),
+      ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    }
+    await expect(
+      registry.issueMutationGrant({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId,
+        documentId,
+        requestId: pending.requestId,
+        receipt,
+      }),
+    ).resolves.toMatchObject({
+      sessionId,
+      documentId,
+      grant: { grantId: 'grant-1', status: 'active' },
+    })
+    await expect(
+      registry.issueMutationGrant({
+        operationId: 'active-request-cannot-reissue',
+        sessionId,
+        documentId,
+        requestId: pending.requestId,
+        receipt,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    await expect(registry.snapshot({ sessionId, documentId })).resolves.toMatchObject({
+      mutationGrants: [{ grantId: 'grant-1', status: 'active' }],
+    })
+    await expect(
+      registry.revokeDocumentMutationGrants({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId,
+        documentId,
+      }),
+    ).resolves.toEqual({ revoked: true })
+    expect(revokeForDocument).toHaveBeenCalledWith(documentId, 'document_closed')
+    await registry.shutdown()
+  })
+
+  it('journals a safe pending question and accepts only the bound main-signed answer', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-user-action-'))
+    roots.push(dataRoot)
+    const userActions = new UserActionRegistry({
+      randomUUID: () => 'question-1',
+      now: () => new Date('2026-08-11T00:00:00.000Z'),
+    })
+    const fake = fakePiSession({ sessionFile: join(dataRoot, 'session.jsonl') })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-user-action',
+      cursorSecret: Buffer.alloc(32, 49),
+      randomUUID: () => '11111111-1111-4111-8111-111111111111',
+      createPiSession: async () => fake.handle as never,
+      userActions,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const waiting = userActions.request({
+      sessionId: created.sessionId,
+      documentId,
+      runId: 'run-1',
+      mode: 'input',
+      question: 'Name this section',
+      maxLength: 80,
+    })
+    await vi.waitFor(async () => {
+      await expect(
+        registry.snapshot({ sessionId: created.sessionId, documentId }),
+      ).resolves.toMatchObject({
+        userActions: [{ requestId: 'question-1', status: 'pending' }],
+      })
+    })
+    await expect(
+      registry.answerUserAction({
+        operationId: 'wrong-document-answer',
+        sessionId: created.sessionId,
+        documentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+        requestId: 'question-1',
+        userActionId: 'gesture-1',
+        answer: { text: 'Overview' },
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('document_mismatch'))
+    await expect(
+      registry.answerUserAction({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+        requestId: 'question-1',
+        userActionId: 'gesture-1',
+        answer: { text: 'Overview' },
+      }),
+    ).resolves.toMatchObject({
+      action: { requestId: 'question-1', status: 'answered' },
+    })
+    await expect(waiting).resolves.toEqual({
+      requestId: 'question-1',
+      answer: { text: 'Overview' },
+    })
+    const snapshot = await registry.snapshot({ sessionId: created.sessionId, documentId })
+    expect(snapshot.userActions).toEqual([])
+    const replay = await registry.subscribe({ sessionId: created.sessionId, documentId })
+    expect(replay.snapshot.userActions).toEqual([])
+    expect(JSON.stringify(replay)).not.toContain('Overview')
+    expect(JSON.stringify(replay)).not.toContain('gesture-1')
+    await registry.shutdown()
+  })
+
+  it('journals safe Subagent projections, resumes one attempt, and attaches parent Stop', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-subagent-'))
+    roots.push(dataRoot)
+    let listener: (event: SubagentCoordinatorEvent) => void = () => {}
+    let projection: SubagentRunProjection | undefined
+    let parentSessionId = ''
+    const cancelTree = vi.fn(async () => {})
+    const spawn = vi.fn(async (input) => {
+      projection = {
+        runId: 'subagent-run-1',
+        rootRunId: input.parentRunId,
+        parentRunId: input.parentRunId,
+        parentSessionId: input.parentSessionId,
+        documentId: input.documentId,
+        role: input.role,
+        depth: 1,
+        model: { providerId: 'provider-1', modelId: 'model-1' },
+        status: 'running',
+        attempt: 1,
+        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0, toolCalls: 0 },
+        capabilitySnapshotId: 'a'.repeat(64),
+        createdAt: '2026-08-10T00:00:00.000Z',
+      }
+      listener({ type: 'started', run: projection })
+      return projection
+    })
+    const coordinator: SessionSubagentCoordinator = {
+      onEvent: (next) => {
+        listener = next
+        return () => {
+          listener = () => {}
+        }
+      },
+      listForSession: (sessionId) =>
+        projection?.parentSessionId === sessionId ? [projection] : [],
+      spawn,
+      cancelTree,
+      resume: vi.fn(async () => {
+        projection = { ...projection!, status: 'running', attempt: 2 }
+        listener({ type: 'started', run: projection })
+        return projection
+      }),
+      parentSessionIdsWithRuns: () => (parentSessionId ? [parentSessionId] : []),
+      reconcile: vi.fn(async () => {
+        projection = { ...projection!, status: 'resumable', errorCode: 'runtime_crash' }
+        listener({ type: 'resumable', run: projection })
+      }),
+    }
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-subagent',
+      cursorSecret: Buffer.alloc(32, 45),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+      subagents: coordinator,
+    })
+    listener({
+      type: 'assistant.delta',
+      runId: 'orphan-run',
+      rootRunId: 'orphan-root',
+      parentRunId: 'orphan-parent',
+      parentSessionId: 'missing-session',
+      documentId,
+      text: 'ignored',
+    })
+    const created = await registry.create({ operationId, documentId })
+    parentSessionId = created.sessionId
+    const parent = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'delegate read-only research',
+    })
+    const parentSnapshot = createCapabilitySnapshot({
+      createdForRunId: parent.runId,
+      model: { providerId: 'provider-1', modelId: 'model-1', capabilities: ['text'] },
+      resources: [],
+      toolIds: ['platform:subagent:spawn'],
+      permissionVersion: 'permission-v1',
+    })
+    await registry.spawnSubagent({
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      role: 'researcher',
+      task: 'inspect the current document',
+      parentSnapshot,
+    })
+    listener({
+      type: 'assistant.delta',
+      runId: 'subagent-run-1',
+      rootRunId: parent.runId,
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      text: 'safe child delta',
+    })
+    listener({
+      type: 'tool.started',
+      runId: 'subagent-run-1',
+      rootRunId: parent.runId,
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      toolId: 'office:pdf:read_pages',
+    })
+    await vi.waitFor(async () => {
+      expect(await registry.readJournal(created.sessionId)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'subagent.assistant.delta',
+            payload: expect.objectContaining({ text: 'safe child delta' }),
+          }),
+          expect.objectContaining({
+            type: 'subagent.tool.started',
+            payload: expect.objectContaining({ toolId: 'office:pdf:read_pages' }),
+          }),
+        ]),
+      )
+    })
+    expect((await registry.snapshot(created)).subagents).toEqual([
+      expect.objectContaining({
+        runId: 'subagent-run-1',
+        parentRunId: parent.runId,
+        status: 'running',
+      }),
+    ])
+    expect((await registry.snapshot(created)).subagents?.[0]).not.toHaveProperty('parentSessionId')
+    expect((await registry.snapshot(created)).subagents?.[0]).not.toHaveProperty('documentId')
+    expect(await registry.readJournal(created.sessionId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'subagent.started',
+          runId: 'subagent-run-1',
+          payload: expect.objectContaining({ runId: 'subagent-run-1', status: 'running' }),
+        }),
+      ]),
+    )
+
+    await registry.reconcileSubagents()
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'subagent.resumable',
+      runId: 'subagent-run-1',
+    })
+    coordinator.parentSessionIdsWithRuns = undefined
+    await registry.reconcileSubagents()
+    const resumed = await registry.resumeSubagent({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      runId: 'subagent-run-1',
+    })
+    expect(resumed).toMatchObject({ runId: 'subagent-run-1', attempt: 2 })
+    await registry.abort({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: created.sessionId,
+      documentId,
+      runId: parent.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect(cancelTree).toHaveBeenCalledWith('subagent-run-1', 'parent_run_aborted')
+    await registry.shutdown()
+  })
+
+  it('routes the trusted Slides QC profile through its coordinator and attaches parent Stop', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-slides-qc-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    let projection: SubagentRunProjection | undefined
+    const spawn = vi.fn()
+    const cancelTree = vi.fn(async () => undefined)
+    const subagents: SessionSubagentCoordinator = {
+      onEvent: () => () => {},
+      listForSession: (sessionId) =>
+        projection?.parentSessionId === sessionId ? [projection] : [],
+      spawn,
+      cancelTree,
+      resume: vi.fn(),
+    }
+    const start = vi.fn(async (input) => {
+      projection = {
+        runId: 'slides-qc-run-1',
+        rootRunId: input.parentRunId,
+        parentRunId: input.parentRunId,
+        parentSessionId: input.parentSessionId,
+        documentId: input.documentId,
+        role: 'Slides QC',
+        depth: 1,
+        model: { providerId: 'provider-1', modelId: 'model-1' },
+        status: 'waiting',
+        attempt: 1,
+        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0, toolCalls: 0 },
+        capabilitySnapshotId: 'b'.repeat(64),
+        createdAt: '2026-08-10T00:00:00.000Z',
+      }
+      input.onRunStarted?.(projection)
+      return { runId: projection.runId, status: 'awaiting_grant' as const }
+    })
+    let releaseSlidesQc!: () => void
+    const pendingSlidesQc = new Promise<void>((resolve) => {
+      releaseSlidesQc = resolve
+    })
+    const waitSlidesQc = vi.fn(async () => pendingSlidesQc)
+    const cancelSlidesQc = vi.fn()
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-slides-qc',
+      cursorSecret: Buffer.alloc(32, 49),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+      subagents,
+      slidesQc: { start, wait: waitSlidesQc, cancel: cancelSlidesQc },
+    })
+    const created = await registry.create({ operationId, documentId })
+    const parent = await registry.prompt({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'quality check the selected slide',
+    })
+    const parentSnapshot = createCapabilitySnapshot({
+      createdForRunId: parent.runId,
+      model: { providerId: 'provider-1', modelId: 'model-1', capabilities: ['text'] },
+      resources: [],
+      toolIds: [
+        'platform:subagent:spawn',
+        'office:slides:read_slide',
+        'office:slides:execute_slide_script',
+      ],
+      permissionVersion: 'permission-v1',
+    })
+    const spawnSlidesQc = registry.spawnSubagent({
+      parentRunId: parent.runId,
+      parentSessionId: created.sessionId,
+      documentId,
+      role: 'Slides QC',
+      task: 'quality check',
+      parentSnapshot,
+      profile: 'slides-qc',
+      slideIndexes: [0, 2],
+    })
+    let toolSettled = false
+    void spawnSlidesQc.finally(() => {
+      toolSettled = true
+    })
+    await vi.waitFor(() => expect(waitSlidesQc).toHaveBeenCalledWith('slides-qc-run-1'))
+    expect(toolSettled).toBe(false)
+    releaseSlidesQc()
+    await expect(spawnSlidesQc).resolves.toMatchObject({
+      runId: 'slides-qc-run-1',
+      role: 'Slides QC',
+    })
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({ slideIndexes: [0, 2], parentRunId: parent.runId }),
+    )
+    expect(spawn).not.toHaveBeenCalled()
+
+    await registry.abort({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      sessionId: created.sessionId,
+      documentId,
+      runId: parent.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect(cancelTree).toHaveBeenCalledWith('slides-qc-run-1', 'parent_run_aborted')
+    expect(cancelSlidesQc).toHaveBeenCalledWith('slides-qc-run-1')
+    await registry.shutdown()
+  })
+
+  it('projects an authorization revocation as capability_revoked instead of provider failure', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-revoked-'))
+    roots.push(dataRoot)
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'session.jsonl'),
+      prompt: async () => {
+        throw new CapabilitySnapshotError('capability_revoked')
+      },
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-revoked',
+      cursorSecret: Buffer.alloc(32, 5),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'revoked run',
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.failed',
+      runId: prompted.runId,
+      payload: { code: 'capability_revoked' },
+    })
+    await registry.reconcileSubagents()
+    await registry.shutdown()
+  })
+
+  it('cancels one registered execution tree, drops late events, and accepts the next prompt', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-abort-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    let promptCount = 0
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async (emit) => {
+        promptCount += 1
+        emit({ type: 'agent_start' })
+        if (promptCount === 1) {
+          await blocked
+          emit({
+            type: 'message_update',
+            message: {} as never,
+            assistantMessageEvent: {
+              type: 'text_delta',
+              contentIndex: 0,
+              delta: 'late',
+              partial: {} as never,
+            },
+          })
+        }
+      },
+      abort: async () => releasePrompt(),
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-abort',
+      cursorSecret: Buffer.alloc(32, 10),
+      cooperativeAbortMs: 100,
+      forceAbortMs: 200,
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      text: 'long run',
+    })
+    let releaseDescendant!: () => void
+    const descendantBlocked = new Promise<void>((resolve) => {
+      releaseDescendant = resolve
+    })
+    const descendantAbort = vi.fn(async () => descendantBlocked)
+    registry.registerRunDescendant(created.sessionId, prompted.runId, {
+      id: 'mcp-call',
+      kind: 'mcp',
+      abort: descendantAbort,
+    })
+
+    const abortInput = {
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      runId: prompted.runId,
+    }
+    const receipt = await registry.abort(abortInput)
+    expect(receipt).toMatchObject({ runId: prompted.runId, state: 'cancelling' })
+    await expect(registry.abort(abortInput)).resolves.toEqual(receipt)
+    expect(
+      (await registry.readJournal(created.sessionId)).some((event) => event.type === 'run.aborted'),
+    ).toBe(false)
+    releaseDescendant()
+    await registry.waitForIdle(created.sessionId)
+
+    const journal = await registry.readJournal(created.sessionId)
+    expect(journal.filter((event) => event.type === 'run.cancelling')).toHaveLength(1)
+    expect(journal.filter((event) => event.type === 'run.aborted')).toHaveLength(1)
+    expect(journal.some((event) => event.type === 'message.delta')).toBe(false)
+    expect(journal.at(-1)?.type).toBe('run.aborted')
+    expect(descendantAbort).toHaveBeenCalledOnce()
+    await expect(
+      registry.abort({
+        ...abortInput,
+        operationId: '44444444-4444-4444-8444-444444444444',
+      }),
+    ).resolves.toMatchObject({ state: 'already_terminal' })
+
+    await registry.prompt({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      text: 'next run',
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.snapshot(created)).activeRun?.state).toBe('completed')
+    await registry.shutdown()
+  })
+
+  it('fails abort closed when a document mutation outcome is unknown', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-abort-incomplete-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-abort-incomplete',
+      cursorSecret: Buffer.alloc(32, 11),
+      randomUUID: (() => {
+        let id = 0
+        return () => `${String(++id).padStart(8, '0')}-0000-4000-8000-000000000000`
+      })(),
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'uncertain write',
+    })
+    registry.registerRunDescendant(created.sessionId, prompted.runId, {
+      id: 'office-write',
+      kind: 'office',
+      mutation: true,
+      abort: async () => ({ mutationOutcome: 'unknown' }),
+    })
+    await registry.abort({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      runId: prompted.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.failed',
+      payload: {
+        code: 'abort_incomplete',
+        mutationOutcome: 'unknown',
+        documentNeedsReview: true,
+      },
+    })
+    await registry.shutdown()
+  })
+
+  it('reports an incomplete non-mutation abort without marking the document uncertain', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-abort-rejected-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async () => blocked,
+      abort: async () => releasePrompt(),
+    })
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-abort-rejected',
+      cursorSecret: Buffer.alloc(32, 37),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'cancel a rejected read-only descendant',
+    })
+    registry.registerRunDescendant(created.sessionId, prompted.runId, {
+      id: 'read-only-mcp',
+      kind: 'mcp',
+      abort: async () => {
+        throw new Error('synthetic cancellation failure')
+      },
+    })
+    await registry.abort({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      runId: prompted.runId,
+    })
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.failed',
+      payload: {
+        code: 'abort_incomplete',
+        mutationOutcome: 'not_started',
+        documentNeedsReview: false,
+      },
+    })
+    await registry.shutdown()
+  })
+
+  it('rejects an unknown run and aborts an active execution tree during Runtime shutdown', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-shutdown-abort-'))
+    roots.push(dataRoot)
+    let releasePrompt!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releasePrompt = resolve
+    })
+    const abortPi = vi.fn(async () => releasePrompt())
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async () => blocked,
+      abort: abortPi,
+    })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-shutdown-abort',
+      cursorSecret: Buffer.alloc(32, 12),
+      randomUUID: (() => {
+        let id = 0
+        return () => `${String(++id).padStart(8, '0')}-0000-4000-8000-000000000000`
+      })(),
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({ operationId, documentId })
+    expect(() =>
+      registry.registerRunDescendant('ffffffff-ffff-4fff-8fff-ffffffffffff', 'missing-run', {
+        id: 'missing-session',
+        kind: 'mcp',
+        abort: async () => {},
+      }),
+    ).toThrowError('session_not_found')
+    await expect(
+      registry.abort({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+        runId: 'missing-run',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    const prompted = await registry.prompt({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'shutdown while active',
+    })
+    expect(() =>
+      registry.registerRunDescendant(created.sessionId, 'other-run', {
+        id: 'late',
+        kind: 'mcp',
+        abort: async () => {},
+      }),
+    ).toThrowError('invalid_state')
+
+    await registry.shutdown()
+    expect(abortPi).toHaveBeenCalledOnce()
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.aborted',
+      runId: prompted.runId,
+    })
+  })
+
+  it('creates one real Pi AgentSession and projects its native stream in journal order', async () => {
+    const { dataRoot, registry } = await harness()
+    const published: string[] = []
+    registry.onEvent((event) => published.push(event.type))
+
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    const prompted = await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      text: 'exercise the native Pi stream',
+      artifacts: [
+        {
+          artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          mediaType: 'text/plain',
+          byteLength: 12,
+          sha256: 'a'.repeat(64),
+          displayName: 'notes.txt',
+        },
+      ],
+    })
+    await registry.waitForIdle(created.sessionId)
+
+    const snapshot = await registry.snapshot({
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    const journal = await registry.readJournal(created.sessionId)
+    expect(prompted).toMatchObject({
+      runId: expect.any(String),
+      acceptedCursor: expect.any(String),
+    })
+    expect(journal.map((event) => event.sequence)).toEqual(
+      journal.map((_event, index) => index + 1),
+    )
+    expect(published).toEqual(journal.map((event) => event.type))
+    expect(journal.map((event) => event.type)).toEqual(
+      expect.arrayContaining([
+        'session.opened',
+        'run.queued',
+        'run.started',
+        'message.started',
+        'thinking.started',
+        'thinking.delta',
+        'thinking.completed',
+        'message.delta',
+        'tool.requested',
+        'tool.started',
+        'tool.completed',
+        'message.completed',
+        'compaction.started',
+        'compaction.completed',
+        'branch.created',
+        'run.completed',
+      ]),
+    )
+    expect(journal.at(-1)?.type).toBe('run.completed')
+    expect(snapshot.messages.map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+      'toolResult',
+      'assistant',
+    ])
+    expect(snapshot.messages[0]?.text).toBe('exercise the native Pi stream')
+    expect(snapshot.lastSequence).toBe(journal.length)
+    expect(snapshot.cursor).toBe(journal.at(-1)?.cursor)
+
+    const binding = JSON.parse(
+      await readFile(
+        join(dataRoot, 'state', 'session-bindings', `${created.sessionId}.json`),
+        'utf8',
+      ),
+    )
+    const transcript = await readFile(binding.sessionFile, 'utf8')
+    expect(transcript).toContain('"type":"session"')
+    expect(transcript).toContain('exercise the native Pi stream')
+    expect(transcript).toContain('<genoffice-artifacts>')
+    expect(transcript).toContain('notes.txt')
+    expect(transcript).toContain('genoffice.document-binding')
+    expect(transcript).toContain(PDF_OFFICE_TOOL_CATALOG_BINDING.catalogHash)
+    expect(transcript).toContain('"type":"compaction"')
+    expect(transcript).toContain('genoffice.contract-branch')
+    expect(binding.sessionFile).toContain(
+      join('agent', 'sessions', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),
+    )
+    expect(binding.sessionFile).toMatch(new RegExp(`${created.sessionId}\\.jsonl$`))
+    expect(transcript).not.toContain('run.queued')
+    await registry.shutdown()
+  })
+
+  it('forks one document into an independent Pi Session and navigates only its branch DAG', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({
+      operationId,
+      documentId,
+      officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+    })
+    await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'create a branch before forking',
+    })
+    await registry.waitForIdle(created.sessionId)
+    const parentBeforeFork = await registry.snapshot(created)
+
+    const forked = await registry.fork({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(forked).toMatchObject({
+      parentSessionId: created.sessionId,
+      documentId,
+      snapshot: { branch: { parentSessionId: created.sessionId } },
+    })
+    expect(
+      (await registry.listBindings()).find(({ sessionId }) => sessionId === forked.sessionId),
+    ).toMatchObject({ officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING })
+    expect(forked.sessionId).not.toBe(created.sessionId)
+    expect(forked.snapshot.branch?.nodes).toHaveLength(parentBeforeFork.branch!.nodes.length + 1)
+    const forkBinding = (await registry.listBindings()).find(
+      (binding) => binding.sessionId === forked.sessionId,
+    )
+    expect(forkBinding).toMatchObject({ parentSessionId: created.sessionId, documentId })
+    expect(await readFile(forkBinding!.sessionFile, 'utf8')).toContain('genoffice.session-fork')
+
+    const targetEntryId = forked.snapshot.branch!.nodes[0]!.entryId
+    const navigated = await registry.navigate({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: forked.sessionId,
+      documentId,
+      targetEntryId,
+    })
+    expect(navigated).toMatchObject({
+      sessionId: forked.sessionId,
+      documentId,
+      snapshot: { branch: { parentSessionId: created.sessionId } },
+    })
+    expect(navigated.activeLeafId).toBe(navigated.snapshot.branch?.activeLeafId)
+    expect(navigated.snapshot.branch?.nodes.at(-1)).toMatchObject({
+      entryId: navigated.activeLeafId,
+      parentEntryId: targetEntryId,
+      kind: 'custom',
+    })
+    await expect(
+      registry.navigate({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        sessionId: forked.sessionId,
+        documentId,
+        targetEntryId: 'missing-entry',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('branch_not_found'))
+
+    const secondRuntime = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-2',
+      cursorSecret: Buffer.alloc(32, 8),
+      now: () => new Date('2026-08-09T12:00:00.000Z'),
+    })
+    await expect(
+      secondRuntime.open({
+        operationId: '66666666-6666-4666-8666-666666666666',
+        sessionId: forked.sessionId,
+        documentId,
+        officeToolCatalog: PDF_OFFICE_TOOL_CATALOG_BINDING,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await secondRuntime.shutdown()
+
+    const parentSnapshot = await registry.snapshot(created)
+    expect(parentSnapshot.branch?.activeLeafId).toBe(parentBeforeFork.branch?.activeLeafId)
+    expect(parentSnapshot.branch?.parentSessionId).toBeUndefined()
+    expect(await readFile(forkBinding!.sessionFile, 'utf8')).toContain(
+      'genoffice.branch-navigation',
+    )
+    await registry.shutdown()
+  })
+
+  it('returns the first receipt for an identical operation and rejects payload drift', async () => {
+    const { registry } = await harness()
+    const first = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    await expect(
+      registry.create({ operationId, documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' }),
+    ).resolves.toEqual(first)
+    await expect(
+      registry.create({ operationId, documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2' }),
+    ).rejects.toEqual(new RuntimeSessionError('duplicate_operation_mismatch'))
+    expect(await registry.listBindings()).toHaveLength(1)
+    await registry.shutdown()
+  })
+
+  it('fails closed on a different document before opening or changing the Pi transcript', async () => {
+    const { registry } = await harness()
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      text: 'create a transcript before the mismatch probe',
+    })
+    await registry.waitForIdle(created.sessionId)
+    const binding = (await registry.listBindings())[0]!
+    const before = await stat(binding.sessionFile)
+
+    await expect(
+      registry.open({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId: created.sessionId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('document_mismatch'))
+    await expect(
+      registry.prompt({
+        operationId: '44444444-4444-4444-8444-444444444444',
+        sessionId: created.sessionId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+        text: 'must never reach Pi',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('document_mismatch'))
+
+    const after = await stat(binding.sessionFile)
+    expect(after.size).toBe(before.size)
+    expect(after.mtimeMs).toBe(before.mtimeMs)
+    await registry.shutdown()
+  })
+
+  it('opens the persisted Pi JSONL and returns replay events after a valid cursor', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    const firstCursor = created.cursor
+    await registry.shutdown()
+
+    const reopened = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-2',
+      cursorSecret: Buffer.alloc(32, 8),
+      randomUUID: () => '99999999-9999-4999-8999-999999999999',
+      now: () => new Date('2026-08-09T12:01:00.000Z'),
+    })
+    const result = await reopened.open({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    expect(result.snapshot.messages).toEqual([])
+    expect(result.cursor).not.toBe(firstCursor)
+
+    const subscription = await reopened.subscribe({
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      afterCursor: result.cursor,
+    })
+    expect(subscription).toMatchObject({ resetRequired: false, events: [] })
+    await reopened.shutdown()
+  })
+
+  it('repairs only crash-torn JSONL tails before reopening and appending', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({ operationId, documentId })
+    const binding = (await registry.listBindings())[0]!
+    const journalPath = join(dataRoot, 'state', 'session-journals', `${created.sessionId}.jsonl`)
+    await registry.shutdown()
+    await appendFile(journalPath, '{"tornJournal":')
+    await appendFile(binding.sessionFile, '{"tornTranscript":')
+
+    const reopened = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-tail-repair',
+      cursorSecret: Buffer.alloc(32, 18),
+      randomUUID: () => '77777777-7777-4777-8777-777777777777',
+    })
+    await expect(
+      reopened.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+      }),
+    ).resolves.toMatchObject({ sessionId: created.sessionId, documentId })
+    const journal = await readFile(journalPath, 'utf8')
+    const transcript = await readFile(binding.sessionFile, 'utf8')
+    expect(journal).not.toContain('tornJournal')
+    expect(transcript).not.toContain('tornTranscript')
+    expect(
+      journal
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line)),
+    ).toHaveLength(2)
+    expect(
+      transcript
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+        .at(0),
+    ).toMatchObject({
+      type: 'session',
+      id: created.sessionId,
+    })
+    const emptyTailSessionId = '88888888-8888-4888-8888-888888888888'
+    const emptyTailPath = join(dataRoot, 'state', 'session-journals', `${emptyTailSessionId}.jsonl`)
+    await writeFile(emptyTailPath, '{"tornOnly":')
+    await expect(reopened.readJournal(emptyTailSessionId)).resolves.toEqual([])
+    await expect(readFile(emptyTailPath, 'utf8')).resolves.toBe('')
+    await reopened.shutdown()
+  })
+
+  it('returns session_in_use to a second Runtime and releases the writer lease on shutdown', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({ operationId, documentId })
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-2',
+      cursorSecret: Buffer.alloc(32, 8),
+      now: () => new Date('2026-08-09T12:00:00.000Z'),
+    })
+    const openInput = {
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+    }
+
+    await expect(second.open(openInput)).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await registry.shutdown()
+    await expect(
+      second.open({
+        ...openInput,
+        operationId: '33333333-3333-4333-8333-333333333333',
+      }),
+    ).resolves.toMatchObject({
+      sessionId: created.sessionId,
+      documentId,
+    })
+    await second.shutdown()
+  })
+
+  it('single-flights concurrent opens inside one Runtime while retaining one writer lease', async () => {
+    const { dataRoot, registry } = await harness()
+    const created = await registry.create({ operationId, documentId })
+    const binding = (await registry.listBindings())[0]!
+    await registry.shutdown()
+
+    const fake = fakePiSession({ sessionFile: binding.sessionFile })
+    const createPiSession = vi.fn(async () => {
+      await Promise.resolve()
+      return fake.handle as never
+    })
+    const reopened = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-concurrent',
+      cursorSecret: Buffer.alloc(32, 9),
+      createPiSession,
+    })
+    const bound = { sessionId: created.sessionId, documentId }
+    await expect(
+      Promise.all([
+        reopened.open({
+          ...bound,
+          operationId: '22222222-2222-4222-8222-222222222222',
+        }),
+        reopened.snapshot(bound),
+      ]),
+    ).resolves.toHaveLength(2)
+    expect(createPiSession).toHaveBeenCalledOnce()
+    await reopened.shutdown()
+  })
+
+  it('heartbeats an owned Session before TTL so another Runtime cannot take it over', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-lease-heartbeat-'))
+    roots.push(dataRoot)
+    let currentTime = Date.parse('2026-08-09T12:00:00.000Z')
+    const now = () => {
+      const value = new Date(currentTime)
+      currentTime += 300
+      return value
+    }
+    let uuid = 0
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-heartbeat',
+      cursorSecret: Buffer.alloc(32, 34),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      now,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 250,
+    })
+    const created = await first.create({ operationId, documentId })
+    const leasePath = join(dataRoot, 'state', 'leases', `session-${created.sessionId}.json`)
+    await vi.waitFor(async () => {
+      expect(JSON.parse(await readFile(leasePath, 'utf8'))).toMatchObject({ generation: 2 })
+    })
+
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-heartbeat-contender',
+      cursorSecret: Buffer.alloc(32, 35),
+      now,
+      sessionLeaseTtlMs: 1_000,
+    })
+    await expect(
+      second.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: created.sessionId,
+        documentId,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await second.shutdown()
+    await first.shutdown()
+  })
+
+  it('takes over an expired lease and makes the old Runtime fail closed without deleting the new lease', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-lease-expiry-'))
+    roots.push(dataRoot)
+    let currentTime = Date.parse('2026-08-09T12:00:00.000Z')
+    const now = () => new Date(currentTime)
+    let uuid = 0
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-before-expiry',
+      cursorSecret: Buffer.alloc(32, 31),
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      now,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
+    })
+    const created = await first.create({ operationId, documentId })
+    currentTime += 1_001
+
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-after-expiry',
+      cursorSecret: Buffer.alloc(32, 32),
+      now,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
+    })
+    await second.open({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    await expect(
+      first.prompt({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId: created.sessionId,
+        documentId,
+        text: 'must not write after takeover',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_lease_lost'))
+    await expect(
+      first.prompt({
+        operationId: '44444444-4444-4444-8444-444444444444',
+        sessionId: created.sessionId,
+        documentId,
+        text: 'must remain blocked after lease loss',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_lease_lost'))
+    await first.shutdown()
+
+    const third = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-third',
+      cursorSecret: Buffer.alloc(32, 33),
+      now,
+    })
+    await expect(
+      third.open({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        sessionId: created.sessionId,
+        documentId,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_in_use'))
+    await third.shutdown()
+    await second.shutdown()
+  })
+
+  it('interrupts a crashed run once, marks an uncertain mutation, and accepts a new prompt', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-crash-recovery-'))
+    roots.push(dataRoot)
+    const sessionFile = join(dataRoot, 'fake-session.jsonl')
+    const blocked = new Promise<void>(() => {})
+    const crashedPi = fakePiSession({
+      sessionFile,
+      prompt: async (emit) => {
+        emit({ type: 'agent_start' })
+        await blocked
+      },
+    })
+    let crashTime = Date.parse('2026-08-09T12:00:00.000Z')
+    const crashNow = () => new Date(crashTime)
+    let firstUuid = 0
+    const first = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-before-crash',
+      cursorSecret: Buffer.alloc(32, 21),
+      randomUUID: () => `${String(++firstUuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => crashedPi.handle as never,
+      now: crashNow,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
+    })
+    const created = await first.create({ operationId, documentId })
+    const prompted = await first.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'crash during an Office mutation',
+    })
+    await vi.waitFor(async () => {
+      expect(
+        (await first.readJournal(created.sessionId)).some((item) => item.type === 'run.started'),
+      ).toBe(true)
+    })
+    const beforeCrash = await first.readJournal(created.sessionId)
+    const journalPath = join(dataRoot, 'state', 'session-journals', `${created.sessionId}.jsonl`)
+    for (const [offset, type] of ['tool.requested', 'tool.started'].entries()) {
+      await appendFile(
+        journalPath,
+        `${JSON.stringify({
+          protocolVersion: '1',
+          kind: 'event',
+          eventId: `crash-tool-${offset}`,
+          instanceId: 'instance-before-crash',
+          sessionId: created.sessionId,
+          documentId,
+          runId: prompted.runId,
+          sequence: beforeCrash.length + offset + 1,
+          cursor: `old-tool-cursor-${offset}`,
+          occurredAt: '2026-08-09T12:00:01.000Z',
+          type,
+          payload: {
+            toolCallId: 'office-write',
+            toolName: 'office:docs:replace',
+            effect: 'mutation',
+          },
+        })}\n`,
+      )
+    }
+    crashTime += 1_001
+
+    const recoveredPi = fakePiSession({ sessionFile, prompt: async () => {} })
+    let secondUuid = 100
+    const second = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-after-crash',
+      cursorSecret: Buffer.alloc(32, 22),
+      randomUUID: () => `${String(++secondUuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      createPiSession: async () => recoveredPi.handle as never,
+      now: crashNow,
+      sessionLeaseTtlMs: 1_000,
+      sessionLeaseHeartbeatMs: 60_000,
+    })
+    const reopened = await second.open({
+      operationId: '33333333-3333-4333-8333-333333333333',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(reopened.snapshot.activeRun).toEqual({ runId: prompted.runId, state: 'interrupted' })
+    expect(
+      await second.subscribe({
+        sessionId: created.sessionId,
+        documentId,
+        afterCursor: prompted.acceptedCursor,
+      }),
+    ).toMatchObject({ resetRequired: true, events: [] })
+    const recoveredJournal = await second.readJournal(created.sessionId)
+    expect(recoveredJournal.filter((item) => item.type === 'run.interrupted')).toHaveLength(1)
+    expect(recoveredJournal.find((item) => item.type === 'tool.failed')).toMatchObject({
+      runId: prompted.runId,
+      payload: {
+        toolCallId: 'office-write',
+        mutationOutcome: 'unknown',
+        code: 'mutation_outcome_unknown',
+        documentNeedsReview: true,
+      },
+    })
+
+    await second.prompt({
+      operationId: '44444444-4444-4444-8444-444444444444',
+      sessionId: created.sessionId,
+      documentId,
+      text: 'continue after reviewing the document',
+    })
+    await second.waitForIdle(created.sessionId)
+    await second.shutdown()
+
+    const third = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-third-start',
+      cursorSecret: Buffer.alloc(32, 23),
+      randomUUID: () => '99999999-9999-4999-8999-999999999999',
+      createPiSession: async () => fakePiSession({ sessionFile }).handle as never,
+    })
+    await third.open({
+      operationId: '55555555-5555-4555-8555-555555555555',
+      sessionId: created.sessionId,
+      documentId,
+    })
+    expect(
+      (await third.readJournal(created.sessionId)).filter(
+        (item) => item.type === 'run.interrupted',
+      ),
+    ).toHaveLength(1)
+    await third.shutdown()
+  })
+
+  it('covers reset cursors, missing sessions, busy runs, and provider failures without duplicating work', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-errors-'))
+    roots.push(dataRoot)
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const fake = fakePiSession({
+      sessionFile: join(dataRoot, 'fake-session.jsonl'),
+      prompt: async (emit) => {
+        emit({ type: 'agent_start' })
+        await blocked
+        throw new Error('synthetic provider failure')
+      },
+    })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-errors',
+      cursorSecret: Buffer.alloc(32, 4),
+      randomUUID: (() => {
+        let id = 0
+        return () => `${String(++id).padStart(8, '0')}-0000-4000-8000-000000000000`
+      })(),
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    fake.emit({ type: 'agent_start' })
+    await expect(registry.waitForIdle('ffffffff-ffff-4fff-8fff-ffffffffffff')).rejects.toEqual(
+      new RuntimeSessionError('session_not_found'),
+    )
+    await expect(
+      registry.subscribe({
+        sessionId: created.sessionId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      }),
+    ).resolves.toMatchObject({ resetRequired: true })
+    await expect(
+      registry.subscribe({
+        sessionId: created.sessionId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        afterCursor: 'malformed',
+      }),
+    ).resolves.toMatchObject({ resetRequired: true })
+
+    await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      text: 'blocked run',
+    })
+    await expect(
+      registry.prompt({
+        operationId: '33333333-3333-4333-8333-333333333333',
+        sessionId: created.sessionId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        text: 'must be rejected while busy',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    release()
+    await registry.waitForIdle(created.sessionId)
+    expect((await registry.readJournal(created.sessionId)).at(-1)).toMatchObject({
+      type: 'run.failed',
+      payload: { reason: 'provider_error' },
+    })
+    await registry.shutdown()
+  })
+
+  it('projects failure/progress event branches and only exposes render-safe transcript fields', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-projector-'))
+    roots.push(dataRoot)
+    const sessionFile = join(dataRoot, 'fake-session.jsonl')
+    await writeFile(sessionFile, '{"type":"session"}\n')
+    const fake = fakePiSession({
+      sessionFile,
+      messages: [
+        {
+          type: 'message',
+          id: 'user-entry',
+          message: { role: 'user', content: 'plain user text', timestamp: 1 },
+        },
+        {
+          type: 'message',
+          id: 'assistant-entry',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'thinking', thinking: 'hidden' },
+              { type: 'toolCall', id: 'tool-1', name: 'probe', arguments: {} },
+            ],
+            stopReason: 'error',
+          },
+        },
+        { type: 'message', id: 'custom-entry', message: { role: 'custom', content: 'hidden' } },
+      ],
+      prompt: async (emit) => {
+        emit({ type: 'agent_start' })
+        emit({
+          type: 'message_update',
+          message: {} as never,
+          assistantMessageEvent: { type: 'start', partial: {} as never },
+        })
+        emit({
+          type: 'tool_execution_update',
+          toolCallId: 'tool-1',
+          toolName: 'probe',
+          args: {},
+          partialResult: {},
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'tool-1',
+          toolName: 'probe',
+          result: {
+            details: {
+              officeTool: {
+                operationId: 'office-operation-1',
+                toolId: 'office:pdf:delete_page',
+                status: 'completed',
+                mutationOutcome: 'committed',
+              },
+            },
+          },
+          isError: true,
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'tool-details-string',
+          toolName: 'probe',
+          result: { details: 'renderer-private' },
+          isError: false,
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'platform-image-safe',
+          toolName: 'image_search',
+          result: {
+            details: {
+              platformTool: {
+                toolId: 'platform:image_search',
+                kind: 'image_search',
+                provider: 'serper',
+                images: [
+                  {
+                    artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                    mediaType: 'image/png',
+                    byteLength: 68,
+                    sha256: 'a'.repeat(64),
+                    title: 'Safe image',
+                    sourceUrl: 'https://example.test/page',
+                    source: 'Example',
+                    width: 1,
+                    height: 1,
+                  },
+                ],
+              },
+            },
+          },
+          isError: false,
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'platform-image-forged',
+          toolName: 'image_search',
+          result: {
+            details: {
+              platformTool: {
+                toolId: 'platform:image_search',
+                kind: 'image_search',
+                provider: 'serper',
+                images: [],
+                imageUrl: 'https://private.example/image.png',
+              },
+            },
+          },
+          isError: false,
+        })
+        emit({
+          type: 'tool_execution_end',
+          toolCallId: 'tool-outcome-forged',
+          toolName: 'probe',
+          result: { details: { officeTool: { mutationOutcome: 'forged' } } },
+          isError: false,
+        })
+        emit({
+          type: 'compaction_start',
+          reason: 'manual',
+        })
+        emit({
+          type: 'compaction_end',
+          reason: 'manual',
+          result: undefined,
+          aborted: true,
+          willRetry: false,
+        })
+        emit({
+          type: 'compaction_end',
+          reason: 'threshold',
+          result: undefined,
+          aborted: false,
+          willRetry: false,
+        })
+        emit({
+          type: 'agent_end',
+          messages: [],
+          willRetry: true,
+        })
+        emit({
+          type: 'agent_end',
+          messages: [
+            {
+              role: 'assistant',
+              content: [],
+              stopReason: 'aborted',
+            } as never,
+          ],
+          willRetry: false,
+        })
+        emit({
+          type: 'agent_end',
+          messages: [
+            {
+              role: 'assistant',
+              content: [],
+              stopReason: 'error',
+            } as never,
+          ],
+          willRetry: false,
+        })
+      },
+    })
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-projector',
+      cursorSecret: Buffer.alloc(32, 5),
+      randomUUID: (() => {
+        let id = 0
+        return () => `${String(++id).padStart(8, '0')}-0000-4000-8000-000000000000`
+      })(),
+      createPiSession: async () => fake.handle as never,
+    })
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      text: 'project events',
+    })
+    await registry.waitForIdle(created.sessionId)
+    const snapshot = await registry.snapshot({
+      sessionId: created.sessionId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    expect(snapshot.messages).toEqual([
+      { id: 'user-entry', role: 'user', text: 'plain user text' },
+      { id: 'assistant-entry', role: 'assistant', text: '' },
+    ])
+    const journal = await registry.readJournal(created.sessionId)
+    expect(journal.map((event) => event.type)).toEqual(
+      expect.arrayContaining([
+        'tool.progress',
+        'tool.failed',
+        'compaction.started',
+        'compaction.failed',
+        'run.aborted',
+      ]),
+    )
+    expect(journal.find((event) => event.type === 'tool.failed')?.payload).toMatchObject({
+      mutationOutcome: 'committed',
+    })
+    expect(
+      journal.find(
+        (event) =>
+          event.type === 'tool.completed' &&
+          (event.payload as { toolCallId?: unknown }).toolCallId === 'platform-image-safe',
+      )?.payload,
+    ).toMatchObject({
+      platformTool: {
+        toolId: 'platform:image_search',
+        images: [{ artifactId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
+      },
+    })
+    expect(JSON.stringify(journal)).not.toContain('private.example')
+    await registry.shutdown()
+  })
+
+  it('rejects invalid bindings and cursors before opening Pi state', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-invalid-'))
+    roots.push(dataRoot)
+    const bindingsRoot = join(dataRoot, 'state', 'session-bindings')
+    await mkdir(bindingsRoot, { recursive: true })
+    await writeFile(join(bindingsRoot, 'not-json.txt'), 'ignored')
+    const malformedId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    await writeFile(join(bindingsRoot, `${malformedId}.json`), '{"version":2}')
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-invalid',
+      cursorSecret: Buffer.alloc(32, 6),
+      randomUUID: () => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      createPiSession: async () => fakePiSession({}).handle as never,
+    })
+    await expect(
+      registry.open({
+        operationId,
+        sessionId: malformedId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_not_found'))
+    await writeFile(
+      join(bindingsRoot, `${malformedId}.json`),
+      JSON.stringify({
+        version: 1,
+        sessionId: malformedId,
+        documentId,
+        sessionFile: join(dataRoot, 'forged.jsonl'),
+        parentSessionId: malformedId,
+      }),
+    )
+    await expect(
+      registry.open({
+        operationId: '11111111-1111-4111-8111-111111111112',
+        sessionId: malformedId,
+        documentId,
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_not_found'))
+    await rm(join(bindingsRoot, `${malformedId}.json`))
+    await expect(
+      registry.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      }),
+    ).rejects.toEqual(new RuntimeSessionError('session_not_found'))
+    expect(await registry.listBindings()).toEqual([])
+
+    const noFile = fakePiSession({})
+    const noFileRegistry = createSessionRegistry({
+      dataRoot: join(dataRoot, 'no-file'),
+      instanceId: 'instance-no-file',
+      cursorSecret: Buffer.alloc(32, 7),
+      randomUUID: () => 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      createPiSession: async () => noFile.handle as never,
+    })
+    await expect(
+      noFileRegistry.create({ operationId, documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' }),
+    ).rejects.toEqual(new RuntimeSessionError('invalid_state'))
+    await registry.shutdown()
+    await noFileRegistry.shutdown()
+  })
+
+  it.each(['factory', 'attach', 'append', 'binding'] as const)(
+    'releases the lease and leaves no binding when Session creation fails during %s',
+    async (failurePoint) => {
+      const dataRoot = await mkdtemp(join(tmpdir(), `genoffice-session-create-${failurePoint}-`))
+      roots.push(dataRoot)
+      const createdSessionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+      const bindingPath = join(dataRoot, 'state', 'session-bindings', `${createdSessionId}.json`)
+      const journalPath = join(dataRoot, 'state', 'session-journals', `${createdSessionId}.jsonl`)
+      if (failurePoint === 'attach') mkdirSync(journalPath, { recursive: true })
+      const fake = fakePiSession({ sessionFile: join(dataRoot, 'fake-session.jsonl') })
+      const dispose = vi.fn()
+      fake.handle.dispose = dispose
+      if (failurePoint === 'append') {
+        fake.handle.subscribe = () => {
+          mkdirSync(journalPath, { recursive: true })
+          return () => {}
+        }
+      }
+      const registry = createSessionRegistry({
+        dataRoot,
+        instanceId: `instance-create-${failurePoint}`,
+        cursorSecret: Buffer.alloc(32, 36),
+        randomUUID: () => createdSessionId,
+        ...(failurePoint === 'binding'
+          ? {
+              bindingAtomicWriteOptions: () => ({
+                failAt: 'before_rename' as const,
+                platform: 'linux' as const,
+              }),
+            }
+          : {}),
+        createPiSession: async () => {
+          if (failurePoint === 'factory') throw new Error('synthetic Pi factory failure')
+          return fake.handle as never
+        },
+      })
+      const unsubscribe = registry.onEvent(() => {})
+
+      await expect(registry.create({ operationId, documentId })).rejects.toThrow()
+      expect(dispose).toHaveBeenCalledTimes(failurePoint === 'factory' ? 0 : 1)
+      await expect(
+        readFile(join(dataRoot, 'state', 'leases', `session-${createdSessionId}.json`), 'utf8'),
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(readFile(bindingPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      unsubscribe()
+      await registry.shutdown()
+    },
+  )
+
+  it('recovers a fully renamed binding after an injected post-commit crash', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-binding-committed-'))
+    roots.push(dataRoot)
+    const sessionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    const sessionFile = join(dataRoot, 'fake-session.jsonl')
+    const firstFake = fakePiSession({ sessionFile })
+    const crashed = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-binding-crash',
+      cursorSecret: Buffer.alloc(32, 19),
+      randomUUID: () => sessionId,
+      bindingAtomicWriteOptions: () => ({ failAt: 'after_rename', platform: 'linux' }),
+      createPiSession: async () => firstFake.handle as never,
+    })
+    await expect(crashed.create({ operationId, documentId })).rejects.toThrowError(
+      'injected_atomic_write_failure',
+    )
+    await expect(crashed.listBindings()).resolves.toEqual([
+      expect.objectContaining({ sessionId, documentId, sessionFile }),
+    ])
+    await crashed.shutdown()
+
+    const recovered = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-binding-recovered',
+      cursorSecret: Buffer.alloc(32, 20),
+      createPiSession: async () => fakePiSession({ sessionFile }).handle as never,
+    })
+    await expect(
+      recovered.open({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId,
+        documentId,
+      }),
+    ).resolves.toMatchObject({ sessionId, documentId })
+    await recovered.shutdown()
+  })
+
+  it('rejects cursors signed for another instance, session, signature, or sequence', async () => {
+    const { dataRoot, registry } = await harness()
+    const first = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    const second = await registry.create({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    for (const [sessionId, cursor] of [
+      [second.sessionId, first.cursor],
+      [first.sessionId, `${first.cursor}extra`],
+      [first.sessionId, `${first.cursor}.extra`],
+    ]) {
+      await expect(
+        registry.subscribe({
+          sessionId,
+          documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+          afterCursor: cursor,
+        }),
+      ).resolves.toMatchObject({ resetRequired: true })
+    }
+
+    const body = Buffer.from(`instance-1\0${first.sessionId}\0-1`).toString('base64url')
+    const signature = createHmac('sha256', Buffer.alloc(32, 7)).update(body).digest('base64url')
+    await expect(
+      registry.subscribe({
+        sessionId: first.sessionId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        afterCursor: `${body}.${signature}`,
+      }),
+    ).resolves.toMatchObject({ resetRequired: true })
+
+    const reopened = createSessionRegistry({
+      dataRoot,
+      instanceId: 'other-instance',
+      cursorSecret: Buffer.alloc(32, 7),
+      randomUUID: () => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    })
+    await expect(
+      reopened.subscribe({
+        sessionId: first.sessionId,
+        documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        afterCursor: first.cursor,
+      }),
+    ).resolves.toMatchObject({ resetRequired: true })
+    await registry.shutdown()
+    await reopened.shutdown()
+  })
+
+  it('expires cursors outside the bounded replay window without reopening the run', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'genoffice-session-replay-window-'))
+    roots.push(dataRoot)
+    let uuid = 0
+    const registry = createSessionRegistry({
+      dataRoot,
+      instanceId: 'instance-replay',
+      cursorSecret: Buffer.alloc(32, 9),
+      replayWindowSize: 2,
+      randomUUID: () => `${String(++uuid).padStart(8, '0')}-0000-4000-8000-000000000000`,
+    })
+    const created = await registry.create({
+      operationId,
+      documentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    })
+    await registry.prompt({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+      text: 'advance beyond the replay window',
+    })
+    await registry.waitForIdle(created.sessionId)
+
+    await expect(
+      registry.subscribe({
+        sessionId: created.sessionId,
+        documentId: created.documentId,
+        afterCursor: created.cursor,
+      }),
+    ).resolves.toMatchObject({ resetRequired: true, events: [] })
+    const current = await registry.snapshot({
+      sessionId: created.sessionId,
+      documentId: created.documentId,
+    })
+    await expect(
+      registry.subscribe({
+        sessionId: created.sessionId,
+        documentId: created.documentId,
+        afterCursor: current.cursor,
+      }),
+    ).resolves.toMatchObject({ resetRequired: false, events: [] })
+    expect(current.activeRun?.state).toBe('completed')
+    await registry.shutdown()
+  })
+})

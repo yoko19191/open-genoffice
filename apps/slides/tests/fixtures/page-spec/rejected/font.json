@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "title": "字体",
+  "canvas": { "widthPx": 1280, "heightPx": 720 },
+  "background": { "color": "#FFFFFF" },
+  "elements": [
+    {
+      "id": "bad",
+      "kind": "text",
+      "x": 20,
+      "y": 20,
+      "w": 400,
+      "h": 80,
+      "text": "字体",
+      "fontFamily": "Private Font"
+    }
+  ]
+}

@@ -288,24 +288,6 @@ describe('executeWorkbookTool: get_workbook_context', () => {
   })
 })
 
-describe('executeWorkbookTool: load_guide', () => {
-  it('loads one or more guides by name', () => {
-    const result = execSync(call('load_guide', { guides: ['writing', 'structure'] }), fakeDeps())
-    expect(result.isError).toBeFalsy()
-    expect(result.output).toContain('set_range')
-    expect(result.output).toContain('insert_rows')
-    expect(result.mutated).toBe(false)
-  })
-
-  it('rejects unknown guide names, listing the valid ones', () => {
-    // 'pivot' became a real guide — use a name that stays unregistered.
-    const result = execSync(call('load_guide', { guides: ['no-such-guide'] }), fakeDeps())
-    expect(result.isError).toBe(true)
-    expect(result.output).toContain('writing')
-    expect(execSync(call('load_guide', {}), fakeDeps()).isError).toBe(true)
-  })
-})
-
 describe('executeWorkbookTool: read_formats', () => {
   it('lists only cells with explicit formats', () => {
     const readFormats = vi.fn().mockReturnValue({
@@ -530,7 +512,8 @@ describe('executeWorkbookTool: propose_operations', () => {
     )
     expect(result.isError).toBe(true)
     expect(result.mutated).toBe(false)
-    expect(result.output).toContain('UNCHANGED')
+    expect(result.output).toContain('state is unknown')
+    expect(result.mutationOutcome).toBe('unknown')
     expect(result.output).toContain('workbook changed since preview')
   })
 

@@ -1,0 +1,58 @@
+[
+  {
+    "operationId": "11111111-1111-4111-8111-111111111111",
+    "toolCallId": "11111111-1111-4111-8111-111111111112",
+    "toolId": "office:pdf:markup_text",
+    "status": "completed",
+    "output": "",
+    "contextVersionAfter": "pdf-context-2",
+    "mutationOutcome": "committed",
+    "provenance": {
+      "actorId": "11111111-1111-4111-8111-111111111113",
+      "runId": "11111111-1111-4111-8111-111111111114",
+      "documentId": "fixture-pdf-document"
+    }
+  },
+  {
+    "operationId": "22222222-2222-4222-8222-222222222221",
+    "toolCallId": "22222222-2222-4222-8222-222222222222",
+    "toolId": "office:docs:apply_commands",
+    "status": "failed",
+    "output": "",
+    "contextVersionAfter": "docs-context-1",
+    "mutationOutcome": "rolled_back",
+    "provenance": {
+      "actorId": "22222222-2222-4222-8222-222222222223",
+      "runId": "22222222-2222-4222-8222-222222222224",
+      "documentId": "fixture-docs-document"
+    }
+  },
+  {
+    "operationId": "33333333-3333-4333-8333-333333333331",
+    "toolCallId": "33333333-3333-4333-8333-333333333332",
+    "toolId": "office:sheets:propose_operations",
+    "status": "completed",
+    "output": "",
+    "contextVersionAfter": "sheets-context-2",
+    "mutationOutcome": "committed",
+    "provenance": {
+      "actorId": "33333333-3333-4333-8333-333333333333",
+      "runId": "33333333-3333-4333-8333-333333333334",
+      "documentId": "fixture-sheets-document"
+    }
+  },
+  {
+    "operationId": "44444444-4444-4444-8444-444444444441",
+    "toolCallId": "44444444-4444-4444-8444-444444444442",
+    "toolId": "office:slides:add_shape",
+    "status": "failed",
+    "output": "",
+    "contextVersionAfter": "slides-context-1",
+    "mutationOutcome": "not_started",
+    "provenance": {
+      "actorId": "44444444-4444-4444-8444-444444444443",
+      "runId": "44444444-4444-4444-8444-444444444444",
+      "documentId": "fixture-slides-document"
+    }
+  }
+]

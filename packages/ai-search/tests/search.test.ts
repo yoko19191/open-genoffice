@@ -1,10 +1,5 @@
-import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { webSearch, imageSearch } from '../src/index'
-
-// These cases only test the Serper/DuckDuckGo paths; a local gsk login would take priority, so disable it explicitly
-beforeAll(() => {
-  process.env.AI_SEARCH_DISABLE_GSK = '1'
-})
 
 const realFetch = globalThis.fetch
 afterEach(() => {
@@ -12,7 +7,9 @@ afterEach(() => {
   delete process.env.SERPER_API_KEY
 })
 
-function mockFetch(handler: (url: string, init?: RequestInit) => { ok: boolean; json?: any; text?: string }) {
+function mockFetch(
+  handler: (url: string, init?: RequestInit) => { ok: boolean; json?: any; text?: string },
+) {
   globalThis.fetch = vi.fn(async (url: any, init: any) => {
     const r = handler(String(url), init)
     return {
@@ -72,8 +69,18 @@ describe('imageSearch (Serper)', () => {
         ok: true,
         json: {
           images: [
-            { title: 'good', imageUrl: 'https://cdn.example.com/a.jpg', link: 'https://example.com', imageWidth: 800, imageHeight: 600 },
-            { title: 'paid', imageUrl: 'https://gettyimages.com/x.jpg', link: 'https://gettyimages.com' },
+            {
+              title: 'good',
+              imageUrl: 'https://cdn.example.com/a.jpg',
+              link: 'https://example.com',
+              imageWidth: 800,
+              imageHeight: 600,
+            },
+            {
+              title: 'paid',
+              imageUrl: 'https://gettyimages.com/x.jpg',
+              link: 'https://gettyimages.com',
+            },
           ],
         },
       }
@@ -81,6 +88,10 @@ describe('imageSearch (Serper)', () => {
     const r = await imageSearch('cats', 8)
     expect(r.method).toBe('serper')
     expect(r.images).toHaveLength(1) // getty is filtered out
-    expect(r.images[0]).toMatchObject({ imageUrl: 'https://cdn.example.com/a.jpg', width: 800, height: 600 })
+    expect(r.images[0]).toMatchObject({
+      imageUrl: 'https://cdn.example.com/a.jpg',
+      width: 800,
+      height: 600,
+    })
   })
 })

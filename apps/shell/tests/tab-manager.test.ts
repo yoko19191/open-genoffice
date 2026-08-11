@@ -120,7 +120,13 @@ function makeShellWindow(): FakeShellWindow {
 let shellWindow: FakeShellWindow
 let onChanged: ReturnType<typeof vi.fn>
 let applyMenuFor: ReturnType<typeof vi.fn>
+let onRendererClosed: ReturnType<typeof vi.fn>
+let openAgentDocument: ReturnType<typeof vi.fn>
+let bindAgentDocumentPath: ReturnType<typeof vi.fn>
 let manager: TabManager
+
+const firstDocumentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+const secondDocumentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
 
 function lastCreatedView(factory: ReturnType<typeof vi.fn>): FakeView {
   return factory.mock.results.at(-1)!.value as FakeView
@@ -137,10 +143,22 @@ beforeEach(() => {
   shellWindow = makeShellWindow()
   onChanged = vi.fn()
   applyMenuFor = vi.fn()
+  onRendererClosed = vi.fn()
+  let nextDocumentId = 0
+  openAgentDocument = vi.fn(async () => ({
+    documentId: [firstDocumentId, secondDocumentId][nextDocumentId++]!,
+  }))
+  bindAgentDocumentPath = vi.fn(async (documentId: string) => ({ documentId }))
   manager = new TabManager(
     shellWindow as never,
     () => onChanged(),
     (kind) => applyMenuFor(kind),
+    undefined,
+    (webContentsId) => onRendererClosed(webContentsId),
+    {
+      open: openAgentDocument,
+      bindPath: bindAgentDocumentPath,
+    },
   )
 })
 
@@ -232,6 +250,31 @@ describe('activation', () => {
     expect(manager.list()[0].active).toBe(true)
   })
 
+  it('opens a converted DOCX beside its source PDF until normal tab activation', () => {
+    const pdfId = manager.openPdfTab('/tmp/source.pdf')
+    const pdfView = lastCreatedView(createPdfView)
+    const docsId = manager.openDocsBesidePdf(pdfId, '/tmp/result.docx')
+    const docsView = lastCreatedView(createDocsView)
+    expect(manager.list().find((tab) => tab.id === docsId)?.active).toBe(true)
+    expect(pdfView.setVisible).toHaveBeenLastCalledWith(true)
+    expect(docsView.setVisible).toHaveBeenLastCalledWith(true)
+    expect(pdfView.setBounds).toHaveBeenLastCalledWith({
+      x: 0,
+      y: TAB_STRIP_HEIGHT,
+      width: WINDOW_WIDTH / 2,
+      height: WINDOW_HEIGHT - TAB_STRIP_HEIGHT,
+    })
+    expect(docsView.setBounds).toHaveBeenLastCalledWith({
+      x: WINDOW_WIDTH / 2,
+      y: TAB_STRIP_HEIGHT,
+      width: WINDOW_WIDTH / 2,
+      height: WINDOW_HEIGHT - TAB_STRIP_HEIGHT,
+    })
+    manager.activateTab('home')
+    expect(pdfView.setVisible).toHaveBeenLastCalledWith(false)
+    expect(docsView.setVisible).toHaveBeenLastCalledWith(false)
+  })
+
   it('routes the active webContents to the matching module', () => {
     manager.openSheetsTab()
     const sheetsView = lastCreatedView(createSheetsView)
@@ -259,6 +302,34 @@ describe('activation', () => {
       width: WINDOW_WIDTH,
       height: WINDOW_HEIGHT - TAB_STRIP_HEIGHT,
     })
+  })
+})
+
+describe('Agent document authorization', () => {
+  it('authorizes only the persisted document id and rejects cross-tab reuse', async () => {
+    manager.openDocsTab()
+    const docs = lastCreatedView(createDocsView)
+    manager.openSheetsTab()
+    const sheets = lastCreatedView(createSheetsView)
+
+    await expect(manager.agentDocumentIdFor(docs.webContents.id)).resolves.toBe(firstDocumentId)
+    expect(manager.agentDocumentKindFor(docs.webContents.id)).toBe('docs')
+    expect(manager.agentDocumentKindFor(sheets.webContents.id)).toBe('sheets')
+    expect(manager.agentDocumentKindFor(999)).toBeUndefined()
+    await expect(
+      manager.authorizeAgentDocument(docs.webContents.id, firstDocumentId),
+    ).resolves.toBe(true)
+    expect(manager.agentWebContentsFor(firstDocumentId, 'docs')).toBe(docs.webContents)
+    expect(manager.agentWebContentsFor(firstDocumentId, 'pdf')).toBeUndefined()
+    expect(manager.agentWebContentsFor(secondDocumentId)).toBeUndefined()
+    await expect(
+      manager.authorizeAgentDocument(docs.webContents.id, secondDocumentId),
+    ).resolves.toBe(false)
+    await expect(
+      manager.authorizeAgentDocument(sheets.webContents.id, firstDocumentId),
+    ).resolves.toBe(false)
+    await expect(manager.authorizeAgentDocument(999, firstDocumentId)).resolves.toBe(false)
+    await expect(manager.agentDocumentIdFor(999)).rejects.toThrowError('document_binding_not_found')
   })
 })
 
@@ -353,6 +424,7 @@ describe('closing tabs', () => {
     await manager.closeTab(id)
     expect(shellWindow.contentView.removeChildView).toHaveBeenCalledWith(view)
     expect(view.webContents.close).toHaveBeenCalledTimes(1)
+    expect(onRendererClosed).toHaveBeenCalledWith(view.webContents.id)
   })
 
   it('detaches docs views without destroying the webContents (freeze workaround)', async () => {
@@ -363,6 +435,7 @@ describe('closing tabs', () => {
     expect(view.webContents.close).not.toHaveBeenCalled()
     // the orphaned renderer must be told to go inert (recovery-copy resurrection guard)
     expect(teardownDocsRenderer).toHaveBeenCalledWith(view.webContents)
+    expect(onRendererClosed).toHaveBeenCalledWith(view.webContents.id)
   })
 
   it('closes a clean docs tab after the async dirty query says clean', async () => {
@@ -422,12 +495,33 @@ describe('closing tabs', () => {
 })
 
 describe('file path bookkeeping', () => {
-  it('updates the tab title when a module opens a file in an existing tab', () => {
+  it('keeps the unsaved document id through first save', async () => {
     manager.openDocsTab()
     const view = lastCreatedView(createDocsView)
+    await expect(manager.agentDocumentIdFor(view.webContents.id)).resolves.toBe(firstDocumentId)
     manager.setTabFileFor(view.webContents.id, '/tmp/final.docx')
+    await expect(manager.agentDocumentIdFor(view.webContents.id)).resolves.toBe(firstDocumentId)
+    expect(bindAgentDocumentPath).toHaveBeenCalledWith(firstDocumentId, '/tmp/final.docx')
     expect(manager.list()[1].title).toBe('final.docx')
     expect(manager.findDocsTabByPath('/tmp/final.docx')).toBe('t1')
+  })
+
+  it('switches identity when the editor opens a different document in the same tab', async () => {
+    manager.openDocsTab()
+    const view = lastCreatedView(createDocsView)
+    await expect(
+      manager.authorizeAgentDocument(view.webContents.id, firstDocumentId),
+    ).resolves.toBe(true)
+
+    manager.setTabFileFor(view.webContents.id, '/tmp/opened.docx', 'open')
+
+    await expect(manager.agentDocumentIdFor(view.webContents.id)).resolves.toBe(secondDocumentId)
+    await expect(
+      manager.authorizeAgentDocument(view.webContents.id, secondDocumentId),
+    ).resolves.toBe(true)
+    expect(openAgentDocument).toHaveBeenLastCalledWith('docs', '/tmp/opened.docx')
+    expect(bindAgentDocumentPath).not.toHaveBeenCalled()
+    expect(onRendererClosed).toHaveBeenCalledWith(view.webContents.id)
   })
 
   it('ignores setTabFileFor for unknown webContents', () => {
@@ -436,10 +530,13 @@ describe('file path bookkeeping', () => {
     expect(onChanged).not.toHaveBeenCalled()
   })
 
-  it('renames matching tabs and reports the affected views', () => {
+  it('keeps the document id through an in-app rename and reports the affected views', async () => {
     manager.openDocsTab('/tmp/old.docx')
     const view = lastCreatedView(createDocsView)
+    await expect(manager.agentDocumentIdFor(view.webContents.id)).resolves.toBe(firstDocumentId)
     const affected = manager.renameTabFile('/tmp/old.docx', '/tmp/new.docx')
+    await expect(manager.agentDocumentIdFor(view.webContents.id)).resolves.toBe(firstDocumentId)
+    expect(bindAgentDocumentPath).toHaveBeenCalledWith(firstDocumentId, '/tmp/new.docx')
     expect(affected).toEqual([{ kind: 'docs', webContents: view.webContents }])
     expect(manager.list()[1].title).toBe('new.docx')
     expect(manager.findDocsTabByPath('/tmp/new.docx')).toBe('t1')

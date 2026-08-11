@@ -1,0 +1,32 @@
+name: Runtime Sidecar Windows Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-sidecar:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup exact Node used by the bundle
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.19.0
+
+      - name: Install locked prototype dependencies
+        working-directory: .scratch/pi-agent-platform-migration/prototypes/runtime-sidecar
+        run: npm ci --ignore-scripts
+
+      - name: Unit and package-load coverage
+        working-directory: .scratch/pi-agent-platform-migration/prototypes/runtime-sidecar
+        run: npm run test:coverage
+
+      - name: Named Pipe and lifecycle smoke from a copied bundle
+        working-directory: .scratch/pi-agent-platform-migration/prototypes/runtime-sidecar
+        run: npm run probe -- --copy-node-modules

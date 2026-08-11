@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Open GenOffice Slides Authoring'
+  short_description: 'Create audited editable pages in the active presentation'
+  default_prompt: 'Read the live deck, plan the narrative and visual system, then commit one audited SlidePageSpec at a time.'

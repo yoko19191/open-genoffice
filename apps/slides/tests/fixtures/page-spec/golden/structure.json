@@ -1,0 +1,23 @@
+{
+  "cjk-no-image.json": {
+    "pictures": 0,
+    "charts": 0,
+    "tables": 0,
+    "groups": 0,
+    "text": ["季度复盘", "增长来自留存改善，而不是一次性流量。"]
+  },
+  "rich-artifact.json": {
+    "pictures": 1,
+    "charts": 1,
+    "tables": 1,
+    "groups": 1,
+    "text": ["指标", "数值", "收入", "12", "输入", "分析", "结论"]
+  },
+  "allowed-overlap.json": {
+    "pictures": 0,
+    "charts": 0,
+    "tables": 0,
+    "groups": 0,
+    "text": ["明确允许的叠放"]
+  }
+}

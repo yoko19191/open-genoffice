@@ -1,0 +1,116 @@
+name: Pi Runtime Windows Native
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/pi-runtime-windows-native.yml'
+      - 'apps/pi-agent-runtime/**'
+      - 'packages/agent-runtime-protocol/**'
+      - 'packages/electron-utils/**'
+      - 'packages/pi-runtime-bundle/**'
+      - 'tools/build-pi-runtime-bundle.mjs'
+      - 'tools/collect-acceptance-evidence.mjs'
+      - 'package-lock.json'
+      - 'package.json'
+
+concurrency:
+  group: pi-runtime-windows-native-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows-runtime:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      GENOFFICE_WINDOWS_JOB_LAUNCHER: ${{ github.workspace }}\apps\pi-agent-runtime\native\windows-job-launcher\target\release\open-genoffice-job-launcher.exe
+      GENOFFICE_WINDOWS_PI_LAUNCHER: ${{ github.workspace }}\apps\pi-agent-runtime\native\windows-job-launcher\target\release\pi-cli-launcher.exe
+      GENOFFICE_WINDOWS_PI_FIXTURE: ${{ github.workspace }}\apps\pi-agent-runtime\native\windows-job-launcher\target\release\pi-headless-fixture.exe
+      GENOFFICE_WINDOWS_CENSUS_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\process-census.json
+      GENOFFICE_WINDOWS_RUNTIME_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\native-runtime.json
+      GENOFFICE_WINDOWS_CAPABILITY_OUTPUT: ${{ github.workspace }}\evidence\g1\issue-7\capabilities.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.19.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch, 2026-07
+        with:
+          toolchain: stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and test Job Object launcher
+        run: |
+          cargo test --manifest-path apps/pi-agent-runtime/native/windows-job-launcher/Cargo.toml
+          cargo build --release --manifest-path apps/pi-agent-runtime/native/windows-job-launcher/Cargo.toml
+
+      - name: Audit platform boundaries
+        run: npm run audit:pi-platform
+
+      - name: Typecheck native Runtime workspaces
+        run: |
+          npm run typecheck -w @genoffice/agent-runtime-protocol
+          npm run typecheck -w @genoffice/pi-runtime-bundle
+          npm run typecheck -w @genoffice/pi-agent-runtime
+          npm run typecheck -w @genoffice/electron-utils
+
+      - name: Run Windows Named Pipe and copied Runtime suites
+        shell: bash
+        run: |
+          npm run test -w @genoffice/agent-runtime-protocol
+          npm run test -w @genoffice/pi-runtime-bundle -- --coverage.enabled=false
+          npm run test -w @genoffice/pi-agent-runtime -- --fileParallelism=false
+          npm run test -w @genoffice/shell -- --coverage.enabled=false tests/package-audit-server.test.ts
+          npm run test -w @genoffice/electron-utils -- --coverage.enabled=false tests/pi-runtime-manager.test.ts tests/pi-runtime-node.test.ts tests/pi-runtime-service.test.ts tests/pi-runtime-supervisor.test.ts tests/agent-session-broker.test.ts tests/pi-runtime-e2e.test.ts tests/windows-job-launcher-e2e.test.ts
+
+      - name: Collect redacted native evidence
+        run: >-
+          npm run acceptance:evidence --
+          --acceptance AR-009,AR-010,PK-001,PK-002,RT-001,RT-002,RT-012
+          --fixture fakeProvider=apps/pi-agent-runtime/fixtures/fake-provider-events.json
+          --fixture processCensus=evidence/g1/issue-7/process-census.json
+          --fixture nativeRuntime=evidence/g1/issue-7/native-runtime.json
+          --fixture capabilities=evidence/g1/issue-7/capabilities.json
+          --suite protocol=packages/agent-runtime-protocol/reports/tests.json
+          --suite bundle=packages/pi-runtime-bundle/reports/tests.json
+          --suite runtime=apps/pi-agent-runtime/reports/tests.json
+          --suite electron=packages/electron-utils/reports/tests.json
+          --command native-windows-runtime-suites
+          --protocol 1
+          --runtime 1.0.0
+          --output evidence/g1/issue-7/evidence.json
+
+      - name: Upload Windows Runtime evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pi-runtime-windows-native-${{ github.sha }}
+          path: evidence/g1/issue-7
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload failure reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pi-runtime-windows-native-failure-${{ github.sha }}
+          path: |
+            packages/agent-runtime-protocol/reports
+            packages/pi-runtime-bundle/reports
+            apps/pi-agent-runtime/reports
+            packages/electron-utils/reports
+          if-no-files-found: warn
+          retention-days: 7

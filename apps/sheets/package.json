@@ -23,11 +23,9 @@
   },
   "dependencies": {
     "@fluentui/react-icons": "^2.0.333",
-    "@genoffice/agent-core": "*",
-    "@genoffice/ai-provider": "*",
-    "@genoffice/ai-search": "*",
+    "@genoffice/agent-resource": "*",
+    "@genoffice/agent-runtime-protocol": "*",
     "@genoffice/electron-utils": "*",
-    "@genoffice/file-parse": "*",
     "@genoffice/i18n": "*",
     "@genoffice/ui": "*",
     "@univerjs/core": "^0.25.1",
@@ -49,7 +47,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@genoffice/project-store": "*",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

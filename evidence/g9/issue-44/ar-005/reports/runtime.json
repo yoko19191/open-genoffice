@@ -1,0 +1,412 @@
+{
+  "numTotalTestSuites": 2,
+  "numPassedTestSuites": 2,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 31,
+  "numPassedTests": 31,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786393409721,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry persists one exact Office catalog binding and rejects open-time drift",
+          "status": "passed",
+          "title": "persists one exact Office catalog binding and rejects open-time drift",
+          "duration": 46.94470799999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry projects Mutation Grants and routes exact issue and document revocation through the Session",
+          "status": "passed",
+          "title": "projects Mutation Grants and routes exact issue and document revocation through the Session",
+          "duration": 21.668083000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry journals a safe pending question and accepts only the bound main-signed answer",
+          "status": "passed",
+          "title": "journals a safe pending question and accepts only the bound main-signed answer",
+          "duration": 22.39441599999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry journals safe Subagent projections, resumes one attempt, and attaches parent Stop",
+          "status": "passed",
+          "title": "journals safe Subagent projections, resumes one attempt, and attaches parent Stop",
+          "duration": 88.33512499999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry routes the trusted Slides QC profile through its coordinator and attaches parent Stop",
+          "status": "passed",
+          "title": "routes the trusted Slides QC profile through its coordinator and attaches parent Stop",
+          "duration": 87.18525,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry projects an authorization revocation as capability_revoked instead of provider failure",
+          "status": "passed",
+          "title": "projects an authorization revocation as capability_revoked instead of provider failure",
+          "duration": 32.51845800000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry cancels one registered execution tree, drops late events, and accepts the next prompt",
+          "status": "passed",
+          "title": "cancels one registered execution tree, drops late events, and accepts the next prompt",
+          "duration": 42.87916599999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry fails abort closed when a document mutation outcome is unknown",
+          "status": "passed",
+          "title": "fails abort closed when a document mutation outcome is unknown",
+          "duration": 31.493541999999934,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry reports an incomplete non-mutation abort without marking the document uncertain",
+          "status": "passed",
+          "title": "reports an incomplete non-mutation abort without marking the document uncertain",
+          "duration": 30.904124999999794,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry rejects an unknown run and aborts an active execution tree during Runtime shutdown",
+          "status": "passed",
+          "title": "rejects an unknown run and aborts an active execution tree during Runtime shutdown",
+          "duration": 31.137082999999848,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry creates one real Pi AgentSession and projects its native stream in journal order",
+          "status": "passed",
+          "title": "creates one real Pi AgentSession and projects its native stream in journal order",
+          "duration": 860.1608339999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry forks one document into an independent Pi Session and navigates only its branch DAG",
+          "status": "passed",
+          "title": "forks one document into an independent Pi Session and navigates only its branch DAG",
+          "duration": 916.8631250000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry returns the first receipt for an identical operation and rejects payload drift",
+          "status": "passed",
+          "title": "returns the first receipt for an identical operation and rejects payload drift",
+          "duration": 35.982540999999856,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry fails closed on a different document before opening or changing the Pi transcript",
+          "status": "passed",
+          "title": "fails closed on a different document before opening or changing the Pi transcript",
+          "duration": 835.4360000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry opens the persisted Pi JSONL and returns replay events after a valid cursor",
+          "status": "passed",
+          "title": "opens the persisted Pi JSONL and returns replay events after a valid cursor",
+          "duration": 60.188500000000204,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry repairs only crash-torn JSONL tails before reopening and appending",
+          "status": "passed",
+          "title": "repairs only crash-torn JSONL tails before reopening and appending",
+          "duration": 76.78795899999977,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry returns session_in_use to a second Runtime and releases the writer lease on shutdown",
+          "status": "passed",
+          "title": "returns session_in_use to a second Runtime and releases the writer lease on shutdown",
+          "duration": 56.759000000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry single-flights concurrent opens inside one Runtime while retaining one writer lease",
+          "status": "passed",
+          "title": "single-flights concurrent opens inside one Runtime while retaining one writer lease",
+          "duration": 43.0678340000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry heartbeats an owned Session before TTL so another Runtime cannot take it over",
+          "status": "passed",
+          "title": "heartbeats an owned Session before TTL so another Runtime cannot take it over",
+          "duration": 290.8442500000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry takes over an expired lease and makes the old Runtime fail closed without deleting the new lease",
+          "status": "passed",
+          "title": "takes over an expired lease and makes the old Runtime fail closed without deleting the new lease",
+          "duration": 65.23341699999946,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry interrupts a crashed run once, marks an uncertain mutation, and accepts a new prompt",
+          "status": "passed",
+          "title": "interrupts a crashed run once, marks an uncertain mutation, and accepts a new prompt",
+          "duration": 64.69374999999945,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry covers reset cursors, missing sessions, busy runs, and provider failures without duplicating work",
+          "status": "passed",
+          "title": "covers reset cursors, missing sessions, busy runs, and provider failures without duplicating work",
+          "duration": 40.84825000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry projects failure/progress event branches and only exposes render-safe transcript fields",
+          "status": "passed",
+          "title": "projects failure/progress event branches and only exposes render-safe transcript fields",
+          "duration": 34.86591700000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry rejects invalid bindings and cursors before opening Pi state",
+          "status": "passed",
+          "title": "rejects invalid bindings and cursors before opening Pi state",
+          "duration": 15.168874999999389,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during factory",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during factory",
+          "duration": 11.745708999999806,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during attach",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during attach",
+          "duration": 11.102875000000495,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during append",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during append",
+          "duration": 12.822000000000116,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry releases the lease and leaves no binding when Session creation fails during binding",
+          "status": "passed",
+          "title": "releases the lease and leaves no binding when Session creation fails during binding",
+          "duration": 16.63054100000045,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry recovers a fully renamed binding after an injected post-commit crash",
+          "status": "passed",
+          "title": "recovers a fully renamed binding after an injected post-commit crash",
+          "duration": 26.887416999999914,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry rejects cursors signed for another instance, session, signature, or sequence",
+          "status": "passed",
+          "title": "rejects cursors signed for another instance, session, signature, or sequence",
+          "duration": 88.47683299999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "document-bound Pi Session registry"
+          ],
+          "fullName": "document-bound Pi Session registry expires cursors outside the bounded replay window without reopening the run",
+          "status": "passed",
+          "title": "expires cursors outside the bounded replay window without reopening the run",
+          "duration": 830.3964590000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786393410613,
+      "endTime": 1786393415443.3965,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/pi-agent-runtime/tests/session-registry.test.ts"
+    }
+  ]
+}

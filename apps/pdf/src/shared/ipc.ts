@@ -1,5 +1,4 @@
 import type { Lang } from '@genoffice/i18n'
-import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@genoffice/ai-provider'
 
 export const PDF_CHANNELS = {
   consumePending: 'pdf:consume-pending',
@@ -16,6 +15,8 @@ export const PDF_CHANNELS = {
   saveAsFlow: 'pdf:save-as-flow',
   getLanguage: 'app:get-language',
   languageChanged: 'app:language-changed',
+  officeToolRequest: 'pdf:office-tool-request',
+  officeToolResponse: 'pdf:office-tool-response',
 } as const
 
 export type MarkupType = 'highlight' | 'underline' | 'strikeout'
@@ -117,6 +118,253 @@ export interface SavePdfRequest {
 
 export type SavePdfResult = { ok: true } | { ok: false; error: string }
 
+export type PdfOfficeToolErrorCode =
+  | 'invalid_tool_arguments'
+  | 'stale_context'
+  | 'read_only_document'
+  | 'executor_unavailable'
+  | 'unsupported_office_feature'
+  | 'tool_failed'
+
+export interface PdfOfficeEditSnapshot {
+  markups: Array<{ id: string } & MarkupInput>
+  drawings: Array<{ id: string; input: DrawingInput }>
+  stampCfg: unknown | null
+  formEdits: FormValueInput[]
+  rotations: Array<[number, number]>
+  deleted: number[]
+  order: number[] | null
+  metadata: MetadataInput | null
+}
+
+export interface PdfOfficeContextSnapshot {
+  documentId: string
+  contextVersion: string
+  modelContent: string
+  details: {
+    fileName: string
+    originalPageCount: number
+    currentOriginalPage: number
+    readOnly: boolean
+    hasOutline: boolean
+    deletionGeneration: number
+  }
+}
+
+export type PdfOfficeToolRequest =
+  | { requestId: string; kind: 'context'; documentId: string }
+  | { requestId: string; kind: 'capture_snapshot'; documentId: string }
+  | { requestId: string; kind: 'abort'; operationId: string; documentId: string }
+  | {
+      requestId: string
+      kind: 'restore_snapshot'
+      documentId: string
+      snapshot: PdfOfficeEditSnapshot
+    }
+  | {
+      requestId: string
+      kind: 'execute'
+      operationId: string
+      documentId: string
+      toolId: string
+      input: unknown
+      contextVersion?: string
+    }
+
+export type PdfOfficeToolResponse =
+  | {
+      requestId: string
+      ok: true
+      result:
+        | { kind: 'context'; snapshot: PdfOfficeContextSnapshot }
+        | { kind: 'snapshot'; snapshot: PdfOfficeEditSnapshot }
+        | { kind: 'restored'; contextVersion: string }
+        | { kind: 'aborted'; aborted: boolean }
+        | {
+            kind: 'executed'
+            output: string
+            details?: unknown
+            contextVersionAfter: string
+            mutationOutcome?: 'not_started' | 'committed' | 'rolled_back'
+          }
+    }
+  | {
+      requestId: string
+      ok: false
+      errorCode: PdfOfficeToolErrorCode
+      mutationOutcome?: 'not_started' | 'unknown'
+    }
+
+export interface PdfOfficeToolsApi {
+  onRequest(handler: (request: PdfOfficeToolRequest) => Promise<PdfOfficeToolResponse>): () => void
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+function exactKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): boolean {
+  const allowed = new Set([...required, ...optional])
+  return (
+    required.every((key) => key in value) && Object.keys(value).every((key) => allowed.has(key))
+  )
+}
+
+function isEditSnapshot(value: unknown): value is PdfOfficeEditSnapshot {
+  const snapshot = record(value)
+  if (
+    !snapshot ||
+    !exactKeys(snapshot, [
+      'markups',
+      'drawings',
+      'stampCfg',
+      'formEdits',
+      'rotations',
+      'deleted',
+      'order',
+      'metadata',
+    ])
+  ) {
+    return false
+  }
+  return (
+    Array.isArray(snapshot.markups) &&
+    Array.isArray(snapshot.drawings) &&
+    Array.isArray(snapshot.formEdits) &&
+    Array.isArray(snapshot.rotations) &&
+    snapshot.rotations.every(
+      (entry) =>
+        Array.isArray(entry) && entry.length === 2 && entry.every((part) => Number.isInteger(part)),
+    ) &&
+    Array.isArray(snapshot.deleted) &&
+    snapshot.deleted.every(Number.isInteger) &&
+    (snapshot.order === null ||
+      (Array.isArray(snapshot.order) && snapshot.order.every(Number.isInteger))) &&
+    (snapshot.metadata === null || record(snapshot.metadata) !== undefined)
+  )
+}
+
+function isContextSnapshot(value: unknown): value is PdfOfficeContextSnapshot {
+  const snapshot = record(value)
+  const details = record(snapshot?.details)
+  return Boolean(
+    snapshot &&
+    exactKeys(snapshot, ['documentId', 'contextVersion', 'modelContent', 'details']) &&
+    typeof snapshot.documentId === 'string' &&
+    typeof snapshot.contextVersion === 'string' &&
+    typeof snapshot.modelContent === 'string' &&
+    details &&
+    exactKeys(details, [
+      'fileName',
+      'originalPageCount',
+      'currentOriginalPage',
+      'readOnly',
+      'hasOutline',
+      'deletionGeneration',
+    ]) &&
+    typeof details.fileName === 'string' &&
+    Number.isInteger(details.originalPageCount) &&
+    Number.isInteger(details.currentOriginalPage) &&
+    typeof details.readOnly === 'boolean' &&
+    typeof details.hasOutline === 'boolean' &&
+    Number.isInteger(details.deletionGeneration),
+  )
+}
+
+export function isPdfOfficeToolRequest(value: unknown): value is PdfOfficeToolRequest {
+  const request = record(value)
+  if (
+    !request ||
+    typeof request.requestId !== 'string' ||
+    request.requestId.length === 0 ||
+    typeof request.documentId !== 'string'
+  ) {
+    return false
+  }
+  if (request.kind === 'context' || request.kind === 'capture_snapshot') {
+    return exactKeys(request, ['requestId', 'kind', 'documentId'])
+  }
+  if (request.kind === 'abort') {
+    return (
+      exactKeys(request, ['requestId', 'kind', 'operationId', 'documentId']) &&
+      typeof request.operationId === 'string'
+    )
+  }
+  if (request.kind === 'restore_snapshot') {
+    return (
+      exactKeys(request, ['requestId', 'kind', 'documentId', 'snapshot']) &&
+      isEditSnapshot(request.snapshot)
+    )
+  }
+  return (
+    request.kind === 'execute' &&
+    exactKeys(
+      request,
+      ['requestId', 'kind', 'operationId', 'documentId', 'toolId', 'input'],
+      ['contextVersion'],
+    ) &&
+    typeof request.operationId === 'string' &&
+    typeof request.toolId === 'string' &&
+    (request.contextVersion === undefined || typeof request.contextVersion === 'string')
+  )
+}
+
+export function isPdfOfficeToolResponse(value: unknown): value is PdfOfficeToolResponse {
+  const response = record(value)
+  if (!response || typeof response.requestId !== 'string' || response.requestId.length === 0) {
+    return false
+  }
+  if (response.ok === false) {
+    return (
+      exactKeys(response, ['requestId', 'ok', 'errorCode'], ['mutationOutcome']) &&
+      [
+        'invalid_tool_arguments',
+        'stale_context',
+        'read_only_document',
+        'executor_unavailable',
+        'unsupported_office_feature',
+        'tool_failed',
+      ].includes(String(response.errorCode)) &&
+      (response.mutationOutcome === undefined ||
+        response.mutationOutcome === 'not_started' ||
+        response.mutationOutcome === 'unknown')
+    )
+  }
+  if (response.ok !== true || !exactKeys(response, ['requestId', 'ok', 'result'])) return false
+  const result = record(response.result)
+  if (!result) return false
+  if (result.kind === 'context') {
+    return exactKeys(result, ['kind', 'snapshot']) && isContextSnapshot(result.snapshot)
+  }
+  if (result.kind === 'snapshot') {
+    return exactKeys(result, ['kind', 'snapshot']) && isEditSnapshot(result.snapshot)
+  }
+  if (result.kind === 'restored') {
+    return (
+      exactKeys(result, ['kind', 'contextVersion']) && typeof result.contextVersion === 'string'
+    )
+  }
+  if (result.kind === 'aborted') {
+    return exactKeys(result, ['kind', 'aborted']) && typeof result.aborted === 'boolean'
+  }
+  return (
+    result.kind === 'executed' &&
+    exactKeys(result, ['kind', 'output', 'contextVersionAfter'], ['details', 'mutationOutcome']) &&
+    typeof result.output === 'string' &&
+    typeof result.contextVersionAfter === 'string' &&
+    (result.mutationOutcome === undefined ||
+      result.mutationOutcome === 'not_started' ||
+      result.mutationOutcome === 'committed' ||
+      result.mutationOutcome === 'rolled_back')
+  )
+}
+
 /** Extract pages into a new PDF: main process shows a save dialog; cancel returns canceled */
 export interface ExtractPagesRequest {
   path: string
@@ -152,14 +400,6 @@ export type ExportImagesResult =
   | { ok: true; canceled: true }
   | { ok: false; error: string }
 
-/** AI channels are app-wide shared ipcMain handlers (shell registers via docs-main registerAiIpc); pass-through only */
-export const AI_CHANNELS = {
-  getSettings: 'ai:get-settings',
-  stream: 'ai:stream',
-  streamChunk: 'ai:stream-chunk',
-  streamCancel: 'ai:stream-cancel',
-} as const
-
 /** API exposed by preload to the renderer (window.pdfApi) */
 export interface PdfApi {
   /** Take the pdf path pending for this view (queued at tab creation); null if none */
@@ -183,8 +423,4 @@ export interface PdfApi {
   onSaveAsFlow(handler: (inFlight: boolean) => void): () => void
   getLanguage(): Promise<Lang>
   onLanguageChanged(handler: (lang: Lang) => void): () => void
-  getAiSettings(): Promise<AiSettings>
-  aiStream(request: AiStreamRequest): Promise<void>
-  aiStreamCancel(requestId: string): Promise<void>
-  onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
 }

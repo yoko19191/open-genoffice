@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "title": "季度复盘",
+  "canvas": { "widthPx": 1280, "heightPx": 720 },
+  "background": { "color": "#F7F5EF" },
+  "elements": [
+    {
+      "id": "title",
+      "kind": "text",
+      "x": 80,
+      "y": 60,
+      "w": 1120,
+      "h": 90,
+      "text": "季度复盘",
+      "fontSizePt": 32,
+      "fontFamily": "Noto Sans CJK SC",
+      "color": "#102A43"
+    },
+    {
+      "id": "body",
+      "kind": "shape",
+      "shape": "roundRect",
+      "x": 80,
+      "y": 220,
+      "w": 1120,
+      "h": 220,
+      "fill": "#D9EAF7",
+      "text": "增长来自留存改善，而不是一次性流量。",
+      "fontSizePt": 22,
+      "fontFamily": "Noto Sans CJK SC",
+      "color": "#102A43"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "commit": "046ca9e98360debbe430fb337dc3b5b19a6c4b88",
+  "acceptanceIds": [
+    "DS-008",
+    "DS-010",
+    "SY-001",
+    "SY-004",
+    "SY-008"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "syncSchema": "07c852b04ecb4a91cd5186f4d4b7b8d4e92df3268bc1cf3a8bf4f0407d2dc3d6",
+    "projectSync": "2d4fc06ba44b6d26c20df4eeebc71c30427397873645a54cba45ce22a95dec12"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run test:coverage -w @genoffice/project-store (98.08/97.57/100/97.83)",
+    "npm run lint -- --quiet",
+    "npm run format:check",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero",
+    "npm run licenses"
+  ],
+  "results": [
+    {
+      "suite": "projectStore",
+      "status": "passed",
+      "report": "evidence/g3/issue-12/reports/projectStore.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

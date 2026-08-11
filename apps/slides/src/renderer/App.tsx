@@ -10,11 +10,9 @@ import type {
   TableRenderNode,
 } from '@genoffice/pptx-render'
 import type {
-  AiSettings,
   AnimEffectKind,
   AnimTrigger,
   AnimationItem,
-  AttachmentMeta,
   EditChartOp,
   EditParagraph,
   EditTableStyleOp,
@@ -53,11 +51,17 @@ import { EquationDialog, HeaderFooterDialog, LinkDialog } from './components/Ins
 import { CutoutDialog } from './components/CutoutDialog'
 import type { WordArtPreset } from '@genoffice/ui'
 import type { ChartPresetDef, IconDef, SmartArtDef } from './insert-presets'
-import { GensparkMark, IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
+import { AgentMark, IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
 import { ToastHost } from './components/toast'
 import { showToast } from './components/toast-bus'
 import { t, useI18n } from './i18n/locale'
 import { AiPanel } from './ai/AiPanel'
+import { createSlidesOfficeToolRendererHandler } from './ai/office-tool-renderer-adapter'
+import {
+  buildSlidesNativeContext,
+  executeSlidesNativeTool,
+  type DeckAccess,
+} from './ai/slides-native-tools'
 import { ChartDataDialog } from './components/ChartDataDialog'
 import type { BrushFormat } from './format-brush'
 import { isTextUndoTarget, shouldRouteUndoToDeck } from './undo-routing'
@@ -255,6 +259,14 @@ export function App() {
   const [drawKind, setDrawKind] = useState<InsertKind | null>(null)
   /** Latest-state bundle for the extracted action modules; refreshed every render (see action-context.ts). */
   const ctxRef = useRef<ActionCtx>(null as unknown as ActionCtx)
+  const officeSlidesRef = useRef(slides)
+  const officeSlidesIdentityRef = useRef(slides)
+  const officeVersionRef = useRef(0)
+  if (officeSlidesIdentityRef.current !== slides) {
+    officeSlidesIdentityRef.current = slides
+    officeSlidesRef.current = slides
+    officeVersionRef.current += 1
+  }
   const [zoom, setZoom] = useState(1)
   /** unscaled layout size of .stage-scale — its transform-scaled visual size is
    * scaleBox * zoom, which the wrapper zoom-box adopts so scrolling can reach it all */
@@ -319,14 +331,9 @@ export function App() {
   }, [autoSave])
   const [showAi, setShowAi] = useState(() => localStorage.getItem('ai-slides-show-ai') !== '0')
   const [showFormat, setShowFormat] = useState(false)
-  const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
   const [aiPreset, setAiPreset] = useState<{
     text: string
     nonce: number
-    autoRun?: boolean
-    displayText?: string
-    attachments?: AttachmentMeta[]
-    slideShot?: boolean
   } | null>(null)
   const [_recent, setRecent] = useState<string[]>([])
   const consumePendingRef = useRef<ReturnType<typeof window.slidesApi.consumePendingOpen> | null>(
@@ -811,10 +818,6 @@ export function App() {
   // File renamed externally (shell Home list rename) → sync the title-bar path (content unchanged, dirty untouched)
   useEffect(() => window.slidesApi.onRenamed((p) => setPath(p)), [])
 
-  useEffect(() => {
-    void window.slidesApi.getAiSettings().then(setAiSettings)
-  }, [])
-
   // Recent files for the start screen
   useEffect(() => {
     if (slides.length === 0) void window.slidesApi.getRecentFiles().then(setRecent)
@@ -827,32 +830,25 @@ export function App() {
     })
   }, [])
 
-  const pushAiPreset = useCallback(
-    (
-      text: string,
-      autoRun = true,
-      displayText?: string,
-      attachments?: AttachmentMeta[],
-      slideShot?: boolean,
-    ) => {
-      setShowAi(() => {
-        localStorage.setItem('ai-slides-show-ai', '1')
-        return true
-      })
-      setAiPreset({
-        text,
-        nonce: Date.now(),
-        autoRun,
-        displayText,
-        ...(attachments && attachments.length > 0 ? { attachments } : {}),
-        ...(slideShot ? { slideShot } : {}),
-      })
-    },
-    [],
-  )
+  const pushAiPreset = useCallback((text: string) => {
+    setShowAi(() => {
+      localStorage.setItem('ai-slides-show-ai', '1')
+      return true
+    })
+    setAiPreset({
+      text,
+      nonce: Date.now(),
+    })
+  }, [])
 
   const applySlide = useCallback((slideIndex: number, updated: RenderSlide) => {
-    setSlides((s) => s.map((sl, i) => (i === slideIndex ? updated : sl)))
+    setSlides((s) => {
+      const next = s.map((sl, i) => (i === slideIndex ? updated : sl))
+      officeSlidesRef.current = next
+      officeSlidesIdentityRef.current = next
+      officeVersionRef.current += 1
+      return next
+    })
     setDirty(true)
   }, [])
 
@@ -895,12 +891,53 @@ export function App() {
   )
 
   const applyDeck = useCallback((all: RenderSlide[], goTo?: number) => {
+    officeSlidesRef.current = all
+    officeSlidesIdentityRef.current = all
+    officeVersionRef.current += 1
     setSlides(all)
     if (goTo != null) setCurrent(goTo)
     setSelectedIds([])
     setEditing(null)
     setDirty(true)
   }, [])
+
+  useEffect(() => {
+    if (!window.slidesOfficeTools) return
+    const access: DeckAccess = {
+      getSlides: () => officeSlidesRef.current,
+      getCurrent: () => ctxRef.current.current,
+      getSelectedIds: () => ctxRef.current.selectedIds,
+      applySlide,
+      applyDeck,
+      fitWidthPx: FIT_WIDTH,
+    }
+    const handler = createSlidesOfficeToolRendererHandler({
+      contextVersion: () => `slides-edit-${officeVersionRef.current}`,
+      advanceContextVersion: () => `slides-edit-${officeVersionRef.current}`,
+      contextContent: () => buildSlidesNativeContext(access),
+      contextDetails: () => ({
+        slideCount: officeSlidesRef.current.length,
+        currentSlide: ctxRef.current.current,
+        selectedIds: [...ctxRef.current.selectedIds],
+      }),
+      beginHistoryBatch: () => window.slidesApi.beginHistoryBatch(),
+      endHistoryBatch: () => window.slidesApi.endHistoryBatch(),
+      restoreHistorySnapshot: async (snapshotId) => {
+        const restored = await window.slidesApi.aiSnapshotRestore(snapshotId)
+        if (!restored) return false
+        applyDeck(restored, Math.min(ctxRef.current.current, Math.max(0, restored.length - 1)))
+        return true
+      },
+      execute: (modelAlias, input, signal, artifacts) =>
+        executeSlidesNativeTool(
+          access,
+          { id: `office-${crypto.randomUUID()}`, name: modelAlias, input },
+          signal,
+          artifacts,
+        ),
+    })
+    return window.slidesOfficeTools.onRequest(handler)
+  }, [applyDeck, applySlide])
 
   const addSlide = useCallback(() => slideActions.addSlide(ctxRef.current), [])
   const addSlideWithLayout = useCallback(
@@ -2216,7 +2253,7 @@ export function App() {
         onToggleThumbs={() => setShowThumbs((v) => !v)}
         aiOpen={showAi}
         onToggleAi={toggleAi}
-        onAiPreset={(text, opts) => pushAiPreset(text, true, undefined, undefined, opts?.slideShot)}
+        onAiPreset={(text) => pushAiPreset(text)}
         onInsert={(kind) => void insertElement(kind)}
         onPickShape={pickShape}
         onInsertImage={() => void insertImage()}
@@ -2375,36 +2412,14 @@ export function App() {
 
       <div className="app-main">
         {slide && viewMode !== 'reading' && viewMode !== 'sorter' && (
-          <div className={`ai-dock${showAi && aiSettings ? '' : ' collapsed'}`}>
-            {/* always mounted once settings load: collapse must not drop state or in-flight runs */}
-            {aiSettings ? (
-              <AiPanel
-                key={aiPanelKey}
-                slides={slides}
-                current={current}
-                selectedIds={selectedIds}
-                deckEmpty={deckEmpty}
-                images={images}
-                applySlide={applySlide}
-                applyDeck={applyDeck}
-                fitWidthPx={FIT_WIDTH}
-                settings={aiSettings}
-                preset={aiPreset}
-                open={showAi}
-                onExpand={toggleAi}
-                onCollapse={toggleAi}
-                onUndo={() => void undo()}
-                onPathChange={(p) => {
-                  setPath(p)
-                  setDirty(false)
-                }}
-                currentFilePath={path}
-              />
-            ) : (
-              <button className="ai-rail" onClick={toggleAi} title={t('appAiRailExpand')}>
-                <GensparkMark size={22} />
-              </button>
-            )}
+          <div className={`ai-dock${showAi ? '' : ' collapsed'}`}>
+            <AiPanel
+              key={aiPanelKey}
+              preset={aiPreset ?? undefined}
+              open={showAi}
+              onExpand={toggleAi}
+              onCollapse={toggleAi}
+            />
           </div>
         )}
         <div className="app-content">
@@ -2650,8 +2665,8 @@ export function App() {
                           title={t('aiOpenAssistant')}
                           onClick={toggleAi}
                         >
-                          <GensparkMark size={14} />
-                          <span>Genspark AI</span>
+                          <AgentMark size={14} />
+                          <span>AI</span>
                         </button>
                         {/* Same one-click presets as the Home tab; hidden instead of
                         disabled while the deck has no real content */}
@@ -2661,15 +2676,7 @@ export function App() {
                             <button
                               className="stage-ai-btn"
                               title={t('aiBeautifyPrompt')}
-                              onClick={() =>
-                                pushAiPreset(
-                                  t('aiBeautifyPrompt'),
-                                  true,
-                                  undefined,
-                                  undefined,
-                                  true,
-                                )
-                              }
+                              onClick={() => pushAiPreset(t('aiBeautifyPrompt'))}
                             >
                               <IconAiBeautify size={14} />
                               <span>{t('aiBeautifyBtn')}</span>

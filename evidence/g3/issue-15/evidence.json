@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "commit": "52c48ee60a6e9d5088d482e25aea28e487db370a",
+  "acceptanceIds": [
+    "DS-006",
+    "DS-011",
+    "SY-005"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {
+    "sessionSync": "f01f3ffa4600298879758311e026c249546fac2b1e80ed13dd0485bd58612ea1",
+    "committedBarrier": "15993a15ac729962a935b49f1b72a35069e1b778f413acd5cedc7f1c0ba541dc",
+    "providerRoundTrip": "bbf93612005a00def3209641da79a2b25d86f7c1c630a91e5b15b60b47b8f6af"
+  },
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run test -w @genoffice/pi-agent-runtime (329 passed; 96.70/95.11/97.48/97.52; project-session-sync 98.03/95.48/98.36/98.31)",
+    "npm run build:all",
+    "npm run lint (0 errors, 10 pre-existing warnings)",
+    "npm run format:check",
+    "npm run licenses",
+    "npm run notices",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero"
+  ],
+  "results": [
+    {
+      "suite": "runtime",
+      "status": "passed",
+      "report": "evidence/g3/issue-15/reports/runtime.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

@@ -20,6 +20,10 @@ permissions:
   contents: read
 
 jobs:
+  windows-runtime:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/pi-runtime-windows-native.yml
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -32,7 +36,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.19.0
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -50,6 +54,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit Pi platform dependency and production-source boundary
+        run: npm run audit:pi-platform
+
+      - name: Audit retired vendor boundary
+        run: npm run audit:retired-vendor:zero
 
       - name: Check dependency licenses
         run: npm run licenses
@@ -91,6 +101,17 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Collect G0 acceptance evidence
+        run: npm run acceptance:evidence:g0
+
+      - name: Upload G0 acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: g0-acceptance-evidence-${{ github.sha }}
+          path: evidence/g0
+          if-no-files-found: error
+          retention-days: 14
+
       # Preservation gate: a no-op-adjacent edit through the OOXML gateway must
       # leave every untouched package entry byte-identical (fails closed otherwise).
       - name: Sheets compatibility gate
@@ -110,7 +131,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.19.0
           cache: npm
           cache-dependency-path: package-lock.json
 

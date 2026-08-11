@@ -1,0 +1,30 @@
+{
+  "name": "@genoffice/agent-runtime-protocol",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "description": "Secret-free schemas and validators for the Open GenOffice Pi Runtime boundary",
+  "exports": {
+    ".": "./src/index.ts",
+    "./office-tool-catalog": "./src/office-tool-catalog.ts",
+    "./platform-tool-catalog": "./src/platform-tool-catalog.ts",
+    "./sheets-workbook-schema": "./src/sheets-workbook-schema.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "imports": {
+    "#renderer": "./src/renderer.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.52"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

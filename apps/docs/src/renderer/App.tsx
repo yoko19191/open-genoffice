@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import type { Editor } from '@tiptap/core'
+import type { Editor, JSONContent } from '@tiptap/core'
 import { DOMParser as PmDOMParser, type Mark as PmMark } from '@tiptap/pm/model'
 import {
   BLANK_BULLET_NUM_ID,
@@ -22,9 +22,12 @@ import {
   type ThemeColors,
   type ThemeFonts,
 } from '@genoffice/docx-engine'
-import type { AiSettings, OpenFileResult } from '../shared/ipc'
-import { AI_PROVIDERS } from '../shared/ipc'
+import type { OpenFileResult } from '../shared/ipc'
 import { AiPanel } from './ai/AiPanel'
+import { createDocsOfficeToolRendererHandler } from './ai/office-tool-renderer-adapter'
+import { executeTool } from './ai/tools'
+import { buildDocumentContext, findNumId } from './ai/protocol'
+import type { DocsOfficeEditSnapshot } from '../shared/docs-office-tools'
 import { asianCharCount, countWords, nonAsianWordCount } from './word-count'
 import { toRoman } from './note-format'
 import { CommentsPanel } from './components/CommentsPanel'
@@ -254,16 +257,6 @@ interface DocStats {
   lines: number
 }
 
-const DEFAULT_SETTINGS: AiSettings = {
-  provider: 'anthropic',
-  providers: Object.fromEntries(
-    AI_PROVIDERS.map((p) => [
-      p.id,
-      { apiKey: '', model: p.defaultModel, baseUrl: p.needsBaseUrl ? '' : undefined },
-    ]),
-  ) as AiSettings['providers'],
-}
-
 export function App() {
   // subscribe to language switches for re-render; strings all go through module-level t, so memoized callbacks never capture stale closures
   const { lang } = useI18n()
@@ -272,7 +265,6 @@ export function App() {
   const bootPendingRef = useRef<Promise<[OpenFileResult | null, boolean]> | null>(null)
   const bootHandledRef = useRef(false)
   const [_recent, setRecent] = useState<string[]>([])
-  const [settings, setSettings] = useState<AiSettings>(DEFAULT_SETTINGS)
   const [showAi, setShowAi] = useState(() => localStorage.getItem('aidocs.showAi') !== '0')
   /** Increments on every open/new document: AiPanel remounts by key to reset the conversation and history (save path changes don't bump it, so the session continues) */
   const [aiPanelKey, setAiPanelKey] = useState(0)
@@ -512,6 +504,8 @@ export function App() {
   const saveIncompleteRef = useRef(false)
 
   const editorRef = useRef<Editor | null>(null)
+  const docsOfficeVersionRef = useRef(0)
+  const advanceDocsOfficeVersion = () => `docs-edit-${++docsOfficeVersionRef.current}`
   const editor = useEditor({
     extensions: editorExtensions,
     content: { type: 'doc', content: [{ type: 'docParagraph' }] },
@@ -568,10 +562,14 @@ export function App() {
         return false
       },
     },
-    onSelectionUpdate: () => forceRender(),
+    onSelectionUpdate: () => {
+      advanceDocsOfficeVersion()
+      forceRender()
+    },
     // typing in the main document takes ribbon routing back from any textbox
     onFocus: () => setActiveSubEditor(null),
     onUpdate: () => {
+      advanceDocsOfficeVersion()
       dirtyRef.current = true
       forceRender()
     },
@@ -590,8 +588,52 @@ export function App() {
 
   useEffect(() => {
     void window.desktop.getRecentFiles().then(setRecent)
-    void window.desktop.getAiSettings().then(setSettings)
   }, [])
+
+  useEffect(() => {
+    if (!editor) return
+    const handler = createDocsOfficeToolRendererHandler({
+      contextVersion: () => `docs-edit-${docsOfficeVersionRef.current}`,
+      advanceContextVersion: advanceDocsOfficeVersion,
+      contextContent: () => buildDocumentContext(editor),
+      contextDetails: () => ({
+        blockCount: editor.state.doc.childCount,
+        selection: {
+          from: editor.state.selection.from,
+          to: editor.state.selection.to,
+        },
+      }),
+      captureSnapshot: (): DocsOfficeEditSnapshot => ({
+        doc: editor.getJSON() as Record<string, unknown>,
+        selection: { from: editor.state.selection.from, to: editor.state.selection.to },
+      }),
+      restoreSnapshot: (snapshot) => {
+        editor.commands.setContent(snapshot.doc as JSONContent)
+        const maximum = editor.state.doc.content.size
+        editor.commands.setTextSelection({
+          from: Math.min(snapshot.selection.from, maximum),
+          to: Math.min(snapshot.selection.to, maximum),
+        })
+      },
+      execute: async (modelAlias, input, signal, image) =>
+        executeTool(
+          editor,
+          { id: `office-${modelAlias}`, name: modelAlias, input },
+          {
+            bullet:
+              findNumId(doc?.parsed.blocks ?? [], 'bullet') ??
+              (doc?.isBlank ? BLANK_BULLET_NUM_ID : null),
+            ordered:
+              findNumId(doc?.parsed.blocks ?? [], 'ordered') ??
+              (doc?.isBlank ? BLANK_ORDERED_NUM_ID : null),
+          },
+          trackChanges ? { author: 'AI Assistant' } : undefined,
+          signal,
+          image,
+        ),
+    })
+    return window.docsOfficeTools.onRequest(handler)
+  }, [doc, editor, trackChanges])
 
   useEffect(() => {
     localStorage.setItem('aidocs.showAi', showAi ? '1' : '0')
@@ -2538,18 +2580,10 @@ export function App() {
             {/* always mounted: collapse must not drop state or in-flight runs */}
             <AiPanel
               key={aiPanelKey}
-              editor={editor}
-              blocks={doc.parsed.blocks}
-              settings={settings}
-              docEmpty={wordCount === 0}
-              numIdFallback={
-                doc.isBlank ? { bullet: BLANK_BULLET_NUM_ID, ordered: BLANK_ORDERED_NUM_ID } : null
-              }
               preset={aiPreset}
               open={showAi}
               onExpand={() => setShowAi(true)}
               onCollapse={() => setShowAi(false)}
-              filePath={doc?.filePath ?? null}
             />
           </div>
         )}

@@ -1,0 +1,568 @@
+{
+  "numTotalTestSuites": 10,
+  "numPassedTestSuites": 10,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 41,
+  "numPassedTests": 41,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786383945503,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Shell legacy cleanup startup gate"
+          ],
+          "fullName": "Shell legacy cleanup startup gate uses the production Resource Home and cleanup dependencies on an empty upgrade fixture",
+          "status": "passed",
+          "title": "uses the production Resource Home and cleanup dependencies on an empty upgrade fixture",
+          "duration": 40.373249999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Shell legacy cleanup startup gate"
+          ],
+          "fullName": "Shell legacy cleanup startup gate initializes Resource Home, runs once, and keeps completed health unchanged",
+          "status": "passed",
+          "title": "initializes Resource Home, runs once, and keeps completed health unchanged",
+          "duration": 1.207334000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Shell legacy cleanup startup gate"
+          ],
+          "fullName": "Shell legacy cleanup startup gate surfaces an incomplete retry state without paths, errors, or blocking Runtime start",
+          "status": "passed",
+          "title": "surfaces an incomplete retry state without paths, errors, or blocking Runtime start",
+          "duration": 0.3353749999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Shell legacy cleanup startup gate"
+          ],
+          "fullName": "Shell legacy cleanup startup gate blocks Runtime startup on structural cleanup errors with a stable, redacted failure",
+          "status": "passed",
+          "title": "blocks Runtime startup on structural cleanup errors with a stable, redacted failure",
+          "duration": 0.6779579999999896,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Shell legacy cleanup startup gate"
+          ],
+          "fullName": "Shell legacy cleanup startup gate blocks cleanup and Runtime startup when Resource Home schema validation fails",
+          "status": "passed",
+          "title": "blocks cleanup and Runtime startup when Resource Home schema validation fails",
+          "duration": 0.36316599999997834,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383945761,
+      "endTime": 1786383945803.678,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/legacy-cleanup-startup.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Shell Pi Agent Platform cutover"
+          ],
+          "fullName": "Shell Pi Agent Platform cutover keeps provider, MinerU, and update settings after removing the product account surface",
+          "status": "passed",
+          "title": "keeps provider, MinerU, and update settings after removing the product account surface",
+          "duration": 1.4628340000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Shell Pi Agent Platform cutover"
+          ],
+          "fullName": "Shell Pi Agent Platform cutover has no retired account, cloud project, legacy AI, or branded production path",
+          "status": "passed",
+          "title": "has no retired account, cloud project, legacy AI, or branded production path",
+          "duration": 7.588542000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Shell Pi Agent Platform cutover"
+          ],
+          "fullName": "Shell Pi Agent Platform cutover runs packaged legacy cleanup before Runtime and exposes a retryable UI warning",
+          "status": "passed",
+          "title": "runs packaged legacy cleanup before Runtime and exposes a retryable UI warning",
+          "duration": 0.5594999999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Shell Pi Agent Platform cutover"
+          ],
+          "fullName": "Shell Pi Agent Platform cutover keeps Agent data on default uninstall so deletion can only be a separate confirmation",
+          "status": "passed",
+          "title": "keeps Agent data on default uninstall so deletion can only be a separate confirmation",
+          "duration": 0.2162089999999921,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383945623,
+      "endTime": 1786383945633.2163,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/pi-platform-cutover.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup exposes only reviewed relative rules with ownership and sibling-preservation metadata",
+          "status": "passed",
+          "title": "exposes only reviewed relative rules with ownership and sibling-preservation metadata",
+          "duration": 2.626459000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup deletes only the reviewed Agent/Genspark targets and preserves Office/autosave siblings",
+          "status": "passed",
+          "title": "deletes only the reviewed Agent/Genspark targets and preserves Office/autosave siblings",
+          "duration": 60.41062499999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup is idempotent and does not advance the completed migration generation twice",
+          "status": "passed",
+          "title": "is idempotent and does not advance the completed migration generation twice",
+          "duration": 18.989832999999976,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup continues after one deletion failure, omits completion, and succeeds on retry",
+          "status": "passed",
+          "title": "continues after one deletion failure, omits completion, and succeeds on retry",
+          "duration": 23.52437500000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects symlink targets without following them or recording completion",
+          "status": "passed",
+          "title": "rejects symlink targets without following them or recording completion",
+          "duration": 4.294959000000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup fails closed before deletion when the migration journal is corrupt",
+          "status": "passed",
+          "title": "fails closed before deletion when the migration journal is corrupt",
+          "duration": 3.3182919999999854,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects unsafe structural variants while ignoring unrelated project entries",
+          "status": "passed",
+          "title": "rejects unsafe structural variants while ignoring unrelated project entries",
+          "duration": 5.203499999999963,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup handles absent legacy roots/projects and Windows policy without creating them",
+          "status": "passed",
+          "title": "handles absent legacy roots/projects and Windows policy without creating them",
+          "duration": 7.415208000000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup reports failed verification and failed chat deletion without leaking errors",
+          "status": "passed",
+          "title": "reports failed verification and failed chat deletion without leaking errors",
+          "duration": 4.263500000000022,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects invalid roots and non-file migration journals before cleanup",
+          "status": "passed",
+          "title": "rejects invalid roots and non-file migration journals before cleanup",
+          "duration": 3.8380839999999807,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects a symlink migration journal and an invalid completed timestamp",
+          "status": "passed",
+          "title": "rejects a symlink migration journal and an invalid completed timestamp",
+          "duration": 5.887875000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup rejects a non-directory projects root and an inaccessible legacy root shape",
+          "status": "passed",
+          "title": "rejects a non-directory projects root and an inaccessible legacy root shape",
+          "duration": 1.1428750000000036,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup preserves unrelated migration records and fails atomically before journal rename",
+          "status": "passed",
+          "title": "preserves unrelated migration records and fails atomically before journal rename",
+          "duration": 10.760625000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "legacy Agent cleanup"
+          ],
+          "fullName": "legacy Agent cleanup publishes only reviewed renderer storage keys for removal during app cutover",
+          "status": "passed",
+          "title": "publishes only reviewed renderer storage keys for removal during app cutover",
+          "duration": 0.08491700000001856,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383945761,
+      "endTime": 1786383945913.085,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/agent-resource/tests/legacy-cleanup.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Agent Resource Home"
+          ],
+          "fullName": "Agent Resource Home initializes only the prescribed layout in a clean fake HOME with private POSIX modes",
+          "status": "passed",
+          "title": "initializes only the prescribed layout in a clean fake HOME with private POSIX modes",
+          "duration": 32.504666000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Resource Home"
+          ],
+          "fullName": "Agent Resource Home is idempotent and preserves the first valid schema identity",
+          "status": "passed",
+          "title": "is idempotent and preserves the first valid schema identity",
+          "duration": 20.91537500000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Resource Home"
+          ],
+          "fullName": "Agent Resource Home fails closed on an invalid existing schema or a symlinked Resource Home",
+          "status": "passed",
+          "title": "fails closed on an invalid existing schema or a symlinked Resource Home",
+          "duration": 8.941416000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Resource Home"
+          ],
+          "fullName": "Agent Resource Home rejects non-directory roots, unsafe schema entries, and invalid generated identity",
+          "status": "passed",
+          "title": "rejects non-directory roots, unsafe schema entries, and invalid generated identity",
+          "duration": 1.6247920000000136,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Resource Home"
+          ],
+          "fullName": "Agent Resource Home does not apply POSIX chmod policy when initialized for Windows",
+          "status": "passed",
+          "title": "does not apply POSIX chmod policy when initialized for Windows",
+          "duration": 8.4375,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent Resource Home"
+          ],
+          "fullName": "Agent Resource Home uses secure defaults when optional platform and UUID dependencies are omitted",
+          "status": "passed",
+          "title": "uses secure defaults when optional platform and UUID dependencies are omitted",
+          "duration": 19.01208300000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383945761,
+      "endTime": 1786383945852.012,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/agent-resource/tests/resource-home.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service verifies once, starts once, and exposes only a frozen typed health projection",
+          "status": "passed",
+          "title": "verifies once, starts once, and exposes only a frozen typed health projection",
+          "duration": 2.7713749999999777,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service fails closed when the installed bundle is absent or Runtime startup fails",
+          "status": "passed",
+          "title": "fails closed when the installed bundle is absent or Runtime startup fails",
+          "duration": 1.0359589999999912,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service runs the reviewed pre-start migration only after bundle verification and before Runtime spawn",
+          "status": "passed",
+          "title": "runs the reviewed pre-start migration only after bundle verification and before Runtime spawn",
+          "duration": 1.7501249999999686,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service owns the narrow Session client and refuses commands when Runtime is unavailable",
+          "status": "passed",
+          "title": "owns the narrow Session client and refuses commands when Runtime is unavailable",
+          "duration": 1.5706250000000068,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service passes an explicit Resource Home only to the owned Runtime manager",
+          "status": "passed",
+          "title": "passes an explicit Resource Home only to the owned Runtime manager",
+          "duration": 0.5063749999999914,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service forwards only typed credential management commands to the ready Runtime",
+          "status": "passed",
+          "title": "forwards only typed credential management commands to the ready Runtime",
+          "duration": 0.5406670000000418,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service forwards typed model catalog, selection, OAuth control, and logout commands",
+          "status": "passed",
+          "title": "forwards typed model catalog, selection, OAuth control, and logout commands",
+          "duration": 0.5810420000000249,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service keeps resource paths in the main-process service while forwarding trust controls",
+          "status": "passed",
+          "title": "keeps resource paths in the main-process service while forwarding trust controls",
+          "duration": 1.6174159999999915,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service passes the main-process credential broker only to the owned Runtime manager",
+          "status": "passed",
+          "title": "passes the main-process credential broker only to the owned Runtime manager",
+          "duration": 0.5980000000000132,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service passes the main-process Office Tool host only to the owned Runtime manager",
+          "status": "passed",
+          "title": "passes the main-process Office Tool host only to the owned Runtime manager",
+          "duration": 0.28437500000001137,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service shuts down the owned manager after initialization and remains stopped",
+          "status": "passed",
+          "title": "shuts down the owned manager after initialization and remains stopped",
+          "duration": 0.6743339999999876,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "installed Pi Runtime service"
+          ],
+          "fullName": "installed Pi Runtime service waits for in-flight verification before shutting down during app exit",
+          "status": "passed",
+          "title": "waits for in-flight verification before shutting down during app exit",
+          "duration": 0.23750000000001137,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786383945902,
+      "endTime": 1786383945914.6743,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/pi-runtime-service.test.ts"
+    }
+  ]
+}

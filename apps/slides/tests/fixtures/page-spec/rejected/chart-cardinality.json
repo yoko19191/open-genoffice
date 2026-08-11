@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "title": "图表",
+  "canvas": { "widthPx": 1280, "heightPx": 720 },
+  "background": { "color": "#FFFFFF" },
+  "elements": [
+    {
+      "id": "bad",
+      "kind": "chart",
+      "chartType": "line",
+      "x": 20,
+      "y": 20,
+      "w": 400,
+      "h": 300,
+      "categories": ["A", "B"],
+      "series": [{ "name": "收入", "values": [1] }],
+      "dataSource": "user"
+    }
+  ]
+}

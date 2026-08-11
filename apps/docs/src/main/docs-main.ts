@@ -1,20 +1,11 @@
 import { createHash } from 'node:crypto'
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, stat, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { BrowserWindow, Menu, WebContentsView, app, dialog, ipcMain, shell } from 'electron'
 import {
   appMenuLabels,
   contextMenuLabels,
-  fetchRemoteImage,
   installContextMenu,
   installNavigationGuard,
   safeExternalUrl,
@@ -31,41 +22,11 @@ import type {
   SaveDialogOptions,
   WebContents,
 } from 'electron'
-import { parseFileToText } from '@genoffice/file-parse'
-import {
-  AiCreditsError,
-  AiTimeoutError,
-  chatForProvider,
-  defaultAiSettings,
-  resolveAiSettings,
-  streamForProvider,
-  type AiChatRequest,
-  type AiSettings,
-  type AiStreamChunk,
-  type AiStreamRequest,
-  type GenSparkAccountStatus,
-  type LegacyAiSettings,
-} from '@genoffice/ai-provider'
-import {
-  ensureGenofficeLogin,
-  gskApiKey,
-  gskLoginInfo,
-  hasGskAuth,
-  webSearch,
-  imageSearch,
-} from '@genoffice/ai-search'
-import type {
-  AttachmentAddResult,
-  AttachmentImageResult,
-  AttachmentMeta,
-  AttachmentReadResult,
-  DocsTabInfo,
-  MenuCommand,
-  OpenFileResult,
-} from '../shared/ipc'
-import { ATTACHMENT_IMAGE_EXTS } from '../shared/ipc'
+import type { DocsTabInfo, MenuCommand, OpenFileResult } from '../shared/ipc'
 import { findDocxPath } from '../shared/open-file'
+import { DOCS_OFFICE_TOOL_CHANNELS, isDocsOfficeToolResponse } from '../shared/docs-office-tools'
 import { atomicWriteFile, looksLikeZip } from './atomic-write'
+import { DocsOfficeToolRendererClient } from './agent-tools/renderer-client'
 import { isExternallyModified, type DiskFileState } from './external-change'
 import { initDocsAutoUpdater } from './updater'
 
@@ -77,6 +38,29 @@ import { initDocsAutoUpdater } from './updater'
  */
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
+const officeToolClientsByWc = new Map<number, DocsOfficeToolRendererClient>()
+
+export function docsOfficeToolRendererClient(
+  webContentsId: number,
+): Pick<DocsOfficeToolRendererClient, 'request'> | undefined {
+  return officeToolClientsByWc.get(webContentsId)
+}
+
+function trackDocsOfficeTools(contents: WebContents): void {
+  const webContentsId = contents.id
+  officeToolClientsByWc.set(
+    webContentsId,
+    new DocsOfficeToolRendererClient({
+      webContentsId,
+      isDestroyed: () => contents.isDestroyed(),
+      send: (request) => contents.send(DOCS_OFFICE_TOOL_CHANNELS.request, request),
+    }),
+  )
+  contents.once('destroyed', () => {
+    officeToolClientsByWc.get(webContentsId)?.close()
+    officeToolClientsByWc.delete(webContentsId)
+  })
+}
 
 const tMain = createI18n({
   zh: {
@@ -112,7 +96,6 @@ const tMain = createI18n({
     errParseFailed: '文件解析失败',
     errImageNoText: '图片附件不提供文本,已作为图像随用户消息发送,直接看图即可',
     errNotImage: '不是支持的图片类型',
-    errGskNotLoggedIn: '未登录 Genspark:请点击下方「登录 Genspark」完成登录后重试',
     errNoApiKey: '未配置 {provider} 的 API Key',
     errNoModel: '未配置模型名称',
     menuFile: '文件',
@@ -205,8 +188,6 @@ const tMain = createI18n({
     errParseFailed: 'Failed to parse file',
     errImageNoText: 'Image attachments have no text; the image is sent along with the user message',
     errNotImage: 'not a supported image type',
-    errGskNotLoggedIn:
-      'Not signed in to Genspark: click “Sign in to Genspark” below, sign in, then retry',
     errNoApiKey: 'No API key configured for {provider}',
     errNoModel: 'No model name configured',
     menuFile: 'File',
@@ -299,8 +280,6 @@ const tMain = createI18n({
     errImageNoText:
       '画像の添付ファイルはテキストを提供しません。画像としてユーザーメッセージと一緒に送信されるため、そのまま画像をご確認ください',
     errNotImage: 'サポートされていない画像形式です',
-    errGskNotLoggedIn:
-      'Genspark にサインインしていません。下の「Genspark にサインイン」からサインインして再試行してください',
     errNoApiKey: '{provider} の API キーが設定されていません',
     errNoModel: 'モデル名が設定されていません',
     menuFile: 'ファイル',
@@ -394,8 +373,6 @@ const tMain = createI18n({
     errImageNoText:
       '이미지 첨부 파일은 텍스트를 제공하지 않으며, 이미지 형태로 사용자 메시지와 함께 전송되므로 이미지를 직접 확인하면 됩니다',
     errNotImage: '지원되지 않는 이미지 형식입니다',
-    errGskNotLoggedIn:
-      'Genspark에 로그인되어 있지 않습니다. 아래 "Genspark 로그인"을 눌러 로그인한 뒤 다시 시도하세요',
     errNoApiKey: '{provider}의 API 키가 설정되지 않았습니다',
     errNoModel: '모델 이름이 설정되지 않았습니다',
     menuFile: '파일',
@@ -490,8 +467,6 @@ const tMain = createI18n({
     errImageNoText:
       "Les pièces jointes image ne fournissent pas de texte ; l'image est envoyée avec le message de l'utilisateur, consultez-la directement",
     errNotImage: "type d'image non pris en charge",
-    errGskNotLoggedIn:
-      'Non connecté à Genspark : cliquez sur « Se connecter à Genspark » ci-dessous, connectez-vous puis réessayez',
     errNoApiKey: 'Aucune clé API configurée pour {provider}',
     errNoModel: 'Aucun nom de modèle configuré',
     menuFile: 'Fichier',
@@ -586,8 +561,6 @@ const tMain = createI18n({
     errImageNoText:
       'Bildanlagen liefern keinen Text; das Bild wird mit der Benutzernachricht gesendet und kann direkt betrachtet werden',
     errNotImage: 'kein unterstütztes Bildformat',
-    errGskNotLoggedIn:
-      'Nicht bei Genspark angemeldet: Klicken Sie unten auf „Bei Genspark anmelden“, melden Sie sich an und versuchen Sie es erneut',
     errNoApiKey: 'Kein API-Schlüssel für {provider} konfiguriert',
     errNoModel: 'Kein Modellname konfiguriert',
     menuFile: 'Datei',
@@ -681,8 +654,6 @@ const tMain = createI18n({
     errImageNoText:
       'Las imágenes adjuntas no proporcionan texto; la imagen se envía junto con el mensaje del usuario, puedes verla directamente',
     errNotImage: 'no es un tipo de imagen compatible',
-    errGskNotLoggedIn:
-      'No has iniciado sesión en Genspark: pulsa «Iniciar sesión en Genspark» abajo, inicia sesión y vuelve a intentarlo',
     errNoApiKey: 'No hay clave de API configurada para {provider}',
     errNoModel: 'No se ha configurado el nombre del modelo',
     menuFile: 'Archivo',
@@ -775,8 +746,6 @@ const tMain = createI18n({
     errImageNoText:
       'สิ่งที่แนบเป็นรูปภาพไม่มีข้อความ รูปจะถูกส่งไปพร้อมข้อความของผู้ใช้ ดูรูปได้โดยตรง',
     errNotImage: 'ไม่ใช่ชนิดรูปภาพที่รองรับ',
-    errGskNotLoggedIn:
-      'ยังไม่ได้ลงชื่อเข้าใช้ Genspark: แตะ “ลงชื่อเข้าใช้ Genspark” ด้านล่าง แล้วลองอีกครั้ง',
     errNoApiKey: 'ยังไม่ได้ตั้งค่า API Key ของ {provider}',
     errNoModel: 'ยังไม่ได้ตั้งค่าชื่อโมเดล',
     menuFile: 'ไฟล์',
@@ -870,7 +839,6 @@ const tMain = createI18n({
     errImageNoText:
       'Lampiran gambar tidak menyediakan teks; gambar dikirim bersama pesan pengguna dan dapat dilihat langsung',
     errNotImage: 'bukan jenis gambar yang didukung',
-    errGskNotLoggedIn: 'Belum masuk ke Genspark: klik “Masuk ke Genspark” di bawah, lalu coba lagi',
     errNoApiKey: 'API Key untuk {provider} belum dikonfigurasi',
     errNoModel: 'Nama model belum dikonfigurasi',
     menuFile: 'File',
@@ -964,8 +932,6 @@ const tMain = createI18n({
     errImageNoText:
       'Вложенные изображения не содержат текста; изображение отправляется вместе с сообщением пользователя, смотрите его напрямую',
     errNotImage: 'неподдерживаемый тип изображения',
-    errGskNotLoggedIn:
-      'Вы не вошли в Genspark: нажмите «Войти в Genspark» ниже, войдите и повторите попытку',
     errNoApiKey: 'API-ключ для {provider} не настроен',
     errNoModel: 'Не указано имя модели',
     menuFile: 'Файл',
@@ -1059,8 +1025,6 @@ const tMain = createI18n({
     errImageNoText:
       'مرفقات الصور لا توفر نصًا؛ تُرسل الصورة مع رسالة المستخدم ويمكن الاطلاع عليها مباشرة',
     errNotImage: 'ليس نوع صورة مدعومًا',
-    errGskNotLoggedIn:
-      'لم تسجّل الدخول إلى Genspark: انقر على «تسجيل الدخول إلى Genspark» أدناه ثم أعد المحاولة',
     errNoApiKey: 'لم يتم تكوين مفتاح API لـ {provider}',
     errNoModel: 'لم يتم تكوين اسم النموذج',
     menuFile: 'ملف',
@@ -1154,8 +1118,6 @@ const tMain = createI18n({
     errImageNoText:
       'Anexos de imagem não fornecem texto; a imagem é enviada junto com a mensagem do usuário, basta vê-la diretamente',
     errNotImage: 'não é um tipo de imagem suportado',
-    errGskNotLoggedIn:
-      'Não conectado ao Genspark: clique em “Entrar no Genspark” abaixo, entre e tente novamente',
     errNoApiKey: 'Nenhuma chave de API configurada para {provider}',
     errNoModel: 'Nenhum nome de modelo configurado',
     menuFile: 'Arquivo',
@@ -1249,8 +1211,6 @@ const tMain = createI18n({
     errImageNoText:
       "Gli allegati immagine non forniscono testo; l'immagine viene inviata insieme al messaggio dell'utente, basta guardarla direttamente",
     errNotImage: 'tipo di immagine non supportato',
-    errGskNotLoggedIn:
-      'Accesso a Genspark non effettuato: fai clic su “Accedi a Genspark” qui sotto, accedi e riprova',
     errNoApiKey: 'Nessuna chiave API configurata per {provider}',
     errNoModel: 'Nessun nome di modello configurato',
     menuFile: 'File',
@@ -1344,8 +1304,6 @@ const tMain = createI18n({
     errImageNoText:
       'Załączniki graficzne nie zawierają tekstu; obraz jest wysyłany razem z wiadomością użytkownika, wystarczy na niego spojrzeć',
     errNotImage: 'nieobsługiwany typ obrazu',
-    errGskNotLoggedIn:
-      'Nie zalogowano do Genspark: kliknij „Zaloguj się do Genspark” poniżej, zaloguj się i spróbuj ponownie',
     errNoApiKey: 'Nie skonfigurowano klucza API dla {provider}',
     errNoModel: 'Nie skonfigurowano nazwy modelu',
     menuFile: 'Plik',
@@ -1439,8 +1397,6 @@ const tMain = createI18n({
     errImageNoText:
       'Afbeeldingsbijlagen bevatten geen tekst; de afbeelding wordt samen met het gebruikersbericht verzonden en kan direct worden bekeken',
     errNotImage: 'geen ondersteund afbeeldingstype',
-    errGskNotLoggedIn:
-      'Niet aangemeld bij Genspark: klik hieronder op “Aanmelden bij Genspark”, meld u aan en probeer het opnieuw',
     errNoApiKey: 'Geen API-sleutel geconfigureerd voor {provider}',
     errNoModel: 'Geen modelnaam geconfigureerd',
     menuFile: 'Bestand',
@@ -1534,8 +1490,6 @@ const tMain = createI18n({
     errImageNoText:
       'Lampiran imej tidak menyediakan teks; imej dihantar bersama mesej pengguna dan boleh dilihat terus',
     errNotImage: 'bukan jenis imej yang disokong',
-    errGskNotLoggedIn:
-      'Belum log masuk ke Genspark: klik “Log masuk ke Genspark” di bawah, kemudian cuba lagi',
     errNoApiKey: 'Kunci API untuk {provider} belum dikonfigurasikan',
     errNoModel: 'Nama model belum dikonfigurasikan',
     menuFile: 'Fail',
@@ -1628,7 +1582,6 @@ const tMain = createI18n({
     errImageNoText:
       'קבצים מצורפים מסוג תמונה אינם מספקים טקסט; התמונה נשלחת יחד עם הודעת המשתמש וניתן לצפות בה ישירות',
     errNotImage: 'סוג תמונה שאינו נתמך',
-    errGskNotLoggedIn: 'לא מחובר ל-Genspark: לחץ על "התחבר ל-Genspark" למטה, התחבר ונסה שוב',
     errNoApiKey: 'לא הוגדר מפתח API עבור {provider}',
     errNoModel: 'לא הוגדר שם מודל',
     menuFile: 'קובץ',
@@ -1722,8 +1675,6 @@ const tMain = createI18n({
     errImageNoText:
       'छवि अनुलग्नक टेक्स्ट प्रदान नहीं करते; छवि उपयोगकर्ता संदेश के साथ भेजी जाती है, उसे सीधे देखें',
     errNotImage: 'समर्थित छवि प्रकार नहीं है',
-    errGskNotLoggedIn:
-      'Genspark में साइन इन नहीं है: नीचे “Genspark में साइन इन करें” पर क्लिक करें, साइन इन करें और फिर से कोशिश करें',
     errNoApiKey: '{provider} के लिए कोई API कुंजी कॉन्फ़िगर नहीं है',
     errNoModel: 'कोई मॉडल नाम कॉन्फ़िगर नहीं है',
     menuFile: 'फ़ाइल',
@@ -1815,7 +1766,6 @@ const tMain = createI18n({
     errParseFailed: '檔案解析失敗',
     errImageNoText: '圖片附件不提供文字,已作為影像隨使用者訊息傳送,直接看圖即可',
     errNotImage: '不是支援的圖片類型',
-    errGskNotLoggedIn: '未登入 Genspark:請點擊下方「登入 Genspark」完成登入後重試',
     errNoApiKey: '未設定 {provider} 的 API Key',
     errNoModel: '未設定模型名稱',
     menuFile: '檔案',
@@ -2305,335 +2255,9 @@ const IMAGE_MIME: Record<string, 'image/png' | 'image/jpeg' | 'image/gif'> = {
   gif: 'image/gif',
 }
 
-// ---- chat attachments: local files parsed for the agent ----
-
-const ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024
-/** plain-text extensions read as UTF-8 */
-const TEXT_EXTS = new Set([
-  'txt',
-  'md',
-  'markdown',
-  'csv',
-  'tsv',
-  'json',
-  'yaml',
-  'yml',
-  'xml',
-  'html',
-  'htm',
-  'log',
-  'js',
-  'ts',
-  'tsx',
-  'jsx',
-  'py',
-  'java',
-  'c',
-  'h',
-  'cpp',
-  'go',
-  'rs',
-  'rb',
-  'sh',
-  'sql',
-  'css',
-])
-/** office/pdf formats get text extracted via @genoffice/file-parse; images skip extraction and go multimodal (files:read-image) */
-const ATTACHMENT_EXTS = new Set([
-  ...TEXT_EXTS,
-  'docx',
-  'pdf',
-  'pptx',
-  'ppt',
-  'xlsx',
-  'xls',
-  ...ATTACHMENT_IMAGE_EXTS,
-])
-
-const ATTACHMENT_IMAGE_MIME: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-}
-/** multimodal size cap per image attachment (keeps the context from blowing up) */
-const ATTACHMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024
-
-/** extracted text cache keyed by path; invalidated by mtime+size */
-const attachmentTextCache = new Map<string, { stamp: string; text: string }>()
-
-function statAttachment(filePath: string): { meta?: AttachmentMeta; error?: string } {
-  const name = basename(filePath)
-  const ext = name.split('.').pop()?.toLowerCase() ?? ''
-  if (!ATTACHMENT_EXTS.has(ext)) return { error: `${name}: ${tm('errUnsupportedExt', { ext })}` }
-  try {
-    const stat = statSync(filePath)
-    if (!stat.isFile()) return { error: `${name}: ${tm('errNotFile')}` }
-    if (stat.size > ATTACHMENT_MAX_BYTES) {
-      return {
-        error: `${name}: ${tm('errTooLarge', { mb: Math.round(ATTACHMENT_MAX_BYTES / 1024 / 1024) })}`,
-      }
-    }
-    if (ATTACHMENT_IMAGE_EXTS.has(ext) && stat.size > ATTACHMENT_IMAGE_MAX_BYTES) {
-      return { error: `${name}: ${tm('errImageTooLarge')}` }
-    }
-    return { meta: { path: filePath, name, ext, sizeBytes: stat.size } }
-  } catch {
-    return { error: `${name}: ${tm('errUnreadable')}` }
-  }
-}
-
-function collectAttachments(paths: string[]): AttachmentAddResult {
-  const accepted: AttachmentMeta[] = []
-  const rejected: string[] = []
-  for (const p of paths) {
-    const { meta, error } = statAttachment(p)
-    if (meta) accepted.push(meta)
-    else if (error) rejected.push(error)
-  }
-  return { accepted, rejected }
-}
-
-/** save clipboard-pasted image bytes to a temp file (screenshots/bitmaps with no local path); returns null for non-images or empty data */
-let pastedImageSeq = 0
-let pastedDirPruned = false
-
-/** drop pasted-image temp files older than 7 days (once per app run) */
-function prunePastedImages(dir: string): void {
-  if (pastedDirPruned) return
-  pastedDirPruned = true
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-  try {
-    for (const name of readdirSync(dir)) {
-      const p = join(dir, name)
-      try {
-        if (statSync(p).mtimeMs < cutoff) unlinkSync(p)
-      } catch {
-        // ignore: another tab may have removed it already
-      }
-    }
-  } catch {
-    // ignore: directory may not exist yet
-  }
-}
-function savePastedImage(data: unknown, ext: unknown): string | null {
-  const cleanExt = typeof ext === 'string' ? ext.toLowerCase() : ''
-  if (!ATTACHMENT_IMAGE_EXTS.has(cleanExt)) return null
-  const bytes =
-    data instanceof ArrayBuffer
-      ? Buffer.from(data)
-      : ArrayBuffer.isView(data)
-        ? Buffer.from(data.buffer, data.byteOffset, data.byteLength)
-        : null
-  if (!bytes || bytes.byteLength === 0) return null
-  const dir = join(app.getPath('temp'), 'genoffice-pasted')
-  mkdirSync(dir, { recursive: true })
-  prunePastedImages(dir)
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-')
-  const filePath = join(dir, `pasted-${stamp}-${++pastedImageSeq}.${cleanExt}`)
-  writeFileSync(filePath, bytes)
-  return filePath
-}
-
-/** parse an attachment to text via @genoffice/file-parse (docx/pdf/pptx/xlsx/plain text) */
-async function extractAttachmentText(filePath: string): Promise<string> {
-  const stat = statSync(filePath)
-  const stamp = `${stat.mtimeMs}:${stat.size}`
-  const cached = attachmentTextCache.get(filePath)
-  if (cached && cached.stamp === stamp) return cached.text
-  if (stat.size > ATTACHMENT_MAX_BYTES) throw new Error(tm('errFileTooLarge'))
-  const parsed = await parseFileToText(filePath)
-  if (!parsed.ok || parsed.kind !== 'text' || parsed.text == null) {
-    throw new Error(parsed.error ?? tm('errParseFailed'))
-  }
-  attachmentTextCache.set(filePath, { stamp, text: parsed.text })
-  // keep the cache bounded (a handful of recent files is plenty)
-  if (attachmentTextCache.size > 8) {
-    const oldest = attachmentTextCache.keys().next().value
-    if (oldest) attachmentTextCache.delete(oldest)
-  }
-  return parsed.text
-}
-
 // ---- print / export PDF ----
 
 const TWIPS_PER_INCH = 1440
-
-// ---- AI settings + chat proxy (main process avoids renderer CORS) ----
-// provider metadata, settings defaults/migration, and per-provider streaming/chat
-// implementations live in @genoffice/ai-provider, shared with apps/sheets.
-
-const SETTINGS_PATH = () => userDataPath('ai-settings.json')
-
-const activeAiStreams = new Map<string, AbortController>()
-
-/**
- * AI settings + chat/stream proxy handlers. Split out so the shell can
- * register them exactly once for all window types (docs, sheets, home) —
- * sheets' standalone AI handlers use the same channel names.
- */
-export function registerAiIpc(): void {
-  ipcMain.handle('ai:get-settings', (): AiSettings => {
-    const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
-    const settings = resolveAiSettings(stored, defaultAiSettings())
-    // AI features all go through Genspark (gsk login); legacy settings with another provider are reset
-    settings.provider = 'genspark'
-    return settings
-  })
-
-  // Genspark account (gsk login state): auth source for AI features; the frontend uses it to prompt login when logged out
-  ipcMain.handle(
-    'ai:gsk-status',
-    async (_event, withEmail?: boolean): Promise<GenSparkAccountStatus> => {
-      if (!hasGskAuth()) return { loggedIn: false }
-      if (!withEmail) return { loggedIn: true }
-      const info = await gskLoginInfo()
-      return info?.email ? { loggedIn: true, email: info.email } : { loggedIn: true }
-    },
-  )
-
-  ipcMain.handle('ai:gsk-login', () => {
-    ensureGenofficeLogin((url) => void shell.openExternal(url))
-  })
-
-  ipcMain.handle('ai:set-settings', (_event, settings: AiSettings) => {
-    writeJson(SETTINGS_PATH(), settings)
-  })
-
-  ipcMain.handle('ai:stream', async (event, request: AiStreamRequest) => {
-    const { requestId, settings, system, messages } = request
-    const tools = request.tools ?? []
-    const maxTokens = request.maxTokens ?? 8192
-    const provider = settings.provider
-    let config = settings.providers?.[provider]
-    // the genspark key never enters the settings file; requests take it from the gsk login state
-    if (provider === 'genspark' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() }
-    }
-    const send = (chunk: AiStreamChunk) => {
-      if (!event.sender.isDestroyed()) event.sender.send('ai:stream-chunk', chunk)
-    }
-    if (!config?.apiKey) {
-      send({
-        requestId,
-        type: 'error',
-        error: provider === 'genspark' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
-      })
-      return
-    }
-    if (!config.model) {
-      send({ requestId, type: 'error', error: tm('errNoModel') })
-      return
-    }
-    const controller = new AbortController()
-    activeAiStreams.set(requestId, controller)
-    // wire-activity keepalive: lets the renderer's silence watchdog tell a slow turn from a dead one
-    let lastPing = 0
-    const ping = () => {
-      const now = Date.now()
-      if (now - lastPing < 5_000) return
-      lastPing = now
-      send({ requestId, type: 'ping' })
-    }
-    try {
-      let stopReason: string | undefined
-      await streamForProvider(provider, config, system, messages, tools, maxTokens, {
-        signal: controller.signal,
-        onDelta: (text) => send({ requestId, type: 'delta', text }),
-        onToolCall: (toolCall) => send({ requestId, type: 'tool-call', toolCall }),
-        onActivity: ping,
-        onStopReason: (reason) => {
-          stopReason = reason
-        },
-      })
-      send({ requestId, type: 'done', stopReason })
-    } catch (err) {
-      if (controller.signal.aborted) {
-        send({ requestId, type: 'done' })
-      } else {
-        send({
-          requestId,
-          type: 'error',
-          error: err instanceof Error ? err.message : String(err),
-          ...(err instanceof AiTimeoutError
-            ? { errorCode: 'timeout' as const }
-            : err instanceof AiCreditsError
-              ? { errorCode: 'credits' as const }
-              : {}),
-        })
-      }
-    } finally {
-      activeAiStreams.delete(requestId)
-    }
-  })
-
-  ipcMain.handle('ai:stream-cancel', (_event, requestId: string) => {
-    activeAiStreams.get(requestId)?.abort()
-  })
-
-  // shared search tools (content + images): Serper with DuckDuckGo fallback (same source as slides/sheets)
-  ipcMain.handle('ai:web-search', async (_event, query: string, maxResults?: number) => {
-    try {
-      return await webSearch(String(query), typeof maxResults === 'number' ? maxResults : 6)
-    } catch (err) {
-      return { results: [], method: 'error', error: String(err) }
-    }
-  })
-  ipcMain.handle('ai:image-search', async (_event, query: string, maxResults?: number) => {
-    try {
-      return await imageSearch(String(query), typeof maxResults === 'number' ? maxResults : 8)
-    } catch (err) {
-      return { images: [], method: 'error', error: String(err) }
-    }
-  })
-
-  // download image from URL → base64+mime (download in the main process avoids CORS; the renderer builds the image node and measures size itself)
-  ipcMain.handle(
-    'ai:fetch-image',
-    async (_event, url: string): Promise<{ base64: string; mime: string } | null> => {
-      try {
-        // the URL originates from AI tool calls (prompt-injectable via web search
-        // results), so refuse non-http schemes and private/link-local targets;
-        // redirects are followed manually so every hop is validated too.
-        // fetchRemoteImage adds CDN-friendly headers and transient-error retries.
-        const resp = await fetchRemoteImage(String(url))
-        if (!resp || !resp.ok) return null
-        const buf = Buffer.from(await resp.arrayBuffer())
-        const ct = resp.headers.get('content-type') ?? ''
-        const mime = ct.includes('png')
-          ? 'image/png'
-          : ct.includes('gif')
-            ? 'image/gif'
-            : 'image/jpeg'
-        return { base64: buf.toString('base64'), mime }
-      } catch {
-        return null
-      }
-    },
-  )
-
-  ipcMain.handle('ai:chat', async (_event, request: AiChatRequest) => {
-    const { settings, system, user } = request
-    const provider = settings.provider
-    let config = settings.providers?.[provider]
-    if (provider === 'genspark' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() }
-    }
-    if (!config?.apiKey) {
-      return {
-        ok: false,
-        error: provider === 'genspark' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
-      }
-    }
-    if (!config.model) return { ok: false, error: tm('errNoModel') }
-    try {
-      return await chatForProvider(provider, config, system, user)
-    } catch (err) {
-      return { ok: false, error: String(err) }
-    }
-  })
-}
 
 // ── project-store IPC (shared across docs / slides / sheets) ──────────────
 
@@ -2826,6 +2450,11 @@ export function registerProjectIpc(): void {
 
 /** document/attachment/window IPC (everything except the AI proxy above) */
 export function registerDocsIpc(): void {
+  ipcMain.removeAllListeners(DOCS_OFFICE_TOOL_CHANNELS.response)
+  ipcMain.on(DOCS_OFFICE_TOOL_CHANNELS.response, (event, response: unknown) => {
+    if (!isDocsOfficeToolResponse(response)) return
+    officeToolClientsByWc.get(event.sender.id)?.accept(event.sender.id, response)
+  })
   // shared with the other editor modules — last (identical) registration wins
   ipcMain.removeHandler('app:get-language')
   ipcMain.handle('app:get-language', () => getUiLang())
@@ -3010,80 +2639,6 @@ export function registerDocsIpc(): void {
       name: basename(filePath),
     }
   })
-
-  ipcMain.handle('files:pick', async (event): Promise<AttachmentAddResult | null> => {
-    const result = await openDialog(event, {
-      title: tm('dlgAddAttachment'),
-      filters: [
-        { name: tm('filterSupported'), extensions: [...ATTACHMENT_EXTS] },
-        { name: tm('filterAll'), extensions: ['*'] },
-      ],
-      properties: ['openFile', 'multiSelections'],
-    })
-    if (result.canceled || result.filePaths.length === 0) return null
-    return collectAttachments(result.filePaths)
-  })
-
-  ipcMain.handle('files:add', (_event, paths: string[]) => collectAttachments(paths))
-
-  ipcMain.handle(
-    'files:read',
-    async (
-      _event,
-      filePath: string,
-      offset: number,
-      maxChars: number,
-    ): Promise<AttachmentReadResult> => {
-      const name = basename(filePath)
-      const ext = name.split('.').pop()?.toLowerCase() ?? ''
-      if (!ATTACHMENT_EXTS.has(ext)) return { ok: false, error: tm('errUnsupportedExt', { ext }) }
-      if (ATTACHMENT_IMAGE_EXTS.has(ext)) {
-        return { ok: false, error: tm('errImageNoText') }
-      }
-      try {
-        const text = await extractAttachmentText(filePath)
-        const start = Math.max(0, Math.floor(offset) || 0)
-        const size = Math.min(Math.max(1, Math.floor(maxChars) || 1), 48_000)
-        return {
-          ok: true,
-          name,
-          totalChars: text.length,
-          offset: start,
-          text: text.slice(start, start + size),
-        }
-      } catch (e) {
-        return { ok: false, error: e instanceof Error ? e.message : String(e) }
-      }
-    },
-  )
-
-  // image attachments read raw bytes → base64; AiPanel puts them into the user message's images for multimodal
-  ipcMain.handle('files:read-image', (_event, filePath: string): AttachmentImageResult => {
-    const name = basename(filePath)
-    const ext = name.split('.').pop()?.toLowerCase() ?? ''
-    const mime = ATTACHMENT_IMAGE_MIME[ext]
-    if (!mime) return { ok: false, error: `${name}: ${tm('errNotImage')}` }
-    try {
-      const stat = statSync(filePath)
-      if (stat.size > ATTACHMENT_IMAGE_MAX_BYTES) {
-        return { ok: false, error: `${name}: ${tm('errImageTooLarge')}` }
-      }
-      return { ok: true, base64: readFileSync(filePath).toString('base64'), mime }
-    } catch {
-      return { ok: false, error: `${name}: ${tm('errUnreadable')}` }
-    }
-  })
-
-  // clipboard-pasted images (screenshots and other bitmaps with no local path): saved to a temp file then use the regular attachment path
-  ipcMain.handle(
-    'files:add-pasted-image',
-    (_event, data: unknown, ext: unknown): AttachmentAddResult => {
-      const filePath = savePastedImage(data, ext)
-      return filePath
-        ? collectAttachments([filePath])
-        : { accepted: [], rejected: [tm('errNotImage')] }
-    },
-  )
 
   ipcMain.handle('docs:print', (event) => {
     // print the calling tab's own content; zero margins — the docx page padding provides them
@@ -3490,6 +3045,7 @@ export function createDocsWindow(openPath?: string): BrowserWindow {
   }
   // captured up front: webContents is already destroyed inside the 'closed' handler
   const webContentsId = win.webContents.id
+  trackDocsOfficeTools(win.webContents)
   if (openPath) pendingWindowOpens.set(webContentsId, openPath)
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -3692,6 +3248,7 @@ export function createDocsView(openPath?: string): WebContentsView {
       backgroundThrottling: false,
     },
   })
+  trackDocsOfficeTools(view.webContents)
 
   if (openPath) pendingWindowOpens.set(view.webContents.id, openPath)
 
@@ -3756,7 +3313,6 @@ export function startDocsStandalone(): void {
     mainWindow?.focus()
   })
 
-  registerAiIpc()
   registerProjectIpc()
   registerDocsIpc()
 

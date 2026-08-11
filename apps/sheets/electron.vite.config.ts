@@ -9,20 +9,17 @@ export default defineConfig({
     // externalize everything else (Electron, zod, node builtins).
     plugins: [
       externalizeDepsPlugin({
-        exclude: [
-          '@genoffice/ai-provider',
-          '@genoffice/agent-core',
-          '@genoffice/ai-search',
-          '@genoffice/file-parse',
-          '@genoffice/electron-utils',
-          '@genoffice/i18n',
-        ],
+        exclude: ['@genoffice/file-parse', '@genoffice/electron-utils', '@genoffice/i18n'],
       }),
     ],
   },
   preload: {
     // Sandboxed preload scripts cannot require arbitrary npm packages at runtime.
-    plugins: [],
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ['@genoffice/electron-utils', '@genoffice/agent-runtime-protocol'],
+      }),
+    ],
   },
   renderer: {
     plugins: [react()],

@@ -1,9 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type {
-  AccountLoginEvent,
-  AccountStatus,
-  CloudProjectsSnapshot,
   HomeApi,
   RecentEntry,
   RecentPage,
@@ -16,6 +13,37 @@ import type {
 import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
 import { TABS_CHANNELS } from '../shared/tabs-api'
+import {
+  PI_RUNTIME_CHANNELS,
+  asPiRuntimeHealth,
+  asProviderCredentialInput,
+  asProviderCredentialStatus,
+  asProviderId,
+  asModelCatalog,
+  asMcpCatalog,
+  asMcpMutationInput,
+  asMcpToolMutationInput,
+  asModelProviderConfigurationInput,
+  asModelSelectInput,
+  asModelOAuthStartInput,
+  asModelOAuthOperationInput,
+  asModelOAuthResponseInput,
+  asOAuthOperation,
+  asPackageCatalog,
+  asPackageGitInstallInput,
+  asPackageLocalInstallInput,
+  asPackageMutationInput,
+  asPackageNamespace,
+  asPackageNpmInstallInput,
+  asResourceCatalog,
+  type PiRuntimeApi,
+} from '../shared/pi-runtime-api'
+import {
+  MINERU_OCR_CHANNELS,
+  asMineruOcrEnableInput,
+  asMineruOcrStatus,
+  type MineruOcrApi,
+} from '../shared/mineru-ocr-api'
 
 const UI_LANGUAGES: readonly UiLanguage[] = [
   'zh',
@@ -125,25 +153,6 @@ const homeApi: HomeApi = {
     if (channel !== 'stable' && channel !== 'beta') throw new Error('Invalid update channel.')
     await ipcRenderer.invoke(HOME_CHANNELS.setUpdateChannel, channel)
   },
-  async accountStatus() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.accountStatus)
-    return (result ?? { loggedIn: false }) as AccountStatus
-  },
-  async accountLogin() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.accountLogin)
-    return result === true
-  },
-  onAccountLogin(handler) {
-    const listener = (_event: IpcRendererEvent, ev: AccountLoginEvent) => handler(ev)
-    ipcRenderer.on(HOME_CHANNELS.accountLoginEvent, listener)
-    return () => ipcRenderer.removeListener(HOME_CHANNELS.accountLoginEvent, listener)
-  },
-  async openLoginUrl() {
-    await ipcRenderer.invoke(HOME_CHANNELS.accountLoginOpenUrl)
-  },
-  async accountLogout() {
-    await ipcRenderer.invoke(HOME_CHANNELS.accountLogout)
-  },
   async getAppVersion() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getAppVersion)
     return typeof result === 'string' ? result : ''
@@ -155,37 +164,6 @@ const homeApi: HomeApi = {
   async setOnboardingSeen() {
     await ipcRenderer.invoke(HOME_CHANNELS.setOnboardingSeen)
   },
-  async openGenTeam() {
-    await ipcRenderer.invoke(HOME_CHANNELS.openGenTeam)
-  },
-  async cloudProjectsCached() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.cloudProjectsCached)
-    return asCloudProjectsSnapshot(result)
-  },
-  async cloudProjectsSync() {
-    // failures (network / CLI) resolve to null so the renderer keeps whatever it has
-    try {
-      const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.cloudProjects)
-      return asCloudProjectsSnapshot(result)
-    } catch {
-      return null
-    }
-  },
-  async openCloudProject(projectUrl) {
-    if (typeof projectUrl !== 'string' || !projectUrl) throw new Error('Invalid project URL.')
-    await ipcRenderer.invoke(HOME_CHANNELS.openCloudProject, projectUrl)
-  },
-}
-
-function asCloudProjectsSnapshot(result: unknown): CloudProjectsSnapshot | null {
-  if (
-    result &&
-    typeof result === 'object' &&
-    Array.isArray((result as CloudProjectsSnapshot).projects)
-  ) {
-    return result as CloudProjectsSnapshot
-  }
-  return null
 }
 
 contextBridge.exposeInMainWorld('aiOffice', homeApi)
@@ -253,3 +231,202 @@ const tabsApi: TabsApi = {
 }
 
 contextBridge.exposeInMainWorld('aiOfficeTabs', tabsApi)
+
+const piRuntimeApi: PiRuntimeApi = {
+  async health() {
+    return asPiRuntimeHealth(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.health))
+  },
+  async saveProviderApiKey(input) {
+    return asProviderCredentialStatus(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.saveProviderApiKey,
+        asProviderCredentialInput(input),
+      ),
+    )
+  },
+  async providerCredentialStatus(providerId) {
+    return asProviderCredentialStatus(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.providerCredentialStatus,
+        asProviderId(providerId),
+      ),
+    )
+  },
+  async logoutProvider(providerId) {
+    return asProviderCredentialStatus(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.logoutProvider, asProviderId(providerId)),
+    )
+  },
+  async modelCatalog() {
+    return asModelCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.modelCatalog))
+  },
+  async selectModel(input) {
+    return asModelCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.selectModel, asModelSelectInput(input)),
+    )
+  },
+  async configureModelProvider(input) {
+    return asModelCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.configureModelProvider,
+        asModelProviderConfigurationInput(input),
+      ),
+    )
+  },
+  async startModelOAuth(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.startModelOAuth, asModelOAuthStartInput(input)),
+    )
+  },
+  async modelOAuthStatus(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.modelOAuthStatus,
+        asModelOAuthOperationInput(input),
+      ),
+    )
+  },
+  async respondModelOAuth(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.respondModelOAuth,
+        asModelOAuthResponseInput(input),
+      ),
+    )
+  },
+  async cancelModelOAuth(input) {
+    return asOAuthOperation(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.cancelModelOAuth,
+        asModelOAuthOperationInput(input),
+      ),
+    )
+  },
+  async logoutModel(providerId) {
+    return asModelCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.logoutModel, asProviderId(providerId)),
+    )
+  },
+  async resourceCatalog() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.resourceCatalog))
+  },
+  async selectResourceProject() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.selectResourceProject))
+  },
+  async grantProjectTrust() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.grantProjectTrust))
+  },
+  async revokeProjectTrust() {
+    return asResourceCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.revokeProjectTrust))
+  },
+  async packageCatalog(namespace) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.packageCatalog, asPackageNamespace(namespace)),
+    )
+  },
+  async installLocalPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.installLocalPackage,
+        asPackageLocalInstallInput(input),
+      ),
+    )
+  },
+  async installNpmPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.installNpmPackage,
+        asPackageNpmInstallInput(input),
+      ),
+    )
+  },
+  async installGitPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(
+        PI_RUNTIME_CHANNELS.installGitPackage,
+        asPackageGitInstallInput(input),
+      ),
+    )
+  },
+  async activatePackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.activatePackage, asPackageMutationInput(input)),
+    )
+  },
+  async enablePackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.enablePackage, asPackageMutationInput(input)),
+    )
+  },
+  async disablePackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.disablePackage, asPackageMutationInput(input)),
+    )
+  },
+  async uninstallPackage(input) {
+    return asPackageCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.uninstallPackage, asPackageMutationInput(input)),
+    )
+  },
+  async mcpCatalog() {
+    return asMcpCatalog(await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.mcpCatalog))
+  },
+  async activateMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.activateMcp, asMcpMutationInput(input)),
+    )
+  },
+  async enableMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.enableMcp, asMcpMutationInput(input)),
+    )
+  },
+  async disableMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.disableMcp, asMcpMutationInput(input)),
+    )
+  },
+  async retryMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.retryMcp, asMcpMutationInput(input)),
+    )
+  },
+  async loginMcp(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.loginMcp, asMcpMutationInput(input)),
+    )
+  },
+  async cancelMcpLogin(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.cancelMcpLogin, asMcpMutationInput(input)),
+    )
+  },
+  async enableMcpTool(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.enableMcpTool, asMcpToolMutationInput(input)),
+    )
+  },
+  async disableMcpTool(input) {
+    return asMcpCatalog(
+      await ipcRenderer.invoke(PI_RUNTIME_CHANNELS.disableMcpTool, asMcpToolMutationInput(input)),
+    )
+  },
+}
+
+contextBridge.exposeInMainWorld('aiOfficeAgent', piRuntimeApi)
+
+const mineruOcrApi: MineruOcrApi = {
+  async status() {
+    return asMineruOcrStatus(await ipcRenderer.invoke(MINERU_OCR_CHANNELS.status))
+  },
+  async enable(input) {
+    return asMineruOcrStatus(
+      await ipcRenderer.invoke(MINERU_OCR_CHANNELS.enable, asMineruOcrEnableInput(input)),
+    )
+  },
+  async disable() {
+    return asMineruOcrStatus(await ipcRenderer.invoke(MINERU_OCR_CHANNELS.disable))
+  },
+}
+
+contextBridge.exposeInMainWorld('aiOfficeMineruOcr', mineruOcrApi)

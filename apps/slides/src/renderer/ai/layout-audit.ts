@@ -100,7 +100,13 @@ const MAX_ISSUES = 12
 /**
  * Audit one page's layout and return the list of problems (empty array = pass).
  */
-export function auditSlideLayout(slide: RenderSlide): string[] {
+export function auditSlideLayout(
+  slide: RenderSlide,
+  options: {
+    allowedOverlaps?: ReadonlySet<string>
+    includeAllElements?: boolean
+  } = {},
+): string[] {
   const entries = collectEntries(slide.nodes)
   const issues: string[] = []
   const W = slide.widthPx
@@ -128,13 +134,18 @@ export function auditSlideLayout(slide: RenderSlide): string[] {
   }
 
   // 3. Pairwise overlap of content elements
-  const content = entries.filter((e) => isContent(e) && e.w * e.h < W * H * BACKGROUND_AREA_RATIO)
+  const content = entries.filter(
+    (e) =>
+      (options.includeAllElements || isContent(e)) && e.w * e.h < W * H * BACKGROUND_AREA_RATIO,
+  )
   for (let i = 0; i < content.length; i++) {
     for (let j = i + 1; j < content.length; j++) {
       const a = content[i]!
       const b = content[j]!
+      const overlapKey = [a.id, b.id].sort().join(':')
+      if (options.allowedOverlaps?.has(overlapKey)) continue
       // Only report text<->text and text<->media; media-on-media (e.g. a chart on an image) is often intentional design, don't report
-      if (!a.hasText && !b.hasText) continue
+      if (!options.includeAllElements && !a.hasText && !b.hasText) continue
       const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
       const iy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
       if (ix <= 0 || iy <= 0) continue

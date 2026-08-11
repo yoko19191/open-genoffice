@@ -1,0 +1,493 @@
+{
+  "numTotalTestSuites": 4,
+  "numPassedTestSuites": 4,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 37,
+  "numPassedTests": 37,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786363449041,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rolls back an exact document run only after a trusted user gesture",
+          "status": "passed",
+          "title": "rolls back an exact document run only after a trusted user gesture",
+          "duration": 2.6433750000000487,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker fails closed when no product rollback host is installed",
+          "status": "passed",
+          "title": "fails closed when no product rollback host is installed",
+          "duration": 0.3057499999999891,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker issues a precise Mutation Grant only after a one-time real main-process user gesture",
+          "status": "passed",
+          "title": "issues a precise Mutation Grant only after a one-time real main-process user gesture",
+          "duration": 1.2525830000000155,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rejects stale or non-activation input and requires gestures for deny and revoke",
+          "status": "passed",
+          "title": "rejects stale or non-activation input and requires gestures for deny and revoke",
+          "duration": 0.3433329999999728,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker atomically merges replay with live events and delivers each event once in sequence",
+          "status": "passed",
+          "title": "atomically merges replay with live events and delivers each event once in sequence",
+          "duration": 53.171291,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker disconnects only the renderer and survives 50 reloads with one terminal event",
+          "status": "passed",
+          "title": "disconnects only the renderer and survives 50 reloads with one terminal event",
+          "duration": 0.8585419999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker resets on a detected gap and rejects unauthorized documents before Runtime access",
+          "status": "passed",
+          "title": "resets on a detected gap and rejects unauthorized documents before Runtime access",
+          "duration": 53.693625,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker creates a Session when no sessionId is supplied and bounds retained replay events",
+          "status": "passed",
+          "title": "creates a Session when no sessionId is supplied and bounds retained replay events",
+          "duration": 0.410000000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker restores one persisted current Session and rejects a non-current renderer request",
+          "status": "passed",
+          "title": "restores one persisted current Session and rejects a non-current renderer request",
+          "duration": 0.8043340000000399,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker allows commands only for the connected renderer and exact document binding",
+          "status": "passed",
+          "title": "allows commands only for the connected renderer and exact document binding",
+          "duration": 0.883624999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker forwards only main-authorized opaque artifacts with a prompt",
+          "status": "passed",
+          "title": "forwards only main-authorized opaque artifacts with a prompt",
+          "duration": 0.46350000000001046,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker attaches the Electron-owned Office catalog to create and open",
+          "status": "passed",
+          "title": "attaches the Electron-owned Office catalog to create and open",
+          "duration": 0.6240419999999745,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker atomically advances the current Session after fork and keeps navigate in that tree",
+          "status": "passed",
+          "title": "atomically advances the current Session after fork and keeps navigate in that tree",
+          "duration": 1.2849160000000097,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker fails closed on Runtime binding mismatches and ignores forged live bindings",
+          "status": "passed",
+          "title": "fails closed on Runtime binding mismatches and ignores forged live bindings",
+          "duration": 0.2439160000000129,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker can close before listening and clamps a zero replay window to one event",
+          "status": "passed",
+          "title": "can close before listening and clamps a zero replay window to one event",
+          "duration": 0.13316699999995762,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker detects transport replay gaps and live sequence gaps without forwarding them",
+          "status": "passed",
+          "title": "detects transport replay gaps and live sequence gaps without forwarding them",
+          "duration": 0.29454199999997854,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker skips events older than a renderer snapshot and routes by Session",
+          "status": "passed",
+          "title": "skips events older than a renderer snapshot and routes by Session",
+          "duration": 0.13883399999997437,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main Agent Session broker"
+          ],
+          "fullName": "Electron main Agent Session broker rejects one Session being rebound to another document even if transport echoes it",
+          "status": "passed",
+          "title": "rejects one Session being rebound to another document even if transport echoes it",
+          "duration": 0.15041700000000446,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786363449345,
+      "endTime": 1786363449463.2944,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/agent-session-broker.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker serializes mutations by document across Sessions and actors while another document runs",
+          "status": "passed",
+          "title": "serializes mutations by document across Sessions and actors while another document runs",
+          "duration": 59.52270800000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker runs readonly tools concurrently without entering the document mutation queue",
+          "status": "passed",
+          "title": "runs readonly tools concurrently without entering the document mutation queue",
+          "duration": 52.707875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker runs an authorized external view effect without a mutation boundary",
+          "status": "passed",
+          "title": "runs an authorized external view effect without a mutation boundary",
+          "duration": 1.476333000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker preserves a stable external-effect failure without inventing mutation state",
+          "status": "passed",
+          "title": "preserves a stable external-effect failure without inventing mutation state",
+          "duration": 0.2217080000000351,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker returns the original receipt for a deterministic retry and rejects payload drift",
+          "status": "passed",
+          "title": "returns the original receipt for a deterministic retry and rejects payload drift",
+          "duration": 0.5692080000000033,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker blocks later mutations after an unknown outcome without replaying the executor",
+          "status": "passed",
+          "title": "blocks later mutations after an unknown outcome without replaying the executor",
+          "duration": 0.46212500000001455,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker treats an omitted mutation outcome as unknown and blocks the document",
+          "status": "passed",
+          "title": "treats an omitted mutation outcome as unknown and blocks the document",
+          "duration": 0.15562499999998636,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker marks a thrown mutation executor as unknown and does not replay it",
+          "status": "passed",
+          "title": "marks a thrown mutation executor as unknown and does not replay it",
+          "duration": 0.5417909999999893,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker reports snapshot and readonly executor failures without leaking implementation errors",
+          "status": "passed",
+          "title": "reports snapshot and readonly executor failures without leaking implementation errors",
+          "duration": 0.7706249999999955,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker preserves stable executor errors and context versions in the receipt",
+          "status": "passed",
+          "title": "preserves stable executor errors and context versions in the receipt",
+          "duration": 0.227374999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker uses a snapshot or executor atomic boundary before mutation execution",
+          "status": "passed",
+          "title": "uses a snapshot or executor atomic boundary before mutation execution",
+          "duration": 0.3369580000000383,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker requires an exact grant only for Subagent mutations and records it in provenance",
+          "status": "passed",
+          "title": "requires an exact grant only for Subagent mutations and records it in provenance",
+          "duration": 0.8353339999999889,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker shares the first rollback snapshot across parent and Subagent mutations in one run",
+          "status": "passed",
+          "title": "shares the first rollback snapshot across parent and Subagent mutations in one run",
+          "duration": 0.168583999999953,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker registers only the first committed mutation as the run rollback point",
+          "status": "passed",
+          "title": "registers only the first committed mutation as the run rollback point",
+          "duration": 0.252584000000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker restores and consumes the committed rollback point for the whole parent run",
+          "status": "passed",
+          "title": "restores and consumes the committed rollback point for the whole parent run",
+          "duration": 0.26783399999999347,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker fails closed with document_mismatch when validateBinding rejects current state",
+          "status": "passed",
+          "title": "fails closed with document_mismatch when validateBinding rejects current state",
+          "duration": 0.1699169999999981,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker fails closed with permission_denied when validatePermissionSnapshot rejects current state",
+          "status": "passed",
+          "title": "fails closed with permission_denied when validatePermissionSnapshot rejects current state",
+          "duration": 0.10120800000004238,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker fails closed with permission_denied when authorizeActor rejects current state",
+          "status": "passed",
+          "title": "fails closed with permission_denied when authorizeActor rejects current state",
+          "duration": 0.09424999999998818,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Electron main OfficeToolBroker"
+          ],
+          "fullName": "Electron main OfficeToolBroker rejects missing descriptors and tools absent from the run capability snapshot",
+          "status": "passed",
+          "title": "rejects missing descriptors and tools absent from the run capability snapshot",
+          "duration": 0.22804199999995944,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786363449345,
+      "endTime": 1786363449465.228,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/electron-utils/tests/office-tool-broker.test.ts"
+    }
+  ]
+}

@@ -2,8 +2,9 @@
 /**
  * scripts/promote-stable.cjs — promote an already-published beta build to the
  * stable update channel. No rebuild: the versioned feed archive uploaded at
- * beta-publish time (GenOffice-mac-arm64-<v>.yml / GenOffice-win-<v>.yml) is
- * re-uploaded as the stable feed (latest-mac.yml / latest.yml). The binaries
+ * beta-publish time (macOS / Windows / Linux platform archives) is
+ * re-uploaded as the stable feed (latest-mac.yml / latest.yml /
+ * latest-linux.yml). The binaries
  * it points to are already on the CDN under the same prefix.
  *
  * The marketing download aliases (GenOffice.dmg / GenOfficeSetup.exe) also
@@ -16,9 +17,9 @@
  * CannotVerifyCopySource.)
  *
  * Usage:
- *   node scripts/promote-stable.cjs [--mac <version>|latest] [--win <version>|latest] [--force] [--dry-run]
+ *   node scripts/promote-stable.cjs [--mac <version>|latest] [--win <version>|latest] [--linux <version>|latest] [--force] [--dry-run]
  *
- * At least one of --mac/--win is required (version sequences are independent
+ * At least one platform flag is required (version sequences are independent
  * per platform). "latest" resolves to the version currently served by the
  * platform's beta feed. Guard: refuses to publish a version that is not
  * strictly newer than the current stable feed unless --force is passed.
@@ -33,7 +34,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const https = require('https')
-const { ymlVersion, assertPromotable } = require('./update-feed-utils.cjs')
+const { ymlVersion, assertPromotable, RELEASE_PLATFORMS } = require('./update-feed-utils.cjs')
 
 const dryRun = process.argv.includes('--dry-run')
 const force = process.argv.includes('--force')
@@ -56,24 +57,7 @@ function argValue(flag) {
 // installer names follow the build pipelines: electron-builder's default
 // mac artifact name (arm64 CI builds) and windows-build.yml's staged
 // versioned copy. The alias is the stable marketing download link.
-const PLATFORMS = [
-  {
-    flag: '--mac',
-    archive: (v) => `GenOffice-mac-arm64-${v}.yml`,
-    feed: 'latest-mac.yml',
-    betaFeed: 'beta-mac.yml',
-    installer: (v) => `GenOffice-${v}-arm64.dmg`,
-    alias: 'GenOffice.dmg',
-  },
-  {
-    flag: '--win',
-    archive: (v) => `GenOffice-win-${v}.yml`,
-    feed: 'latest.yml',
-    betaFeed: 'beta.yml',
-    installer: (v) => `GenOfficeSetup-v${v}.exe`,
-    alias: 'GenOfficeSetup.exe',
-  },
-]
+const PLATFORMS = RELEASE_PLATFORMS
 
 function channelTarget() {
   const raw = process.env.GENOFFICE_UPDATE_URL
@@ -127,6 +111,7 @@ function blobExists(url) {
 function contentTypeFor(name) {
   if (name.endsWith('.dmg')) return 'application/x-apple-diskimage'
   if (name.endsWith('.exe')) return 'application/x-msdownload'
+  if (name.endsWith('.AppImage')) return 'application/vnd.appimage'
   return 'application/octet-stream'
 }
 
@@ -228,7 +213,9 @@ async function main() {
   const requested = PLATFORMS.map((p) => ({ p, version: argValue(p.flag) })).filter(
     (r) => r.version,
   )
-  if (requested.length === 0) fatal('nothing to do — pass --mac <version> and/or --win <version>')
+  if (requested.length === 0) {
+    fatal('nothing to do — pass --mac, --win, and/or --linux <version>')
+  }
   const target = channelTarget()
   if (!dryRun && !process.env.AZURE_STORAGE_CONNECTION_STRING) {
     fatal('AZURE_STORAGE_CONNECTION_STRING env not set')

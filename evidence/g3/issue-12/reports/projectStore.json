@@ -1,0 +1,1228 @@
+{
+  "numTotalTestSuites": 25,
+  "numPassedTestSuites": 25,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 96,
+  "numPassedTests": 96,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786369076217,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler publishes immutable blobs/revisions and restores a complete project on a clean client",
+          "status": "passed",
+          "title": "publishes immutable blobs/revisions and restores a complete project on a clean client",
+          "duration": 21.735916000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler reuses unchanged objects during an incremental fast-forward",
+          "status": "passed",
+          "title": "reuses unchanged objects during an incremental fast-forward",
+          "duration": 0.7847500000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler never silently overwrites a diverged remote head or local target",
+          "status": "passed",
+          "title": "never silently overwrites a diverged remote head or local target",
+          "duration": 4.5597080000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler rejects excluded state, arbitrary credential bytes and oversized objects",
+          "status": "passed",
+          "title": "rejects excluded state, arbitrary credential bytes and oversized objects",
+          "duration": 1.1131670000000042,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler rejects symlink escape before writing any restored file",
+          "status": "passed",
+          "title": "rejects symlink escape before writing any restored file",
+          "duration": 1.8110829999999964,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler rejects a non-directory target parent before writing",
+          "status": "passed",
+          "title": "rejects a non-directory target parent before writing",
+          "duration": 1.7085420000000227,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler keeps reconcile intent when sync is disabled or the provider is unavailable",
+          "status": "passed",
+          "title": "keeps reconcile intent when sync is disabled or the provider is unavailable",
+          "duration": 0.7286670000000299,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler persists only reconcile paths while offline and clears them after recovery",
+          "status": "passed",
+          "title": "persists only reconcile paths while offline and clears them after recovery",
+          "duration": 2.764417000000037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler returns empty for a clean remote and surfaces a head CAS race",
+          "status": "passed",
+          "title": "returns empty for a clean remote and surfaces a head CAS race",
+          "duration": 1.469666000000018,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler fails closed on malformed or missing remote objects",
+          "status": "passed",
+          "title": "fails closed on malformed or missing remote objects",
+          "duration": 1.262625000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler verifies pre-existing content-addressed objects before publishing",
+          "status": "passed",
+          "title": "verifies pre-existing content-addressed objects before publishing",
+          "duration": 0.40399999999999636,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ProjectSyncReconciler"
+          ],
+          "fullName": "ProjectSyncReconciler covers the in-memory store conditional conflict contract directly",
+          "status": "passed",
+          "title": "covers the in-memory store conditional conflict contract directly",
+          "duration": 0.20641599999999016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786369076457,
+      "endTime": 1786369076495.404,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/project-store/tests/project-sync.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "FileReconcileIntentStore"
+          ],
+          "fullName": "FileReconcileIntentStore atomically merges concurrent path-only intents with private permissions",
+          "status": "passed",
+          "title": "atomically merges concurrent path-only intents with private permissions",
+          "duration": 11.500042000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "FileReconcileIntentStore"
+          ],
+          "fullName": "FileReconcileIntentStore fails closed on invalid scope, JSON, schema and non-canonical paths",
+          "status": "passed",
+          "title": "fails closed on invalid scope, JSON, schema and non-canonical paths",
+          "duration": 3.9329580000000135,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "FileReconcileIntentStore"
+          ],
+          "fullName": "FileReconcileIntentStore keeps the serialized writer usable after a rejected intent",
+          "status": "passed",
+          "title": "keeps the serialized writer usable after a rejected intent",
+          "duration": 4.306250000000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "FileReconcileIntentStore"
+          ],
+          "fullName": "FileReconcileIntentStore surfaces filesystem failures instead of treating them as an empty queue",
+          "status": "passed",
+          "title": "surfaces filesystem failures instead of treating them as an empty queue",
+          "duration": 2.100291999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786369076389,
+      "endTime": 1786369076411.1003,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/project-store/tests/reconcile-intent-store.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "ensureDefaultProject"
+          ],
+          "fullName": "ensureDefaultProject creates the default project on first call",
+          "status": "passed",
+          "title": "creates the default project on first call",
+          "duration": 3.2012500000000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ensureDefaultProject"
+          ],
+          "fullName": "ensureDefaultProject is idempotent: repeated calls return the same project without errors",
+          "status": "passed",
+          "title": "is idempotent: repeated calls return the same project without errors",
+          "duration": 1.2204580000000078,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "ensureDefaultProject"
+          ],
+          "fullName": "ensureDefaultProject default project is discoverable via index.json",
+          "status": "passed",
+          "title": "default project is discoverable via index.json",
+          "duration": 1.093999999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveProjectForFile"
+          ],
+          "fullName": "resolveProjectForFile unknown files are assigned to default",
+          "status": "passed",
+          "title": "unknown files are assigned to default",
+          "duration": 2.1752919999999847,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveProjectForFile"
+          ],
+          "fullName": "resolveProjectForFile querying the same path twice returns the same projectId (cached in fileMap)",
+          "status": "passed",
+          "title": "querying the same path twice returns the same projectId (cached in fileMap)",
+          "duration": 1.3249590000000069,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveProjectForFile"
+          ],
+          "fullName": "resolveProjectForFile records the file in the default project files list",
+          "status": "passed",
+          "title": "records the file in the default project files list",
+          "duration": 1.630625000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage + loadChat"
+          ],
+          "fullName": "appendChatMessage + loadChat appended messages can be read back",
+          "status": "passed",
+          "title": "appended messages can be read back",
+          "duration": 1.2013330000000053,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage + loadChat"
+          ],
+          "fullName": "appendChatMessage + loadChat seq increases monotonically",
+          "status": "passed",
+          "title": "seq increases monotonically",
+          "duration": 1.2661249999999882,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage + loadChat"
+          ],
+          "fullName": "appendChatMessage + loadChat ts is a valid UTC ISO string",
+          "status": "passed",
+          "title": "ts is a valid UTC ISO string",
+          "duration": 1.3775420000000054,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage + loadChat"
+          ],
+          "fullName": "appendChatMessage + loadChat tools field is persisted correctly",
+          "status": "passed",
+          "title": "tools field is persisted correctly",
+          "duration": 1.3237080000000105,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage + loadChat"
+          ],
+          "fullName": "appendChatMessage + loadChat limit parameter: returns only the most recent N messages",
+          "status": "passed",
+          "title": "limit parameter: returns only the most recent N messages",
+          "duration": 1.3780830000000037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage + loadChat"
+          ],
+          "fullName": "appendChatMessage + loadChat nonexistent chat returns an empty array",
+          "status": "passed",
+          "title": "nonexistent chat returns an empty array",
+          "duration": 1.3769169999999917,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage + loadChat"
+          ],
+          "fullName": "appendChatMessage + loadChat empty text can be written and read back",
+          "status": "passed",
+          "title": "empty text can be written and read back",
+          "duration": 1.6148340000000019,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "JSONL corrupted-line tolerance"
+          ],
+          "fullName": "JSONL corrupted-line tolerance skips bad lines and reads the rest normally",
+          "status": "passed",
+          "title": "skips bad lines and reads the rest normally",
+          "duration": 1.7150839999999903,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "JSONL corrupted-line tolerance"
+          ],
+          "fullName": "JSONL corrupted-line tolerance all bad lines: returns an empty array without crashing",
+          "status": "passed",
+          "title": "all bad lines: returns an empty array without crashing",
+          "duration": 1.4590000000000032,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rebindChat"
+          ],
+          "fullName": "rebindChat after rebind the old chatId has no history and the new chatId does",
+          "status": "passed",
+          "title": "after rebind the old chatId has no history and the new chatId does",
+          "duration": 3.171416999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rebindChat"
+          ],
+          "fullName": "rebindChat appending after rebind continues seq from the correct position",
+          "status": "passed",
+          "title": "appending after rebind continues seq from the correct position",
+          "duration": 1.614167000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rebindChat"
+          ],
+          "fullName": "rebindChat tempId === newChatId: no-op without errors",
+          "status": "passed",
+          "title": "tempId === newChatId: no-op without errors",
+          "duration": 0.9169159999999863,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rebindChat"
+          ],
+          "fullName": "rebindChat does not throw when the source file does not exist",
+          "status": "passed",
+          "title": "does not throw when the source file does not exist",
+          "duration": 0.9606660000000034,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rebindChat"
+          ],
+          "fullName": "rebindChat merges when the target file exists: old history kept, temp messages re-sequenced at the end",
+          "status": "passed",
+          "title": "merges when the target file exists: old history kept, temp messages re-sequenced at the end",
+          "duration": 2.401707999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rebindChatToFile"
+          ],
+          "fullName": "rebindChatToFile computes chatId from path, registers fileMap, returns new ids, and history is recoverable by path",
+          "status": "passed",
+          "title": "computes chatId from path, registers fileMap, returns new ids, and history is recoverable by path",
+          "duration": 3.1509579999999744,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "rebindChatToFile"
+          ],
+          "fullName": "rebindChatToFile moves history into the owning project when the file already belongs to another project",
+          "status": "passed",
+          "title": "moves history into the owning project when the file already belongs to another project",
+          "duration": 4.360500000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveChatForFile / fileRenamed"
+          ],
+          "fullName": "resolveChatForFile / fileRenamed chatId stays the same after rename and history follows the file",
+          "status": "passed",
+          "title": "chatId stays the same after rename and history follows the file",
+          "duration": 3.81412499999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveChatForFile / fileRenamed"
+          ],
+          "fullName": "resolveChatForFile / fileRenamed legacy data without mapping (path-hash chatId) can still recover history after rename",
+          "status": "passed",
+          "title": "legacy data without mapping (path-hash chatId) can still recover history after rename",
+          "duration": 3.6900839999999846,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "resolveChatForFile / fileRenamed"
+          ],
+          "fullName": "resolveChatForFile / fileRenamed rename after rebindChatToFile still resolves to the same history",
+          "status": "passed",
+          "title": "rename after rebindChatToFile still resolves to the same history",
+          "duration": 3.56008300000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage opening buffer"
+          ],
+          "fullName": "appendChatMessage opening buffer no file is created with only user messages, but loadChat still reads the buffer",
+          "status": "passed",
+          "title": "no file is created with only user messages, but loadChat still reads the buffer",
+          "duration": 1.1046670000000063,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage opening buffer"
+          ],
+          "fullName": "appendChatMessage opening buffer creates the file when the first assistant message arrives, flushing the buffer with continuous seq",
+          "status": "passed",
+          "title": "creates the file when the first assistant message arrives, flushing the buffer with continuous seq",
+          "duration": 1.7992500000000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage opening buffer"
+          ],
+          "fullName": "appendChatMessage opening buffer buffer is materialized on rebind: user-only messages are kept with the file",
+          "status": "passed",
+          "title": "buffer is materialized on rebind: user-only messages are kept with the file",
+          "duration": 4.304749999999984,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage opening buffer"
+          ],
+          "fullName": "appendChatMessage opening buffer oversized tool input/output is truncated to 16k on disk; attachment metadata is preserved",
+          "status": "passed",
+          "title": "oversized tool input/output is truncated to 16k on disk; attachment metadata is preserved",
+          "duration": 2.7166249999999934,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "appendChatMessage opening buffer"
+          ],
+          "fullName": "appendChatMessage opening buffer user messages appended to a chat with an existing file are written directly, not buffered",
+          "status": "passed",
+          "title": "user messages appended to a chat with an existing file are written directly, not buffered",
+          "duration": 3.5279999999999916,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "listChats"
+          ],
+          "fullName": "listChats returns the list of existing chats",
+          "status": "passed",
+          "title": "returns the list of existing chats",
+          "duration": 2.7078329999999937,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "listChats"
+          ],
+          "fullName": "listChats returns an empty array when the chats directory does not exist",
+          "status": "passed",
+          "title": "returns an empty array when the chats directory does not exist",
+          "duration": 1.9028330000000153,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "chatIdForFile"
+          ],
+          "fullName": "chatIdForFile same path returns the same id",
+          "status": "passed",
+          "title": "same path returns the same id",
+          "duration": 0.14929199999997422,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "chatIdForFile"
+          ],
+          "fullName": "chatIdForFile different paths return different ids",
+          "status": "passed",
+          "title": "different paths return different ids",
+          "duration": 0.1597500000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "chatIdForFile"
+          ],
+          "fullName": "chatIdForFile returns a 16-character hex string",
+          "status": "passed",
+          "title": "returns a 16-character hex string",
+          "duration": 0.273208000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "createProject"
+          ],
+          "fullName": "createProject creates a project and shows it in listProjects",
+          "status": "passed",
+          "title": "creates a project and shows it in listProjects",
+          "duration": 3.124625000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "createProject"
+          ],
+          "fullName": "createProject throws on an empty name",
+          "status": "passed",
+          "title": "throws on an empty name",
+          "duration": 1.1072499999999934,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "createProject"
+          ],
+          "fullName": "createProject multiple creations produce different ids",
+          "status": "passed",
+          "title": "multiple creations produce different ids",
+          "duration": 2.290999999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "renameProject"
+          ],
+          "fullName": "renameProject renames successfully",
+          "status": "passed",
+          "title": "renames successfully",
+          "duration": 1.7120000000000175,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "renameProject"
+          ],
+          "fullName": "renameProject cannot rename the default project",
+          "status": "passed",
+          "title": "cannot rename the default project",
+          "duration": 1.1297909999999831,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "renameProject"
+          ],
+          "fullName": "renameProject throws on an empty name",
+          "status": "passed",
+          "title": "throws on an empty name",
+          "duration": 1.5009579999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "deleteProject"
+          ],
+          "fullName": "deleteProject deleted project disappears from listProjects",
+          "status": "passed",
+          "title": "deleted project disappears from listProjects",
+          "duration": 2.559500000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "deleteProject"
+          ],
+          "fullName": "deleteProject soft delete: directory is moved into .trash",
+          "status": "passed",
+          "title": "soft delete: directory is moved into .trash",
+          "duration": 1.984250000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "deleteProject"
+          ],
+          "fullName": "deleteProject files of a deleted project revert to default",
+          "status": "passed",
+          "title": "files of a deleted project revert to default",
+          "duration": 3.0727919999999926,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "deleteProject"
+          ],
+          "fullName": "deleteProject cannot delete the default project",
+          "status": "passed",
+          "title": "cannot delete the default project",
+          "duration": 0.8746670000000165,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "moveFileToProject"
+          ],
+          "fullName": "moveFileToProject file belongs to the target project after moving",
+          "status": "passed",
+          "title": "file belongs to the target project after moving",
+          "duration": 3.2768749999999898,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "moveFileToProject"
+          ],
+          "fullName": "moveFileToProject original project no longer contains the file after moving",
+          "status": "passed",
+          "title": "original project no longer contains the file after moving",
+          "duration": 3.0993330000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "moveFileToProject"
+          ],
+          "fullName": "moveFileToProject moves the chat jsonl file when history exists",
+          "status": "passed",
+          "title": "moves the chat jsonl file when history exists",
+          "duration": 3.405083999999988,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "moveFileToProject"
+          ],
+          "fullName": "moveFileToProject moving to the same project does not throw",
+          "status": "passed",
+          "title": "moving to the same project does not throw",
+          "duration": 1.1787920000000156,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "moveFileToProject"
+          ],
+          "fullName": "moveFileToProject throws when the target project does not exist",
+          "status": "passed",
+          "title": "throws when the target project does not exist",
+          "duration": 1.188874999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "listProjectsSummary"
+          ],
+          "fullName": "listProjectsSummary default project is flagged isDefault=true",
+          "status": "passed",
+          "title": "default project is flagged isDefault=true",
+          "duration": 0.8702499999999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "listProjectsSummary"
+          ],
+          "fullName": "listProjectsSummary fileCount reflects the number of owned files",
+          "status": "passed",
+          "title": "fileCount reflects the number of owned files",
+          "duration": 1.6789159999999868,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "listProjectsSummary"
+          ],
+          "fullName": "listProjectsSummary fileCount and project files exclude stale and duplicate paths",
+          "status": "passed",
+          "title": "fileCount and project files exclude stale and duplicate paths",
+          "duration": 3.0437919999999963,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "listProjectsSummary"
+          ],
+          "fullName": "listProjectsSummary newly created project appears in the summary",
+          "status": "passed",
+          "title": "newly created project appears in the summary",
+          "duration": 1.734583999999984,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "getProjectTimeline"
+          ],
+          "fullName": "getProjectTimeline empty project returns an empty array",
+          "status": "passed",
+          "title": "empty project returns an empty array",
+          "duration": 1.501958000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "getProjectTimeline"
+          ],
+          "fullName": "getProjectTimeline returns timeline entries when messages exist",
+          "status": "passed",
+          "title": "returns timeline entries when messages exist",
+          "duration": 1.8695409999999981,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "getProjectTimeline"
+          ],
+          "fullName": "getProjectTimeline limit parameter is honored",
+          "status": "passed",
+          "title": "limit parameter is honored",
+          "duration": 4.201833000000022,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "getProjectTimeline"
+          ],
+          "fullName": "getProjectTimeline timeline is sorted by ts in descending order",
+          "status": "passed",
+          "title": "timeline is sorted by ts in descending order",
+          "duration": 2.2195409999999924,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "getProjectTimeline"
+          ],
+          "fullName": "getProjectTimeline fileName is the basename of the file",
+          "status": "passed",
+          "title": "fileName is the basename of the file",
+          "duration": 3.791665999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786369076353,
+      "endTime": 1786369076476.7917,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/project-store/tests/store.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data normalizes safe paths to UTF-8 NFC and hashes canonical JSON deterministically",
+          "status": "passed",
+          "title": "normalizes safe paths to UTF-8 NFC and hashes canonical JSON deterministically",
+          "duration": 1.3964580000000097,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"\"",
+          "duration": 0.3972080000000062,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"/absolute.docx\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"/absolute.docx\"",
+          "duration": 0.08891599999999755,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"C:/absolute.docx\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"C:/absolute.docx\"",
+          "duration": 0.11116599999999721,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"folder\\\\escape.docx\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"folder\\\\escape.docx\"",
+          "duration": 0.06912499999999966,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"folder//empty.docx\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"folder//empty.docx\"",
+          "duration": 0.06683300000000258,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"folder/./dot.docx\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"folder/./dot.docx\"",
+          "duration": 0.14395899999999529,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"folder/../escape.docx\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"folder/../escape.docx\"",
+          "duration": 0.06870799999998667,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"folder/CON.txt\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"folder/CON.txt\"",
+          "duration": 0.2993330000000043,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects unsafe canonical path \"folder/name\\u0000.txt\"",
+          "status": "passed",
+          "title": "rejects unsafe canonical path \"folder/name\\u0000.txt\"",
+          "duration": 0.15237499999999216,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects case and Unicode normalization collisions",
+          "status": "passed",
+          "title": "rejects case and Unicode normalization collisions",
+          "duration": 0.24254200000000026,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects path and object size limits",
+          "status": "passed",
+          "title": "rejects path and object size limits",
+          "duration": 1.0053329999999931,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "sync canonical data"
+          ],
+          "fullName": "sync canonical data rejects values that canonical JSON cannot represent exactly",
+          "status": "passed",
+          "title": "rejects values that canonical JSON cannot represent exactly",
+          "duration": 0.18933300000000486,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786369076351,
+      "endTime": 1786369076355.1895,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/project-store/tests/sync-canonical.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore fails closed for non-TLS product endpoints",
+          "status": "passed",
+          "title": "fails closed for non-TLS product endpoints",
+          "duration": 6.331542000000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore proves strong ETag and conditional writes against loopback",
+          "status": "passed",
+          "title": "proves strong ETag and conditional writes against loopback",
+          "duration": 25.047208000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore uploads and restores a complete Project through two clean WebDAV clients",
+          "status": "passed",
+          "title": "uploads and restores a complete Project through two clean WebDAV clients",
+          "duration": 40.450582999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore rejects missing or weak ETags",
+          "status": "passed",
+          "title": "rejects missing or weak ETags",
+          "duration": 4.820832999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore reports unavailable and unsupported conditional writes without weakening the gate",
+          "status": "passed",
+          "title": "reports unavailable and unsupported conditional writes without weakening the gate",
+          "duration": 3.759749999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore accepts existing collections and surfaces unexpected collection errors",
+          "status": "passed",
+          "title": "accepts existing collections and surfaces unexpected collection errors",
+          "duration": 2.9875410000000215,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore rejects a CAS success without a strong ETag and propagates unexpected PUT failures",
+          "status": "passed",
+          "title": "rejects a CAS success without a strong ETag and propagates unexpected PUT failures",
+          "duration": 4.646040999999968,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "WebDavObjectStore"
+          ],
+          "fullName": "WebDavObjectStore rejects object-store traversal before making a request",
+          "status": "passed",
+          "title": "rejects object-store traversal before making a request",
+          "duration": 0.338374999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786369076433,
+      "endTime": 1786369076522.3384,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/packages/project-store/tests/webdav-object-store.test.ts"
+    }
+  ]
+}

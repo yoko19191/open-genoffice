@@ -43,11 +43,7 @@ const SKIP_DIR = /^(node_modules|out|dist|release|tests|__tests__|target)$/
 /** Runtime that is always present but never imported by specifier */
 const IMPLICIT = ['electron']
 
-/**
- * Packages copied into the installer verbatim by electron-builder rather than
- * bundled — the gsk CLI and its runtime deps are spawned, never imported, so
- * they are invisible to the import scan.
- */
+/** Packages copied into the installer verbatim by electron-builder. */
 function extraResourceSeeds() {
   // the electron-builder config lives in its own cjs module (not package.json
   // "build") so the publish URL can be injected from the environment
@@ -68,8 +64,6 @@ const LICENSE_PATH = { electron: 'dist/LICENSE' }
 const NOTE = {
   '@fluentui/react-icons':
     'Copyright (c) Microsoft Corporation. Licensed under the MIT License.\nhttps://github.com/microsoft/fluentui-system-icons',
-  '@genspark/cli':
-    'Copyright (c) Genspark. Licensed under the MIT License.\nhttps://www.npmjs.com/package/@genspark/cli',
 }
 
 /** SPDX strings that need a word on which side of a dual license we take */

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "commit": "148e84dfd72eae09266afc17208ae67e7b42c48d",
+  "acceptanceIds": [
+    "AR-008",
+    "DS-007"
+  ],
+  "platform": "macos",
+  "arch": "arm64",
+  "protocolVersion": "1",
+  "runtimeVersion": "1.0.0",
+  "fixtureHashes": {},
+  "commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run build -w @genoffice/sheets",
+    "npm run build -w @genoffice/shell",
+    "npm run lint -- --quiet",
+    "npm run format:check",
+    "npm run audit:pi-platform",
+    "npm run audit:retired-vendor:zero",
+    "targeted startup cleanup coverage: 100/100/100/100"
+  ],
+  "results": [
+    {
+      "suite": "evidence",
+      "status": "passed",
+      "report": "evidence/g2/issue-11/reports/evidence.json"
+    },
+    {
+      "suite": "protocol",
+      "status": "passed",
+      "report": "evidence/g2/issue-11/reports/protocol.json"
+    },
+    {
+      "suite": "legacyCleanup",
+      "status": "passed",
+      "report": "evidence/g2/issue-11/reports/legacyCleanup.json"
+    },
+    {
+      "suite": "shell",
+      "status": "passed",
+      "report": "evidence/g2/issue-11/reports/shell.json"
+    },
+    {
+      "suite": "sheets",
+      "status": "passed",
+      "report": "evidence/g2/issue-11/reports/sheets.json"
+    }
+  ],
+  "redactionCheck": "passed"
+}

@@ -1,0 +1,2302 @@
+{
+  "numTotalTestSuites": 41,
+  "numPassedTestSuites": 41,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 178,
+  "numPassedTests": 178,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1786350465680,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "readAppSettings"
+          ],
+          "fullName": "readAppSettings returns an empty object when the file does not exist",
+          "status": "passed",
+          "title": "returns an empty object when the file does not exist",
+          "duration": 1.620834000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "readAppSettings"
+          ],
+          "fullName": "readAppSettings returns an empty object for invalid JSON",
+          "status": "passed",
+          "title": "returns an empty object for invalid JSON",
+          "duration": 1.0995419999999854,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "readAppSettings"
+          ],
+          "fullName": "readAppSettings returns an empty object when the JSON root is not an object",
+          "status": "passed",
+          "title": "returns an empty object when the JSON root is not an object",
+          "duration": 1.4729999999999848,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "readAppSettings"
+          ],
+          "fullName": "readAppSettings parses a valid settings object",
+          "status": "passed",
+          "title": "parses a valid settings object",
+          "duration": 0.5800839999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "writeAppSetting"
+          ],
+          "fullName": "writeAppSetting creates the file with the single key on first write",
+          "status": "passed",
+          "title": "creates the file with the single key on first write",
+          "duration": 0.5564579999999921,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "writeAppSetting"
+          ],
+          "fullName": "writeAppSetting preserves unrelated existing keys",
+          "status": "passed",
+          "title": "preserves unrelated existing keys",
+          "duration": 0.5554170000000056,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "writeAppSetting"
+          ],
+          "fullName": "writeAppSetting overwrites the value of an existing key",
+          "status": "passed",
+          "title": "overwrites the value of an existing key",
+          "duration": 0.42770799999999554,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "writeAppSetting"
+          ],
+          "fullName": "writeAppSetting recovers from a corrupt file by rewriting it",
+          "status": "passed",
+          "title": "recovers from a corrupt file by rewriting it",
+          "duration": 1.0347920000000101,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465875,
+      "endTime": 1786350465883.035,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/app-settings.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "cloud projects store account binding"
+          ],
+          "fullName": "cloud projects store account binding derives the owner tag from the key without containing it",
+          "status": "passed",
+          "title": "derives the owner tag from the key without containing it",
+          "duration": 1.9027920000000051,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cloud projects store account binding"
+          ],
+          "fullName": "cloud projects store account binding serves the store back to the same account",
+          "status": "passed",
+          "title": "serves the store back to the same account",
+          "duration": 1.2079999999999984,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cloud projects store account binding"
+          ],
+          "fullName": "cloud projects store account binding rejects and deletes another account's store",
+          "status": "passed",
+          "title": "rejects and deletes another account's store",
+          "duration": 1.159749999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cloud projects store account binding"
+          ],
+          "fullName": "cloud projects store account binding rejects a legacy store without an owner tag",
+          "status": "passed",
+          "title": "rejects a legacy store without an owner tag",
+          "duration": 0.5070829999999944,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cloud projects store account binding"
+          ],
+          "fullName": "cloud projects store account binding clearCloudProjectsStore removes the file and tolerates a missing one",
+          "status": "passed",
+          "title": "clearCloudProjectsStore removes the file and tolerates a missing one",
+          "duration": 0.426667000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cloud projects sync account isolation"
+          ],
+          "fullName": "cloud projects sync account isolation writes the store bound to the account that synced",
+          "status": "passed",
+          "title": "writes the store bound to the account that synced",
+          "duration": 2.4124160000000074,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cloud projects sync account isolation"
+          ],
+          "fullName": "cloud projects sync account isolation aborts without touching the store when the account switches mid-sync",
+          "status": "passed",
+          "title": "aborts without touching the store when the account switches mid-sync",
+          "duration": 0.9986669999999833,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "cloud projects sync account isolation"
+          ],
+          "fullName": "cloud projects sync account isolation does not share an in-flight sync across accounts",
+          "status": "passed",
+          "title": "does not share an in-flight sync across accounts",
+          "duration": 0.8982499999999902,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465922,
+      "endTime": 1786350465931.8982,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/cloud-projects.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "Docs text Artifact importer"
+          ],
+          "fullName": "Docs text Artifact importer registers validated UTF-8 under document scope and returns no path or content",
+          "status": "passed",
+          "title": "registers validated UTF-8 under document scope and returns no path or content",
+          "duration": 33.54262499999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Docs text Artifact importer"
+          ],
+          "fullName": "Docs text Artifact importer rejects empty files",
+          "status": "passed",
+          "title": "rejects empty files",
+          "duration": 0.8752910000000043,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Docs text Artifact importer"
+          ],
+          "fullName": "Docs text Artifact importer rejects invalid UTF-8 files",
+          "status": "passed",
+          "title": "rejects invalid UTF-8 files",
+          "duration": 0.7717919999999481,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Docs text Artifact importer"
+          ],
+          "fullName": "Docs text Artifact importer rejects NUL files",
+          "status": "passed",
+          "title": "rejects NUL files",
+          "duration": 0.7221250000000055,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Docs text Artifact importer"
+          ],
+          "fullName": "Docs text Artifact importer rejects too large files",
+          "status": "passed",
+          "title": "rejects too large files",
+          "duration": 2.585708000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Docs text Artifact importer"
+          ],
+          "fullName": "Docs text Artifact importer rejects symlinks and invalid document identities",
+          "status": "passed",
+          "title": "rejects symlinks and invalid document identities",
+          "duration": 1.0515829999999937,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465999,
+      "endTime": 1786350466039.0515,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/docs-text-artifact-importer.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "showErrorDialog"
+          ],
+          "fullName": "showErrorDialog uses the async parented message box, never the blocking showErrorBox",
+          "status": "passed",
+          "title": "uses the async parented message box, never the blocking showErrorBox",
+          "duration": 13.520375000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "showErrorDialog"
+          ],
+          "fullName": "showErrorDialog returns synchronously even though the dialog is never dismissed",
+          "status": "passed",
+          "title": "returns synchronously even though the dialog is never dismissed",
+          "duration": 0.3785000000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "showErrorDialog"
+          ],
+          "fullName": "showErrorDialog does not stack dialogs while one is still open (repeated create failures)",
+          "status": "passed",
+          "title": "does not stack dialogs while one is still open (repeated create failures)",
+          "duration": 0.30074999999999363,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "showErrorDialog"
+          ],
+          "fullName": "showErrorDialog falls back to an unparented async dialog when the shell window is gone",
+          "status": "passed",
+          "title": "falls back to an unparented async dialog when the shell window is gone",
+          "duration": 0.5624580000000208,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465834,
+      "endTime": 1786350465848.5625,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/error-dialog.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "home visible counts"
+          ],
+          "fullName": "home visible counts uses the filtered total for the sidebar count",
+          "status": "passed",
+          "title": "uses the filtered total for the sidebar count",
+          "duration": 4.047083000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home visible counts"
+          ],
+          "fullName": "home visible counts excludes stale paths from totals and rows",
+          "status": "passed",
+          "title": "excludes stale paths from totals and rows",
+          "duration": 0.7487500000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "count labels"
+          ],
+          "fullName": "count labels uses singular and plural file labels",
+          "status": "passed",
+          "title": "uses singular and plural file labels",
+          "duration": 0.18691599999999653,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "count labels"
+          ],
+          "fullName": "count labels uses singular and plural activity item labels",
+          "status": "passed",
+          "title": "uses singular and plural activity item labels",
+          "duration": 0.16054099999999494,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "count labels"
+          ],
+          "fullName": "count labels picks the singular form in every locale with plural inflection",
+          "status": "passed",
+          "title": "picks the singular form in every locale with plural inflection",
+          "duration": 0.14875000000000682,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465905,
+      "endTime": 1786350465910.187,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/home-counts.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "MCP OAuth loopback broker"
+          ],
+          "fullName": "MCP OAuth loopback broker keeps authorization and callback data in main while completing one exact callback",
+          "status": "passed",
+          "title": "keeps authorization and callback data in main while completing one exact callback",
+          "duration": 28.610375000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MCP OAuth loopback broker"
+          ],
+          "fullName": "MCP OAuth loopback broker cancels the exact Runtime operation and rejects unsafe authorization URLs",
+          "status": "passed",
+          "title": "cancels the exact Runtime operation and rejects unsafe authorization URLs",
+          "duration": 2.2542080000000055,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MCP OAuth loopback broker"
+          ],
+          "fullName": "MCP OAuth loopback broker rejects duplicate and malformed callbacks, then reports a failed token exchange safely",
+          "status": "passed",
+          "title": "rejects duplicate and malformed callbacks, then reports a failed token exchange safely",
+          "duration": 5.254917000000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MCP OAuth loopback broker"
+          ],
+          "fullName": "MCP OAuth loopback broker cleans up mismatched, expired, failed-open and timed-out starts",
+          "status": "passed",
+          "title": "cleans up mismatched, expired, failed-open and timed-out starts",
+          "duration": 21.623250000000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MCP OAuth loopback broker"
+          ],
+          "fullName": "MCP OAuth loopback broker uses a host-owned UUID and keeps project scope across start and no-op cancel",
+          "status": "passed",
+          "title": "uses a host-owned UUID and keeps project scope across start and no-op cancel",
+          "duration": 0.9093340000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465885,
+      "endTime": 1786350465943.9094,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/mcp-oauth-loopback.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "MinerU OCR settings IPC"
+          ],
+          "fullName": "MinerU OCR settings IPC keeps the production PDF export and disclosure on the MinerU-only path",
+          "status": "passed",
+          "title": "keeps the production PDF export and disclosure on the MinerU-only path",
+          "duration": 2.626249999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MinerU OCR settings IPC"
+          ],
+          "fullName": "MinerU OCR settings IPC accepts only explicit disclosure and a write-only token",
+          "status": "passed",
+          "title": "accepts only explicit disclosure and a write-only token",
+          "duration": 2.5608330000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MinerU OCR settings IPC"
+          ],
+          "fullName": "MinerU OCR settings IPC exposes only status/enable/disable to the trusted shell renderer",
+          "status": "passed",
+          "title": "exposes only status/enable/disable to the trusted shell renderer",
+          "duration": 0.6779169999999795,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "MinerU OCR settings IPC"
+          ],
+          "fullName": "MinerU OCR settings IPC rejects untrusted or absent renderers before parsing secrets",
+          "status": "passed",
+          "title": "rejects untrusted or absent renderers before parsing secrets",
+          "duration": 0.5191250000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465881,
+      "endTime": 1786350465887.519,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/mineru-ocr-ipc.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "model management IPC"
+          ],
+          "fullName": "model management IPC forwards catalog and selection through the trusted Shell renderer only",
+          "status": "passed",
+          "title": "forwards catalog and selection through the trusted Shell renderer only",
+          "duration": 2.9321669999999926,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "model management IPC"
+          ],
+          "fullName": "model management IPC opens each validated OAuth URL once and keeps the response write-only",
+          "status": "passed",
+          "title": "opens each validated OAuth URL once and keeps the response write-only",
+          "duration": 0.6209999999999809,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "model management IPC"
+          ],
+          "fullName": "model management IPC forwards cancel/logout and rejects untrusted senders before parsing",
+          "status": "passed",
+          "title": "forwards cancel/logout and rejects untrusted senders before parsing",
+          "duration": 2.011708999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "model management IPC"
+          ],
+          "fullName": "model management IPC keeps the selected project path in main and exposes only safe resource projections",
+          "status": "passed",
+          "title": "keeps the selected project path in main and exposes only safe resource projections",
+          "duration": 1.2451250000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "model management IPC"
+          ],
+          "fullName": "model management IPC keeps Package paths and operation IDs in main while forwarding fixed sources",
+          "status": "passed",
+          "title": "keeps Package paths and operation IDs in main while forwarding fixed sources",
+          "duration": 0.9351249999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "model management IPC"
+          ],
+          "fullName": "model management IPC keeps the previous selection on cancel and requires one before Trust changes",
+          "status": "passed",
+          "title": "keeps the previous selection on cancel and requires one before Trust changes",
+          "duration": 0.46008299999999736,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "model management IPC"
+          ],
+          "fullName": "model management IPC keeps MCP project roots and operation IDs in main while forwarding only fixed actions",
+          "status": "passed",
+          "title": "keeps MCP project roots and operation IDs in main while forwarding only fixed actions",
+          "duration": 0.5354169999999954,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465942,
+      "endTime": 1786350465950.5354,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/model-management-ipc.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract accepts the narrow projection and fails closed on leaked or malformed fields",
+          "status": "passed",
+          "title": "accepts the narrow projection and fails closed on leaked or malformed fields",
+          "duration": 1.4376670000000047,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract accepts an exact write-only API-key input and rejects shape drift",
+          "status": "passed",
+          "title": "accepts an exact write-only API-key input and rejects shape drift",
+          "duration": 0.7229159999999979,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract accepts only redacted status and exposes no raw credential channel",
+          "status": "passed",
+          "title": "accepts only redacted status and exposes no raw credential channel",
+          "duration": 0.3489579999999819,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract validates exact model selection and write-only OAuth inputs",
+          "status": "passed",
+          "title": "validates exact model selection and write-only OAuth inputs",
+          "duration": 0.4607499999999902,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract accepts only explicit secret-free OpenAI-compatible Provider configuration",
+          "status": "passed",
+          "title": "accepts only explicit secret-free OpenAI-compatible Provider configuration",
+          "duration": 0.37770899999998164,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract revalidates renderer-safe catalog and OAuth projections",
+          "status": "passed",
+          "title": "revalidates renderer-safe catalog and OAuth projections",
+          "duration": 0.17795900000001552,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract revalidates Resource Catalog metadata without accepting paths or bodies",
+          "status": "passed",
+          "title": "revalidates Resource Catalog metadata without accepting paths or bodies",
+          "duration": 0.26012500000001637,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract validates renderer-safe MCP projections and exact lifecycle inputs",
+          "status": "passed",
+          "title": "validates renderer-safe MCP projections and exact lifecycle inputs",
+          "duration": 0.23662499999997522,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "typed Pi Runtime preload health contract"
+          ],
+          "fullName": "typed Pi Runtime preload health contract accepts only fixed Package inputs and path-free Package projections",
+          "status": "passed",
+          "title": "accepts only fixed Package inputs and path-free Package projections",
+          "duration": 0.8563330000000065,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465943,
+      "endTime": 1786350465947.8564,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/pi-runtime-api.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "provider credential IPC"
+          ],
+          "fullName": "provider credential IPC serializes a write-only API key for Runtime without returning it",
+          "status": "passed",
+          "title": "serializes a write-only API key for Runtime without returning it",
+          "duration": 2.2333329999999876,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "provider credential IPC"
+          ],
+          "fullName": "provider credential IPC forwards only provider IDs for status and logout",
+          "status": "passed",
+          "title": "forwards only provider IDs for status and logout",
+          "duration": 0.9748329999999896,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "provider credential IPC"
+          ],
+          "fullName": "provider credential IPC rejects every untrusted sender before parsing or dispatch",
+          "status": "passed",
+          "title": "rejects every untrusted sender before parsing or dispatch",
+          "duration": 0.789416999999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "provider credential IPC"
+          ],
+          "fullName": "provider credential IPC fails closed when no trusted renderer exists or input is invalid",
+          "status": "passed",
+          "title": "fails closed when no trusted renderer exists or input is invalid",
+          "duration": 0.2529169999999965,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465940,
+      "endTime": 1786350465944.253,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/provider-credential-ipc.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables includes the expected UI languages",
+          "status": "passed",
+          "title": "includes the expected UI languages",
+          "duration": 1.1018329999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale zh has exactly the zh key set",
+          "status": "passed",
+          "title": "locale zh has exactly the zh key set",
+          "duration": 0.5616670000000283,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale en has exactly the zh key set",
+          "status": "passed",
+          "title": "locale en has exactly the zh key set",
+          "duration": 0.1661670000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ja has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ja has exactly the zh key set",
+          "duration": 0.13887499999998454,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ko has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ko has exactly the zh key set",
+          "duration": 0.13237499999999613,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale fr has exactly the zh key set",
+          "status": "passed",
+          "title": "locale fr has exactly the zh key set",
+          "duration": 0.15920800000000668,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale de has exactly the zh key set",
+          "status": "passed",
+          "title": "locale de has exactly the zh key set",
+          "duration": 0.1457499999999925,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale es has exactly the zh key set",
+          "status": "passed",
+          "title": "locale es has exactly the zh key set",
+          "duration": 0.1134580000000085,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale th has exactly the zh key set",
+          "status": "passed",
+          "title": "locale th has exactly the zh key set",
+          "duration": 0.3934579999999812,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale id has exactly the zh key set",
+          "status": "passed",
+          "title": "locale id has exactly the zh key set",
+          "duration": 0.14929200000000264,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ru has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ru has exactly the zh key set",
+          "duration": 0.16629199999999855,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ar has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ar has exactly the zh key set",
+          "duration": 0.0973329999999919,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale pt has exactly the zh key set",
+          "status": "passed",
+          "title": "locale pt has exactly the zh key set",
+          "duration": 0.10370900000000915,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale it has exactly the zh key set",
+          "status": "passed",
+          "title": "locale it has exactly the zh key set",
+          "duration": 0.07620900000000574,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale pl has exactly the zh key set",
+          "status": "passed",
+          "title": "locale pl has exactly the zh key set",
+          "duration": 0.07962499999999295,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale nl has exactly the zh key set",
+          "status": "passed",
+          "title": "locale nl has exactly the zh key set",
+          "duration": 0.1338750000000175,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ms has exactly the zh key set",
+          "status": "passed",
+          "title": "locale ms has exactly the zh key set",
+          "duration": 0.08400000000000318,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale he has exactly the zh key set",
+          "status": "passed",
+          "title": "locale he has exactly the zh key set",
+          "duration": 0.08279099999998607,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale hi has exactly the zh key set",
+          "status": "passed",
+          "title": "locale hi has exactly the zh key set",
+          "duration": 0.0918749999999875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale zh-TW has exactly the zh key set",
+          "status": "passed",
+          "title": "locale zh-TW has exactly the zh key set",
+          "duration": 0.0795840000000112,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale zh has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale zh has no empty or whitespace-only values",
+          "duration": 0.12866600000000972,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale en has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale en has no empty or whitespace-only values",
+          "duration": 0.05658300000001759,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ja has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale ja has no empty or whitespace-only values",
+          "duration": 0.056708000000014636,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ko has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale ko has no empty or whitespace-only values",
+          "duration": 0.051167000000020835,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale fr has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale fr has no empty or whitespace-only values",
+          "duration": 0.04149999999998499,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale de has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale de has no empty or whitespace-only values",
+          "duration": 0.05383300000002578,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale es has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale es has no empty or whitespace-only values",
+          "duration": 0.05387499999997658,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale th has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale th has no empty or whitespace-only values",
+          "duration": 0.05475000000001273,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale id has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale id has no empty or whitespace-only values",
+          "duration": 0.04887500000000955,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ru has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale ru has no empty or whitespace-only values",
+          "duration": 0.05433300000001395,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ar has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale ar has no empty or whitespace-only values",
+          "duration": 0.04224999999999568,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale pt has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale pt has no empty or whitespace-only values",
+          "duration": 0.05554100000000517,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale it has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale it has no empty or whitespace-only values",
+          "duration": 0.05258299999999849,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale pl has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale pl has no empty or whitespace-only values",
+          "duration": 0.05112500000001319,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale nl has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale nl has no empty or whitespace-only values",
+          "duration": 0.05058299999998894,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ms has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale ms has no empty or whitespace-only values",
+          "duration": 0.05116699999999241,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale he has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale he has no empty or whitespace-only values",
+          "duration": 0.08320799999998485,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale hi has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale hi has no empty or whitespace-only values",
+          "duration": 0.05054100000000972,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale zh-TW has no empty or whitespace-only values",
+          "status": "passed",
+          "title": "locale zh-TW has no empty or whitespace-only values",
+          "duration": 0.05083299999998303,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale zh keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale zh keeps the zh placeholder set for each key",
+          "duration": 0.18854200000001242,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale en keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale en keeps the zh placeholder set for each key",
+          "duration": 0.09016600000001063,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ja keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale ja keeps the zh placeholder set for each key",
+          "duration": 0.08354199999999423,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ko keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale ko keeps the zh placeholder set for each key",
+          "duration": 0.08254099999999198,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale fr keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale fr keeps the zh placeholder set for each key",
+          "duration": 0.08320900000001075,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale de keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale de keeps the zh placeholder set for each key",
+          "duration": 0.07970800000001077,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale es keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale es keeps the zh placeholder set for each key",
+          "duration": 0.1267919999999947,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale th keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale th keeps the zh placeholder set for each key",
+          "duration": 0.08299999999999841,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale id keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale id keeps the zh placeholder set for each key",
+          "duration": 2.610624999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ru keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale ru keeps the zh placeholder set for each key",
+          "duration": 0.3185410000000104,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ar keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale ar keeps the zh placeholder set for each key",
+          "duration": 0.17962499999998727,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale pt keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale pt keeps the zh placeholder set for each key",
+          "duration": 0.23379099999999653,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale it keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale it keeps the zh placeholder set for each key",
+          "duration": 0.09745800000001736,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale pl keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale pl keeps the zh placeholder set for each key",
+          "duration": 0.0812079999999753,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale nl keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale nl keeps the zh placeholder set for each key",
+          "duration": 0.0759999999999934,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale ms keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale ms keeps the zh placeholder set for each key",
+          "duration": 0.14562499999999545,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale he keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale he keeps the zh placeholder set for each key",
+          "duration": 0.09874999999999545,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale hi keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale hi keeps the zh placeholder set for each key",
+          "duration": 0.07129199999999969,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables locale zh-TW keeps the zh placeholder set for each key",
+          "status": "passed",
+          "title": "locale zh-TW keeps the zh placeholder set for each key",
+          "duration": 0.068916999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "home-screen locale tables"
+          ],
+          "fullName": "home-screen locale tables has no duplicate values that suggest an untranslated copy-paste between zh and en",
+          "status": "passed",
+          "title": "has no duplicate values that suggest an untranslated copy-paste between zh and en",
+          "duration": 0.09862499999999841,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465881,
+      "endTime": 1786350465891.1455,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/strings.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "initial state"
+          ],
+          "fullName": "initial state starts with only the non-closable, active Home tab",
+          "status": "passed",
+          "title": "starts with only the non-closable, active Home tab",
+          "duration": 1.1245409999999936,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "opening tabs"
+          ],
+          "fullName": "opening tabs opens a docs tab, activates it, and attaches its view to the window",
+          "status": "passed",
+          "title": "opens a docs tab, activates it, and attaches its view to the window",
+          "duration": 1.1844999999999857,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "opening tabs"
+          ],
+          "fullName": "opening tabs titles file-backed tabs with the file basename",
+          "status": "passed",
+          "title": "titles file-backed tabs with the file basename",
+          "duration": 0.4622500000000116,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "opening tabs"
+          ],
+          "fullName": "opening tabs uses module default titles for pathless tabs",
+          "status": "passed",
+          "title": "uses module default titles for pathless tabs",
+          "duration": 0.24279200000000856,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "opening tabs"
+          ],
+          "fullName": "opening tabs assigns unique, monotonic tab ids",
+          "status": "passed",
+          "title": "assigns unique, monotonic tab ids",
+          "duration": 0.3188750000000198,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "opening tabs"
+          ],
+          "fullName": "opening tabs forwards the new-blank flag to the module",
+          "status": "passed",
+          "title": "forwards the new-blank flag to the module",
+          "duration": 0.19325000000000614,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "activation"
+          ],
+          "fullName": "activation shows only the activated tab view and lays it out below the tab strip",
+          "status": "passed",
+          "title": "shows only the activated tab view and lays it out below the tab strip",
+          "duration": 0.24779100000000653,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "activation"
+          ],
+          "fullName": "activation ignores activation of unknown tab ids",
+          "status": "passed",
+          "title": "ignores activation of unknown tab ids",
+          "duration": 0.11354199999999537,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "activation"
+          ],
+          "fullName": "activation opens a converted DOCX beside its source PDF until normal tab activation",
+          "status": "passed",
+          "title": "opens a converted DOCX beside its source PDF until normal tab activation",
+          "duration": 0.5420000000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "activation"
+          ],
+          "fullName": "activation routes the active webContents to the matching module",
+          "status": "passed",
+          "title": "routes the active webContents to the matching module",
+          "duration": 0.2067079999999919,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "activation"
+          ],
+          "fullName": "activation lets the active view cover the tab strip during HTML fullscreen",
+          "status": "passed",
+          "title": "lets the active view cover the tab strip during HTML fullscreen",
+          "duration": 0.21187499999999204,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "Agent document authorization"
+          ],
+          "fullName": "Agent document authorization authorizes only the persisted document id and rejects cross-tab reuse",
+          "status": "passed",
+          "title": "authorizes only the persisted document id and rejects cross-tab reuse",
+          "duration": 0.8735420000000147,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "window resize layout"
+          ],
+          "fullName": "window resize layout re-lays out after resize bounds settle (Linux/X11 stale getContentBounds)",
+          "status": "passed",
+          "title": "re-lays out after resize bounds settle (Linux/X11 stale getContentBounds)",
+          "duration": 2.681624999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "window resize layout"
+          ],
+          "fullName": "window resize layout skips deferred layout after the shell window is destroyed",
+          "status": "passed",
+          "title": "skips deferred layout after the shell window is destroyed",
+          "duration": 0.5139580000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs never closes the Home tab",
+          "status": "passed",
+          "title": "never closes the Home tab",
+          "duration": 0.3327500000000043,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs removes a clean tab and falls back to the previous tab",
+          "status": "passed",
+          "title": "removes a clean tab and falls back to the previous tab",
+          "duration": 0.28862500000002456,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs keeps the current tab active when closing a background tab",
+          "status": "passed",
+          "title": "keeps the current tab active when closing a background tab",
+          "duration": 1.7337909999999965,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs detaches and destroys non-docs views on close",
+          "status": "passed",
+          "title": "detaches and destroys non-docs views on close",
+          "duration": 0.7995840000000101,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs detaches docs views without destroying the webContents (freeze workaround)",
+          "status": "passed",
+          "title": "detaches docs views without destroying the webContents (freeze workaround)",
+          "duration": 0.5619999999999834,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs closes a clean docs tab after the async dirty query says clean",
+          "status": "passed",
+          "title": "closes a clean docs tab after the async dirty query says clean",
+          "duration": 0.3846249999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs keeps a dirty docs tab open when the user cancels the close guard",
+          "status": "passed",
+          "title": "keeps a dirty docs tab open when the user cancels the close guard",
+          "duration": 0.2878340000000037,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs activates a dirty background tab before showing its close guard",
+          "status": "passed",
+          "title": "activates a dirty background tab before showing its close guard",
+          "duration": 0.35183399999999665,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs closes a dirty sheets tab when the guard resolves true",
+          "status": "passed",
+          "title": "closes a dirty sheets tab when the guard resolves true",
+          "duration": 0.27445800000000986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "closing tabs"
+          ],
+          "fullName": "closing tabs does not stack close guards while one prompt is pending",
+          "status": "passed",
+          "title": "does not stack close guards while one prompt is pending",
+          "duration": 0.3983750000000157,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "file path bookkeeping"
+          ],
+          "fullName": "file path bookkeeping keeps the unsaved document id through first save",
+          "status": "passed",
+          "title": "keeps the unsaved document id through first save",
+          "duration": 0.4279589999999871,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "file path bookkeeping"
+          ],
+          "fullName": "file path bookkeeping switches identity when the editor opens a different document in the same tab",
+          "status": "passed",
+          "title": "switches identity when the editor opens a different document in the same tab",
+          "duration": 0.522750000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "file path bookkeeping"
+          ],
+          "fullName": "file path bookkeeping ignores setTabFileFor for unknown webContents",
+          "status": "passed",
+          "title": "ignores setTabFileFor for unknown webContents",
+          "duration": 0.19862499999999272,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "file path bookkeeping"
+          ],
+          "fullName": "file path bookkeeping keeps the document id through an in-app rename and reports the affected views",
+          "status": "passed",
+          "title": "keeps the document id through an in-app rename and reports the affected views",
+          "duration": 1.3928750000000036,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "file path bookkeeping"
+          ],
+          "fullName": "file path bookkeeping returns no affected views when nothing matches a rename",
+          "status": "passed",
+          "title": "returns no affected views when nothing matches a rename",
+          "duration": 0.2385409999999979,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "file path bookkeeping"
+          ],
+          "fullName": "file path bookkeeping finds tabs by kind and path",
+          "status": "passed",
+          "title": "finds tabs by kind and path",
+          "duration": 0.3553750000000093,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "file path bookkeeping"
+          ],
+          "fullName": "file path bookkeeping reports the active pdf tab with its id (so callers can re-activate it)",
+          "status": "passed",
+          "title": "reports the active pdf tab with its id (so callers can re-activate it)",
+          "duration": 0.29487500000001887,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "dirty-tab queries (shell close guard)"
+          ],
+          "fullName": "dirty-tab queries (shell close guard) lists only tabs whose module reports unsaved changes",
+          "status": "passed",
+          "title": "lists only tabs whose module reports unsaved changes",
+          "duration": 0.2960419999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "dirty-tab queries (shell close guard)"
+          ],
+          "fullName": "dirty-tab queries (shell close guard) lists dirty pdf and slides tabs",
+          "status": "passed",
+          "title": "lists dirty pdf and slides tabs",
+          "duration": 0.3575000000000159,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "dirty-tab queries (shell close guard)"
+          ],
+          "fullName": "dirty-tab queries (shell close guard) lists every live docs tab for the async dirtiness sweep",
+          "status": "passed",
+          "title": "lists every live docs tab for the async dirtiness sweep",
+          "duration": 0.34850000000000136,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465878,
+      "endTime": 1786350465897.3484,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/tab-manager.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "isUpdateChannel"
+          ],
+          "fullName": "isUpdateChannel accepts the two known channels",
+          "status": "passed",
+          "title": "accepts the two known channels",
+          "duration": 0.6961660000000052,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "isUpdateChannel"
+          ],
+          "fullName": "isUpdateChannel rejects anything else",
+          "status": "passed",
+          "title": "rejects anything else",
+          "duration": 0.25216700000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465956,
+      "endTime": 1786350465957.2522,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/update-channel.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "update-feed-utils"
+          ],
+          "fullName": "update-feed-utils parses the version from an electron-updater feed",
+          "status": "passed",
+          "title": "parses the version from an electron-updater feed",
+          "duration": 0.7603330000000028,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "update-feed-utils"
+          ],
+          "fullName": "update-feed-utils compares plain x.y.z versions",
+          "status": "passed",
+          "title": "compares plain x.y.z versions",
+          "duration": 0.16016700000000128,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "update-feed-utils"
+          ],
+          "fullName": "update-feed-utils allows promoting a strictly newer version",
+          "status": "passed",
+          "title": "allows promoting a strictly newer version",
+          "duration": 0.24424999999999386,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "update-feed-utils"
+          ],
+          "fullName": "update-feed-utils allows the first promote when no stable feed exists yet",
+          "status": "passed",
+          "title": "allows the first promote when no stable feed exists yet",
+          "duration": 0.05558400000001029,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "update-feed-utils"
+          ],
+          "fullName": "update-feed-utils rejects equal or older versions without --force",
+          "status": "passed",
+          "title": "rejects equal or older versions without --force",
+          "duration": 0.11195800000000133,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "update-feed-utils"
+          ],
+          "fullName": "update-feed-utils lets --force roll back",
+          "status": "passed",
+          "title": "lets --force roll back",
+          "duration": 0.051792000000006055,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465967,
+      "endTime": 1786350465968.2441,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/update-feed-utils.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater does nothing in unpacked (dev) runs without the fake-update env",
+          "status": "passed",
+          "title": "does nothing in unpacked (dev) runs without the fake-update env",
+          "duration": 37.29483300000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater does nothing on unsupported platforms",
+          "status": "passed",
+          "title": "does nothing on unsupported platforms",
+          "duration": 1.0452080000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater configures manual full-package download and checks after the initial delay",
+          "status": "passed",
+          "title": "configures manual full-package download and checks after the initial delay",
+          "duration": 0.6805420000000026,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater re-checks on the periodic interval",
+          "status": "passed",
+          "title": "re-checks on the periodic interval",
+          "duration": 0.6599170000000072,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater is idempotent across repeated init calls",
+          "status": "passed",
+          "title": "is idempotent across repeated init calls",
+          "duration": 0.36029199999998696,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater opens the update window with the available state when an update is found",
+          "status": "passed",
+          "title": "opens the update window with the available state when an update is found",
+          "duration": 0.8111250000000041,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater starts the download and pushes progress when the user clicks download",
+          "status": "passed",
+          "title": "starts the download and pushes progress when the user clicks download",
+          "duration": 1.3448330000000226,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater surfaces a failed download as the error phase",
+          "status": "passed",
+          "title": "surfaces a failed download as the error phase",
+          "duration": 0.4992909999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater closes the window and installs on restart when the user confirms",
+          "status": "passed",
+          "title": "closes the window and installs on restart when the user confirms",
+          "duration": 0.760249999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater does not re-prompt for a version the user dismissed this session",
+          "status": "passed",
+          "title": "does not re-prompt for a version the user dismissed this session",
+          "duration": 0.3910840000000064,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater swallows background check failures",
+          "status": "passed",
+          "title": "swallows background check failures",
+          "duration": 0.5698340000000144,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater defaults to the stable (latest) feed channel",
+          "status": "passed",
+          "title": "defaults to the stable (latest) feed channel",
+          "duration": 1.186125000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater starts on the beta feed when the beta channel is passed in",
+          "status": "passed",
+          "title": "starts on the beta feed when the beta channel is passed in",
+          "duration": 0.21804099999999949,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater applyUpdateChannel switches the feed and re-checks immediately",
+          "status": "passed",
+          "title": "applyUpdateChannel switches the feed and re-checks immediately",
+          "duration": 0.4045419999999922,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater"
+          ],
+          "fullName": "initAutoUpdater applyUpdateChannel is a no-op before the real updater is active",
+          "status": "passed",
+          "title": "applyUpdateChannel is a no-op before the real updater is active",
+          "duration": 0.2058330000000126,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater (fake update preview)"
+          ],
+          "fullName": "initAutoUpdater (fake update preview) runs a simulated download to completion in unpacked runs",
+          "status": "passed",
+          "title": "runs a simulated download to completion in unpacked runs",
+          "duration": 0.6970420000000104,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [
+            "initAutoUpdater (fake update preview)"
+          ],
+          "fullName": "initAutoUpdater (fake update preview) closes the window on later and install without touching electron-updater",
+          "status": "passed",
+          "title": "closes the window on later and install without touching electron-updater",
+          "duration": 0.28087500000000887,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786350465839,
+      "endTime": 1786350465886.697,
+      "status": "passed",
+      "message": "",
+      "name": "<repo>/apps/shell/tests/updater.test.ts"
+    }
+  ]
+}

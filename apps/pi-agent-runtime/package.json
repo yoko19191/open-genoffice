@@ -1,0 +1,32 @@
+{
+  "name": "@genoffice/pi-agent-runtime",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "description": "Trusted open-genoffice-pi-agent-runtime sidecar",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@agwab/pi-subagent": "0.4.8",
+    "@earendil-works/pi-agent-core": "0.84.0",
+    "@earendil-works/pi-ai": "0.84.0",
+    "@earendil-works/pi-coding-agent": "0.84.0",
+    "@earendil-works/pi-tui": "0.84.0",
+    "@genoffice/agent-resource": "*",
+    "@genoffice/agent-runtime-protocol": "*",
+    "@modelcontextprotocol/client": "2.0.0",
+    "fflate": "0.8.2",
+    "tar": "7.5.22"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

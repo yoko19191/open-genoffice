@@ -1,0 +1,510 @@
+{
+  "schemaVersion": 1,
+  "sourceBaselineCommit": "9d37beaf57fa3eca92d60299877d248f6d1f381e",
+  "entries": [
+    {
+      "app": "docs",
+      "legacyAlias": "apply_commands",
+      "targetId": "office:docs:apply_commands",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "edit_chart",
+      "targetId": "office:docs:edit_chart",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "get_document_context",
+      "targetId": "office:docs:get_document_context",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "image_search",
+      "targetId": "platform:image_search",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "insert_chart",
+      "targetId": "office:docs:insert_chart",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "insert_content",
+      "targetId": "office:docs:insert_content",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "insert_image",
+      "targetId": "office:docs:insert_image",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "read_attachment",
+      "targetId": "platform:artifact:read_text",
+      "effect": "read",
+      "disposition": "platform",
+      "sourceFile": "apps/docs/src/renderer/ai/files-skill.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "read_blocks",
+      "targetId": "office:docs:read_blocks",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "replace_blocks",
+      "targetId": "office:docs:replace_blocks",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "docs",
+      "legacyAlias": "web_search",
+      "targetId": "platform:web_search",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/docs/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "delete_page",
+      "targetId": "office:pdf:delete_page",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "fill_form_field",
+      "targetId": "office:pdf:fill_form_field",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "get_outline",
+      "targetId": "office:pdf:get_outline",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "goto_page",
+      "targetId": "office:pdf:goto_page",
+      "effect": "external",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "list_form_fields",
+      "targetId": "office:pdf:list_form_fields",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "markup_text",
+      "targetId": "office:pdf:markup_text",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "read_pages",
+      "targetId": "office:pdf:read_pages",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "rotate_page",
+      "targetId": "office:pdf:rotate_page",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "pdf",
+      "legacyAlias": "search_text",
+      "targetId": "office:pdf:search_text",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/pdf/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "get_workbook_context",
+      "targetId": "office:sheets:get_workbook_context",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/sheets/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "load_guide",
+      "targetId": "open-genoffice/sheets-workbook",
+      "effect": "read",
+      "disposition": "skill",
+      "sourceFile": "apps/sheets/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "propose_operations",
+      "targetId": "office:sheets:propose_operations",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/sheets/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "read_attachment",
+      "targetId": "platform:artifact:read_text",
+      "effect": "read",
+      "disposition": "platform",
+      "sourceFile": "apps/sheets/src/renderer/ai/files-skill.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "read_cells",
+      "targetId": "office:sheets:read_cells",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/sheets/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "read_formats",
+      "targetId": "office:sheets:read_formats",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/sheets/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "read_range",
+      "targetId": "office:sheets:read_range",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/sheets/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "read_sheet_features",
+      "targetId": "office:sheets:read_sheet_features",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/sheets/src/renderer/ai/tools.ts"
+    },
+    {
+      "app": "sheets",
+      "legacyAlias": "web_search",
+      "targetId": "platform:web_search",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/sheets/src/renderer/ai/search-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "add_chart",
+      "targetId": "office:slides:add_chart",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "add_shape",
+      "targetId": "office:slides:add_shape",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "add_slide",
+      "targetId": "office:slides:add_slide",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "add_smartart",
+      "targetId": "office:slides:add_smartart",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "add_table",
+      "targetId": "office:slides:add_table",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "add_text_box",
+      "targetId": "office:slides:add_text_box",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "analyze_media",
+      "targetId": "platform:analyze_media",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "ask_clarification",
+      "targetId": "platform:ask_user_question",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "delete_element",
+      "targetId": "office:slides:delete_element",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "delete_slide",
+      "targetId": "office:slides:delete_slide",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "edit_chart",
+      "targetId": "office:slides:edit_chart",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "edit_table_cell",
+      "targetId": "office:slides:edit_table_cell",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "edit_table_structure",
+      "targetId": "office:slides:edit_table_structure",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "edit_table_style",
+      "targetId": "office:slides:edit_table_style",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "execute_slide_script",
+      "targetId": "office:slides:execute_slide_script",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "generate_deck",
+      "targetId": null,
+      "effect": "external",
+      "disposition": "retired",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "generate_image",
+      "targetId": "platform:generate_image",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "get_deck_context",
+      "targetId": "office:slides:get_deck_context",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "image_search",
+      "targetId": "platform:image_search",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "insert_web_image",
+      "targetId": "office:slides:insert_image",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "list_style_templates",
+      "targetId": "resource:slides:list_style_templates",
+      "effect": "read",
+      "disposition": "resource",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "plan_deck",
+      "targetId": "open-genoffice/slides-authoring",
+      "effect": "read",
+      "disposition": "skill",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "read_attachment",
+      "targetId": "platform:artifact:read_text",
+      "effect": "read",
+      "disposition": "platform",
+      "sourceFile": "apps/slides/src/renderer/ai/files-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "read_slide",
+      "targetId": "office:slides:read_slide",
+      "effect": "read",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "regenerate_slide",
+      "targetId": null,
+      "effect": "external",
+      "disposition": "retired",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "save_style_template",
+      "targetId": "resource:slides:save_style_template",
+      "effect": "mutation",
+      "disposition": "resource",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "set_element_fill",
+      "targetId": "office:slides:set_element_fill",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "set_element_stroke",
+      "targetId": "office:slides:set_element_stroke",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "set_element_style",
+      "targetId": "office:slides:set_element_style",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "set_element_text",
+      "targetId": "office:slides:set_element_text",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "set_element_transform",
+      "targetId": "office:slides:set_element_transform",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "set_slide_background",
+      "targetId": "office:slides:set_slide_background",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "ungroup_element",
+      "targetId": "office:slides:ungroup_element",
+      "effect": "mutation",
+      "disposition": "office-executor",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    },
+    {
+      "app": "slides",
+      "legacyAlias": "web_search",
+      "targetId": "platform:web_search",
+      "effect": "external",
+      "disposition": "platform",
+      "sourceFile": "apps/slides/src/renderer/ai/slides-skill.ts"
+    }
+  ]
+}

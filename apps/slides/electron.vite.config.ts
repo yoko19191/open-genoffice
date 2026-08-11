@@ -37,8 +37,6 @@ export default defineConfig({
         exclude: [
           '@genoffice/pptx-engine',
           '@genoffice/pptx-render',
-          '@genoffice/ai-search',
-          '@genoffice/file-parse',
           '@genoffice/electron-utils',
           'opentype.js',
         ],
@@ -46,7 +44,11 @@ export default defineConfig({
     ],
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ['@genoffice/electron-utils', '@genoffice/agent-runtime-protocol'],
+      }),
+    ],
   },
   renderer: {
     resolve: { alias: workspaceAlias },

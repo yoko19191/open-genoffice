@@ -19,7 +19,6 @@ import {
   loadVisibleRange,
   loadWorkbookSkeleton,
   matrixBounds,
-  measureImage,
   navigateToAnchor,
   preloadEntireWorkbook,
   protectSheetGuard,
@@ -46,11 +45,7 @@ import {
   applyAiTableRowDelete,
   renameChartRefsForSheet,
 } from './workbook-ops'
-import {
-  proposeOperations as proposeOperationsImpl,
-  runDeterministicPlan as runDeterministicPlanImpl,
-  type PlanContext,
-} from './plan-operations'
+import { proposeOperations as proposeOperationsImpl, type PlanContext } from './plan-operations'
 import { isNumericIdentifierText } from './cell-warning'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
@@ -97,14 +92,8 @@ import UniverPresetSheetsTableEnUS from '@univerjs/preset-sheets-table/locales/e
 import '@univerjs/preset-sheets-table/lib/index.css'
 import { greenTheme } from '@univerjs/themes'
 import { createUniver } from './create-univer'
+import { removeLegacyAgentStorage } from './legacy-storage-cleanup'
 
-import {
-  AgentLoop,
-  COMPLETED_VIA_TOOLS_TEXT,
-  composeSkills,
-  type AgentImage,
-} from '@genoffice/agent-core'
-import type { AiSettings } from '@genoffice/ai-provider'
 import { type WorkbookOperation } from '../domain/workbook-dsl'
 import { columnIndex, columnLabel, parseAddress, parseRange } from '../domain/cell-address'
 import {
@@ -117,20 +106,15 @@ import {
 import { InMemoryWorkbookAdapter } from '../domain/in-memory-workbook'
 import { iconSetSaveable } from '../gateway/xlsx-cf'
 import type { ApplyOutcome, ChangePlan } from '../domain/workbook.types'
-import { createElectronTransport } from './ai/transport'
-import type { ActiveSheetInfo, SheetsSkillDeps } from './ai/tools'
-import type { AiChatMessage } from './ai/AiChatPanel'
-import { createWorkbookSkill } from './ai/workbook-skill'
-import { createFilesSkill } from './ai/files-skill'
-import { createSearchSkill } from './ai/search-skill'
-import { ATTACHMENT_IMAGE_EXTS } from '../shared/desktop-api'
-import type {
-  AttachmentAddResult,
-  AttachmentMeta,
-  MenuAction,
-  WorkbookFile,
-  WorkbookVisualObject,
-} from '../shared/desktop-api'
+import {
+  buildWorkbookContext,
+  executeWorkbookTool,
+  type ActiveSheetInfo,
+  type SheetsSkillDeps,
+  type WorkbookArtifactImage,
+} from './ai/tools'
+import { createSheetsOfficeToolRendererHandler } from './ai/office-tool-renderer-adapter'
+import type { MenuAction, WorkbookFile, WorkbookVisualObject } from '../shared/desktop-api'
 import type { PageSetupJournalState } from './edit-journal'
 import {
   AUTO_FILL_COMMAND,
@@ -138,7 +122,6 @@ import {
   BLOCKED_COMMAND_PATTERN,
   CF_MUTATIONS,
   CF_RULE_COMMAND_PATTERN,
-  CHAT_STORAGE_KEY,
   COPY_SHEET_COMMAND,
   DEFINED_NAME_MUTATIONS,
   DV_EDIT_COMMAND_PATTERN,
@@ -152,12 +135,10 @@ import {
   MOVE_RANGE_COMMAND,
   MOVE_RANGE_MUTATION,
   NOTE_MUTATIONS,
-  PERSIST_TOOL_FIELD_MAX,
   pixelsToCharacterWidth,
   REMOVE_NUMFMT_MUTATION,
   REORDER_RANGE_MUTATION,
   ROW_COLUMN_MUTATIONS,
-  safeJsonInput,
   SET_NUMFMT_MUTATION,
   SET_RANGE_VALUES_MUTATION,
   SHEET_LIFECYCLE_MUTATIONS,
@@ -276,7 +257,7 @@ import {
   recordSparklineAdd,
 } from './edit-journal'
 import { shiftPinnedCells } from './formula-closure'
-import { getLang, t, aiLangDirective } from './i18n/locale'
+import { getLang, t } from './i18n/locale'
 import { planStillMatches } from './lazy-plan'
 import { netAxisDelta, screenToFile } from './view-transform'
 import { selectionFormatEquals, toSelectionFormat, type SelectionFormat } from './selection-format'
@@ -310,8 +291,10 @@ import { ChartFormatPane, SelectDataDialog } from './ChartPanels'
 let pendingCopySource: string | undefined
 
 export function App(): React.JSX.Element {
+  useEffect(() => removeLegacyAgentStorage(), [])
   const adapterRef = useRef(new InMemoryWorkbookAdapter(initialSnapshot))
   const univerRef = useRef<UniverRuntime | null>(null)
+  const sheetsOfficeVersionRef = useRef(0)
   const lazyWorkbookRef = useRef<LazyWorkbookState | null>(null)
   /// True while Univer's in-cell editor is open (AutoSave must not save-reload then).
   const editingCellRef = useRef(false)
@@ -326,8 +309,7 @@ export function App(): React.JSX.Element {
   const visualViewportKeyRef = useRef('')
   const demoVisualDisposablesRef = useRef<{ dispose(): void }[]>([])
   const demoVisualInstallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [prompt, setPrompt] = useState('')
-  const [preview, setPreview] = useState<ChangePlan | null>(null)
+  const [, setPreview] = useState<ChangePlan | null>(null)
   const [_revision, setRevision] = useState(0)
   const [workbookFile, setWorkbookFile] = useState<WorkbookFile | null>(null)
   const [pendingEdits, setPendingEdits] = useState(0)
@@ -474,6 +456,7 @@ export function App(): React.JSX.Element {
     sessionId: string
     sheetId: string
     plan: ChangePlan
+    artifactImages: ReadonlyMap<string, WorkbookArtifactImage>
   } | null>(null)
 
   /** App-scope state bundle for the extracted plan builders (plan-operations.ts). */
@@ -545,39 +528,14 @@ export function App(): React.JSX.Element {
   function proposeOperations(
     operations: readonly WorkbookOperation[],
     summary: string,
+    artifactImages?: ReadonlyMap<string, WorkbookArtifactImage>,
   ): { ok: true; plan: ChangePlan } | { ok: false; error: string } {
-    return proposeOperationsImpl(planContext(), operations, summary)
+    return proposeOperationsImpl(planContext(), operations, summary, artifactImages)
   }
 
-  function runDeterministicPlan(instruction: string): { text: string; isError?: boolean } {
-    return runDeterministicPlanImpl(planContext(), instruction)
-  }
-
-  // ---- AI: real LLM agent (falls back to the deterministic planner above
-  // when no provider is configured — see isAgentConfigured/handleSend) ----
-  const [aiSettings, setAiSettingsState] = useState<AiSettings | null>(null)
-  const aiSettingsRef = useRef<AiSettings | null>(null)
-  aiSettingsRef.current = aiSettings
-  const [aiBusy, setAiBusy] = useState(false)
-  // Display history survives restarts via localStorage; the AgentLoop's model
-  // context does not, so restored turns are read-only transcript.
-  const [chat, setChat] = useState<readonly AiChatMessage[]>([])
-  /** History loaded from project-store (read-only transcript, not fed to the model) */
-  const [historicChat, setHistoricChat] = useState<readonly AiChatMessage[]>([])
-  // ── Chat attachments (same structure as docs/slides: text types go through the
-  // read_attachment tool, images go multimodal) ──
-  const [attachments, setAttachments] = useState<readonly AttachmentMeta[]>([])
-  const [attachNotice, setAttachNotice] = useState<string | null>(null)
-  const attachmentsRef = useRef(attachments)
-  attachmentsRef.current = attachments
-  /** Synchronous re-entrancy guard between runAgent trigger and loop.run
-   * (loop.busy is still false while attachment images load asynchronously) */
-  const runStartingRef = useRef(false)
   /** The shell can repeat its queued-open nudge while the renderer starts.
    * Only one picker/open request may own the workbook session at a time. */
   const workbookOpeningRef = useRef(false)
-  /** Current session's projectId/chatId (resolved when the workbook opens) */
-  const chatRefIdsRef = useRef<{ projectId: string; chatId: string } | null>(null)
 
   // File renamed externally (in the shell Home list) → sync the title-bar file
   // name (the save path is synced by the main process)
@@ -607,432 +565,6 @@ export function App(): React.JSX.Element {
     if (!selectedVisual) setChartDialog(null)
   }, [selectedVisual])
 
-  // ── One-time migration: import legacy localStorage history into project-store ──
-  useEffect(() => {
-    const api = (window as Window & { projectApi?: typeof window.projectApi }).projectApi
-    if (!api) return
-    const raw = localStorage.getItem(CHAT_STORAGE_KEY)
-    if (!raw) return
-    try {
-      const parsed: unknown = JSON.parse(raw)
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        localStorage.removeItem(CHAT_STORAGE_KEY)
-        return
-      }
-      const msgs = parsed.filter(
-        (
-          e,
-        ): e is {
-          role: 'user' | 'assistant'
-          text: string
-          tools?: Array<{ summary: string; isError?: boolean }>
-        } =>
-          !!e &&
-          typeof e === 'object' &&
-          ((e as { role: string }).role === 'user' ||
-            (e as { role: string }).role === 'assistant') &&
-          typeof (e as { text: string }).text === 'string',
-      )
-      if (msgs.length === 0) {
-        localStorage.removeItem(CHAT_STORAGE_KEY)
-        return
-      }
-      // Get the default project's chatId (unsaved-0 marks the file-less default chat)
-      const tempChatId = 'unsaved-legacy'
-      void api
-        .resolveChat({ filePath: null, tempChatId })
-        .then(async (ids) => {
-          for (const m of msgs) {
-            const appendArgs: Parameters<typeof api.appendChat>[0] = {
-              projectId: ids.projectId,
-              chatId: ids.chatId,
-              role: m.role,
-              text: m.text,
-            }
-            if (m.tools && m.tools.length > 0) {
-              appendArgs.tools = m.tools.map((t) => ({
-                name: '',
-                summary: t.summary,
-                isError: !!t.isError,
-              }))
-            }
-            await api.appendChat(appendArgs)
-          }
-          localStorage.removeItem(CHAT_STORAGE_KEY)
-        })
-        .catch(() => {
-          // A failed migration doesn't affect normal use; retried on next launch
-        })
-    } catch {
-      localStorage.removeItem(CHAT_STORAGE_KEY)
-    }
-  }, [])
-
-  // ── project-store: resolve chatId and load history when a workbook opens ──
-  useEffect(() => {
-    const api = (window as Window & { projectApi?: typeof window.projectApi }).projectApi
-    if (!api) return
-    // Reset (new workbook or new session)
-    chatRefIdsRef.current = null
-    setHistoricChat([])
-    const tempChatId = `unsaved-${Date.now()}`
-    const sessionId = workbookFile?.sessionId
-    const resolveArgs: Parameters<typeof api.resolveChat>[0] = { filePath: null, tempChatId }
-    if (sessionId !== undefined) resolveArgs.sessionId = sessionId
-    void api
-      .resolveChat(resolveArgs)
-      .then(async (ids) => {
-        chatRefIdsRef.current = ids
-        const msgs = await api.loadChat({
-          projectId: ids.projectId,
-          chatId: ids.chatId,
-          limit: 200,
-        })
-        if (msgs.length === 0) return
-        setHistoricChat(
-          msgs.map((m) => ({
-            role: m.role,
-            text: m.text,
-            tools:
-              m.tools?.map((t) => ({
-                summary: t.summary,
-                isError: !!t.isError,
-                ...(t.name ? { name: t.name } : {}),
-                ...(t.output ? { output: t.output.slice(0, 2000) } : {}),
-              })) ?? [],
-          })),
-        )
-        // Restore model context: follow-ups after reopening the file continue the
-        // previous conversation (only when the loop is idle and has no history)
-        agentLoopRef.current?.restore(msgs.map((m) => ({ role: m.role, text: m.text })))
-      })
-      .catch(() => {
-        /* silent */
-      })
-  }, [workbookFile?.sessionId])
-
-  const persistChatMessage = (
-    role: 'user' | 'assistant',
-    text: string,
-    tools?: Array<{
-      name?: string
-      summary: string
-      isError?: boolean
-      input?: string
-      output?: string
-    }>,
-  ) => {
-    const ids = chatRefIdsRef.current
-    const api = (window as Window & { projectApi?: typeof window.projectApi }).projectApi
-    if (!ids || !api) return
-    void api
-      .appendChat({
-        projectId: ids.projectId,
-        chatId: ids.chatId,
-        role,
-        text,
-        ...(tools && tools.length > 0
-          ? { tools: tools.map((t) => ({ ...t, name: t.name ?? '' })) }
-          : {}),
-      })
-      .catch(() => {
-        /* silent */
-      })
-  }
-
-  function appendChat(entry: AiChatMessage): void {
-    setChat((previous) => [...previous, entry])
-  }
-
-  function patchLastAssistant(patch: (entry: AiChatMessage) => AiChatMessage): void {
-    setChat((previous) => {
-      const index = previous.length - 1
-      const last = previous[index]
-      if (!last || last.role !== 'assistant') return previous
-      const next = previous.slice()
-      next[index] = patch(last)
-      return next
-    })
-  }
-
-  /** Tool activity for the whole run (args/output included, accumulated across
-   * turns) — for full transcript persistence */
-  const runToolsRef = useRef<
-    Array<{ name: string; summary: string; isError?: boolean; input?: string; output?: string }>
-  >([])
-  /** AI plans apply asynchronously after propose_operations returns. Run
-   * completion waits for these before doing the run's single auto-save. */
-  const aiApplyPromisesRef = useRef<Promise<boolean>[]>([])
-  /** Last non-empty streamed text of the run: a final empty turn falls back to
-   * it instead of wiping the model's own summary from the tool-call turn. */
-  const runLastTextRef = useRef('')
-  /** true once any tool of the run mutated the workbook */
-  const runMutatedRef = useRef(false)
-
-  const agentLoopRef = useRef<AgentLoop | null>(null)
-  if (!agentLoopRef.current) {
-    agentLoopRef.current = new AgentLoop({
-      transport: createElectronTransport(() => aiSettingsRef.current!),
-      systemSuffix: aiLangDirective,
-      skill: composeSkills('sheets+files', '', [
-        createWorkbookSkill(sheetsSkillDeps()),
-        createFilesSkill(() => attachmentsRef.current),
-        createSearchSkill(),
-      ]),
-      // guide loading adds a tool round; the default 8 cuts off multi-step work
-      maxTurns: 24,
-      events: {
-        onText: (text) => {
-          if (text) runLastTextRef.current = text
-          setMessage(text || t('appAiThinking'))
-          // When the model retries successfully and keeps streaming after a
-          // mid-run failure (e.g. one apply error), clear the error flag —
-          // otherwise the whole successful message stays rendered in red.
-          patchLastAssistant((entry) => ({ ...entry, text, isError: false }))
-        },
-        onToolStart: (call) => {
-          // Live "running" chip: replaced in place by onToolExecuted
-          patchLastAssistant((entry) => ({
-            ...entry,
-            tools: [
-              ...entry.tools,
-              {
-                summary: call.name.replace(/[_-]+/g, ' '),
-                isError: false,
-                name: call.name,
-                running: true,
-              },
-            ],
-          }))
-        },
-        onToolExecuted: ({ call, execution }) => {
-          if (execution.mutated) runMutatedRef.current = true
-          const input = safeJsonInput(call.input)
-          const output = execution.output
-            ? execution.output.slice(0, PERSIST_TOOL_FIELD_MAX)
-            : undefined
-          runToolsRef.current.push({
-            name: call.name,
-            summary: execution.summary,
-            isError: !!execution.isError,
-            ...(input !== undefined ? { input } : {}),
-            ...(output !== undefined ? { output } : {}),
-          })
-          patchLastAssistant((entry) => {
-            // Swap out the running placeholder pushed by onToolStart (parse-fail calls have none)
-            const tools = [...entry.tools]
-            if (tools.at(-1)?.running) tools.pop()
-            return {
-              ...entry,
-              tools: [
-                ...tools,
-                {
-                  summary: execution.summary,
-                  isError: !!execution.isError,
-                  name: call.name,
-                  ...(execution.output ? { output: execution.output.slice(0, 2000) } : {}),
-                },
-              ],
-            }
-          })
-        },
-        onDone: ({ text, cancelled, turnLimit }) => {
-          // Prefer tool summaries when the model finished via tools with no prose
-          // (agent-core fills history with COMPLETED_VIA_TOOLS_TEXT so follow-ups
-          // stay provider-safe; the UI can show the real work that ran).
-          const toolSummaries = (() => {
-            const lines: string[] = []
-            const seen = new Set<string>()
-            for (const tool of runToolsRef.current) {
-              if (!tool.summary || tool.isError || seen.has(tool.summary)) continue
-              seen.add(tool.summary)
-              lines.push(tool.summary)
-              if (lines.length >= 8) break
-            }
-            return lines.join('\n')
-          })()
-          // A cancelled run must keep the "stopped" notice: earlier narration or
-          // tool summaries would make an aborted run read as completed.
-          const prose =
-            text && text !== COMPLETED_VIA_TOOLS_TEXT
-              ? text
-              : cancelled
-                ? ''
-                : runLastTextRef.current || toolSummaries || text
-          // A final empty turn must not claim completion: reuse the model's last
-          // streamed text; with none, only a mutating run gets the "done" phrasing.
-          const fallback = cancelled
-            ? t('appAiStopped')
-            : runLastTextRef.current ||
-              toolSummaries ||
-              (runMutatedRef.current ? t('appAiNoSummary') : t('appAiNoAction'))
-          const finalText = turnLimit
-            ? [prose, t('appAiTurnLimit')].filter(Boolean).join('\n\n')
-            : prose || fallback
-          setMessage(finalText)
-          patchLastAssistant((entry) => ({
-            ...entry,
-            text: finalText,
-            streaming: false,
-            isError: false,
-            // A stop mid-tool can leave a running placeholder behind — drop it
-            tools: entry.tools.filter((tl) => !tl.running),
-          }))
-          // Persist the assistant message (side effect outside the updater;
-          // tools stores the run's complete activity)
-          if (!cancelled && finalText) {
-            persistChatMessage('assistant', finalText, runToolsRef.current)
-          }
-          void autoSaveCompletedAiRun().finally(() => setAiBusy(false))
-        },
-        onError: (error) => {
-          setMessage(error)
-          setChat((previous) => {
-            const next = [...previous]
-            // the loop rolled this run's user message out of the model context — surface that
-            for (let i = next.length - 1; i >= 0; i--) {
-              const entry = next[i]!
-              if (entry.role === 'user') {
-                next[i] = { ...entry, undelivered: true }
-                break
-              }
-            }
-            const last = next.at(-1)
-            if (last?.role === 'assistant') {
-              next[next.length - 1] = {
-                ...last,
-                text: error,
-                isError: true,
-                streaming: false,
-                tools: last.tools.filter((tl) => !tl.running),
-              }
-            }
-            return next
-          })
-          // Signed-out failures get an inline sign-in button; detected via
-          // gsk status rather than matching the localized error text
-          void window.desktopApi
-            .aiGskStatus()
-            .then((status) => {
-              if (status.loggedIn) return
-              setChat((previous) => {
-                const next = [...previous]
-                const last = next.at(-1)
-                if (last?.role === 'assistant' && last.isError) {
-                  next[next.length - 1] = { ...last, loginRequired: true }
-                }
-                return next
-              })
-            })
-            .catch(() => {})
-          void autoSaveCompletedAiRun().finally(() => setAiBusy(false))
-        },
-      },
-    })
-  }
-
-  function isAgentConfigured(): boolean {
-    const settings = aiSettingsRef.current
-    if (!settings) return false
-    const config = settings.providers[settings.provider]
-    if (!config?.model) return false
-    // Genspark's key never lands in the settings file; the main process injects
-    // it from the gsk login state. When logged out, requests return an error
-    // guiding sign-in — not intercepted here.
-    return settings.provider === 'genspark' || !!config.apiKey
-  }
-
-  /** Image attachments read as base64 and sent multimodal with this user message
-   * (≤5MB each, max 20; same structure as docs/slides) */
-  const MAX_IMAGES_PER_MESSAGE = 20
-  async function collectImageAttachments(): Promise<AgentImage[]> {
-    const imageAtts = attachmentsRef.current.filter((a) => ATTACHMENT_IMAGE_EXTS.has(a.ext))
-    const images: AgentImage[] = []
-    const failures: string[] = []
-    for (const att of imageAtts.slice(0, MAX_IMAGES_PER_MESSAGE)) {
-      const result = await window.desktopApi.readAttachmentImage(att.path)
-      if (result.ok && result.base64 && result.mime) {
-        images.push({ base64: result.base64, mime: result.mime })
-      } else {
-        failures.push(result.error ?? t('appAttachmentReadFailed', { name: att.name }))
-      }
-    }
-    if (imageAtts.length > MAX_IMAGES_PER_MESSAGE) {
-      failures.push(t('appTooManyImages', { max: MAX_IMAGES_PER_MESSAGE }))
-    }
-    if (failures.length > 0) {
-      setAttachNotice(failures.join('；'))
-      window.setTimeout(() => setAttachNotice(null), 5000)
-    }
-    return images
-  }
-
-  function runAgent(instruction: string): void {
-    const loop = agentLoopRef.current
-    if (!instruction.trim() || !loop || loop.busy || runStartingRef.current) return
-    runStartingRef.current = true
-    aiApplyPromisesRef.current = []
-    runLastTextRef.current = ''
-    runMutatedRef.current = false
-    setAiBusy(true)
-    setMessage(t('appAiThinking'))
-    appendChat({ role: 'assistant', text: '', tools: [], streaming: true })
-    void collectImageAttachments()
-      .then((images) => {
-        runStartingRef.current = false
-        loop.run(instruction, images)
-      })
-      .catch(() => {
-        runStartingRef.current = false
-        loop.run(instruction)
-      })
-  }
-
-  const mergeAttachments = (result: AttachmentAddResult | null): void => {
-    if (!result) return
-    if (result.accepted.length > 0) {
-      setAttachments((prev) => {
-        const seen = new Set(prev.map((a) => a.path))
-        return [...prev, ...result.accepted.filter((a) => !seen.has(a.path))]
-      })
-    }
-    if (result.rejected.length > 0) {
-      setAttachNotice(result.rejected.join('；'))
-      window.setTimeout(() => setAttachNotice(null), 5000)
-    }
-  }
-
-  async function handlePickAttachments(): Promise<void> {
-    mergeAttachments(await window.desktopApi.pickAttachments())
-  }
-
-  async function handleAddAttachmentPaths(paths: readonly string[]): Promise<void> {
-    if (paths.length === 0) return
-    mergeAttachments(await window.desktopApi.addAttachmentPaths([...paths]))
-  }
-
-  async function handleAddPastedImage(data: ArrayBuffer, ext: string): Promise<void> {
-    mergeAttachments(await window.desktopApi.addPastedImage(data, ext))
-  }
-
-  function handleRemoveAttachment(path: string): void {
-    setAttachments((prev) => prev.filter((a) => a.path !== path))
-  }
-
-  function handleStopAgent(): void {
-    agentLoopRef.current?.cancel()
-  }
-
-  function handleNewChat(): void {
-    agentLoopRef.current?.reset()
-    setAiBusy(false)
-    setChat([])
-    setHistoricChat([])
-    setPreview(null)
-    lazyPreviewRef.current = null
-    setMessage(t('appNewConversation'))
-  }
-
   /** DSL context the AgentSkill reads/writes through — reuses the exact same
    * preview-then-apply path handlePlan/handleLazyPlan already exercise. */
   /** App-scope refs bundle for the extracted workbook readers (ai/workbook-readers.ts). */
@@ -1061,10 +593,6 @@ export function App(): React.JSX.Element {
       proposeOperations,
     }
   }
-
-  useEffect(() => {
-    void window.desktopApi.getAiSettings().then(setAiSettingsState)
-  }, [])
 
   useEffect(() => {
     const runtime = createUniver({
@@ -1942,6 +1470,7 @@ export function App(): React.JSX.Element {
       runtime.univerAPI.Event.CommandExecuted,
       (event) => {
         if (!event.id.includes('mutation')) return
+        sheetsOfficeVersionRef.current += 1
         if (contentTimer) clearTimeout(contentTimer)
         contentTimer = setTimeout(recomputeSheetContent, 200)
       },
@@ -1990,25 +1519,54 @@ export function App(): React.JSX.Element {
     }
   }, [])
 
-  function handleSend(overrideInstruction?: string): void {
-    const instruction = (overrideInstruction ?? prompt).trim()
-    if (!instruction || aiBusy) return
-    runToolsRef.current = []
-    appendChat({ role: 'user', text: instruction, tools: [] })
-    persistChatMessage('user', instruction)
-    if (!overrideInstruction) setPrompt('')
-    // real LLM configured → let the agent read context and propose operations;
-    // otherwise fall back to the local, deterministic regex planner
-    // (kept for offline use and for the fixed micro-DSL it still supports).
-    if (isAgentConfigured()) {
-      runAgent(instruction)
-      return
-    }
-    const outcome = runDeterministicPlan(instruction)
-    setMessage(outcome.text)
-    appendChat({ role: 'assistant', text: outcome.text, tools: [], isError: outcome.isError })
-    persistChatMessage('assistant', outcome.text)
+  const advanceSheetsOfficeVersion = (): string => {
+    sheetsOfficeVersionRef.current += 1
+    return `sheets-edit-${sheetsOfficeVersionRef.current}`
   }
+
+  useEffect(() => {
+    if (!univerRef.current) return
+    const handler = createSheetsOfficeToolRendererHandler({
+      contextVersion: () => `sheets-edit-${sheetsOfficeVersionRef.current}`,
+      advanceContextVersion: advanceSheetsOfficeVersion,
+      contextContent: () => buildWorkbookContext(sheetsSkillDeps()),
+      contextDetails: () => {
+        const info = getActiveSheetInfo()
+        return {
+          mode: info.mode,
+          sheetId: info.sheetId,
+          sheetName: info.sheetName,
+          ...(info.selection ? { selection: info.selection } : {}),
+        }
+      },
+      undoMutations: async (count) => {
+        for (let index = 0; index < count; index += 1) {
+          if (lazyWorkbookRef.current) {
+            await univerRef.current?.univerAPI.undo()
+            continue
+          }
+          const receipt = adapterRef.current.undo()
+          loadSnapshotIntoUniver(
+            univerRef.current,
+            adapterRef.current.getSnapshot(),
+            'new-workbook',
+            'Untitled',
+          )
+          setRevision(receipt.revision)
+        }
+        setPreview(null)
+        queueDemoVisualInstallForActiveSheet()
+      },
+      execute: async (modelAlias, input, signal, artifactImages) => {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+        return await executeWorkbookTool(
+          { id: `office-${crypto.randomUUID()}`, name: modelAlias, input },
+          { ...sheetsSkillDeps(), artifactImages },
+        )
+      },
+    })
+    return window.sheetsOfficeTools.onRequest(handler)
+  }, [])
 
   /// AI edits on imported workbooks preview against the live sheet, then
   /// apply through Univer commands so they enter the edit journal exactly
@@ -2090,49 +1648,6 @@ export function App(): React.JSX.Element {
     if (runtime && sheetId) queueDemoVisualInstall(runtime, sheetId)
   }
 
-  /** Default worksheet names carry no content signal, so they never name the file. */
-  const DEFAULT_SHEET_NAME_RE = /^(sheet|工作表|ワークシート|シート)\s*\d*$/i
-
-  /** Waits for every plan submitted during one AI run, then persists all
-   * successful writes in one save. A canceled/failed Save As leaves both the
-   * journal and inline undo available. */
-  async function autoSaveCompletedAiRun(): Promise<void> {
-    const applies = aiApplyPromisesRef.current
-    aiApplyPromisesRef.current = []
-    if (applies.length === 0) return
-    const results = await Promise.all(applies)
-    if (!results.some(Boolean)) return
-    const state = lazyWorkbookRef.current
-    if (!state || journalSize(state.editJournal) === 0) return
-    // AutoSave off = the user decides when the file is written: the
-    // run's edits stay pending in the journal, so the offered Undo / ⌘Z keeps
-    // working (saving would reopen the session and reset the undo stack).
-    if (!autoSaveRef.current) {
-      setMessage(t('appAiChangesNotSaved'))
-      return
-    }
-    // AutoSave-driven write after an AI run: silent like the interval autosave.
-    await handleSave('save', true)
-    const after = lazyWorkbookRef.current
-    if (after && journalSize(after.editJournal) === 0) {
-      // Saving reopens the sidecar session and resets Univer's undo stack.
-      patchLastAssistant(({ autoApplied: _autoApplied, ...entry }) => entry)
-      // Sheets' analog of slides' deckName: propose the first AI-named sheet as
-      // the file name. The main process no-ops unless the file still carries the
-      // shell's auto-created untitled name, so user-chosen names are never touched.
-      const candidate = after.file.sheets
-        .map((sheet) => sheet.name.trim())
-        .find((name) => name.length > 0 && !DEFAULT_SHEET_NAME_RE.test(name))
-      if (candidate) {
-        try {
-          await window.desktopApi.autoRenameWorkbook(after.file.sessionId, candidate)
-        } catch {
-          // naming is best-effort; the save itself already succeeded
-        }
-      }
-    }
-  }
-
   /**
    * Auto-apply a just-proposed plan without the manual Apply click.
    *
@@ -2145,20 +1660,12 @@ export function App(): React.JSX.Element {
    * When apply fails, the preview card stays up as a manual fallback.
    */
   function autoApplySafePlan(plan: ChangePlan): Promise<ApplyOutcome> {
-    const opCount =
-      plan.cellChanges.length +
-      plan.formatChanges.length +
-      plan.sheetRenames.length +
-      plan.structuralChanges.length
     const state = lazyWorkbookRef.current
     if (state) {
       // Lazy path reads lazyPreviewRef (a ref, already set by the caller) —
       // safe to invoke synchronously right after propose.
       const apply = handleLazyApply(state).then((outcome) => {
-        if (outcome.ok) {
-          // Patch last assistant message with inline undo button.
-          patchLastAssistant((entry) => ({ ...entry, autoApplied: { opCount } }))
-        } else {
+        if (!outcome.ok) {
           // No manual-apply entry point: the failure reason is already in the
           // chat/status bar, and the preview card just collapses.
           lazyPreviewRef.current = null
@@ -2166,7 +1673,6 @@ export function App(): React.JSX.Element {
         }
         return outcome
       })
-      aiApplyPromisesRef.current.push(apply.then((outcome) => outcome.ok))
       return apply
     }
     // Non-lazy path: apply the passed plan directly (setPreview is async, so we
@@ -2197,8 +1703,6 @@ export function App(): React.JSX.Element {
       setRevision(revision)
       setPreview(null)
       setMessage(t('appAppliedRevision', { revision }))
-      // Patch last assistant message to show inline undo button.
-      patchLastAssistant((entry) => ({ ...entry, autoApplied: { opCount } }))
       return Promise.resolve({ ok: true })
     } catch (error: unknown) {
       // Fall back to leaving the preview up so the user can Apply manually.
@@ -2225,41 +1729,12 @@ export function App(): React.JSX.Element {
       setMessage(t('appPreviewSheetGone'))
       return { ok: false, reason: t('appPreviewSheetGone') }
     }
-    // Image bytes load BEFORE the drift check and the (synchronous) mutation
-    // loop, so a slow disk read can never interleave with edits.
-    const imageData = new Map<
-      string,
-      { dataUrl: string; mediaType: string; width: number; height: number }
-    >()
-    try {
-      for (const structural of stored.plan.structuralChanges) {
-        if (structural.op.op !== 'add_image' || imageData.has(structural.op.path)) continue
-        const image = await window.desktopApi.readLocalImage({ path: structural.op.path })
-        const dataUrl = `data:${image.mediaType};base64,${image.base64}`
-        const size = await measureImage(dataUrl)
-        imageData.set(structural.op.path, { dataUrl, mediaType: image.mediaType, ...size })
-      }
-    } catch (error: unknown) {
-      const reason = error instanceof Error ? error.message : t('appCannotReadImage')
-      setMessage(reason)
-      patchLastAssistant((entry) => ({
-        ...entry,
-        text: `${entry.text}\n\n${t('appApplyFailed', { reason })}`,
-        isError: true,
-      }))
-      return { ok: false, reason }
-    }
     if (lazyPreviewRef.current !== stored || lazyWorkbookRef.current !== state) {
       return { ok: false, reason: t('appApplyTxFailed') }
     }
     if (!planStillMatches(stored.plan, lazyCellReader(worksheet))) {
       const reason = t('appWorkbookChangedSincePreview')
       setMessage(reason)
-      patchLastAssistant((entry) => ({
-        ...entry,
-        text: `${entry.text}\n\n${t('appApplyFailed', { reason })}`,
-        isError: true,
-      }))
       return { ok: false, reason }
     }
     // All commands of one propose merge into a single undo item (⌘Z / [Undo]
@@ -2289,15 +1764,19 @@ export function App(): React.JSX.Element {
         else if (op.op === 'merge_cells') worksheet.getRange(op.range).merge()
         else if (op.op === 'unmerge_cells') worksheet.getRange(op.range).breakApart()
         else if (op.op === 'set_row_height') {
-          worksheet.setRowHeights(op.row - 1, op.count, Math.round((op.heightPoints * 96) / 72))
+          worksheet.setRowHeights(
+            op.row - 1,
+            op.count ?? 1,
+            Math.round((op.heightPoints * 96) / 72),
+          )
         } else if (op.op === 'set_col_width') {
-          worksheet.setColumnWidths(columnIndex(op.column), op.count, Math.round(op.widthPx))
+          worksheet.setColumnWidths(columnIndex(op.column), op.count ?? 1, Math.round(op.widthPx))
         } else if (op.op === 'set_rows_hidden') {
-          if (op.hidden) sheetById(op.sheetId).hideRows(op.row - 1, op.count)
-          else sheetById(op.sheetId).showRows(op.row - 1, op.count)
+          if (op.hidden) sheetById(op.sheetId).hideRows(op.row - 1, op.count ?? 1)
+          else sheetById(op.sheetId).showRows(op.row - 1, op.count ?? 1)
         } else if (op.op === 'set_cols_hidden') {
-          if (op.hidden) sheetById(op.sheetId).hideColumns(columnIndex(op.column), op.count)
-          else sheetById(op.sheetId).showColumns(columnIndex(op.column), op.count)
+          if (op.hidden) sheetById(op.sheetId).hideColumns(columnIndex(op.column), op.count ?? 1)
+          else sheetById(op.sheetId).showColumns(columnIndex(op.column), op.count ?? 1)
         } else if (op.op === 'duplicate_sheet') {
           if (!workbook) throw new Error(t('appNoWorkbookOpen'))
           const copy = workbook.duplicateSheet(sheetById(op.sheetId))
@@ -2359,8 +1838,8 @@ export function App(): React.JSX.Element {
         } else if (op.op === 'edit_shape') {
           applyAiShapeEditImpl(visualContext(), runtime, state, op)
         } else if (op.op === 'add_image') {
-          const image = imageData.get(op.path)
-          if (!image) throw new Error(t('appImageNotLoaded', { path: op.path }))
+          const image = stored.artifactImages.get(op.artifactId)
+          if (!image) throw new Error(t('appImageNotLoaded', { path: op.artifactId }))
           insertAiImageVisualImpl(visualContext(), runtime, state, op, image)
         } else if (op.op === 'add_table') {
           applyAiTableAdd(runtime, state, op)
@@ -2498,17 +1977,6 @@ export function App(): React.JSX.Element {
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : t('appApplyTxFailed')
       setMessage(reason)
-      // The chat answer already promised the change — surface the failure
-      // there too, or it silently never lands on the canvas.
-      patchLastAssistant((entry) =>
-        entry.text.includes(reason)
-          ? entry
-          : {
-              ...entry,
-              text: `${entry.text}\n\n${t('appApplyFailed', { reason })}`,
-              isError: true,
-            },
-      )
       return { ok: false, reason }
     } finally {
       undoBatching?.dispose()
@@ -3009,25 +2477,10 @@ export function App(): React.JSX.Element {
         />
       )}
       <ExcelShell
-        prompt={prompt}
-        preview={preview}
         sheetHasContent={sheetHasContent}
         pageLayout={activePageLayout}
         selectionFormat={selectionFormat}
         statusMessage={message}
-        aiBusy={aiBusy}
-        chat={chat}
-        historicChat={historicChat}
-        attachments={attachments}
-        attachNotice={attachNotice}
-        onPickAttachments={() => void handlePickAttachments()}
-        onAddAttachmentPaths={(paths) => void handleAddAttachmentPaths(paths)}
-        onAddPastedImage={(data, ext) => void handleAddPastedImage(data, ext)}
-        onRemoveAttachment={handleRemoveAttachment}
-        onPromptChange={setPrompt}
-        onSend={handleSend}
-        onStop={handleStopAgent}
-        onNewChat={handleNewChat}
         onUndo={handleUndo}
         onCommand={handleRibbonCommand}
         zoomPercent={zoomPercent}
