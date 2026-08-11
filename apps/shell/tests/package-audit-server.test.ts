@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { mkdtemp } from 'node:fs/promises'
 import { createConnection } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -11,6 +12,14 @@ import {
 } from '../src/main/package-audit-server'
 
 const token = 'a'.repeat(64)
+
+async function auditEndpoint(prefix: string): Promise<string> {
+  if (process.platform === 'win32') {
+    return `\\\\.\\pipe\\genoffice-package-audit-${randomBytes(16).toString('hex')}`
+  }
+  const directory = await mkdtemp(join(tmpdir(), prefix))
+  return join(directory, 'audit.sock')
+}
 
 function rawRequest(endpoint: string, parts: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -99,8 +108,7 @@ describe('package audit server', () => {
   })
 
   it('uses a token-authenticated fixed operation protocol and shuts down cleanly', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'genoffice-package-audit-server-'))
-    const endpoint = join(directory, 'audit.sock')
+    const endpoint = await auditEndpoint('genoffice-package-audit-server-')
     const shutdown = vi.fn()
     const audit = await startPackageAuditServer({
       token,
@@ -139,8 +147,7 @@ describe('package audit server', () => {
   })
 
   it('rejects invalid startup data and redacts collector failures', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'genoffice-package-audit-invalid-'))
-    const endpoint = join(directory, 'audit.sock')
+    const endpoint = await auditEndpoint('genoffice-package-audit-invalid-')
     await expect(
       startPackageAuditServer({
         token: undefined,

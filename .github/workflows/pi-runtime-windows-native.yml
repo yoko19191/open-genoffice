@@ -74,6 +74,7 @@ jobs:
           npm run test -w @genoffice/agent-runtime-protocol
           npm run test -w @genoffice/pi-runtime-bundle -- --coverage.enabled=false
           npm run test -w @genoffice/pi-agent-runtime -- --fileParallelism=false
+          npm run test -w @genoffice/shell -- --coverage.enabled=false tests/package-audit-server.test.ts
           npm run test -w @genoffice/electron-utils -- --coverage.enabled=false tests/pi-runtime-manager.test.ts tests/pi-runtime-node.test.ts tests/pi-runtime-service.test.ts tests/pi-runtime-supervisor.test.ts tests/agent-session-broker.test.ts tests/pi-runtime-e2e.test.ts tests/windows-job-launcher-e2e.test.ts
 
       - name: Collect redacted native evidence
