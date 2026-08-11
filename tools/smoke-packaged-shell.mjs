@@ -176,9 +176,18 @@ async function launchShell(env) {
       GENOFFICE_PACKAGE_AUDIT_TOKEN: auditToken,
       GENOFFICE_PACKAGE_AUDIT_ENDPOINT: auditEndpoint,
     },
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
+  let processOutput = ''
+  const collectProcessOutput = (stream, label) => {
+    stream?.setEncoding('utf8')
+    stream?.on('data', (chunk) => {
+      processOutput = `${processOutput}[${label}] ${chunk}`.slice(-16 * 1024)
+    })
+  }
+  collectProcessOutput(child.stdout, 'stdout')
+  collectProcessOutput(child.stderr, 'stderr')
   const exited = new Promise((resolveExit) =>
     child.once('exit', (code, signal) => resolveExit({ code, signal })),
   )
@@ -227,6 +236,17 @@ async function launchShell(env) {
     }
   } catch (error) {
     await forceClose()
+    const diagnostic = processOutput
+      .replaceAll(auditToken, '[audit-token]')
+      .replaceAll(auditEndpoint, '[audit-endpoint]')
+      .replaceAll(scratch, '[scratch]')
+      .trim()
+    if (diagnostic) {
+      throw new Error(
+        `${error instanceof Error ? error.message : 'package_shell_smoke_failed'}:${JSON.stringify({ exitCode: child.exitCode, output: diagnostic })}`,
+        { cause: error },
+      )
+    }
     throw error
   }
 }
