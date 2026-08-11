@@ -56,6 +56,8 @@ describe('validatePackageShellSmoke', () => {
     expect(packageShellLaunchStrategy('linux')).toBe('electron')
     expect(packageShellLaunchArgs('win32', 'C:\\smoke\\user-data')).toEqual([
       '--user-data-dir=C:\\smoke\\user-data',
+      '--enable-logging=stderr',
+      '--noerrdialogs',
     ])
     expect(packageShellLaunchArgs('darwin', '/tmp/user-data')).toEqual([])
     expect(packageShellLaunchArgs('linux', '/tmp/user-data')).toEqual(['--no-sandbox'])

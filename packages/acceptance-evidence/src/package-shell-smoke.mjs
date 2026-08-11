@@ -17,7 +17,7 @@ export function packageShellLaunchStrategy(platform) {
 
 export function packageShellLaunchArgs(platform, userData) {
   return platform === 'win32'
-    ? [`--user-data-dir=${userData}`]
+    ? [`--user-data-dir=${userData}`, '--enable-logging=stderr', '--noerrdialogs']
     : platform === 'linux'
       ? ['--no-sandbox']
       : []
