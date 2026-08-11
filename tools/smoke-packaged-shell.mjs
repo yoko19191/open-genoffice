@@ -236,6 +236,17 @@ async function launchShell(env) {
     }
   } catch (error) {
     await forceClose()
+    const networkAudit = (await readFile(networkReportPath, 'utf8').catch(() => ''))
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .flatMap((line) => {
+        try {
+          const event = JSON.parse(line)
+          return [{ kind: event.kind, process: event.process, surface: event.surface }]
+        } catch {
+          return [{ kind: 'invalid' }]
+        }
+      })
     const diagnostic = processOutput
       .replaceAll(auditToken, '[audit-token]')
       .replaceAll(auditEndpoint, '[audit-endpoint]')
@@ -243,11 +254,14 @@ async function launchShell(env) {
       .trim()
     if (diagnostic) {
       throw new Error(
-        `${error instanceof Error ? error.message : 'package_shell_smoke_failed'}:${JSON.stringify({ exitCode: child.exitCode, output: diagnostic })}`,
+        `${error instanceof Error ? error.message : 'package_shell_smoke_failed'}:${JSON.stringify({ exitCode: child.exitCode, output: diagnostic, networkAudit })}`,
         { cause: error },
       )
     }
-    throw error
+    throw new Error(
+      `${error instanceof Error ? error.message : 'package_shell_smoke_failed'}:${JSON.stringify({ exitCode: child.exitCode, networkAudit })}`,
+      { cause: error },
+    )
   }
 }
 

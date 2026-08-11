@@ -142,7 +142,7 @@ describe('package audit server', () => {
       status: 'ok',
       accepted: true,
     })
-    expect(shutdown).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(shutdown).toHaveBeenCalledOnce())
     await audit.close()
   })
 
